@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<script src="/auth.js" defer></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Felsök – Uppackning</title>
+<style>
+:root{
+  --ok:#2ea043;
+  --blue:#3b6ea8;
+  --red:#a34343;
+  --neutral:#273457;
+  --chip:#0f1a44;
+  --chip-br:#1e2a57;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Ubuntu,'Helvetica Neue',Arial,sans-serif;background:#0b1020;color:#e7eeff}
+.container{max-width:1700px;margin:0 auto;padding:16px}
+.nav{position:sticky;top:0;z-index:50;display:flex;gap:10px;align-items:center;background:#0b1020cc;border-bottom:1px solid #1e2a57;padding:10px 16px;margin:-16px -16px 12px -16px;backdrop-filter:blur(6px)}
+.nav .spacer{flex:1}
+.badge,button{background:#0f1a44;border:1px solid #1e2a57;border-radius:999px;padding:6px 12px;color:#e7eeff;cursor:pointer}
+.badge{text-decoration:none;display:inline-flex;gap:6px;align-items:center}
+.badge:hover,button:hover{filter:brightness(1.1)}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.toolbar .spacer{flex:1}
+h1{margin:6px 0 8px 0}
+.hint{opacity:.75}
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{padding:12px 14px;border-bottom:1px solid #1e2a57; font-size:14px; line-height:1.25}
+.table th{position:sticky;top:62px;background:#0c1230;z-index:2;text-align:left}
+.table .num{text-align:right;white-space:nowrap}
+.rowwrap{position:relative}
+.left-check{position:absolute;left:-16px;top:50%;transform:translateY(-50%);font-size:18px}
+.row-selected{outline:2px solid #fff;outline-offset:-2px}
+.sku-wrap{display:flex;align-items:center;gap:6px}
+.sku-dup{background:#ffd978;color:#222;padding:2px 8px;border-radius:999px;font-weight:800}
+.diffchip{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:6px 12px;border:1px solid #1e2a57;background:#122048;font-weight:700;letter-spacing:.2px}
+.diffchip.ok{background:var(--ok);border-color:rgba(0,0,0,.2);color:#fff}
+.diffchip.red{background:#5a2431;color:#ffd6d6;border-color:#7a3848}
+.diffchip.blue{background:#1f3452;color:#d7e8ff;border-color:#2e4a73}
+.wrap{display:grid;grid-template-columns: 1fr 520px;gap:16px;align-items:start}
+.side{background:#0b1330;border:1px solid #1e2a57;border-radius:14px;padding:16px;position:sticky;top:82px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.side h3{margin:0 0 6px}
+.kolli-head{display:flex;justify-content:space-between;align-items:center;margin:8px 0 6px}
+.select{background:#0c1537;border:1px solid #1e2a57;border-radius:10px;padding:6px 10px;color:#e7eeff}
+.kollitab{width:100%;border-collapse:collapse}
+.kollitab th,.kollitab td{padding:8px 10px;border-bottom:1px solid #1e2a57;text-align:left}
+.kollitab .num{text-align:right}
+.qrows{margin-top:8px;border-top:1px solid #1e2a57}
+.qrow{display:flex;justify-content:space-between;align-items:center;padding:8px 2px;border-bottom:1px solid #13224a}
+.qty-pill{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:26px;padding:0 10px;border-radius:8px;border:1px solid #2b3770;font-weight:800}
+.qtyc0{background:#f7d267;color:#1a1a1a;border-color:#d9b24a}  /* 12 gul */
+.qtyc1{background:#5aa9ff;color:#fff;border-color:#3f8fe7}      /* 11 blå */
+.qtyc2{background:#f28b82;color:#fff;border-color:#d67068}      /* 8 röd */
+</style>
+</head>
+<body>
+<div class="nav">
+  <a href="/" class="badge">Startsidan</a>
+  <a href="/sandningar.html" class="badge">Sändning</a>
+  <a href="javascript:void(0)" id="goInsamlare" class="badge">Insamlare</a>
+  <a href="javascript:void(0)" id="goUppdatera" class="badge">Uppdatera info</a>
+  <button id="toggleFilter">Visa kompletta</button>
+  <span class="badge" id="rowCount">Rader: 0</span>
+  <div class="spacer"></div>
+  <a href="javascript:void(0)" id="goSkickaDiff" class="badge">Skicka Diff</a>
+</div>
+
+<div class="container">
+  <h1>Felsök – Uppackning</h1>
+  <div class="hint">Per-sändning. Rader som någon gång haft diff eller markerats “Felsökt Klar” visas alltid.</div>
+
+  <div class="toolbar">
+    <span class="badge"><strong>A:</strong> Ordernummer</span>
+    <span class="badge"><strong>B:</strong> SKU</span>
+    <span class="badge"><strong>C:</strong> Beskrivning</span>
+    <span class="badge"><strong>D:</strong> Aviserad</span>
+    <span class="badge"><strong>E:</strong> Levererat</span>
+    <span class="badge"><strong>F:</strong> Återstår</span>
+    <span class="badge"><strong>G:</strong> Diff</span>
+    <div class="spacer"></div>
+    <button id="markResolved">Felsökt Klar</button>
+    <button id="unmarkResolved">Ångra Klar</button>
+  </div>
+
+  <button id="loadLocal">Uppdatera från lokal lagring</button> <span id="statusMsg" class="hint"></span>
+
+  <div class="wrap" style="margin-top:10px">
+    <div>
+      <table id="tbl" class="table"></table>
+      <div id="emptyHint" class="hint"></div>
+    </div>
+    <aside class="side">
+      <div id="diffBig" class="diffchip">Diff: 0</div>
+      <div class="kolli-head">
+        <div id="kollititle" style="font-weight:700">Kollirutan</div>
+        <label>BatchID för vald rad:
+          <select id="batchFilter" class="select">
+            <option value="">(auto – förslag)</option>
+          </select>
+        </label>
+      </div>
+      <div style="font-weight:700;margin-top:6px">Kollistat</div>
+      <div id="kollistat"></div>
+      <div class="hint" id="hitInfo"></div>
+      <table class="kollitab" id="kollitab"></table>
+    </aside>
+  </div>
+</div>
+
+<script>
+function qs(name){ const u=new URL(location.href); return u.searchParams.get(name); }
+function currentSid(){ return qs('sid'); }
+function lsPrefix(scope){ const sid=currentSid(); return sid ? `inlev:ship:${sid}:${scope}:` : `inlev:${scope}:`; }
+function navTo(path){ const sid=currentSid(); if(sid){ const u=new URL(path, location.origin); u.searchParams.set('sid', sid); location.href=u.pathname+u.search; } else { location.href=path; } }
+document.getElementById('goInsamlare').onclick=()=>navTo('/insamlare.html');
+document.getElementById('goUppdatera').onclick=()=>navTo('/uppdatera-info.html');
+document.getElementById('goSkickaDiff').onclick=()=>navTo('/skicka-diff.html');
+
+const sid=currentSid();
+const RES_KEY = (sid? 'inlev:ship:'+sid+':felsok:resolvedKeys' : 'inlev:__no-sid__:felsok:resolvedKeys');
+const EVER_KEY= (sid? 'inlev:ship:'+sid+':felsok:everDiffKeys' : 'inlev:__no-sid__:felsok:everDiffKeys');
+const K_BASE  = (sid? lsPrefix('insamlare') : 'inlev:__no-sid__:');
+const K_UPD   = (sid? lsPrefix('update')    : 'inlev:__no-sid__:');
+
+const HEADERS=['Ordernummer','SKU','Beskrivning','Aviserad','Levererat','Återstår','Diff'];
+let state = { rows:[], hideOk:true, selectedKey:null, resolved:new Set(), regItems:[], everDiff:new Set() };
+
+function parseJSON(k){ try{ return JSON.parse(localStorage.getItem(k)||'[]'); }catch(_){ return []; } }
+function n(v){ const x=Number(String(v??'').replace(',','.')); return isNaN(x)?0:x; }
+function computeDiff(a,l,r){ const A=n(a), L=n(l), R=n(r); if(A===L && R>0) return -R; return L-A; }
+function classify(d){ if(d===0) return 'ok'; return d<0?'blue':'red'; }
+function skuOf(r){ return String((r['SKU']||r['SKU/Beskrivning']||'').toString().split(/\\s*\\n\\s*/)[0]||'').trim(); }
+function rowKey(r){ return skuOf(r)+'|'+(r['Ordernummer']||''); }
+
+function normFromUppRow(r){
+  const sku=skuOf(r);
+  const A=String(r['Aviserad']||''), L=String(r['Levererat']||''), Y=String(r['Återstår']||'');
+  const diff=computeDiff(A,L,Y), cls=classify(diff);
+  return { 'Ordernummer': String(r['Ordernummer']||''), 'SKU': sku, 'Beskrivning': String(r['Beskrivning']||r['SKU/Beskrivning']||''), 'Aviserad': A, 'Levererat': L, 'Återstår': Y, 'Diff': (diff>0?'+':'')+diff, __diff:diff, __cls:cls };
+}
+
+// Låsta QTY-färger
+function qtyColorClass(q){ q=Number(q)||0; if(q===12) return 'qtyc0'; if(q===11) return 'qtyc1'; if(q===8) return 'qtyc2'; const order=['qtyc0','qtyc2','qtyc1']; return order[(q%3+3)%3]; }
+
+// Merge base+updated (hantera dubbletter)
+function mergeBaseAndUpdated(baseRows, updatedRows){
+  const normWS = s => String(s??'').trim().replace(/\\s+/g,' ');
+  const num = v => { const n = Number(String(v??'').replace(',','.')); return isNaN(n)?0:n; };
+  const items = updatedRows.map(u => ({ n: normFromUppRow(u), used:false }));
+  const mapK5=new Map(), mapK2=new Map(), mapK1=new Map();
+  function k5(n){ return normWS(n['SKU'])+'|'+normWS(n['Ordernummer'])+'|'+num(n['Aviserad'])+'|'+num(n['Levererat'])+'|'+num(n['Återstår']); }
+  function k2(n){ return normWS(n['SKU'])+'|'+normWS(n['Ordernummer']); }
+  items.forEach(it=>{ const K5=k5(it.n), K2=k2(it.n), K1=normWS(it.n['SKU']); (mapK5.get(K5)||mapK5.set(K5,[]).get(K5)).push(it); (mapK2.get(K2)||mapK2.set(K2,[]).get(K2)).push(it); (mapK1.get(K1)||mapK1.set(K1,[]).get(K1)).push(it); });
+  function takeClosest(list, target){ if(!list) return null; let best=null, dist=Infinity; for(let i=list.length-1;i>=0;i--){ const it=list[i]; if(it.used) continue; const lv=num(it.n['Levererat']); const d=Math.abs(lv-target); if(d<dist){ dist=d; best=it; } } if(best){ best.used=true; } return best; }
+  function takeLastUnused(list){ if(!list) return null; for(let i=list.length-1;i>=0;i--){ const it=list[i]; if(!it.used){ it.used=true; return it; } } return null; }
+  const out=[];
+  baseRows.forEach(bRow=>{
+    const nb=normFromUppRow(bRow); const baseLev = num(nb['Levererat']||nb['Aviserad']||0);
+    let pick = takeLastUnused(mapK5.get(k5(nb)));
+    if(!pick){ const lst=mapK2.get(k2(nb)); pick = takeClosest(lst, baseLev) || takeLastUnused(lst); }
+    if(!pick){ const lst=mapK1.get(nb['SKU']); pick = takeClosest(lst, baseLev) || takeLastUnused(lst); }
+    if(pick){
+      const nu=pick.n; const drow={...nb};
+      drow['Ordernummer']=nu['Ordernummer'];
+      drow['Aviserad']=nu['Aviserad']; drow['Levererat']=nu['Levererat']; drow['Återstår']=nu['Återstår'];
+      const diff=computeDiff(drow['Aviserad'], drow['Levererat'], drow['Återstår']); drow['Diff']=(diff>0?'+':'')+diff; drow.__diff=diff; drow.__cls=classify(diff);
+      out.push(drow);
+    }else out.push(nb);
+  });
+  return out;
+}
+
+function setDiffChip(el, diff, resolved){
+  el.className='diffchip';
+  if(resolved){
+    if(diff===0){ el.classList.add('ok'); el.textContent='✔ Klar'; }
+    else { el.classList.add('ok'); el.textContent='✔ Diff ' + (diff>0?('+'+diff):diff); }
+    return;
+  }
+  if(diff===0){ el.classList.add('blue'); el.textContent='0'; }
+  else if(diff>0){ el.classList.add('red'); el.textContent = '+'+diff; }
+  else { el.classList.add('blue'); el.textContent = String(diff); }
+}
+
+function renderTable(){
+  const tbl=document.getElementById('tbl'); tbl.innerHTML='';
+  const thead=document.createElement('thead'); const trh=document.createElement('tr');
+  HEADERS.forEach(h=>{ const th=document.createElement('th'); th.textContent=h; if(['Aviserad','Levererat','Återstår','Diff'].includes(h)) th.classList.add('num'); trh.appendChild(th); });
+  thead.appendChild(trh); tbl.appendChild(thead);
+  const tbody=document.createElement('tbody'); tbl.appendChild(tbody);
+  let shown=0;
+  state.rows.forEach(o=>{
+    const key=rowKey(o); const isRes = state.resolved.has(key);
+    // Hide only when NOT everDiff AND NOT resolved AND diff==0
+    if(state.hideOk && !state.everDiff.has(key) && !isRes && o.__diff===0) return;
+    const tr=document.createElement('tr'); tr.className='rowwrap';
+    if(isRes){ tr.style.backgroundColor='var(--ok)'; }
+    else if(o.__diff<0){ tr.style.backgroundColor='var(--blue)'; }
+    else if(o.__diff>0){ tr.style.backgroundColor='var(--red)'; }
+    else { tr.style.backgroundColor='var(--neutral)'; }
+    if(isRes){ const l=document.createElement('div'); l.className='left-check'; l.textContent='✓'; l.style.color='#fff'; tr.appendChild(l); tr.style.outline='2px dashed #c9f7a5'; }
+    HEADERS.forEach(h=>{
+      const td=document.createElement('td');
+      if(h==='SKU'){
+        const wrap=document.createElement('div'); wrap.className='sku-wrap';
+        const val=document.createElement('div'); val.textContent=o[h]||''; wrap.appendChild(val);
+        const dup=o.__dupCount||0; if(dup>1){ const b=document.createElement('span'); b.className='sku-dup'; b.textContent='×'+dup; wrap.appendChild(b); }
+        td.appendChild(wrap);
+      }else if(h==='Diff'){
+        const chip=document.createElement('span'); setDiffChip(chip, o.__diff, isRes); td.appendChild(chip); td.classList.add('num');
+      }else{
+        td.textContent=o[h]||''; if(['Aviserad','Levererat','Återstår'].includes(h)) td.classList.add('num');
+      }
+      tr.appendChild(td);
+    });
+    tr.addEventListener('click', ()=>selectRow(o));
+    tbody.appendChild(tr);
+    shown++;
+  });
+  document.getElementById('rowCount').textContent = 'Rader: '+shown;
+  document.getElementById('emptyHint').textContent = shown? '' : (state.hideOk? 'Inga rader att visa (kan vara kompletta) eller tom sändning.' : 'Inga rader.');
+}
+
+function selectRow(o){
+  state.selectedKey=rowKey(o);
+  document.querySelectorAll('#tbl tbody tr').forEach(tr=>tr.classList.remove('row-selected'));
+  const tr=[...document.querySelectorAll('#tbl tbody tr')].find(tr=> tr.children[0]?.textContent===o['Ordernummer'] && tr.textContent.includes(o['SKU']));
+  if(tr) tr.classList.add('row-selected');
+  updateButtons();
+  renderSide(o);
+}
+
+function updateButtons(){
+  const hasSel=!!state.selectedKey; const isRes = hasSel && state.resolved.has(state.selectedKey);
+  document.getElementById('markResolved').disabled = !hasSel || isRes;
+  document.getElementById('unmarkResolved').disabled = !hasSel || !isRes;
+}
+
+// QTY färger
+function qtyColorClass(q){ q=Number(q)||0; if(q===12) return 'qtyc0'; if(q===11) return 'qtyc1'; if(q===8) return 'qtyc2'; const order=['qtyc0','qtyc2','qtyc1']; return order[(q%3+3)%3]; }
+
+function renderSide(row){
+  const diffBig=document.getElementById('diffBig'); 
+  const isRes = row ? state.resolved.has(rowKey(row)) : false;
+  setDiffChip(diffBig, row?row.__diff:0, isRes);
+  const title=document.getElementById('kollititle'); title.textContent = row ? ('Kollirutan — SKU: '+row['SKU']) : 'Kollirutan';
+  const all = state.regItems;
+  const items = row ? all.filter(r=>String(r['SKU']||'').trim()===row['SKU']) : [];
+  const sel=document.getElementById('batchFilter');
+  const cur=sel.value;
+  sel.innerHTML='<option value=\"\">(auto – förslag)</option>';
+  const batches=[...new Set(items.map(i=>String(i['Batchnummer']||'')) )].filter(x=>x);
+  batches.forEach(b=>{ const opt=document.createElement('option'); opt.value=b; opt.textContent=b; sel.appendChild(opt); });
+  let shown = items.slice();
+  if(cur && batches.includes(cur)) shown = items.filter(i=>String(i['Batchnummer']||'')===cur);
+
+  const listWrap=document.getElementById('kollistat'); listWrap.innerHTML='';
+  const groups = new Map(); shown.forEach(it=>{ const q=Number(it['Antal']||0)||0; groups.set(q,(groups.get(q)||0)+1); });
+  const distinct=[...groups.keys()];
+  const qrows=document.createElement('div'); qrows.className='qrows';
+  distinct.forEach(q=>{
+    const qrowEl=document.createElement('div'); qrowEl.className='qrow';
+    const left=document.createElement('div');
+    const pill=document.createElement('span'); pill.className='qty-pill '+qtyColorClass(q); pill.textContent=q;
+    left.appendChild(pill);
+    const right=document.createElement('div'); right.textContent = (groups.get(q)||0)+' st';
+    qrowEl.appendChild(left); qrowEl.appendChild(right); qrows.appendChild(qrowEl);
+  });
+  listWrap.appendChild(qrows);
+
+  const tbl=document.getElementById('kollitab'); tbl.innerHTML='';
+  const thead=document.createElement('thead'); const trh=document.createElement('tr');
+  ['Nummer','Sista 4','Antal','Plats','BatchID'].forEach(h=>{ const th=document.createElement('th'); th.textContent=h; if(h in {'Antal':1}) th.classList.add('num'); trh.appendChild(th); });
+  thead.appendChild(trh); tbl.appendChild(thead);
+  const tbody=document.createElement('tbody'); tbl.appendChild(tbody);
+  shown.sort((a,b)=>String(a['Batchnummer']||'').localeCompare(String(b['Batchnummer']||'')) || String(a['Hanteringsenhet']||'').localeCompare(String(b['Hanteringsenhet']||'')));
+  shown.forEach(it=>{
+    const tr=document.createElement('tr');
+    const hn=String(it['Hanteringsenhet']||''); const last4=hn.slice(-4); const q=Number(it['Antal']||0)||0;
+    const cols=[hn, last4, q, String(it['Lagerzonsflöde']||''), String(it['Batchnummer']||'')];
+    cols.forEach((v,i)=>{ const td=document.createElement('td'); if(i===2){ const pill=document.createElement('span'); pill.className='qty-pill '+qtyColorClass(v); pill.textContent=v; td.appendChild(pill); td.classList.add('num'); } else { td.textContent=v; if(i===2) td.classList.add('num'); } tr.appendChild(td); });
+    tbody.appendChild(tr);
+  });
+  document.getElementById('hitInfo').textContent = 'Träffar: '+shown.length + (cur? '' : ' (auto)');
+  sel.onchange = ()=>renderSide(row);
+}
+
+function loadAll(){
+  const status = document.getElementById('statusMsg');
+  if(!sid){ state.rows=[]; state.regItems=[]; state.everDiff=new Set(); renderTable(); renderSide(null); if(status) status.textContent='Ingen sändning vald.'; return; }
+  const baseU = parseJSON(K_BASE+'uppackning:rows');
+  const updU  = parseJSON(K_UPD +'uppackning:rows');
+  state.regItems = parseJSON(K_BASE+'registrerade:rows');
+  // load resolved + everDiff
+  let resolved=[]; try{ resolved=JSON.parse(localStorage.getItem(RES_KEY)||'[]'); }catch(_){}
+  let everPrev=[]; try{ everPrev=JSON.parse(localStorage.getItem(EVER_KEY)||'[]'); }catch(_){}
+  // recompute everDiff union
+  function toKey(r){ return skuOf(r)+'|'+String(r['Ordernummer']||''); }
+  function diffOf(r){ return computeDiff(r['Aviserad']||0, r['Levererat']||0, r['Återstår']||0); }
+  const everSet = new Set(everPrev);
+  baseU.forEach(r=>{ if(diffOf(r)!==0) everSet.add(toKey(r)); });
+  updU.forEach(r=>{ if(diffOf(r)!==0) everSet.add(toKey(r)); });
+  state.resolved = new Set(resolved);
+  state.everDiff = new Set(everSet);
+  localStorage.setItem(EVER_KEY, JSON.stringify([...state.everDiff]));
+
+  // rows
+  let rows=[];
+  if(baseU.length){ rows = baseU.map(r=>normFromUppRow(r)); if(updU.length) rows = mergeBaseAndUpdated(baseU, updU); }
+  else if(updU.length){ rows = updU.map(r=>normFromUppRow(r)); }
+  // dups
+  const cnt=new Map(); baseU.forEach(r=>{ const s=skuOf(r); cnt.set(s, (cnt.get(s)||0)+1); });
+  rows.forEach(o=>o.__dupCount = cnt.get(o['SKU'])||0);
+  state.rows=rows;
+  renderTable();
+  if(rows.length){
+    const first = rows.find(r=>!(state.hideOk && !state.everDiff.has(rowKey(r)) && !state.resolved.has(rowKey(r)) && r.__diff===0));
+    if(first) selectRow(first);
+  }
+  if(status){ status.textContent = 'Uppackning laddad (bas: '+baseU.length+', uppdatera: '+updU.length+').'; }
+}
+
+function toggleFilter(){ state.hideOk = !state.hideOk; renderTable(); }
+function markResolved(v){
+  if(!state.selectedKey) return;
+  if(v) state.resolved.add(state.selectedKey); else state.resolved.delete(state.selectedKey);
+  localStorage.setItem(RES_KEY, JSON.stringify([...state.resolved]));
+  renderTable();
+  const sel = state.rows.find(r=>rowKey(r)===state.selectedKey);
+  if(sel) selectRow(sel);
+}
+
+document.getElementById('toggleFilter').onclick=toggleFilter;
+document.getElementById('markResolved').onclick=()=>markResolved(true);
+document.getElementById('unmarkResolved').onclick=()=>markResolved(false);
+document.getElementById('loadLocal').onclick=loadAll;
+
+loadAll();
+window.addEventListener('error', e=>{ try{ console.error('Felsök JS fel:', e.message); document.getElementById('emptyHint').textContent = 'Fel i sidan: '+e.message; }catch(_){} });
+</script>
+<script>window.addEventListener('DOMContentLoaded',()=>{ InlevAuth.initPage(['admin','superuser','watcher']); });</script>
+</body>
+</html>

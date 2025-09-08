@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inlev – Startsidan</title>
+<link rel="icon" href="data:,">
+<script src="/auth.js" defer></script>
+<style>
+:root{
+  --bg:#0a0c14; --grad1:#0d1438; --grad2:#060a1f; --panel:#0f1a44;
+  --glass:rgba(255,255,255,.06); --glass-br:rgba(255,255,255,.12);
+  --text:#e9eefb; --muted:#a6b1d1; --border:#1f2a5a; --accent:#c8e1ff;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(1200px 600px at 20% -10%,var(--grad1),transparent), radial-gradient(1000px 800px at 110% 10%,#10245a33,transparent), linear-gradient(180deg,var(--grad2),#04060f); color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Ubuntu, 'Helvetica Neue', Arial, sans-serif}
+.wrap{min-height:100%;display:grid;place-items:center;padding:28px}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03));border:1px solid var(--glass-br); border-radius:22px; box-shadow:0 18px 50px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04); padding:32px; max-width:640px; width:100%; backdrop-filter: blur(8px)}
+.brand{display:flex; align-items:center; gap:12px; margin-bottom:12px}
+.logo{width:40px;height:40px;border-radius:12px; background:conic-gradient(from 210deg at 50% 50%, #80ffea, #8aff80, #ffd280, #80c8ff, #80ffea); filter: blur(.2px); border:1px solid rgba(255,255,255,.18)}
+h1{margin:0;font-size:28px;letter-spacing:.2px}
+.sub{margin:6px 0 14px 0; color:var(--muted)}
+.menu{display:grid;gap:14px;margin-top:16px}
+a.btn,button.btn{display:flex;align-items:center;justify-content:center; gap:10px;
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+  border:1px solid var(--glass-br); border-radius:14px; padding:14px 18px; color:var(--text); text-decoration:none; font-weight:700; font-size:17px; letter-spacing:.2px}
+a.btn:hover,button.btn:hover{filter:brightness(1.08)}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;gap:8px; background:var(--panel); border:1px solid var(--border); border-radius:999px; padding:6px 12px; color:var(--text)}
+.footer{margin-top:16px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; color:var(--muted); font-size:13px}
+hr{border:0;border-top:1px solid var(--glass-br); margin:18px 0}
+.right{margin-left:auto}
+.hidden{display:none !important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <h1>Inlev</h1>
+        <div class="sub">Elegant & fokuserad hantering av sändningar</div>
+      </div>
+    </div>
+
+    <div class="menu" id="menuMain">
+      <a class="btn" href="/sandningar.html"><span>📦</span> <span>Sändning</span></a>
+    </div>
+    <div class="menu" id="menuAdmin" style="display:none;margin-top:8px">
+      <a class="btn" href="/admin.html"><span>🛡️</span> <span>Admin</span></a>
+    </div>
+
+    <hr>
+
+    <div class="row">
+      <span class="badge" id="roleBadge" title="Din roll i systemet">Roll: –</span>
+      <span class="badge" id="userBadge" title="Inloggad användare">Inte inloggad</span>
+      <span class="right row">
+        <a class="btn" id="btnLogin" href="/login.html">Logga in</a>
+        <button class="btn hidden" id="btnLogout" type="button">Logga ut</button>
+      </span>
+    </div>
+
+    <div class="footer">
+      <div>Skyddad tillgång – inlogg krävs för att gå vidare.</div>
+      <div class="right">© Inlev</div>
+    </div>
+  </div>
+</div>
+<script>
+window.addEventListener('DOMContentLoaded', async ()=>{
+  if(!window.InlevAuth) return;
+  const u = await InlevAuth.me();
+  const userBadge = document.getElementById('userBadge');
+  const roleBadge = document.getElementById('roleBadge');
+  const btnLogin = document.getElementById('btnLogin');
+  const btnLogout = document.getElementById('btnLogout');
+  if(u){
+    if((u.role||'').toLowerCase()==='admin'){ document.getElementById('menuAdmin').style.display='grid'; }
+    userBadge.textContent = u.email;
+    roleBadge.textContent = 'Roll: ' + (u.role||'watcher');
+    btnLogin.classList.add('hidden');
+    btnLogout.classList.remove('hidden');
+    btnLogout.onclick = ()=>InlevAuth.logoutTo('/login.html');
+  }else{
+    userBadge.textContent = 'Inte inloggad';
+    roleBadge.textContent = 'Roll: –';
+    btnLogin.classList.remove('hidden');
+    btnLogout.classList.add('hidden');
+  }
+});
+</script>
+</body>
+</html>

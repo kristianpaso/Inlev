@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="sv"><head>
+<script src="/auth.js" defer></script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skicka Diff</title>
+<style>
+body{margin:0;background:#0b1020;color:#e7eeff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Ubuntu,'Helvetica Neue',Arial,sans-serif}
+.container{max-width:1700px;margin:0 auto;padding:16px}
+.badge{background:#0f1a44;border:1px solid #1e2a57;border-radius:999px;padding:6px 10px;display:inline-flex;gap:6px;align-items:center;color:#e7eeff;text-decoration:none}
+.nav{position:sticky;top:0;z-index:50;background:#0b1020cc;border-bottom:1px solid #1e2a57;backdrop-filter:blur(6px);padding:8px;display:flex;gap:10px;align-items:center}
+.nav .spacer{flex:1}
+.sheet{background:#fff;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:8px;border:1px solid #e6e6e6}
+.table{width:100%;border-collapse:collapse;background:#fff;color:#111}
+.table th,.table td{padding:10px 12px;border:1px solid #e2e2e2}
+.table th{position:sticky;top:52px;background:#f7f7f7;z-index:2;color:#111;text-align:left}
+.table .num{text-align:right;white-space:nowrap}
+.left-check{color:#2ea043;font-weight:800}
+.hint{opacity:.7;margin:6px 0;color:#111}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="nav">
+    <a href="/" class="badge">Startsidan</a>
+    <a href="/sandningar.html" class="badge">Sändning</a>
+    <a href="#" id="goFelsok" class="badge">Felsök</a>
+    <span class="spacer"></span>
+    <span class="badge" id="rowCount">Rader: 0</span>
+  </div>
+  <h1>Skicka Diff</h1>
+  <div class="hint">Alla rader markerade <em>Felsökt Klar</em> (per sändning).</div>
+  <div class="sheet">
+    <table id="tbl" class="table"></table>
+  </div>
+  <div id="emptyHint" class="hint"></div>
+</div>
+<script>
+function qs(name){ const u=new URL(location.href); return u.searchParams.get(name); }
+function currentSid(){ return qs('sid'); }
+function lsPrefix(scope){ const sid=currentSid(); return sid ? `inlev:ship:${sid}:${scope}:` : `inlev:${scope}:`; }
+function navTo(path){ const sid=currentSid(); const u=new URL(path, location.origin); if(sid) u.searchParams.set('sid', sid); location.href = u.pathname+u.search; }
+document.getElementById('goFelsok').onclick=()=>navTo('/felsok.html');
+const sid=currentSid();
+const RES_KEY = (sid? 'inlev:ship:'+sid+':felsok:resolvedKeys' : 'inlev:__no-sid__:felsok:resolvedKeys');
+const K_BASE = (sid? lsPrefix('insamlare') : 'inlev:__no-sid__:');
+const K_UPD  = (sid? lsPrefix('update')    : 'inlev:__no-sid__:');
+const HEADERS=['Ordernummer','SKU','Beskrivning','Aviserad','Levererat','Återstår','Status'];
+function parse(k){ try{return JSON.parse(localStorage.getItem(k)||'[]')}catch(_){return []} }
+function n(v){ const x=Number(String(v??'').replace(',','.')); return isNaN(x)?0:x; }
+function skuOf(r){ return String((r['SKU']||r['SKU/Beskrivning']||'').toString().split(/\s*\n\s*/)[0]||'').trim(); }
+function computeDiff(a,l,r){ const A=n(a), L=n(l), R=n(r); if(A===L && R>0) return -R; return L-A; }
+function norm(r){
+  const sku=skuOf(r);
+  const A=String(r['Aviserad']||''), L=String(r['Levererat']||''), Y=String(r['Återstår']||'');
+  const d=computeDiff(A,L,Y);
+  return {'Ordernummer':String(r['Ordernummer']||''),'SKU':sku,'Beskrivning':String(r['Beskrivning']||r['SKU/Beskrivning']||''),'Aviserad':A,'Levererat':L,'Återstår':Y,'Diff':d};
+}
+function rowKey(r){ return r['SKU']+'|'+r['Ordernummer']; }
+function load(){
+  const base=parse(K_BASE+'uppackning:rows'); const upd=parse(K_UPD+'uppackning:rows');
+  const rows = (base.length? base : upd).map(norm);
+  const resolved=new Set(parse(RES_KEY));
+  const filtered = rows.filter(r=> resolved.has(rowKey(r)));
+  render(filtered);
+}
+function render(rows){
+  const tbl=document.getElementById('tbl'); tbl.innerHTML='';
+  const thead=document.createElement('thead'); const trh=document.createElement('tr');
+  HEADERS.forEach(h=>{ const th=document.createElement('th'); th.textContent=h; if(['Aviserad','Levererat','Återstår'].includes(h)) th.classList.add('num'); trh.appendChild(th); });
+  thead.appendChild(trh); tbl.appendChild(thead);
+  const tbody=document.createElement('tbody'); tbl.appendChild(tbody);
+  let shown=0;
+  rows.forEach(o=>{
+    const tr=document.createElement('tr');
+    const cols=[o['Ordernummer'],o['SKU'],o['Beskrivning'],o['Aviserad'],o['Levererat'],o['Återstår'],'Klar'];
+    cols.forEach((v,i)=>{ const td=document.createElement('td'); td.textContent=v; if(i in {3:1,4:1,5:1}) td.classList.add('num'); tr.appendChild(td); });
+    tbody.appendChild(tr); shown++;
+  });
+  document.getElementById('rowCount').textContent='Rader: '+shown;
+  document.getElementById('emptyHint').textContent = shown? '' : 'Inga markerade rader ännu.';
+}
+load();
+</script>
+<script>window.addEventListener('DOMContentLoaded',()=>{ InlevAuth.initPage(['admin','superuser','watcher']); });</script>
+</body></html>
