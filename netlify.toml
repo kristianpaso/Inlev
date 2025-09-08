@@ -2,6 +2,7 @@
 [build]
   publish = "public"
   functions = "netlify/functions"
+  command = "echo Building Inlev (static)"
 
 [[redirects]]
   from = "/api/auth/*"
@@ -16,3 +17,7 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';"
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["bcryptjs","jsonwebtoken","@netlify/blobs"]

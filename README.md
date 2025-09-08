@@ -35,4 +35,3 @@ Första användaren registreras automatiskt som admin via `/api/auth/register-in
 - `POST /api/auth/logout` – logga ut (raderar cookies)
 - `GET  /api/auth/me` – aktuell användare
 - `POST /api/auth/refresh` – förnya token via refresh-cookie
-# Inlev
