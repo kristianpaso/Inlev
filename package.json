@@ -1,18 +1,4 @@
 {
-  "name": "inlev-netlify",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "build": "echo 'Static build \u2013 nothing to do'"
-  },
-  "dependencies": {
-    "@netlify/functions": "^2.6.0",
-    "@netlify/blobs": "^6.4.0",
-    "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
-    "nanoid": "^5.0.6"
-  },
-  "engines": {
-    "node": ">=20"
-  }
+  "name": "inlev",
+  "private": true
 }
