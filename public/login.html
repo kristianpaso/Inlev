@@ -21,15 +21,13 @@ form{display:grid;gap:10px;margin-top:10px}
 input{padding:10px 12px;border-radius:10px;border:1px solid #1e2a57;background:#0b1434;color:#e7eeff}
 button{background:#0f1a44;border:1px solid #1e2a57;border-radius:10px;padding:10px 12px;color:#e7eeff;cursor:pointer}
 .error{color:#ffb4b4}
-small.hint{opacity:.8}
-.switch{display:flex;gap:8px;align-items:center;margin-top:8px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="card">
     <h1>Logga in</h1>
-    <div class="sub">Egen inloggning. Om inga användare finns ännu kan du skapa <strong>första admin</strong> här.</div>
+    <div class="sub">Egen inloggning. Första användaren blir Admin (engångsregel).</div>
     <div class="row">
       <a class="badge" href="/" title="Till startsidan">← Till Startsidan</a>
       <span class="badge" id="loginStatus">Status: –</span>
@@ -38,13 +36,8 @@ small.hint{opacity:.8}
     <form id="loginForm">
       <input type="email" id="email" placeholder="E-post" required>
       <input type="password" id="password" placeholder="Lösenord" required>
-      <div class="switch">
-        <input type="checkbox" id="firstAdmin">
-        <label for="firstAdmin">Skapa första admin (om DB är tom)</label>
-      </div>
-      <button type="submit" id="submitBtn">Fortsätt</button>
+      <button type="submit">Logga in</button>
       <div class="error" id="err"></div>
-      <small class="hint">Tips: Kör även <code>npm run seed</code> i <code>server/</code> för att skapa första admin automatiskt.</small>
     </form>
   </div>
 </div>
@@ -53,53 +46,27 @@ window.addEventListener('DOMContentLoaded', ()=>{
   const form = document.getElementById('loginForm');
   const err = document.getElementById('err');
   const stat = document.getElementById('loginStatus');
-  const firstAdmin = document.getElementById('firstAdmin');
-  const submitBtn = document.getElementById('submitBtn');
-
   form.addEventListener('submit', async (e)=>{
     e.preventDefault();
     err.textContent='';
-    stat.textContent='Status: bearbetar...';
-    submitBtn.disabled = true;
+    stat.textContent='Status: loggar in...';
     try{
       await InlevAuth.ensureCsrf();
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      let ok = false;
-      if(firstAdmin.checked){
-        try{
-          const res = await fetch('/api/auth/register-initial', {
-            method:'POST',
-            credentials:'include',
-            headers:{'Content-Type':'application/json','X-CSRF-Token': await InlevAuth.ensureCsrf()},
-            body: JSON.stringify({email, password})
-          });
-          if(res.ok){ ok = true; }
-          else{
-            const data = await res.json().catch(()=>({}));
-            if(!(data && data.error === 'initial_only')){
-              throw new Error(data && data.error || 'Fel vid initial registrering');
-            }
-          }
-        }catch(ex){ /* fall through to normal login */ }
-      }
-      if(!ok){
-        ok = await InlevAuth.login(email, password);
-      }
+      const ok = await InlevAuth.login(email, password);
       if(ok){
         const params = new URLSearchParams(location.search);
         const ret = params.get('return') || '/sandningar.html';
         location.href = ret;
       }else{
-        err.textContent='Fel e-post eller lösenord.';
+        err.textContent = 'Fel e-post eller lösenord.';
         stat.textContent='Status: fel';
       }
     }catch(ex){
       console.error(ex);
-      err.textContent = 'Tekniskt fel: '+(ex && ex.message || ex);
+      err.textContent = 'Tekniskt fel.';
       stat.textContent='Status: fel';
-    }finally{
-      submitBtn.disabled = false;
     }
   });
 });

@@ -1,7 +1,6 @@
 <!doctype html>
 <html lang="sv">
 <head>
-<script src="/auth.js" defer></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Felsök – Uppackning</title>
@@ -340,6 +339,5 @@ document.getElementById('loadLocal').onclick=loadAll;
 loadAll();
 window.addEventListener('error', e=>{ try{ console.error('Felsök JS fel:', e.message); document.getElementById('emptyHint').textContent = 'Fel i sidan: '+e.message; }catch(_){} });
 </script>
-<script>window.addEventListener('DOMContentLoaded',()=>{ InlevAuth.initPage(['admin','superuser','watcher']); });</script>
 </body>
 </html>
