@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="sv"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Överblick</title>
+<link rel="stylesheet" href="/styles.css">
+</head><body>
+<div class="container">
+  <div class="nav"></div>
+  <h1>Överblick</h1>
+  <div id="head" class="small"></div>
+
+  <div class="section">
+    <h2>Statistik</h2>
+    <div id="stats" class="row" style="flex-wrap:wrap;gap:12px"></div>
+  </div>
+
+  <div class="row" id="workflowBtns" style="display:none;gap:8px">
+    <button onclick="navTo('/insamlare.html')">Insamlare</button>
+    <button onclick="navTo('/felsok.html')">Felsök</button>
+    <button onclick="navTo('/uppdatera-info.html')">Uppdatera info</button>
+  </div>
+</div>
+
+<script>
+function qs(name){ const u=new URL(location.href); return u.searchParams.get(name); }
+function currentSid(){ return qs('sid'); }
+function lsPrefix(scope){ const sid=currentSid(); return sid ? `inlev:ship:${sid}:${scope}:` : `inlev:${scope}:`; }
+function navTo(path){
+  const sid=currentSid();
+  if(sid){
+    const u=new URL(path, location.origin);
+    u.searchParams.set('sid', sid);
+    location.href=u.pathname+u.search;
+  }else{
+    location.href=path;
+  }
+}
+function renderTopNav(showWorkflowButtons){
+  const nav=document.querySelector('.nav'); if(!nav) return;
+  nav.innerHTML = `
+    <a href="/" data-link="home">Startsidan</a>
+    <a href="/sandningar.html" data-link="list">Sändning</a>
+    <span class="spacer"></span>
+  `;
+  if(showWorkflowButtons){
+    const sid=currentSid();
+    if(sid){
+      const span=document.createElement('span');
+      span.innerHTML = `
+        <a href="/overblick.html?sid=${encodeURIComponent(sid)}">Överblick</a>
+        <a href="/insamlare.html?sid=${encodeURIComponent(sid)}">Insamlare</a>
+        <a href="/felsok.html?sid=${encodeURIComponent(sid)}">Felsök</a>
+        <a href="/uppdatera-info.html?sid=${encodeURIComponent(sid)}">Uppdatera info</a>
+      `;
+      nav.insertBefore(span, nav.querySelector('.spacer'));
+    }
+  }
+}
+</script>
+
+<script>
+const sid = currentSid();
+renderTopNav(!!sid);
+
+function badge(label, value){ return `<div class="badge"><strong>${label}:</strong> ${value}</div>`; }
+function get(k){ try{ return JSON.parse(localStorage.getItem(k)||'[]'); }catch(_ ){ return []; } }
+function fmt(n){ return (n||0).toString(); }
+
+if(!sid) {
+  document.getElementById('head').textContent = 'Ingen sändning vald. Gå till Sändning och öppna en.';
+} else {
+  document.getElementById('head').textContent = 'Sändningsnummer: '+sid;
+  const pBase = 'inlev:ship:'+sid+':';
+  const upp   = get(pBase+'insamlare:uppackning:rows');
+  const reg   = get(pBase+'insamlare:registrerade:rows');
+  const upp2  = get(pBase+'update:uppackning:rows');
+  const reg2  = get(pBase+'update:registrerade:rows');
+  const el = document.getElementById('stats');
+  el.innerHTML = [ badge('Uppackning rader', fmt(upp.length)), badge('Registrerade kollin', fmt(reg.length)), badge('Uppdaterad Uppackning', fmt(upp2.length)), badge('Uppdaterade kollin', fmt(reg2.length)) ].join(' ');
+  document.getElementById('workflowBtns').style.display='flex';
+}
+</script>
+</body></html>

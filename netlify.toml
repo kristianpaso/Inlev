@@ -1,26 +1,3 @@
-# Netlify config for Inlev (static + functions)
 [build]
   publish = "public"
-  functions = "netlify/functions"
-  command = "echo Building Inlev static"
-
-[[redirects]]
-  from = "/api/auth/*"
-  to = "/.netlify/functions/auth/:splat"
-  status = 200
-
-# Security headers for static assets
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Frame-Options = "SAMEORIGIN"
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';"
-
-[functions]
-  node_bundler = "esbuild"
-  external_node_modules = ["bcryptjs","jsonwebtoken","@netlify/blobs"]
-
-[build.environment]
-  NODE_VERSION = "20"
+  command = ""
