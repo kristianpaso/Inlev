@@ -56,6 +56,23 @@
 <div class="card center"><a class="btn btn-green" href="/felsok.html">Nästa: Felsök</a></div>
 </div>
 <script src="/app.js"></script><script src="/api.js"></script>
+<script>
+(function(){
+  // Accept id via querystring: /insamlare.html?id=<id>
+  function qs(name){ try{ return new URL(window.location.href).searchParams.get(name); }catch(e){ return null; } }
+  var urlId = qs('id');
+  if(urlId){
+    try{
+      var all = JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}');
+      if(!all[urlId]){
+        all[urlId] = { meta:{ number:'', createdAt:new Date().toISOString() }, data:{ linked:[], upp:[], kollin:[] }, issue:{} };
+        localStorage.setItem('inleverans_shipments_v1', JSON.stringify(all));
+      }
+      localStorage.setItem('inleverans_current', urlId);
+    }catch(e){}
+  }
+})();
+</script>
 
 <script>
 (function(){

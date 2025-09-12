@@ -3,7 +3,7 @@
   const LS='inleverans_shipments_v1', CUR='inleverans_current';
   function all(){ try{ return JSON.parse(localStorage.getItem(LS)||'{}'); }catch(e){ return {}; } }
   function setAll(x){ localStorage.setItem(LS, JSON.stringify(x)); }
-  function uid(){ return String(Date.now()); }
+  function uid(){ return `${Date.now()}-${Math.random().toString(36).slice(2,8)}`; }
 
   const InlevApp = {
     list(){ const a=all(); return Object.keys(a).map(id=>({id,name:a[id].meta?.number||id,createdAt:a[id].meta?.start})).sort((x,y)=>(x.createdAt||'').localeCompare(y.createdAt||'')); },
