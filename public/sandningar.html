@@ -1,1 +1,89 @@
-<!doctype html><title>Sändningar</title>
+<!doctype html><html lang="sv"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Sändningar – Inleverans</title>
+<link rel="stylesheet" href="/styles.css"/>
+</head><body>
+<script src="/auth.js"></script>
+<script>try{ if(!InlevAuth.isAuthed||!InlevAuth.isAuthed()) location.href='/login.html'; }catch(e){ location.href='/login.html'; }</script>
+
+    <div class="nav">
+      <a href="/index.html">Hem</a>
+      <a href="/sandningar.html">Sändningar</a>
+      <a href="/insamlare.html">Basinformation<span id="flagBase" class="menu-dot"></span></a>
+      <a href="/felsok.html">Felsök</a>
+      <a href="/uppdatera-info.html">Uppdatera info</a>
+      <a href="/skicka-diff.html">Skicka Diff</a>
+      <div class="right">
+        <span class="badge" id="who"></span>
+        <button id="logoutBtn">Logga ut</button>
+      </div>
+    </div>
+    <script>
+      (function(){
+        const w=document.getElementById('who');
+        try{ if(InlevAuth.isAuthed()){ const s=InlevAuth.get(); w.textContent=(s?.user?.name||'')+' '+(s?.user?.role?'('+s.user.role+')':''); } }catch(e){}
+        document.getElementById('logoutBtn').onclick=()=>{ InlevAuth.signOut(); location.href='/login.html'; };
+      })();
+    </script>
+    
+<div class="container">
+<h1>Sändningar</h1>
+<div class="card grid grid-2">
+  <div>
+    <label>Namn på ny sändning</label>
+    <input id="newName" placeholder="Sändningsnummer eller valfritt namn"/>
+    <div style="margin-top:8px"><button class="btn btn-green" id="createBtn">Skapa</button></div>
+  </div>
+  <div>
+    <div class="small">Klicka på en rad för att öppna sändningen.</div>
+    <div id="srv" class="small"></div>
+  </div>
+</div>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>Namn</th><th>Skapad</th><th></th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+</div>
+<script src="/app.js"></script><script src="/api.js"></script>
+
+<script>
+(async function(){
+  const tbody=document.getElementById('tbody');
+  const dot=document.getElementById('srv');
+  document.getElementById('createBtn').onclick = async ()=>{
+    let name = (document.getElementById('newName').value||'').trim();
+    if(!name) name = 'Sändning ' + Date.now();
+    const res = await InlevAPI.createShipment(name).catch(()=>null);
+    let id;
+    if(res && res.id){ id = res.id; }
+    else { id = InlevApp.create(name); }
+    InlevApp.setCurrent(id);
+    location.href='/insamlare.html';
+  };
+
+  async function renderShip(){
+    let list = InlevApp.list();
+    try{
+      const srv = await InlevAPI.listShipments();
+      if(Array.isArray(srv)) { list=srv; dot.textContent='Serverlagring aktiv'; }
+      else dot.textContent='Lagring lokalt';
+    }catch(e){ dot.textContent='Lagring lokalt'; }
+    tbody.innerHTML='';
+    for(const it of list){
+      const tr=document.createElement('tr');
+      tr.innerHTML = `<td><a href="/insamlare.html" data-id="${it.id}">${it.name}</a></td><td>${(it.createdAt||it.created||'').replace('T',' ').slice(0,16)}</td><td><button data-ren="${it.id}" class="btn">Byt namn</button> <button data-del="${it.id}" class="btn btn-red">Ta bort</button> <button data-exp="${it.id}" class="btn">Export</button> <button data-imp="${it.id}" class="btn">Import</button></td>`;
+      tbody.appendChild(tr);
+    }
+    tbody.querySelectorAll('a[data-id]').forEach(a=>a.onclick=(ev)=>{ ev.preventDefault(); InlevApp.setCurrent(a.dataset.id); location.href='/insamlare.html'; });
+    tbody.querySelectorAll('button[data-del]').forEach(b=>b.onclick=()=>{ InlevApp.remove(b.dataset.del); renderShip(); });
+    tbody.querySelectorAll('button[data-ren]').forEach(b=>b.onclick=()=>{ const nn=prompt('Nytt namn:'); if(!nn) return; const id=b.dataset.ren; const all=JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}'); if(all[id]){ all[id].meta=all[id].meta||{}; all[id].meta.number=nn; localStorage.setItem('inleverans_shipments_v1', JSON.stringify(all)); } renderShip(); });
+    tbody.querySelectorAll('button[data-exp]').forEach(b=>b.onclick=()=>{ const data=InlevApp.get(b.dataset.exp); const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(data?.meta?.number||b.dataset.exp)+'.json'; a.click(); });
+    tbody.querySelectorAll('button[data-imp]').forEach(b=>b.onclick=()=>{ const inp=document.createElement('input'); inp.type='file'; inp.accept='.json,application/json'; inp.onchange=()=>{ const f=inp.files[0]; const fr=new FileReader(); fr.onload=()=>{ try{ const json=JSON.parse(fr.result); const all=JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}'); all[b.dataset.imp]=json; localStorage.setItem('inleverans_shipments_v1', JSON.stringify(all)); alert('Importerad'); renderShip(); }catch(e){ alert('Ogiltig fil'); } }; fr.readAsText(f); }; inp.click(); });
+  }
+  renderShip();
+})();
+</script>
+
+</body></html>

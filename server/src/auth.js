@@ -1,38 +1,69 @@
-import jwt from 'jsonwebtoken';
-import argon2 from 'argon2';
-import db from './db.js';
 
-const ACCESS_TTL_S = 15*60;   // 15 min
-const REFRESH_TTL_S = 7*24*60*60; // 7 dagar
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const { getUsers, setUsers } = require('./db');
 
-export function signAccess(user, secret){
-  const payload = { sub: String(user.id), role: user.role, email: user.email };
-  return jwt.sign(payload, secret, { expiresIn: ACCESS_TTL_S });
+const SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+
+function sign(user){
+  const exp = Math.floor(Date.now()/1000) + 3600; // 1h
+  const token = jwt.sign({ sub: user.username, role: user.role, exp }, SECRET);
+  return { token, exp };
 }
-export function signRefresh(user, secret){
-  const payload = { sub: String(user.id), tv: user.token_version||0 };
-  return jwt.sign(payload, secret, { expiresIn: REFRESH_TTL_S });
+
+function authenticate(req, res, next){
+  const h = req.headers.authorization || '';
+  const raw = h.startsWith('Bearer ') ? h.slice(7) : null;
+  if(!raw) return res.status(401).json({error:'unauthorized'});
+  try{
+    const me = jwt.verify(raw, SECRET);
+    req.user = me;
+    next();
+  }catch(e){
+    res.status(401).json({error:'unauthorized'});
+  }
 }
-export async function hashPassword(password){
-  return argon2.hash(password, { type: argon2.argon2id });
+
+function requireAdmin(req,res,next){
+  if(req.user?.role !== 'admin') return res.status(403).json({error:'forbidden'});
+  next();
 }
-export async function verifyPassword(hash, password){
-  try{ return await argon2.verify(hash, password); }catch(_){ return false; }
+
+async function login(req,res){
+  const {username, password} = req.body||{};
+  const users = getUsers();
+  const user = users.find(u=>u.username===username);
+  if(!user) return res.status(401).json({error:'invalid'});
+  const ok = await bcrypt.compare(password, user.pass);
+  if(!ok) return res.status(401).json({error:'invalid'});
+  const {token,exp} = sign(user);
+  res.json({ token, exp, user: { name: user.username, role: user.role } });
 }
-export function findUserByEmail(email){
-  return db.prepare('SELECT id,email,role,password_hash,token_version FROM users WHERE email=?').get(email);
+
+function listUsers(req,res){
+  const users=getUsers();
+  res.json(users.map(u=>({username:u.username, role:u.role})));
 }
-export function findUserById(id){
-  return db.prepare('SELECT id,email,role,password_hash,token_version FROM users WHERE id=?').get(id);
+async function createUser(req,res){
+  const {username,password,role} = req.body||{};
+  if(!username || !password || !role) return res.status(400).json({error:'bad json'});
+  const users=getUsers();
+  if(users.find(u=>u.username===username)) return res.status(409).json({error:'exists'});
+  const hash = await bcrypt.hash(password,10);
+  users.push({username, role, pass: hash});
+  setUsers(users);
+  res.json({ok:true});
 }
-export function createUser(email, hash, role){
-  const stmt = db.prepare('INSERT INTO users(email,password_hash,role) VALUES(?,?,?)');
-  const info = stmt.run(email, hash, role);
-  return findUserById(info.lastInsertRowid);
+async function updateUser(req,res){
+  const uname=req.params.username;
+  const {password, role} = req.body||{};
+  const users=getUsers();
+  const u = users.find(x=>x.username===uname);
+  if(!u) return res.status(404).json({error:'not found'});
+  if(password){ u.pass = await bcrypt.hash(password,10); }
+  if(role){ u.role = role; }
+  setUsers(users);
+  res.json({ok:true});
 }
-export function countUsers(){
-  return db.prepare('SELECT COUNT(*) as c FROM users').get().c;
-}
-export function bumpTokenVersion(userId){
-  db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id=?').run(userId);
-}
+
+module.exports = { authenticate, requireAdmin, login, listUsers, createUser, updateUser };

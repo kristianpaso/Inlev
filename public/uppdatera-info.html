@@ -1,1 +1,75 @@
-<!doctype html><title>Uppdatera</title>
+<!doctype html><html lang="sv"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Uppdatera info – Inleverans</title>
+<link rel="stylesheet" href="/styles.css"/>
+</head><body>
+<script src="/auth.js"></script>
+<script>try{ if(!InlevAuth.isAuthed||!InlevAuth.isAuthed()) location.href='/login.html'; }catch(e){ location.href='/login.html'; }</script>
+
+    <div class="nav">
+      <a href="/index.html">Hem</a>
+      <a href="/sandningar.html">Sändningar</a>
+      <a href="/insamlare.html">Basinformation<span id="flagBase" class="menu-dot"></span></a>
+      <a href="/felsok.html">Felsök</a>
+      <a href="/uppdatera-info.html">Uppdatera info</a>
+      <a href="/skicka-diff.html">Skicka Diff</a>
+      <div class="right">
+        <span class="badge" id="who"></span>
+        <button id="logoutBtn">Logga ut</button>
+      </div>
+    </div>
+    <script>
+      (function(){
+        const w=document.getElementById('who');
+        try{ if(InlevAuth.isAuthed()){ const s=InlevAuth.get(); w.textContent=(s?.user?.name||'')+' '+(s?.user?.role?'('+s.user.role+')':''); } }catch(e){}
+        document.getElementById('logoutBtn').onclick=()=>{ InlevAuth.signOut(); location.href='/login.html'; };
+      })();
+    </script>
+    
+<div class="container">
+<h1>Uppdatera info</h1>
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Uppdaterad Uppackning <span class="small">(hoppa över 4 rubrikrader)</span></h2>
+    <textarea id="txtU2" placeholder="Klistra in uppdaterade uppackningsrader..."></textarea>
+    <div style="margin-top:8px"><button class="btn" id="parseU2">Tolka</button> <button class="btn" id="saveU2">Spara</button> <span class="small" id="rowsU2">Rader: 0</span></div>
+    <div class="hr"></div>
+    <table class="table"><thead><tr><th>Order</th><th>Position</th><th>SKU</th><th>Beskrivning</th><th>Aviserad</th><th>Levererat</th><th>Återstår</th></tr></thead><tbody id="tbU2"></tbody></table>
+  </div>
+  <div class="card">
+    <h2>Uppdaterade Registrerade kollin</h2>
+    <textarea id="txtK2" placeholder="Klistra in uppdaterade kollin..."></textarea>
+    <div style="margin-top:8px"><button class="btn" id="parseK2">Tolka</button> <button class="btn" id="saveK2">Spara</button> <span class="small" id="rowsK2">Rader: 0</span></div>
+    <div class="hr"></div>
+    <table class="table"><thead><tr><th>Hanteringsenhet</th><th>SKU</th><th>BatchID</th><th>Antal</th><th>Flöde</th></tr></thead><tbody id="tbK2"></tbody></table>
+  </div>
+</div>
+</div>
+<script src="/app.js"></script><script src="/api.js"></script>
+
+<script>
+(function(){
+  const id=(localStorage.getItem('inleverans_current')||null); if(!id){ location.href='/sandningar.html'; return; }
+  let st = (JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}')[id])||{};
+  st.upd = st.upd || { upp:[], kollin:[] };
+
+  const tbU2=document.getElementById('tbU2'), rowsU2=document.getElementById('rowsU2');
+  const tbK2=document.getElementById('tbK2'), rowsK2=document.getElementById('rowsK2');
+
+  function rU2(list){ tbU2.innerHTML=''; (list||[]).forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.order||''}</td><td>${r.position||''}</td><td>${r.sku||''}</td><td>${r.beskrivning||''}</td><td>${r.aviserad||0}</td><td>${r.levererat||0}</td><td>${r.aterstar||0}</td>`; tbU2.appendChild(tr); }); rowsU2.textContent='Rader: '+(list?.length||0); }
+  function rK2(list){ tbK2.innerHTML=''; (list||[]).forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.hanteringsenhet||''}</td><td>${r.sku||''}</td><td>${r.batchnummer||''}</td><td>${r.antal||0}</td><td>${r.lagerzonsflode||''}</td>`; tbK2.appendChild(tr); }); rowsK2.textContent='Rader: '+(list?.length||0); }
+
+  rU2(st.upd.upp||[]); rK2(st.upd.kollin||[]);
+
+  document.getElementById('parseU2').onclick=()=>{ try{ window._U2=InlevApp.parseUpp(document.getElementById('txtU2').value,4); rU2(window._U2); }catch(e){ alert('Fel: kunde inte tolka uppdaterad uppackning'); } };
+  document.getElementById('parseK2').onclick=()=>{ try{ window._K2=InlevApp.parseKollin(document.getElementById('txtK2').value); rK2(window._K2); }catch(e){ alert('Fel: kunde inte tolka uppdaterade kollin'); } };
+
+  function saveLocal(){ const all=JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}'); all[id]=st; localStorage.setItem('inleverans_shipments_v1', JSON.stringify(all)); }
+  async function saveServer(){ try{ await InlevAPI.saveShipment(id, st); }catch(e){} }
+
+  document.getElementById('saveU2').onclick=async()=>{ st.upd.upp=window._U2||[]; saveLocal(); await saveServer(); alert('Uppdaterad uppackning sparad.'); };
+  document.getElementById('saveK2').onclick=async()=>{ st.upd.kollin=window._K2||[]; saveLocal(); await saveServer(); alert('Uppdaterade kollin sparade.'); };
+})();
+</script>
+
+</body></html>

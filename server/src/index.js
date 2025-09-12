@@ -1,39 +1,28 @@
-import 'dotenv/config';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import express from 'express';
-import helmet from 'helmet';
-import cors from 'cors';
-import cookieParser from 'cookie-parser';
-import db from './db.js';
-import authRoutes from './routes_auth.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const express = require('express');
+const path = require('path');
+const cors = require('cors');
+
+const authRoutes = require('./routes_auth');
+const storeRoutes = require('./routes_store');
+
 const app = express();
+app.use(cors());
+app.use(express.json({limit:'10mb'}));
 
-const PORT = process.env.PORT || 5174;
-const ORIGIN = process.env.ORIGIN || `http://localhost:${PORT}`;
+// API
+app.use('/api', authRoutes);
+app.use('/api', storeRoutes);
 
-app.use(helmet());
-app.use(express.json({ limit:'1mb' }));
-app.use(cookieParser());
-app.use(cors({
-  origin: ORIGIN,
-  credentials: true
-}));
+// Serve static frontend
+const publicDir = path.join(__dirname, '..', '..', 'public');
+app.use(express.static(publicDir));
 
-// API routes
-app.use('/api/auth', authRoutes(process.env));
-
-// Static files
-const publicDir = path.join(__dirname, '..', 'public');
-app.use(express.static(publicDir, { extensions:['html'] }));
-
-// Fallback to index or 404-like
-app.use((req,res)=>{
-  res.status(404).sendFile(path.join(publicDir, 'index.html'));
+// Fallback for direct routes
+const pages = ['/','/index.html','/login.html','/sandningar.html','/insamlare.html','/felsok.html','/uppdatera-info.html','/skicka-diff.html'];
+app.get(pages, (req,res)=>{
+  res.sendFile(path.join(publicDir, req.path === '/' ? 'index.html' : req.path));
 });
 
-app.listen(PORT, ()=>{
-  console.log(`Inlev server up on http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, ()=>console.log(`Inleverans server på http://localhost:${PORT}`));

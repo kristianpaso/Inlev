@@ -1,1 +1,195 @@
-<!doctype html><title>Felsök</title>
+<!doctype html><html lang="sv"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Felsök – Inleverans</title>
+<link rel="stylesheet" href="/styles.css"/>
+</head><body>
+<script src="/auth.js"></script>
+<script>try{ if(!InlevAuth.isAuthed||!InlevAuth.isAuthed()) location.href='/login.html'; }catch(e){ location.href='/login.html'; }</script>
+
+    <div class="nav">
+      <a href="/index.html">Hem</a>
+      <a href="/sandningar.html">Sändningar</a>
+      <a href="/insamlare.html">Basinformation<span id="flagBase" class="menu-dot"></span></a>
+      <a href="/felsok.html">Felsök</a>
+      <a href="/uppdatera-info.html">Uppdatera info</a>
+      <a href="/skicka-diff.html">Skicka Diff</a>
+      <div class="right">
+        <span class="badge" id="who"></span>
+        <button id="logoutBtn">Logga ut</button>
+      </div>
+    </div>
+    <script>
+      (function(){
+        const w=document.getElementById('who');
+        try{ if(InlevAuth.isAuthed()){ const s=InlevAuth.get(); w.textContent=(s?.user?.name||'')+' '+(s?.user?.role?'('+s.user.role+')':''); } }catch(e){}
+        document.getElementById('logoutBtn').onclick=()=>{ InlevAuth.signOut(); location.href='/login.html'; };
+      })();
+    </script>
+    
+<div class="container">
+<h1>Felsök</h1>
+<div class="felsok-wrap">
+  <div>
+    <table class="table" id="tbl"><thead><tr>
+      <th></th><th>Order</th><th>SKU</th><th>Beskrivning</th><th>Aviserad</th><th>Levererat</th><th>Återstår</th><th>Diff</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+  <div class="kolli-panel">
+    <div id="diffBadge" class="badge-diff" style="display:none">Diff: 0</div>
+    <div class="kollistat" id="kollistat"></div>
+    <table><thead><tr><th>BatchID</th><th>Nummer</th><th>Sista 4</th><th>Antal</th><th>Plats</th></tr></thead><tbody id="kolliBody"></tbody></table>
+  </div>
+</div>
+<div class="hr"></div>
+<div class="right">
+  <button id="markClear" class="btn">Felsökt klar</button>
+  <button id="undoClear" class="btn">Ångra klar</button>
+  <label style="margin-left:12px"><input type="checkbox" id="hideComplete" checked/> Dölj kompletta</label>
+  <button id="refresh" class="btn">Uppdatera</button>
+</div>
+</div>
+<script src="/app.js"></script><script src="/api.js"></script>
+
+<script>
+(function(){
+  const id=(localStorage.getItem('inleverans_current')||null); if(!id){ location.href='/sandningar.html'; return; }
+  function getAll(){ try{ return JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}'); }catch(e){ return {}; } }
+  let st = (getAll()[id])||{};
+  st.flags = st.flags || { cleared:{}, everIssue:{}};
+
+  const tb = document.querySelector('#tbl tbody');
+  const hideComplete = document.getElementById('hideComplete');
+  const diffBadge = document.getElementById('diffBadge');
+  const kolliBody = document.getElementById('kolliBody');
+  const kollistat = document.getElementById('kollistat');
+
+  let selectedKey = null;
+  function rowKey(r, idx){ return (r.order||'')+'|'+(r.position||'')+'|'+(r.sku||'')+'|'+idx; }
+
+  function overlayRows(base, upd){
+    const bySkuBase = {}; base.forEach(r=>{ const k=r.sku||'__'; (bySkuBase[k]=bySkuBase[k]||[]).push(r); });
+    const bySkuUpd  = {}; (upd||[]).forEach(r=>{ const k=r.sku||'__'; (bySkuUpd[k]=bySkuUpd[k]||[]).push(r); });
+    const result=[];
+    for(const sku in bySkuBase){
+      const arrB = bySkuBase[sku];
+      const arrU = bySkuUpd[sku]||[];
+      for(let i=0;i<arrB.length;i++){
+        const b = arrB[i]; const u = arrU[i]||null;
+        const merged = { 
+          order: b.order, position:b.position, sku:b.sku, beskrivning:b.beskrivning,
+          aviserad: b.aviserad, levererat: b.levererat, aterstar: b.aterstar||0
+        };
+        if(u){
+          merged.order     = u.order || merged.order;
+          merged.aviserad  = (u.aviserad ?? merged.aviserad);
+          merged.levererat = (u.levererat ?? merged.levererat);
+          merged.aterstar  = (u.aterstar ?? merged.aterstar);
+        }
+        result.push(merged);
+      }
+    }
+    return result;
+  }
+
+  function classify(r){
+    const av = Number(r.aviserad||0), lv = Number(r.levererat||0), as = Number(r.aterstar||0);
+    if (av===lv && as===0) return 'complete';
+    if (as>0) return 'under';
+    if (lv<av) return 'under';
+    if (lv>av) return 'over';
+    return 'under';
+  }
+
+  function build(){
+    tb.innerHTML='';
+    const base = (st.upp||[]);
+    const upd  = (st.upd||{}).upp||[];
+    const rows = overlayRows(base, upd);
+    let anySelected = false;
+
+    rows.forEach((r,idx)=>{ const klass=classify(r); const key=rowKey(r,idx); if(klass!=='complete') st.flags.everIssue[key]=true; });
+
+    const hide = hideComplete.checked;
+    rows.forEach((r, idx)=>{
+      const diff = Number(r.levererat||0)-Number(r.aviserad||0);
+      const klass = classify(r);
+      const key = rowKey(r, idx);
+      const cleared = !!st.flags.cleared[key];
+      const wasIssue = !!st.flags.everIssue[key];
+
+      if(hide && klass==='complete' && !wasIssue && !cleared) return;
+
+      const tr=document.createElement('tr');
+      tr.dataset.key = key;
+      let cls = 'left-check ';
+      if(cleared) cls += 'cleared ';
+      if(klass==='complete') cls += 'row-complete ';
+      if(klass==='under') cls += 'row-under ';
+      if(klass==='over') cls += 'row-over ';
+      tr.className = cls;
+
+      let diffText = (diff>=0?'+':'')+diff;
+      if(cleared) diffText = (diff===0) ? '✔ Klar' : ('✔ Diff '+(diff>=0?'+':'')+diff);
+
+      tr.innerHTML = `<td style="width:10px"></td><td>${r.order||''}</td><td>${r.sku||''}</td><td>${r.beskrivning||''}</td><td>${r.aviserad||0}</td><td>${r.levererat||0}</td><td>${r.aterstar||0}</td><td>${diffText}</td>`;
+      tr.onclick = ()=> selectRow(key, r, diff);
+      tb.appendChild(tr);
+
+      if(selectedKey===key){ tr.classList.add('row-selected'); updateKolli(r, diff); anySelected=true; }
+    });
+
+    if(!anySelected){ diffBadge.style.display='none'; kolliBody.innerHTML=''; kollistat.innerHTML=''; }
+
+    const all = getAll(); all[id]=st; localStorage.setItem('inleverans_shipments_v1', JSON.stringify(all));
+  }
+
+  function colorForQty(q){ const h=(Number(q)*47)%360; return `hsl(${h} 60% 55%)`; }
+
+  function updateKolli(row, diff){
+    const sku = row.sku||'';
+    const list = (st.kollin||[]).filter(k=> (k.sku||'')===sku );
+    list.sort((a,b)=> String(a.batchnummer||'').localeCompare(String(b.batchnummer||'')) || String(a.hanteringsenhet||'').localeCompare(String(b.hanteringsenhet||'')) );
+    kolliBody.innerHTML='';
+    const counts = {};
+    for(const k of list){
+      const tr=document.createElement('tr');
+      tr.innerHTML = `<td>${k.batchnummer||''}</td><td>${k.hanteringsenhet||''}</td><td>${String(k.sista4||'')}</td><td style="color:${colorForQty(k.antal||0)}">${k.antal||0}</td><td>${k.lagerzonsflode||''}</td>`;
+      kolliBody.appendChild(tr);
+      counts[k.antal||0] = (counts[k.antal||0]||0)+1;
+    }
+    kollistat.innerHTML='';
+    Object.keys(counts).sort((a,b)=>Number(b)-Number(a)).forEach(q=>{
+      const chip=document.createElement('div'); chip.className='chip';
+      const dot=document.createElement('span'); dot.className='dot'; dot.style.background=colorForQty(q);
+      const txt=document.createElement('span'); txt.textContent = `QTY ${q} – ${counts[q]} lådor`;
+      chip.appendChild(dot); chip.appendChild(txt); kollistat.appendChild(chip);
+    });
+    diffBadge.style.display='inline-block'; diffBadge.textContent = `Diff: ${(diff>=0?'+':'')+diff}`;
+  }
+
+  function selectRow(key, r, diff){
+    selectedKey = key;
+    document.querySelectorAll('#tbl tbody tr').forEach(tr=> tr.classList.remove('row-selected'));
+    const tr = Array.from(document.querySelectorAll('#tbl tbody tr')).find(x=>x.dataset.key===key);
+    if(tr) tr.classList.add('row-selected');
+    updateKolli(r, diff);
+  }
+
+  function markCleared(doClear){
+    if(!selectedKey) return alert('Välj en rad först');
+    if(doClear){ st.flags.cleared[selectedKey] = { ts: Date.now() }; }
+    else { delete st.flags.cleared[selectedKey]; }
+    build();
+  }
+
+  document.getElementById('markClear').onclick=()=>markCleared(true);
+  document.getElementById('undoClear').onclick=()=>markCleared(false);
+  document.getElementById('refresh').onclick=()=>build();
+  hideComplete.onchange=()=>build();
+
+  build();
+  (async function(){ try{ const srv=await InlevAPI.getShipment(id); if(srv){ st=srv; st.flags=st.flags||{cleared:{},everIssue:{}}; const all=JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}'); all[id]=st; localStorage.setItem('inleverans_shipments_v1', JSON.stringify(all)); build(); } }catch(e){} })();
+})();
+</script>
+
+</body></html>

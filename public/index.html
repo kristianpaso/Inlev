@@ -1,1 +1,35 @@
-<!doctype html><title>Inlev</title>
+<!doctype html><html lang="sv"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Inleverans – Startsida</title>
+<link rel="stylesheet" href="/styles.css"/>
+</head><body>
+<script src="/auth.js"></script>
+<script>try{ if(!InlevAuth.isAuthed||!InlevAuth.isAuthed()) location.href='/login.html'; }catch(e){ location.href='/login.html'; }</script>
+
+    <div class="nav">
+      <a href="/index.html">Hem</a>
+      <a href="/sandningar.html">Sändningar</a>
+      <a href="/insamlare.html">Basinformation<span id="flagBase" class="menu-dot"></span></a>
+      <a href="/felsok.html">Felsök</a>
+      <a href="/uppdatera-info.html">Uppdatera info</a>
+      <a href="/skicka-diff.html">Skicka Diff</a>
+      <div class="right">
+        <span class="badge" id="who"></span>
+        <button id="logoutBtn">Logga ut</button>
+      </div>
+    </div>
+    <script>
+      (function(){
+        const w=document.getElementById('who');
+        try{ if(InlevAuth.isAuthed()){ const s=InlevAuth.get(); w.textContent=(s?.user?.name||'')+' '+(s?.user?.role?'('+s.user.role+')':''); } }catch(e){}
+        document.getElementById('logoutBtn').onclick=()=>{ InlevAuth.signOut(); location.href='/login.html'; };
+      })();
+    </script>
+    
+<div class="container">
+<h1>Inleverans</h1>
+<p>Välkommen! Börja med <a href="/sandningar.html">Sändningar</a>.</p>
+</div>
+<script src="/app.js"></script><script src="/api.js"></script>
+
+</body></html>

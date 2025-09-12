@@ -1,18 +1,31 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import { fileURLToPath } from 'url';
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = path.join(__dirname, '..', 'data.sqlite');
-const db = new Database(dbPath);
-db.pragma('journal_mode = WAL');
-db.exec(`
-CREATE TABLE IF NOT EXISTS users(
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  email TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK(role IN ('admin','superuser','watcher')),
-  token_version INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-`);
-export default db;
+
+const fs = require('fs');
+const path = require('path');
+
+const dataDir = path.join(__dirname, '..', 'data');
+const usersFile = path.join(dataDir, 'users.json');
+const shipFile = path.join(dataDir, 'shipments.json');
+
+function ensureFiles(){
+  if(!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, {recursive:true});
+  if(!fs.existsSync(usersFile)){
+    const bcrypt = require('bcryptjs');
+    const hash = bcrypt.hashSync('test', 10);
+    fs.writeFileSync(usersFile, JSON.stringify([{username:'Admin', role:'admin', pass: hash}], null, 2));
+  }
+  if(!fs.existsSync(shipFile)){
+    fs.writeFileSync(shipFile, JSON.stringify({ byUser: {} }, null, 2));
+  }
+}
+ensureFiles();
+
+function readJSON(file){ return JSON.parse(fs.readFileSync(file,'utf8')); }
+function writeJSON(file, data){ fs.writeFileSync(file, JSON.stringify(data,null,2)); }
+
+function getUsers(){ return readJSON(usersFile); }
+function setUsers(list){ writeJSON(usersFile, list); }
+
+function getShipData(){ return readJSON(shipFile); }
+function setShipData(obj){ writeJSON(shipFile, obj); }
+
+module.exports = { getUsers, setUsers, getShipData, setShipData };

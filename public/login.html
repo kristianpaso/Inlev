@@ -1,1 +1,28 @@
-<!doctype html><title>Login</title>
+
+<!doctype html><html lang="sv"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Logga in – Inleverans</title>
+<link rel="stylesheet" href="/styles.css"/>
+<script src="/auth.js"></script>
+</head><body>
+<div class="container" style="max-width:520px">
+  <div class="card">
+    <h1>Logga in</h1>
+    <div class="grid">
+      <label>Användarnamn</label>
+      <input id="u" value="Admin" placeholder="Användarnamn"/>
+      <label>Lösenord</label>
+      <input id="p" type="password" value="test" placeholder="Lösenord"/>
+      <button class="btn btn-green" id="go">Fortsätt</button>
+      <div id="msg" class="small"></div>
+    </div>
+  </div>
+</div>
+<script>
+  try{ if(InlevAuth.isAuthed()) location.href='/index.html'; }catch(e){}
+  document.getElementById('go').onclick=async()=>{
+    const ok = await InlevAuth.signIn(document.getElementById('u').value.trim(), document.getElementById('p').value);
+    if(ok) location.href='/index.html'; else document.getElementById('msg').textContent='Fel inloggning';
+  };
+</script>
+</body></html>

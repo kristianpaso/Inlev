@@ -1,1 +1,92 @@
-<!doctype html><title>Insamlare</title>
+<!doctype html><html lang="sv"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Basinformation – Inleverans</title>
+<link rel="stylesheet" href="/styles.css"/>
+</head><body>
+<script src="/auth.js"></script>
+<script>try{ if(!InlevAuth.isAuthed||!InlevAuth.isAuthed()) location.href='/login.html'; }catch(e){ location.href='/login.html'; }</script>
+
+    <div class="nav">
+      <a href="/index.html">Hem</a>
+      <a href="/sandningar.html">Sändningar</a>
+      <a href="/insamlare.html">Basinformation<span id="flagBase" class="menu-dot"></span></a>
+      <a href="/felsok.html">Felsök</a>
+      <a href="/uppdatera-info.html">Uppdatera info</a>
+      <a href="/skicka-diff.html">Skicka Diff</a>
+      <div class="right">
+        <span class="badge" id="who"></span>
+        <button id="logoutBtn">Logga ut</button>
+      </div>
+    </div>
+    <script>
+      (function(){
+        const w=document.getElementById('who');
+        try{ if(InlevAuth.isAuthed()){ const s=InlevAuth.get(); w.textContent=(s?.user?.name||'')+' '+(s?.user?.role?'('+s.user.role+')':''); } }catch(e){}
+        document.getElementById('logoutBtn').onclick=()=>{ InlevAuth.signOut(); location.href='/login.html'; };
+      })();
+    </script>
+    
+<div class="container">
+<h1>Basinformation – 3 fält</h1>
+
+<div class="card">
+  <h2>Länkade rader <span class="small">(A: Ordernummer, B: Position, C: SKU/Beskrivning, D: Beställt, E: Återstår, F: Levererat, G: Behov)</span></h2>
+  <textarea id="txtLinked" placeholder="Klistra in rader här..."></textarea>
+  <div style="margin-top:8px"><button class="btn" id="parseLinked">Tolka</button> <button class="btn" id="saveLinked">Spara</button> <span class="small" id="rowsLinked">Rader: 0</span></div>
+  <div class="hr"></div>
+  <table class="table" id="tblLinked"><thead><tr><th>Ordernummer</th><th>Position</th><th>SKU/Beskrivning</th><th>Beställt</th><th>Återstår</th><th>Levererat</th><th>Behov</th></tr></thead><tbody></tbody></table>
+</div>
+
+<div class="card">
+  <h2>Uppackning <span class="small">(hoppa över 4 rubrikrader)</span></h2>
+  <textarea id="txtUpp" placeholder="Klistra in uppackningsrader här..."></textarea>
+  <div style="margin-top:8px"><button class="btn" id="parseUpp">Tolka</button> <button class="btn" id="saveUpp">Spara</button> <span class="small" id="rowsUpp">Rader: 0</span></div>
+  <div class="hr"></div>
+  <table class="table" id="tblUpp"><thead><tr><th>Order</th><th>Position</th><th>Lev.SKU</th><th>SKU</th><th>Beskrivning</th><th>Aviserad</th><th>Levererat</th><th>Återstår</th></tr></thead><tbody></tbody></table>
+</div>
+
+<div class="card">
+  <h2>Registrerade kollin</h2>
+  <textarea id="txtKollin" placeholder="Klistra in kollirader här..."></textarea>
+  <div style="margin-top:8px"><button class="btn" id="parseKollin">Tolka</button> <button class="btn" id="saveKollin">Spara</button> <span class="small" id="rowsKollin">Rader: 0</span></div>
+  <div class="hr"></div>
+  <table class="table" id="tblKollin"><thead><tr><th>Hanteringsenhet</th><th>Artikelbeskrivning</th><th>SKU</th><th>BatchID</th><th>Flöde</th><th>Fack</th><th>Antal</th><th>Sista 4</th></tr></thead><tbody></tbody></table>
+</div>
+
+<div class="card center"><a class="btn btn-green" href="/felsok.html">Nästa: Felsök</a></div>
+</div>
+<script src="/app.js"></script><script src="/api.js"></script>
+
+<script>
+(function(){
+  const id = localStorage.getItem('inleverans_current')||null;
+  if(!id){ location.href='/sandningar.html'; return; }
+  let state = JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}')[id] || {};
+  const flag=document.getElementById('flagBase');
+  function setFlag(){ const ok=(state.linked?.length>0)&&(state.upp?.length>0)&&(state.kollin?.length>0); flag.classList.toggle('ok',!!ok); }
+
+  const tbL=document.querySelector('#tblLinked tbody'), rowsL=document.getElementById('rowsLinked');
+  const tbU=document.querySelector('#tblUpp tbody'), rowsU=document.getElementById('rowsUpp');
+  const tbK=document.querySelector('#tblKollin tbody'), rowsK=document.getElementById('rowsKollin');
+
+  function rLinked(a){ tbL.innerHTML=''; (a||[]).forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.order||''}</td><td>${r.position||''}</td><td>${r.skuBeskrivning||''}</td><td>${r.bestallt||0}</td><td>${r.aterstar||0}</td><td>${r.levererat||0}</td><td>${r.behov||0}</td>`; tbL.appendChild(tr); }); rowsL.textContent='Rader: '+(a?.length||0); }
+  function rUpp(a){ tbU.innerHTML=''; (a||[]).forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.order||''}</td><td>${r.position||''}</td><td>${r.leverantorsSku||''}</td><td>${r.sku||''}</td><td>${r.beskrivning||''}</td><td>${r.aviserad||0}</td><td>${r.levererat||0}</td><td>${r.aterstar||0}</td>`; tbU.appendChild(tr); }); rowsU.textContent='Rader: '+(a?.length||0); }
+  function rK(a){ tbK.innerHTML=''; (a||[]).forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.hanteringsenhet||''}</td><td>${r.artikelbeskrivning||''}</td><td>${r.sku||''}</td><td>${r.batchnummer||''}</td><td>${r.lagerzonsflode||''}</td><td>${r.fack||''}</td><td>${r.antal||0}</td><td>${r.sista4||''}</td>`; tbK.appendChild(tr); }); rowsK.textContent='Rader: '+(a?.length||0); }
+
+  rLinked(state.linked||[]); rUpp(state.upp||[]); rK(state.kollin||[]); setFlag();
+
+  document.getElementById('parseLinked').onclick=()=>{ try{ window._L=InlevApp.parseLinked(document.getElementById('txtLinked').value); rLinked(window._L); }catch(e){ alert('Kunde inte tolka Länkade rader'); } };
+  document.getElementById('parseUpp').onclick   =()=>{ try{ window._U=InlevApp.parseUpp(document.getElementById('txtUpp').value,4); rUpp(window._U); }catch(e){ alert('Kunde inte tolka Uppackning'); } };
+  document.getElementById('parseKollin').onclick =()=>{ try{ window._K=InlevApp.parseKollin(document.getElementById('txtKollin').value); rK(window._K); }catch(e){ alert('Kunde inte tolka Kollin'); } };
+
+  async function saveState(){ const all=JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}'); all[id]=state; localStorage.setItem('inleverans_shipments_v1', JSON.stringify(all)); try{ await InlevAPI.saveShipment(id,state);}catch(e){} setFlag(); }
+
+  document.getElementById('saveLinked').onclick=async()=>{ state=JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}')[id]||state; state.linked=window._L||[]; await saveState(); alert('Länkade rader sparade.'); };
+  document.getElementById('saveUpp').onclick   =async()=>{ state=JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}')[id]||state; state.upp=window._U||[]; await saveState(); alert('Uppackning sparad.'); };
+  document.getElementById('saveKollin').onclick =async()=>{ state=JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}')[id]||state; state.kollin=window._K||[]; await saveState(); alert('Kollin sparade.'); };
+
+  (async function(){ try{ const srv=await InlevAPI.getShipment(id); if(srv){ state=srv; const all=JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}'); all[id]=srv; localStorage.setItem('inleverans_shipments_v1', JSON.stringify(all)); rLinked(state.linked||[]); rUpp(state.upp||[]); rK(state.kollin||[]); setFlag(); } }catch(e){} })();
+})();
+</script>
+
+</body></html>
