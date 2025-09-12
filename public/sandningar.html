@@ -3,6 +3,13 @@
 <title>Sändningar – Inleverans</title>
 <link rel="stylesheet" href="/styles.css"/>
 </head><body>
+
+<nav id="projectBar" style="position:sticky;top:0;z-index:50;background:#0a0f1a;border-bottom:1px solid #1f2937;padding:.5rem 1rem;display:flex;gap:.5rem;align-items:center">
+  <span style="opacity:.7;margin-right:.75rem">Projekt:</span>
+  <a href="./sandningar.html" class="btn">Sändningar</a>
+  <a href="./trav.html" class="btn">Trav</a>
+</nav>
+
 <script src="/auth.js"></script>
 <script>try{ if(!InlevAuth.isAuthed||!InlevAuth.isAuthed()) location.href='/login.html'; }catch(e){ location.href='/login.html'; }</script>
 
@@ -46,107 +53,70 @@
   </table>
 </div>
 </div>
-<script src="/app.js"></script><script src="/api.js"></script>
-<script>
-// Visa meny-knappar endast när en sändning är aktiv
-(function(){
-  try{
-    var cur = (window.InlevApp && InlevApp.current && InlevApp.current()) || null;
-    var links = [
-      '/insamlare.html',
-      '/felsok.html',
-      '/uppdatera-info.html',
-      '/skicka-diff.html'
-    ];
-    links.forEach(function(href){
-      var a = Array.from(document.querySelectorAll('a')).find(x=>x.getAttribute('href')===href);
-      if(a && !cur){ a.style.display='none'; }
-    });
-  }catch(e){ /* ignore */ }
-})();
-</script>
+<script src="./app.js"></script><script src="./api.js"></script>
 
-<script>
-(async function(){
-  const tbody=document.getElementById('tbody');
-  const dot=document.getElementById('srv');
-  all[id].meta.number=nn; localStorage.setItem('inleverans_shipments_v1', JSON.stringify(all)); } renderShip(); });
-    tbody.querySelectorAll('button[data-exp]').forEach(b=>b.onclick=()=>{ const data=InlevApp.get(b.dataset.exp); const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(data?.meta?.number||b.dataset.exp)+'.json'; a.click(); });
-    tbody.querySelectorAll('button[data-imp]').forEach(b=>b.onclick=()=>{ const inp=document.createElement('input'); inp.type='file'; inp.accept='.json,application/json'; inp.onchange=()=>{ const f=inp.files[0]; const fr=new FileReader(); fr.onload=()=>{ try{ const json=JSON.parse(fr.result); const all=JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}'); all[b.dataset.imp]=json; localStorage.setItem('inleverans_shipments_v1', JSON.stringify(all)); alert('Importerad'); renderShip(); }catch(e){ alert('Ogiltig fil'); } }; fr.readAsText(f); }; inp.click(); });
-  }
-  renderShip();
-})();
-</script>
-
-<script>
-(function(){
-  function go(){
-    try{
-      var input = document.getElementById('newName');
-      var name = (input && input.value ? input.value.trim() : '') || ('Sändning ' + Date.now());
-      if(window.InlevApp && InlevApp.create && InlevApp.setCurrent){
-        var id = InlevApp.create(name);
-        InlevApp.setCurrent(id);
-      }
-      setTimeout(function(){ window.location.href='/insamlare.html'; }, 50);
-    }catch(e){
-      console.error('Skapa-fel:', e);
-      // Sista nödlösning: lägg ett id i localStorage och gå vidare
-      try{
-        var id = Date.now() + '-' + Math.random().toString(36).slice(2,8);
-        localStorage.setItem('inleverans_current', id);
-        var all = JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}');
-        all[id] = all[id] || {meta:{number:name, createdAt:new Date().toISOString()}, data:{}};
-        localStorage.setItem('inleverans_shipments_v1', JSON.stringify(all));
-      }catch(e2){}
-      setTimeout(function(){ window.location.href='/insamlare.html'; }, 50);
-    }
-  }
-  
-var btn = document.getElementById('createBtn');
-function createAndGo(){
-  var input = document.getElementById('newName');
-  var name = (input && input.value ? input.value.trim() : '') || ('Sändning ' + Date.now());
-  // Create local
-  var id = InlevApp.create(name);
-  console.log('Created local shipment', id, name);
-  // Refresh UI list
-  try{ if(typeof window.renderShip==='function') window.renderShip(); }catch(e){}
-  // Navigate with query id (lets Insamlare set current safely)
-  setTimeout(function(){ location.href='/insamlare.html?id='+encodeURIComponent(id); }, 200);
-}
-if(btn){ btn.addEventListener('click', function(e){ e.preventDefault(); createAndGo(); }); }
-var inp = document.getElementById('newName');
-if(inp){ inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); createAndGo(); } }); }
-})();
-</script>
-<!-- Final safety: bind create button after everything else -->
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-  var btn=document.getElementById('createBtn');
-  if(!btn) return;
-  function makeId(){ return Date.now()+'-'+Math.random().toString(36).slice(2,8); }
-  function localCreate(name){
-    var LS='inleverans_shipments_v1', CUR='inleverans_current';
-    var all={}; try{ all=JSON.parse(localStorage.getItem(LS)||'{}'); }catch(e){}
-    var id = makeId();
-    all[id] = all[id] || { meta:{ number:name||id, createdAt:new Date().toISOString() }, data:{ linked:[], upp:[], kollin:[] }, issue:{} };
-    localStorage.setItem(LS, JSON.stringify(all));
-    localStorage.setItem(CUR, id);
-    return id;
+  const tbody = document.getElementById('tbody');
+
+  function rowHTML(it){
+    const name = (it.name||'').replace(/</g,'&lt;');
+    const created = (it.createdAt||'').replace('T',' ').slice(0,19);
+    return `<tr>
+      <td><a href="/insamlare.html?id=${encodeURIComponent(it.id)}" data-id="${it.id}">${name}</a></td>
+      <td>${created}</td>
+      <td>
+        <button class="btn" data-ren="${it.id}">Byt namn</button>
+        <button class="btn" data-exp="${it.id}">Export</button>
+        <button class="btn" data-del="${it.id}">Ta bort</button>
+      </td>
+    </tr>`;
   }
-  function createAndGo(){
-    var input=document.getElementById('newName');
-    var name=(input && input.value ? input.value.trim() : '') || ('Sändning ' + Date.now());
-    var id=null;
-    try{ id = (window.InlevApp && InlevApp.create) ? InlevApp.create(name) : localCreate(name); }
-    catch(e){ id = localCreate(name); }
-    try{ if(typeof window.renderShip==='function') window.renderShip(); }catch(e){}
-    setTimeout(function(){ window.location.href='/insamlare.html?id='+encodeURIComponent(id); }, 150);
+
+  function renderShip(){
+    // Endast lokal lista för stabilitet; serverhämtning kan läggas på igen vid behov
+    const list = (window.InlevApp && InlevApp.list) ? InlevApp.list() : [];
+    tbody.innerHTML = list.map(rowHTML).join('');
   }
-  btn.addEventListener('click', function(ev){ ev.preventDefault(); createAndGo(); });
-  var inp=document.getElementById('newName');
-  if(inp){ inp.addEventListener('keydown', function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); createAndGo(); } }); }
+  window.renderShip = renderShip;
+
+  tbody.addEventListener('click', function(e){
+    const t = e.target.closest('button,a'); if(!t) return;
+    if(t.matches('a[data-id]')){
+      e.preventDefault();
+      InlevApp.setCurrent(t.dataset.id);
+      // gå in i sändningen först när man klickar på namnet
+      window.location.href = '/insamlare.html?id='+encodeURIComponent(t.dataset.id);
+      return;
+    }
+    if(t.dataset.del){ InlevApp.remove(t.dataset.del); renderShip(); return; }
+    if(t.dataset.ren){
+      const nn = prompt('Nytt namn:');
+      if(nn){ InlevApp.rename(t.dataset.ren, nn.trim()); renderShip(); }
+      return;
+    }
+    if(t.dataset.exp){
+      const data = InlevApp.get(t.dataset.exp);
+      const a = document.createElement('a');
+      a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(data||{},null,2));
+      a.download=(data?.meta?.number||t.dataset.exp)+'.json';
+      a.click();
+      return;
+    }
+  });
+
+  document.getElementById('createBtn').addEventListener('click', function(ev){
+    ev.preventDefault();
+    const input = document.getElementById('newName');
+    let name = (input.value||'').trim();
+    if(!name) name = 'Sändning ' + Date.now();
+    InlevApp.create(name);
+    input.value='';
+    renderShip(); // stanna kvar på sidan och uppdatera listan
+  });
+
+  renderShip();
 });
 </script>
+
 </body></html>
