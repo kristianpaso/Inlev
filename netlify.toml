@@ -2,6 +2,7 @@
 [build]
   publish = "public"
   functions = "netlify/functions"
+  command = "echo \"Build static\""
 
 [[redirects]]
   from = "/api/store/*"
