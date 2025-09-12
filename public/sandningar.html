@@ -102,10 +102,22 @@
       setTimeout(function(){ window.location.href='/insamlare.html'; }, 50);
     }
   }
-  var btn = document.getElementById('createBtn');
-  if(btn){ btn.addEventListener('click', function(ev){ ev.preventDefault(); go(); }); }
-  var inp = document.getElementById('newName');
-  if(inp){ inp.addEventListener('keydown', function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); go(); } }); }
+  
+var btn = document.getElementById('createBtn');
+function createAndGo(){
+  var input = document.getElementById('newName');
+  var name = (input && input.value ? input.value.trim() : '') || ('Sändning ' + Date.now());
+  // Create local
+  var id = InlevApp.create(name);
+  console.log('Created local shipment', id, name);
+  // Refresh UI list
+  try{ if(typeof window.renderShip==='function') window.renderShip(); }catch(e){}
+  // Navigate with query id (lets Insamlare set current safely)
+  setTimeout(function(){ location.href='/insamlare.html?id='+encodeURIComponent(id); }, 200);
+}
+if(btn){ btn.addEventListener('click', function(e){ e.preventDefault(); createAndGo(); }); }
+var inp = document.getElementById('newName');
+if(inp){ inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); createAndGo(); } }); }
 })();
 </script>
 </body></html>
