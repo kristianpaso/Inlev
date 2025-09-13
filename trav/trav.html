@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inlev • Trav</title>
+  <link rel="stylesheet" href="assets/trav.css">
+  <style>
+    /* liten infosnurra under headern */
+    .trav-linkbar{margin:12px auto 0;max-width:1100px;padding:10px 12px;border:1px solid var(--border);border-radius:14px;background:#0f1420;display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .trav-linkbar a.btn{background:var(--accent);color:#081024;padding:8px 12px;border-radius:10px;text-decoration:none;font-weight:600}
+  </style>
+</head>
+<body>
+  <div id="trav-root" class="trav-root">
+    <header class="trav-topbar">
+      <div class="trav-brand">
+        <a href="/" class="trav-brand-link">Inlev</a>
+        <span class="trav-divider">/</span>
+        <strong>Trav</strong>
+      </div>
+      <nav class="trav-nav">
+        <a href="/sandningar.html" class="trav-nav-link">Sändningar</a>
+        <a href="/trav/trav.html" class="trav-nav-link trav-active">Trav</a>
+        <a href="/trav/analys.html" class="trav-nav-link">Analys</a>
+      </nav>
+    </header>
+
+    <!-- Länk till trav.index.html -->
+    <div class="trav-linkbar">
+      <span>Öppna alternativ vy:</span>
+      <a class="btn" href="/trav/trav.index.html">/trav/trav.index.html</a>
+    </div>
+
+    <main class="trav-container">
+      <section class="trav-intro">
+        <h1>Trav</h1>
+        <p>Hantera lopp, startlistor och avvikelser. Denna sida sparar data i webbläsarens <code>localStorage</code> tills backend kopplas på.</p>
+      </section>
+
+      <section class="trav-actions-grid">
+        <button id="travBtnNewRace" class="trav-card-btn">+ Skapa nytt lopp</button>
+        <label class="trav-card-btn trav-filelike">
+          Importera startlista (CSV)
+          <input type="file" id="travCsvInput" accept=".csv">
+        </label>
+        <button id="travBtnShowIssues" class="trav-card-btn">Visa avvikelser</button>
+      </section>
+
+      <section class="trav-toolbar">
+        <input id="travSearch" class="trav-input" placeholder="Sök: Bana, datum (YYYY-MM-DD) eller status…">
+        <div class="trav-status-filters">
+          <button data-status="" class="trav-chip trav-chip-active">Alla</button>
+          <button data-status="planerat" class="trav-chip">Planerat</button>
+          <button data-status="pågående" class="trav-chip">Pågående</button>
+          <button data-status="klart" class="trav-chip">Klart</button>
+        </div>
+      </section>
+
+      <section class="trav-table-wrap" id="travTableWrap">
+        <div class="trav-table">
+          <div class="trav-t-head">
+            <div>Bana</div>
+            <div>Datum</div>
+            <div>Lopp</div>
+            <div>Status</div>
+            <div class="trav-right">Åtgärder</div>
+          </div>
+          <div id="travRows" class="trav-t-body"><!-- Rader via JS --></div>
+        </div>
+        <div id="travEmptyState" class="trav-empty trav-hidden">Inga lopp ännu. Skapa ett via knappen ovan.</div>
+      </section>
+    </main>
+
+    <!-- Modal: Skapa/Redigera lopp -->
+    <dialog id="travModal" class="trav-modal">
+      <form method="dialog" class="trav-modal-card" id="travForm">
+        <h3 id="travModalTitle">Nytt lopp</h3>
+        <div class="trav-grid">
+          <label>Bana
+            <input name="bana" required placeholder="t.ex. Solvalla">
+          </label>
+          <label>Datum
+            <input name="datum" type="date" required>
+          </label>
+          <label>Loppnr
+            <input name="lopp" type="number" min="1" required>
+          </label>
+          <label>Status
+            <select name="status" required>
+              <option value="planerat">Planerat</option>
+              <option value="pågående">Pågående</option>
+              <option value="klart">Klart</option>
+            </select>
+          </label>
+        </div>
+        <menu class="trav-modal-actions">
+          <button value="cancel" class="trav-btn trav-ghost">Avbryt</button>
+          <button value="default" class="trav-btn">Spara</button>
+        </menu>
+        <input type="hidden" name="id">
+      </form>
+    </dialog>
+
+    <!-- Modal: Avvikelser (placeholder) -->
+    <dialog id="travIssues" class="trav-modal">
+      <div class="trav-modal-card">
+        <h3>Avvikelser</h3>
+        <p>Här listar vi avvikelser kopplade till lopp (placeholder tills backend finns).</p>
+        <menu class="trav-modal-actions">
+          <button class="trav-btn" onclick="document.getElementById('travIssues').close()">Stäng</button>
+        </menu>
+      </div>
+    </dialog>
+  </div>
+
+  <script src="assets/trav.js"></script>
+</body>
+</html>

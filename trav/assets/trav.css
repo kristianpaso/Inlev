@@ -1,0 +1,74 @@
+/* Namespacad stil under .trav-root för att undvika krockar */
+.trav-root *{ box-sizing:border-box }
+.trav-root { --bg:#0b0c10; --panel:#111319; --muted:#9aa3b2; --text:#e6e8ec; --accent:#6aa3ff; --border:#1c2030; --chip:#1a2233; }
+
+.trav-topbar{
+  position:sticky; top:0; z-index:10; display:flex; justify-content:space-between; align-items:center;
+  padding:12px 16px; background:var(--panel); border-bottom:1px solid var(--border);
+}
+.trav-brand-link{ color:var(--text); text-decoration:none; font-weight:600}
+.trav-divider{opacity:.5; margin:0 8px}
+.trav-nav .trav-nav-link{ color:var(--muted); margin-left:12px; text-decoration:none; padding:6px 10px; border-radius:10px }
+.trav-nav .trav-active, .trav-nav .trav-nav-link:hover{ color:var(--text); background:#141a26 }
+
+.trav-container{ max-width:1100px; margin:0 auto; padding:20px; color:var(--text); background:transparent }
+.trav-intro h1{ margin:.2rem 0 0.5rem }
+.trav-intro p{ color:var(--muted) }
+
+.trav-actions-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:18px 0 22px }
+.trav-card-btn{
+  background:var(--panel); border:1px solid var(--border);
+  padding:14px 16px; border-radius:16px; cursor:pointer; text-align:center;
+  box-shadow:0 2px 10px rgba(0,0,0,.15); color:var(--text);
+}
+.trav-card-btn:hover{ transform:translateY(-1px)}
+.trav-filelike{ display:inline-block; position:relative; overflow:hidden }
+.trav-filelike input{ position:absolute; inset:0; opacity:0; cursor:pointer }
+
+.trav-toolbar{ display:flex; gap:12px; align-items:center; margin:10px 0 16px; flex-wrap:wrap }
+.trav-input{
+  background:#0f1420; color:var(--text); border:1px solid var(--border);
+  padding:10px 12px; border-radius:12px; min-width:260px;
+}
+.trav-chip{
+  background:var(--chip); color:var(--text);
+  border:1px solid var(--border); border-radius:999px; padding:6px 10px; cursor:pointer;
+}
+.trav-chip-active{ outline:2px solid var(--accent) }
+
+.trav-table-wrap{ background:var(--panel); border:1px solid var(--border); border-radius:18px; overflow:hidden }
+.trav-table{ width:100% }
+.trav-t-head,.trav-row{ display:grid; grid-template-columns:2fr 1.5fr .8fr 1fr 1fr; gap:12px; align-items:center }
+.trav-t-head{ background:#0e1522; color:#c7cfdd; font-size:12px; padding:10px 14px }
+.trav-t-body .trav-row{ padding:12px 14px; border-top:1px solid var(--border) }
+.trav-right{ text-align:right }
+.trav-badge{ font-size:12px; padding:4px 8px; border-radius:999px; border:1px solid var(--border) }
+.trav-badge.planerat{ background:#142033 }
+.trav-badge.pågående{ background:#1a2a18 }
+.trav-badge.klart{ background:#1b1b1b; opacity:.9 }
+
+.trav-btn{ background:var(--accent); color:#081024; border:0; padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:600 }
+.trav-ghost{ background:transparent; border:1px solid var(--border); color:var(--text) }
+.trav-modal{ border:0; padding:0; background:transparent }
+.trav-modal::backdrop{ background:rgba(0,0,0,.5) }
+.trav-modal-card{
+  background:var(--panel); border:1px solid var(--border); border-radius:16px;
+  padding:16px; width:min(680px,92vw); color:var(--text)
+}
+.trav-modal-card h3{ margin-top:0 }
+.trav-modal-card .trav-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px }
+.trav-modal-card label{ display:flex; flex-direction:column; gap:6px; font-size:14px }
+.trav-modal-card input,.trav-modal-card select{
+  background:#0f1420; color:var(--text); border:1px solid var(--border);
+  padding:10px 12px; border-radius:10px
+}
+.trav-modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:12px }
+
+.trav-empty{ padding:22px; color:var(--muted) }
+.trav-hidden{ display:none }
+.trav-actions a, .trav-actions button{ background:transparent; border:0; color:#9ec1ff; text-decoration:underline; cursor:pointer; padding:0 6px }
+.trav-actions a:hover, .trav-actions button:hover{ color:#cfe0ff }
+@media (max-width:720px){
+  .trav-t-head,.trav-row{ grid-template-columns:1.2fr 1.1fr .6fr .9fr 1fr }
+  .trav-modal-card .trav-grid{ grid-template-columns:1fr }
+}

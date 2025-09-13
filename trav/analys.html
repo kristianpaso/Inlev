@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inlev • Trav Analys</title>
+  <link rel="stylesheet" href="assets/trav.css">
+</head>
+<body>
+  <div id="trav-root" class="trav-root">
+    <header class="trav-topbar">
+      <div class="trav-brand">
+        <a href="/index.html" class="trav-brand-link">Inlev</a>
+        <span class="trav-divider">/</span>
+        <a href="/trav/trav.html" class="trav-brand-link">Trav</a>
+        <span class="trav-divider">/</span>
+        <strong>Analys</strong>
+      </div>
+      <nav class="trav-nav">
+        <a href="/trav/trav.html" class="trav-nav-link">Översikt</a>
+        <a href="/trav/analys.html" class="trav-nav-link trav-active">Analys</a>
+      </nav>
+    </header>
+
+    <main class="trav-container">
+      <section class="trav-intro">
+        <h1>Analysverktyg</h1>
+        <p>Skapa antal avdelningar, sätt antal hästar per avdelning och klistra in rå info för att parsas till tabeller.</p>
+      </section>
+
+      <section class="trav-actions-grid">
+        <label class="trav-card-btn" style="text-align:left">
+          Antal avdelningar
+          <input id="avdCount" type="number" min="1" value="7" class="trav-input" style="margin-top:8px;width:140px">
+        </label>
+        <button id="buildBtn" class="trav-card-btn">Bygg avdelningar</button>
+        <button id="seedBtn" class="trav-card-btn">Fyll exempel i AVD 1</button>
+      </section>
+
+      <section id="avdHost" class="trav-table-wrap" style="padding:12px"></section>
+    </main>
+  </div>
+
+  <script src="assets/analys.js"></script>
+</body>
+</html>
