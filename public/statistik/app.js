@@ -4,6 +4,61 @@ let workbook = null;
 let activeRows = []; // rows from selected sheet when using upload
 let currentReport = null;
 
+
+// --- Robust loader for XLSX (handles blocked CDN / CSP) ---
+let __xlsxLoading = null;
+function ensureXLSX(){
+  if (window.XLSX) return Promise.resolve();
+  if (__xlsxLoading) return __xlsxLoading;
+  const candidates = [
+    "https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js",
+    "https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js",
+    "/js/vendor/xlsx.full.min.js",
+    "/vendor/xlsx.full.min.js"
+  ];
+  __xlsxLoading = new Promise((resolve, reject) => {
+    let i = 0;
+    const tryNext = () => {
+      if (window.XLSX) return resolve();
+      if (i >= candidates.length) {
+        return reject(new Error("Kan inte ladda XLSX-biblioteket (CSP/brandvägg?). Lägg en lokal kopia på /js/vendor/xlsx.full.min.js."));
+      }
+      const src = candidates[i++];
+      const s = document.createElement("script");
+      s.src = src;
+      s.async = true;
+      s.onload = () => setTimeout(() => window.XLSX ? resolve() : tryNext(), 10);
+      s.onerror = tryNext;
+      document.head.appendChild(s);
+    };
+    tryNext();
+  });
+  return __xlsxLoading;
+}
+
+// --- robust file → workbook loader ---
+async function fileToWorkbook(file){
+  await ensureXLSX();
+  // Try ArrayBuffer first
+  let buf = await file.arrayBuffer().catch(()=>null);
+  if(buf){
+    try{
+      return XLSX.read(buf, { type: 'array', cellDates: true });
+    }catch(e){
+      console.warn('XLSX.read(array) misslyckades, testar binary string...', e);
+    }
+  }
+  // Fallback to binary string
+  const reader = new FileReader();
+  const data = await new Promise((resolve, reject)=>{
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => resolve(reader.result);
+    reader.readAsBinaryString(file);
+  }).catch(()=>null);
+  if(!data) throw new Error('Kunde inte läsa filen (varken arraybuffer eller binary).');
+  return XLSX.read(data, { type: 'binary', cellDates: true });
+}
+
 const ui = {
   file: document.getElementById('fileInput'),
   sheet: document.getElementById('sheetSelect'),
@@ -52,28 +107,26 @@ async function loadSample(){
   }
 }
 
-function onFile(e){
+
+async function onFile(e){
   const file = e.target.files?.[0];
   if(!file) return;
   ui.fileMeta.textContent = `${file.name} • ${(file.size/1024/1024).toFixed(2)} MB • Senast ändrad: ${new Date(file.lastModified).toLocaleString()}`;
-
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    try {
-      const data = ev.target.result;
-      workbook = XLSX.read(data, { type: 'array', cellDates: true });
-      populateSheetSelect(workbook.SheetNames);
-      // Auto-select first sheet
-      if(workbook.SheetNames.length){
-        ui.sheet.value = workbook.SheetNames[0];
-        onSheetChange();
-      }
-    } catch(err){
-      alert('Kunde inte läsa filen. Är det en giltig .xlsx/.xls/.csv?\\n' + err);
-      console.error(err);
+  try{
+    workbook = await fileToWorkbook(file);
+    const names = Array.isArray(workbook?.SheetNames) ? workbook.SheetNames : [];
+    if(!names.length){
+      alert('Kunde läsa filen men hittade inga arbetsblad. Är det en tom fil eller ogiltigt format?');
+      return;
     }
-  };
-  reader.readAsArrayBuffer(file);
+    populateSheetSelect(names);
+    ui.sheet.value = names[0];
+    onSheetChange();
+  }catch(err){
+    console.error(err);
+    alert('Kunde inte läsa filen. Är det en giltig .xlsx/.xls/.csv?\n' + err);
+  }
+}
 }
 
 function populateSheetSelect(names){
