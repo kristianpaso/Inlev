@@ -1,11 +1,56 @@
+# Netlify configuration for Inlev
 [build]
-  # Change 'public' if your built static files live elsewhere
   publish = "public"
-  functions = "netlify/functions"
+  command = ""
 
-# Keep your existing redirects; add this one to forward /api/auth/* to the 'auth' function
+[build.environment]
+  NODE_VERSION = "20"
+
+# Pretty URL redirects to folder indexes
+[[redirects]]
+  from = "/plock"
+  to = "/plock/"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/trav"
+  to = "/trav/"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/statistik"
+  to = "/statistik/"
+  status = 301
+  force = true
+
+# Optional: keep downloads/ direct file serving without transformation
+[[headers]]
+  for = "/downloads/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+
+# API → Netlify Functions
 [[redirects]]
   from = "/api/auth/*"
   to = "/.netlify/functions/auth/:splat"
   status = 200
-  force = true
+
+[[redirects]]
+  from = "/api/store/*"
+  to = "/.netlify/functions/store/:splat"
+  status = 200
+
+
+[[redirects]]
+  from = "/api/parse-xlsx"
+  to = "/.netlify/functions/parse-xlsx"
+  status = 200
+
+
+[[redirects]]
+  from = "/api/auth-lite/*"
+  to = "/.netlify/functions/auth-lite/:splat"
+  status = 200

@@ -76,6 +76,9 @@ const ui = {
   meta: document.getElementById('meta'),
   srcName: document.getElementById('srcName'),
   genTime: document.getElementById('genTime'),
+,
+  userMode: document.getElementById('userMode'),
+  userFilter: document.getElementById('userFilter')
 };
 function setStatus(msg){ const el = document.getElementById('statusMsg'); if(el) el.textContent = msg||''; }
 
@@ -372,6 +375,50 @@ function computeReport(rows, inactivityMinutes){
 }
 
 // ---- Rendering ----
+
+function getUserFilterOptions(){
+  const mode = ui.userMode?.value || 'top8';
+  const q = (ui.userFilter?.value || '').trim().toLowerCase();
+  return { mode, q };
+}
+function renderUsersDaily(){
+  if(!Array.isArray(activeRows)) return;
+  const { mode, q } = getUserFilterOptions();
+  const udDaySet = new Set();
+  const totalsByUser = {};
+  for(const r of activeRows){
+    const t = toDate(r.TimeStamp); if(!t) continue;
+    const d = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+    const u = (String(r.UserName||'').trim() || 'Okänd');
+    if(q && !u.toLowerCase().includes(q)) continue;
+    udDaySet.add(d);
+    totalsByUser[u] = (totalsByUser[u]||0) + 1;
+  }
+  const udDayLabels = Array.from(udDaySet).sort();
+
+  let chosenUsers = Object.keys(totalsByUser).sort((a,b)=>totalsByUser[b]-totalsByUser[a]);
+  if(mode === 'top8') chosenUsers = chosenUsers.slice(0,8);
+  else if(mode === 'top15') chosenUsers = chosenUsers.slice(0,15);
+  const useOthers = (mode !== 'alla');
+  const udCounts = {}; for(const u of chosenUsers) udCounts[u] = {}; if(useOthers) udCounts['Övriga'] = {};
+
+  for(const r of activeRows){
+    const t = toDate(r.TimeStamp); if(!t) continue;
+    const d = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+    const uRaw = (String(r.UserName||'').trim() || 'Okänd');
+    if(q && !uRaw.toLowerCase().includes(q)) continue;
+    const u = (useOthers && !chosenUsers.includes(uRaw)) ? 'Övriga' : uRaw;
+    udCounts[u] = udCounts[u] || {};
+    udCounts[u][d] = (udCounts[u][d]||0) + 1;
+  }
+
+  const udSeries = Object.keys(udCounts).map(u => ({ label:u, data: udDayLabels.map(d => udCounts[u][d]||0) }));
+  if(udDayLabels.length){
+    makeOrUpdateStacked('usersDailyChart', udDayLabels, udSeries, 'Plock per användare per dag', 'usersDaily');
+  } else {
+    const c = document.getElementById('usersDailyChart'); if(c){ const ctx=c.getContext('2d'); ctx?.clearRect(0,0,c.width,c.height); }
+  }
+}
 function renderReport(report, overrideMeta){
   // Meta
   const meta = report.meta || {};
@@ -382,30 +429,8 @@ function renderReport(report, overrideMeta){
   // KPIs
   const g = report.global;
   text('kpiTotalPicks', num(g.total_picks));
-  // --- Huvudstatistik: plock per användare per dag (stackad) ---
-  const daySet = new Set();
-  for(const r of activeRows){
-    const t = toDate(r.TimeStamp); if(!t) continue;
-    daySet.add(`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`);
-  }
-  const dayLabels = Array.from(daySet).sort();
-  const totalsByUser = {};
-  for(const r of activeRows){
-    const u = (String(r.UserName||'').trim() || 'Okänd');
-    totalsByUser[u] = (totalsByUser[u]||0) + 1;
-  }
-  const topUsers = Object.keys(totalsByUser).sort((a,b)=>totalsByUser[b]-totalsByUser[a]).slice(0,8);
-  const isTop = new Set(topUsers);
-  const counts = {}; for(const u of topUsers) counts[u] = {}; counts['Övriga'] = {};
-  for(const r of activeRows){
-    const t = toDate(r.TimeStamp); if(!t) continue;
-    const d = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
-    const u = (String(r.UserName||'').trim() || 'Okänd');
-    const key = isTop.has(u) ? u : 'Övriga';
-    counts[key][d] = (counts[key][d]||0) + 1;
-  }
-  const series = Object.keys(counts).map(u => ({ label: u, data: dayLabels.map(d => counts[u][d]||0) }));
-  if(dayLabels.length){ makeOrUpdateStacked('usersDailyChart', dayLabels, series, 'Plock per användare per dag', 'usersDaily'); }
+  renderUsersDaily();
+}
 
   text('kpiUsers', num(g.n_users));
   text('kpiHours', num(g.active_hours));
@@ -559,3 +584,6 @@ function countBy(arr){
   for(const v of arr){ const k = String(v ?? ''); m[k] = (m[k]||0)+1; }
   return m;
 }
+  ui.userMode?.addEventListener('change', renderUsersDaily);
+  ui.userFilter?.addEventListener('input', ()=>{ clearTimeout(window.__udt); window.__udt=setTimeout(renderUsersDaily,200); });
+
