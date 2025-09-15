@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Inlev • Plock</title>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    .wrap{max-width:1100px;margin:0 auto;padding:20px}
+    .card{background:#111319;border:1px solid #1c2030;border-radius:16px;padding:16px;margin:12px 0}
+    .btn{background:#6AA3FF;color:#081024;border:0;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .muted{opacity:.7}
+    #status{margin-top:8px;font-weight:600}
+    .live{margin-top:10px}
+  </style>
+</head>
+<body>
+  <script src="/auth.js"></script>
+  <script>try{if(!InlevAuth.isAuthed||!InlevAuth.isAuthed())location.href='/login.html';}catch(e){location.href='/login.html';}</script>
+  <!-- Global Project Buttons -->
+  <nav class="projectbar" style="position:sticky;top:0;z-index:50;background:#0e1522;border-bottom:1px solid #1c2030;padding:.5rem 1rem;display:flex;gap:.5rem;align-items:center">
+    <span class="muted" style="margin-right:.75rem">Projekt:</span>
+    <a href="/sandningar.html" class="btn">Sändningar</a>
+    <a href="/trav.html" class="btn">Trav</a>
+    <a href="/plock/" class="btn">Plock</a>
+    <a href="/statistik/" class="btn">Statistik</a>
+  </nav>
+
+
+  <nav id="projectBar" style="position:sticky;top:0;z-index:50;background:#0e1522;border-bottom:1px solid #1c2030;padding:.5rem 1rem;display:flex;gap:.5rem;align-items:center">
+    <span class="muted" style="margin-right:.75rem">Projekt:</span>
+    <a href="/sandningar.html" class="btn">Sändningar</a>
+    <a href="/trav.html" class="btn">Trav</a>
+    <a href="/plock/" class="btn" style="background:#2f74ff;color:#fff">Plock</a>
+      <a href="/statistik/" class="btn">Statistik</a>
+  </nav>
+
+  <main class="wrap">
+    <div class="card">
+      <h2 style="margin:0 0 10px 0">Plock – koppling till Chrome-tillägg (Bridge)</h2>
+      <p class="muted">Klicka aktivera här (flik 2). Jobba sedan i AutoStore WMS (flik 1). Varje plock pushas hit i realtid.</p>
+      <div class="row">
+        <button id="downloadBtn" class="btn">Ladda ner Chrome Extension</button>
+        <button id="activateBtn" class="btn">Aktivera</button>
+        <button id="refreshBtn" class="btn">Uppdatera statistik</button>
+      </div>
+      <div id="status" class="muted">Väntar på tillägg…</div>
+      <div class="live"><strong>Plock totalt:</strong> <span id="cnt">0</span></div>
+    </div>
+  </main>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const cntEl = document.getElementById('cnt');
+
+    document.getElementById('downloadBtn').addEventListener('click',()=>{
+      location.href='/downloads/plock-extension.zip';
+    });
+
+    window.addEventListener('message', (e)=>{
+      const msg = e && e.data;
+      if (!msg || !msg.type) return;
+      if (msg.type === 'PLOCK_BRIDGE_READY') {
+        statusEl.textContent = 'Bridge hittad. Klicka Aktivera för att starta tracking.';
+      } else if (msg.type === 'PLOCK_STATUS') {
+        statusEl.textContent = msg.status || 'OK.';
+      } else if (msg.type === 'PLOCK_STATS') {
+        if (typeof msg.plockCount === 'number') cntEl.textContent = msg.plockCount;
+        statusEl.textContent = 'Tracking: ' + (msg.tracking ? 'PÅ' : 'AV') + ' — Plock: ' + msg.plockCount;
+      }
+    });
+
+    document.getElementById('activateBtn').addEventListener('click',()=>{
+      window.postMessage({type:'PLOCK_ACTIVATE'}, '*');
+    });
+    document.getElementById('refreshBtn').addEventListener('click',()=>{
+      window.postMessage({type:'PLOCK_GET_STATS'}, '*');
+    });
+
+    setTimeout(()=>{ window.postMessage({type:'PLOCK_GET_STATS'}, '*'); }, 800);
+  </script>
+</body>
+</html>

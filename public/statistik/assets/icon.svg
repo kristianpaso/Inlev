@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="24" fill="#121829"/>
+  <g transform="translate(16,16)">
+    <path d="M32 176h160v16H32zM64 56h16v88H64zM120 88h16v56h-16zM176 104h16v40h-16z" fill="#22c55e"/>
+    <circle cx="48" cy="176" r="6" fill="#60a5fa"/>
+    <circle cx="208" cy="176" r="6" fill="#60a5fa"/>
+    <text x="96" y="28" font-size="20" fill="#e5e7eb" font-family="sans-serif">STAT</text>
+  </g>
+</svg>

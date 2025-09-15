@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inlev • Statistik</title>
+  <link rel="icon" href="./assets/icon.svg">
+  <link rel="stylesheet" href="/styles.css"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root{--bg:#0b0f18;--card:#121829;--muted:#94a3b8;--text:#e5e7eb;--accent:#22c55e;--accent2:#60a5fa;--accent3:#f59e0b}
+    .wrap{max-width:1200px;margin:0 auto;padding:20px}
+    .card{background:linear-gradient(180deg,#0f172a 0%,#111827 100%);border:1px solid #1f2937;border-radius:18px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#0b1220;border:1px solid #24324a;color:#9fb3c8;font-size:12px}
+    .kpi{position:relative;overflow:hidden}
+    .kpi::after{content:'';position:absolute;inset:-20% -20% auto auto;width:140px;height:140px;background:radial-gradient(closest-side,var(--accent),transparent);opacity:.15;filter:blur(8px);transform:translate(20px,-20px)}
+    .kpi h3{font-size:.8rem;color:#94a3b8;margin:0 0 6px}
+    .kpi .v{font-size:2rem;font-weight:800;letter-spacing:.4px}
+    .controls select,.controls input[type="number"],.controls input[type="file"]{background:#0b1220;color:var(--text);border:1px solid #24324a;border-radius:10px;padding:10px;width:100%}
+    canvas{background:#0b1220;border-radius:12px;padding:8px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px 12px;border-bottom:1px solid #22304a}
+    th{text-align:left;color:#aab4c2;font-weight:600}
+    tr:hover td{background:#0b1220}
+    .btn{background:var(--accent);color:#08121c;border:none;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:700}
+    .btn.secondary{background:var(--accent2);color:#08121c}
+  </style>
+</head>
+<body>
+  <!-- project bar -->
+  <nav class="projectbar" style="position:sticky;top:0;z-index:50;background:#0e1522;border-bottom:1px solid #1c2030;padding:.5rem 1rem;display:flex;gap:.5rem;align-items:center">
+    <span class="muted" style="margin-right:.75rem">Projekt:</span>
+    <a href="/sandningar.html" class="btn">Sändningar</a>
+    <a href="/trav.html" class="btn">Trav</a>
+    <a href="/plock/" class="btn">Plock</a>
+    <a href="/statistik/" class="btn" style="background:#2f74ff;color:#fff">Statistik</a>
+  </nav>
+
+  <main class="wrap">
+    <div class="card mb-4">
+      <h1 style="margin:0 0 6px 0">Statistik — Excel-överblick</h1>
+      <p class="muted">Ladda upp en fil eller använd exempeldata. Inga andra projekt påverkas.</p>
+    </div>
+
+    <section class="card mb-6 controls">
+      <div class="grid md:grid-cols-5 gap-4 items-end">
+        <div class="md:col-span-2">
+          <label class="block text-sm text-slate-400 mb-1">Ladda upp fil (.xlsx/.xls/.csv)</label>
+          <input id="fileInput" type="file" accept=".xlsx,.xls,.csv">
+        </div>
+        <div>
+          <label class="block text-sm text-slate-400 mb-1">Arbetsblad</label>
+          <select id="sheetSelect"></select>
+        </div>
+        <div>
+          <label class="block text-sm text-slate-400 mb-1">Inaktivitet (min)</label>
+          <input id="idleMinutes" type="number" min="1" max="120" value="15">
+        </div>
+        <div class="flex gap-2">
+          <button id="useSample" class="btn">Använd exempeldata</button>
+          <button id="exportJsonBtn" class="btn secondary">Exportera rapport</button>
+        </div>
+      </div>
+      <p id="fileMeta" class="text-slate-500 text-sm mt-2"></p>
+    </section>
+
+    <section class="grid md:grid-cols-4 gap-4 mb-6">
+      <div class="card kpi"><h3>Totalt plock</h3><div id="kpiTotalPicks" class="v">–</div></div>
+      <div class="card kpi"><h3>Antal användare</h3><div id="kpiUsers" class="v">–</div></div>
+      <div class="card kpi"><h3>Aktiva timmar (summa)</h3><div id="kpiHours" class="v">–</div></div>
+      <div class="card kpi"><h3>Plock / aktiv timme</h3><div id="kpiPPH" class="v">–</div></div>
+    </section>
+
+    <section class="grid md:grid-cols-2 gap-4 mb-6">
+      <div class="card">
+        <h2 class="text-xl font-semibold mb-3">Plock/aktiv timme — top 10</h2>
+        <canvas id="pphChart" height="220"></canvas>
+      </div>
+      <div class="card">
+        <h2 class="text-xl font-semibold mb-3">Uppgifter (UpdateCode)</h2>
+        <canvas id="updateChart" height="220"></canvas>
+      </div>
+    </section>
+
+    <section class="card mb-10">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xl font-semibold">Per användare</h2>
+        <small id="meta" class="text-slate-400"></small>
+      </div>
+      <div class="overflow-auto">
+        <table id="userTable">
+          <thead>
+            <tr>
+              <th>Användare</th>
+              <th>Totalt plock</th>
+              <th>Aktiva timmar</th>
+              <th>Plock/aktiv timme</th>
+              <th>Perioder</th>
+              <th>Första plock</th>
+              <th>Sista plock</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="text-center text-slate-500 text-sm mb-10">
+      Källa: <span id="srcName">–</span>. Genererad <span id="genTime">–</span> (UTC).
+    </footer>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

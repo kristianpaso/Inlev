@@ -1,19 +1,32 @@
-
+# Netlify configuration for Inlev
 [build]
   publish = "public"
-  functions = "netlify/functions"
+  command = ""
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Pretty URL redirects to folder indexes
+[[redirects]]
+  from = "/plock"
+  to = "/plock/"
+  status = 301
+  force = true
 
 [[redirects]]
-  from = "/api/store/*"
-  to = "/.netlify/functions/store"
-  status = 200
+  from = "/trav"
+  to = "/trav/"
+  status = 301
+  force = true
 
 [[redirects]]
-  from = "/api/auth/*"
-  to = "/.netlify/functions/auth"
-  status = 200
+  from = "/statistik"
+  to = "/statistik/"
+  status = 301
+  force = true
 
-[[redirects]]
-  from = "/api/admin/*"
-  to = "/.netlify/functions/auth"
-  status = 200
+# Optional: keep downloads/ direct file serving without transformation
+[[headers]]
+  for = "/downloads/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
