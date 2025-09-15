@@ -382,6 +382,31 @@ function renderReport(report, overrideMeta){
   // KPIs
   const g = report.global;
   text('kpiTotalPicks', num(g.total_picks));
+  // --- Huvudstatistik: plock per användare per dag (stackad) ---
+  const daySet = new Set();
+  for(const r of activeRows){
+    const t = toDate(r.TimeStamp); if(!t) continue;
+    daySet.add(`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`);
+  }
+  const dayLabels = Array.from(daySet).sort();
+  const totalsByUser = {};
+  for(const r of activeRows){
+    const u = (String(r.UserName||'').trim() || 'Okänd');
+    totalsByUser[u] = (totalsByUser[u]||0) + 1;
+  }
+  const topUsers = Object.keys(totalsByUser).sort((a,b)=>totalsByUser[b]-totalsByUser[a]).slice(0,8);
+  const isTop = new Set(topUsers);
+  const counts = {}; for(const u of topUsers) counts[u] = {}; counts['Övriga'] = {};
+  for(const r of activeRows){
+    const t = toDate(r.TimeStamp); if(!t) continue;
+    const d = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+    const u = (String(r.UserName||'').trim() || 'Okänd');
+    const key = isTop.has(u) ? u : 'Övriga';
+    counts[key][d] = (counts[key][d]||0) + 1;
+  }
+  const series = Object.keys(counts).map(u => ({ label: u, data: dayLabels.map(d => counts[u][d]||0) }));
+  if(dayLabels.length){ makeOrUpdateStacked('usersDailyChart', dayLabels, series, 'Plock per användare per dag', 'usersDaily'); }
+
   text('kpiUsers', num(g.n_users));
   text('kpiHours', num(g.active_hours));
   text('kpiPPH', g.picks_per_active_hour!=null ? g.picks_per_active_hour.toLocaleString('sv-SE') : '–');
@@ -456,6 +481,35 @@ function makeOrUpdateBar(canvasId, labels, values, title, key){
       }
     }
   });
+
+function makeOrUpdateStacked(canvasId, labels, series, title, key){
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  if(charts[key]) charts[key].destroy();
+  const base = ['#60a5fa','#34d399','#fbbf24','#f472b6','#a78bfa','#f87171','#22d3ee','#c084fc','#f59e0b','#10b981','#e879f9','#fb7185'];
+  const datasets = series.map((s, i) => ({
+    label: s.label,
+    data: s.data,
+    backgroundColor: base[i % base.length],
+    borderWidth: 0,
+    borderRadius: 4
+  }));
+  charts[key] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12 } },
+        title: { display: true, text: title }
+      },
+      scales: {
+        x: { stacked: true, ticks: { autoSkip: false, maxRotation: 60, minRotation: 0 } },
+        y: { stacked: true, beginAtZero: true }
+      }
+    }
+  });
+}
 }
 
 // ---- Helpers ----
