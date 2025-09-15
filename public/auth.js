@@ -1,35 +1,44 @@
+(function(){
+  const TOKEN_KEY = 'token';
+  const EXP_KEY   = 'token_exp';
+  const USER_KEY  = 'user';
 
-(function(global){
-  const KEY='inleverans_auth';
-  function save(token,exp,user){ localStorage.setItem(KEY, JSON.stringify({token,exp,user})); }
-  function load(){ try{ return JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){ return null; } }
-  function now(){ return Math.floor(Date.now()/1000); }
-  
-async function authFetch(path, init){
-  // Try via /api first
-  try{
-    const r = await fetch('/api/auth/' + path, init);
-    if (r.ok || r.status !== 404) return r;
-  }catch(e){ /* ignore and fall back */ }
-  // Fallback direct to Functions (works even utan redirects)
-  return fetch('/.netlify/functions/auth/' + path, init);
-}
+  async function authFetch(path, init){
+    try{
+      const r = await fetch('/api/auth/' + path, init);
+      if (r.ok || r.status !== 404) return r;
+    }catch(e){}
+    return fetch('/.netlify/functions/auth/' + path, init);
+  }
 
-const InlevAuth = {
-    health: async ()=>{ try{ const r = await authFetch('health'); return r.ok; }catch(e){ return false; } }catch(e){ return false; } },
-    signIn: async (u,p)=>{ 
-      try{
-        const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
-        if(!r.ok) return false;
-        const {token,exp,user}=await r.json();
-        save(token,exp,user); 
-        return true;
-      }catch(e){ return false; }
+  window.InlevAuth = {
+    getToken(){ return localStorage.getItem(TOKEN_KEY); },
+    isAuthed(){
+      const t = localStorage.getItem(TOKEN_KEY);
+      const exp = parseInt(localStorage.getItem(EXP_KEY) || '0', 10);
+      return !!t && (!exp || Date.now() < exp * 1000);
     },
-    signOut: ()=> localStorage.removeItem(KEY),
-    get: ()=> load(),
-    isAuthed: ()=>{ const s=load(); return !!(s && s.exp>now()); },
-    getAccessToken: async ()=>{ const s=load(); if(s&&s.exp>now()) return s.token; return null; }
+    logout(){
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(EXP_KEY);
+      localStorage.removeItem(USER_KEY);
+    },
+    health: async () => {
+      try { const r = await authFetch('health'); return r.ok; }
+      catch(e){ return false; }
+    },
+    signIn: async (username, password) => {
+      const res = await authFetch('login', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      if(!res.ok) return false;
+      const data = await res.json();
+      localStorage.setItem(TOKEN_KEY, data.token);
+      localStorage.setItem(EXP_KEY, data.exp);
+      localStorage.setItem(USER_KEY, JSON.stringify(data.user || {}));
+      return true;
+    }
   };
-  global.InlevAuth = InlevAuth;
-})(window);
+})();

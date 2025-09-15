@@ -139,24 +139,29 @@ async function onFile(e){
       setStatus(`CSV inläst (${activeRows.length} rader).`);
       return;
     }
-    await ensureXLSX();
-    const buf = await file.arrayBuffer();
-    workbook = XLSX.read(buf, { type: 'array', cellDates: true });
-    const names = Array.isArray(workbook?.SheetNames) ? workbook.SheetNames : [];
-    if(!names.length){
-      alert('Kunde läsa filen men hittade inga arbetsblad. Är det en tom fil eller ogiltigt format?');
+    try{
+      await ensureXLSX();
+      const buf = await file.arrayBuffer();
+      workbook = XLSX.read(buf, { type: 'array', cellDates: true });
+      const names = Array.isArray(workbook?.SheetNames) ? workbook.SheetNames : [];
+      if(!names.length){
+        alert('Kunde läsa filen men hittade inga arbetsblad. Är det en tom fil eller ogiltigt format?');
+        return;
+      }
+      populateSheetSelect(names);
+      ui.sheet.value = names[0];
+      onSheetChange();
+      setStatus(`Fil inläst. Hittade ${names.length} blad.`);
+    } catch(e){
+      console.warn('XLSX i klienten misslyckades, använder server-parse', e);
+      await serverParse(file);
       return;
     }
-    populateSheetSelect(names);
-    ui.sheet.value = names[0];
-    onSheetChange();
-    setStatus(`Fil inläst. Hittade ${names.length} blad.`);
   }catch(err){
     console.error(err);
     setStatus('Fel vid läsning: ' + (err?.message || err));
     alert('Kunde inte läsa filen. Är det en giltig .xlsx/.xls/.csv?\\n' + (err?.message || err));
   }
-}
 }
 
 function populateSheetSelect(names){
@@ -231,6 +236,23 @@ function parseCSV(text){
     data.push(obj);
   }
   return data;
+}
+
+
+async function serverParse(file){
+  const res = await fetch('/api/parse-xlsx', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/octet-stream', 'X-Filename': file.name || '' },
+    body: file
+  });
+  if(!res.ok) throw new Error('Servern kunde inte läsa Excel (' + res.status + ')');
+  const data = await res.json();
+  if(!data || !data.rows) throw new Error('Tomt svar från servern');
+  activeRows = data.rows;
+  const names = data.sheets || (data.sheet ? [data.sheet] : ['Server']);
+  populateSheetSelect(names);
+  document.getElementById('sheetSelect').value = names[0];
+  rebuildFromActiveRows();
 }
 
 // ---- Report computation (same logik som backenden) ----

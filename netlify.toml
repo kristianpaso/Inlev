@@ -42,3 +42,9 @@
   from = "/api/store/*"
   to = "/.netlify/functions/store/:splat"
   status = 200
+
+
+[[redirects]]
+  from = "/api/parse-xlsx"
+  to = "/.netlify/functions/parse-xlsx"
+  status = 200

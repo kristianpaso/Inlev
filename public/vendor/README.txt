@@ -1,3 +1,2 @@
-Lägg filen 'xlsx.full.min.js' här för lokal laddning (om CDN är blockerade).
-Hämta från: https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js
-eller:     https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js
+Byt ut xlsx.full.min.js mot den riktiga från SheetJS om du vill parse:a i klienten.
+Server-side parsing via /api/parse-xlsx gör att .xlsx/.xls fungerar ändå.
