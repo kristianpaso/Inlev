@@ -38,6 +38,33 @@
     <a href="/statistik/" class="btn" style="background:#2f74ff;color:#fff">Statistik</a>
   </nav>
 
+<script>
+(function(){
+  try {
+    var here = location.pathname.replace(/\/index\.html$/,''); // normalize
+    var as = document.querySelectorAll('.projectbar a');
+    as.forEach(function(a){
+      var url = new URL(a.getAttribute('href'), location.origin);
+      var p = url.pathname.replace(/\/index\.html$/,'');
+      var match = false;
+      // Exact or prefix match for folder links
+      if (p.endsWith('/')) {
+        match = here === p || here.startsWith(p);
+      } else {
+        match = here === p;
+      }
+      if (match) {
+        a.style.background = '#16a34a';   // green
+        a.style.color = '#08121c';
+        a.style.boxShadow = '0 0 0 2px rgba(22,163,74,.35) inset';
+        a.setAttribute('aria-current','page');
+      }
+    });
+  } catch(e) { /* noop */ }
+})();
+</script>
+
+
   <main class="wrap">
     <div class="card mb-4">
       <h1 style="margin:0 0 6px 0">Statistik — Excel-överblick</h1>

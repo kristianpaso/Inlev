@@ -11,6 +11,33 @@
   <a href="./plock.html" class="btn">Plock</a>
 </nav>
 
+<script>
+(function(){
+  try {
+    var here = location.pathname.replace(/\/index\.html$/,''); // normalize
+    var as = document.querySelectorAll('.projectbar a');
+    as.forEach(function(a){
+      var url = new URL(a.getAttribute('href'), location.origin);
+      var p = url.pathname.replace(/\/index\.html$/,'');
+      var match = false;
+      // Exact or prefix match for folder links
+      if (p.endsWith('/')) {
+        match = here === p || here.startsWith(p);
+      } else {
+        match = here === p;
+      }
+      if (match) {
+        a.style.background = '#16a34a';   // green
+        a.style.color = '#08121c';
+        a.style.boxShadow = '0 0 0 2px rgba(22,163,74,.35) inset';
+        a.setAttribute('aria-current','page');
+      }
+    });
+  } catch(e) { /* noop */ }
+})();
+</script>
+
+
 <nav id="mainMenu" style="position:sticky;top:0;z-index:20;background:#0b1220;border-bottom:1px solid #1f2937;padding:.5rem 1rem;display:flex;gap:.5rem;">
   <a class="btn" href="./insamlare.html">Basinformation</a>
   <a class="btn" href="./felsok.html">Felsök</a>

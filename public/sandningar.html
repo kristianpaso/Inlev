@@ -11,6 +11,33 @@
   <a href="./plock.html" class="btn">Plock</a>
 </nav>
 
+<script>
+(function(){
+  try {
+    var here = location.pathname.replace(/\/index\.html$/,''); // normalize
+    var as = document.querySelectorAll('.projectbar a');
+    as.forEach(function(a){
+      var url = new URL(a.getAttribute('href'), location.origin);
+      var p = url.pathname.replace(/\/index\.html$/,'');
+      var match = false;
+      // Exact or prefix match for folder links
+      if (p.endsWith('/')) {
+        match = here === p || here.startsWith(p);
+      } else {
+        match = here === p;
+      }
+      if (match) {
+        a.style.background = '#16a34a';   // green
+        a.style.color = '#08121c';
+        a.style.boxShadow = '0 0 0 2px rgba(22,163,74,.35) inset';
+        a.setAttribute('aria-current','page');
+      }
+    });
+  } catch(e) { /* noop */ }
+})();
+</script>
+
+
 <script src="/auth.js"></script>
 <script>try{ if(!InlevAuth.isAuthed||!InlevAuth.isAuthed()) location.href='/login.html'; }catch(e){ location.href='/login.html'; }</script>
   <!-- Global Project Buttons -->

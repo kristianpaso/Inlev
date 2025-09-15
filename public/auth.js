@@ -5,6 +5,7 @@
   function load(){ try{ return JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){ return null; } }
   function now(){ return Math.floor(Date.now()/1000); }
   const InlevAuth = {
+    health: async ()=>{ try{ const r=await fetch('/api/auth/health'); return r.ok; }catch(e){ return false; } },
     signIn: async (u,p)=>{ 
       try{
         const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});

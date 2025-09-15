@@ -141,7 +141,6 @@ async function onFile(e){
     alert('Kunde inte läsa filen. Är det en giltig .xlsx/.xls/.csv?\n' + err);
   }
 }
-}
 
 function populateSheetSelect(names){
   ui.sheet.innerHTML = names.map(n => `<option>${escapeHtml(n)}</option>`).join('');
