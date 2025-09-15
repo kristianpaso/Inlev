@@ -1,6 +1,6 @@
 import { buffer } from 'node:stream/consumers';
 import { Buffer } from 'node:buffer';
-import XLSX from 'xlsx';
+import * as XLSX from 'xlsx';
 
 function json(status, data){ 
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type':'application/json' } }); 

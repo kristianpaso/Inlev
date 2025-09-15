@@ -1,0 +1,1 @@
+console.warn('Local vendor xlsx.full.min.js placeholder: klienten använder server-parse om bibliotek saknas.');

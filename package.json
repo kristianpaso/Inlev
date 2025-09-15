@@ -6,6 +6,6 @@
     "@netlify/blobs": "^7.3.0",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
-    "xlsx": "^0.19.3"
+    "xlsx": "^0.18.5"
   }
 }

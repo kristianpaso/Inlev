@@ -240,19 +240,34 @@ function parseCSV(text){
 
 
 async function serverParse(file){
-  const res = await fetch('/api/parse-xlsx', {
-    method: 'POST',
-    headers: { 'Content-Type':'application/octet-stream', 'X-Filename': file.name || '' },
-    body: file
-  });
-  if(!res.ok) throw new Error('Servern kunde inte läsa Excel (' + res.status + ')');
-  const data = await res.json();
-  if(!data || !data.rows) throw new Error('Tomt svar från servern');
-  activeRows = data.rows;
-  const names = data.sheets || (data.sheet ? [data.sheet] : ['Server']);
-  populateSheetSelect(names);
-  document.getElementById('sheetSelect').value = names[0];
-  rebuildFromActiveRows();
+  const endpoints = ['/api/parse-xlsx', '/.netlify/functions/parse-xlsx'];
+  let lastErr = null;
+  for (const url of endpoints){
+    try{
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/octet-stream', 'X-Filename': file.name || '' },
+        body: file
+      });
+      if(res.ok){
+        const data = await res.json();
+        if(data && data.rows){
+          activeRows = data.rows;
+          const names = data.sheets || (data.sheet ? [data.sheet] : ['Server']);
+          populateSheetSelect(names);
+          document.getElementById('sheetSelect').value = names[0];
+          rebuildFromActiveRows();
+          setStatus('Excel lästes via server (' + url + ').');
+          return;
+        }
+      } else {
+        lastErr = new Error('HTTP ' + res.status);
+      }
+    }catch(e){
+      lastErr = e;
+    }
+  }
+  throw new Error('Servern kunde inte läsa Excel (' + (lastErr && lastErr.message || lastErr || 'okänd') + ')');
 }
 
 // ---- Report computation (same logik som backenden) ----
