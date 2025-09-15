@@ -1,3 +1,5 @@
 /plock   /plock/   301!
 /trav    /trav/    301!
 /statistik  /statistik/  301!
+/api/auth/*   /.netlify/functions/auth/:splat   200
+/api/store/*  /.netlify/functions/store/:splat  200

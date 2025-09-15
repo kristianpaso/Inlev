@@ -30,3 +30,15 @@
   for = "/downloads/*"
   [headers.values]
     Cache-Control = "public, max-age=3600"
+
+
+# API → Netlify Functions
+[[redirects]]
+  from = "/api/auth/*"
+  to = "/.netlify/functions/auth/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/api/store/*"
+  to = "/.netlify/functions/store/:splat"
+  status = 200

@@ -77,6 +77,8 @@ const ui = {
   srcName: document.getElementById('srcName'),
   genTime: document.getElementById('genTime'),
 };
+function setStatus(msg){ const el = document.getElementById('statusMsg'); if(el) el.textContent = msg||''; }
+
 
 // Events
 ui.file.addEventListener('change', onFile);
@@ -96,14 +98,24 @@ ui.exportJsonBtn.addEventListener('click', () => {
 loadSample();
 
 async function loadSample(){
+  setStatus('Laddar exempeldata ...');
   try{
     const res = await fetch('./data/report.json', { cache: 'no-cache' });
     if(!res.ok) throw new Error('report.json saknas');
     const report = await res.json();
     currentReport = report;
     renderReport(report);
+    setStatus('Exempeldata inläst.');
   }catch(e){
     console.warn('Kunde inte ladda sample report.json:', e);
+    const fallback = {
+      meta:{source_filename:'sample',generated_utc:new Date().toISOString(),inactivity_threshold_minutes:15},
+      global:{total_picks:3,n_users:1,active_seconds:600,active_hours:0.167,picks_per_active_hour:18,updatecode_counts:{A:2,B:1},first_pick:new Date().toISOString(),last_pick:new Date().toISOString()},
+      per_user:{Demo:{user:'Demo',total_picks:3,sessions:[{start:new Date().toISOString(),end:new Date().toISOString(),duration_seconds:600,picks:3}],n_sessions:1,active_seconds:600,active_hours:0.167,picks_per_active_hour:18,first_pick:new Date().toISOString(),last_pick:new Date().toISOString(),updatecode_counts:{A:2,B:1}}}
+    };
+    currentReport = fallback;
+    renderReport(fallback,{srcName:'Inbyggd demo'});
+    setStatus('Exempeldata saknas i /statistik/data/. Visar inbyggd demo.');
   }
 }
 
@@ -112,6 +124,7 @@ async function onFile(e){
   const file = e.target.files?.[0];
   if(!file) return;
   ui.fileMeta.textContent = `${file.name} • ${(file.size/1024/1024).toFixed(2)} MB • Senast ändrad: ${new Date(file.lastModified).toLocaleString()}`;
+  setStatus('Läser fil ...');
   try{
     workbook = await fileToWorkbook(file);
     const names = Array.isArray(workbook?.SheetNames) ? workbook.SheetNames : [];
@@ -122,6 +135,7 @@ async function onFile(e){
     populateSheetSelect(names);
     ui.sheet.value = names[0];
     onSheetChange();
+    setStatus(`Fil inläst. Hittade ${names.length} blad.`);
   }catch(err){
     console.error(err);
     alert('Kunde inte läsa filen. Är det en giltig .xlsx/.xls/.csv?\n' + err);
@@ -153,6 +167,7 @@ function rebuildFromActiveRows(){
   rows.sort((a,b) => a.UserName.localeCompare(b.UserName) || (a.TimeStamp - b.TimeStamp));
 
   const inactivity = Math.max(1, parseInt(ui.idle.value || '15', 10));
+  setStatus(`Bearbetar ${rows.length} rader ...`);
   const report = computeReport(rows, inactivity);
   currentReport = report;
   renderReport(report, {
