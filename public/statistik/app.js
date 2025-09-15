@@ -419,6 +419,20 @@ function renderReport(report, overrideMeta){
   const updLabels = Object.keys(upd);
   const updValues = updLabels.map(k => k in upd ? upd[k] : 0);
   makeOrUpdateBar('updateChart', updLabels, updValues, 'Antal per UpdateCode', 'updates');
+  // Per dag: räkna plock per datum (lokal tid) över aktiv period
+  const dayMap = new Map();
+  for(const r of activeRows){
+    const t = toDate(r.TimeStamp);
+    if(!t) continue;
+    const key = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+    dayMap.set(key, (dayMap.get(key)||0) + 1);
+  }
+  const dayLabels = Array.from(dayMap.keys()).sort();
+  const dayValues = dayLabels.map(k => dayMap.get(k));
+  if(dayLabels.length){
+    makeOrUpdateBar('dailyChart', dayLabels, dayValues, 'Plock per dag', 'daily');
+  }
+
 }
 
 function makeOrUpdateBar(canvasId, labels, values, title, key){

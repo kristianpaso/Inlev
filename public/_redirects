@@ -5,3 +5,5 @@
 /api/store/*  /.netlify/functions/store/:splat  200
 
 /api/parse-xlsx   /.netlify/functions/parse-xlsx   200
+
+/api/auth-lite/*   /.netlify/functions/auth-lite/:splat   200
