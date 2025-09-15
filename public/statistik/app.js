@@ -11,10 +11,10 @@ function ensureXLSX(){
   if (window.XLSX) return Promise.resolve();
   if (__xlsxLoading) return __xlsxLoading;
   const candidates = [
-    "https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js",
-    "https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js",
     "/js/vendor/xlsx.full.min.js",
-    "/vendor/xlsx.full.min.js"
+    "/vendor/xlsx.full.min.js",
+    "https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js",
+    "https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js"
   ];
   __xlsxLoading = new Promise((resolve, reject) => {
     let i = 0;
@@ -120,13 +120,28 @@ async function loadSample(){
 }
 
 
+
 async function onFile(e){
   const file = e.target.files?.[0];
   if(!file) return;
   ui.fileMeta.textContent = `${file.name} • ${(file.size/1024/1024).toFixed(2)} MB • Senast ändrad: ${new Date(file.lastModified).toLocaleString()}`;
   setStatus('Läser fil ...');
+
+  const lower = (file.name||'').toLowerCase();
   try{
-    workbook = await fileToWorkbook(file);
+    if(lower.endsWith('.csv')){
+      const text = await file.text();
+      activeRows = parseCSV(text);
+      if(!activeRows.length){ throw new Error('Hittade inga rader i CSV.'); }
+      ui.sheet.innerHTML = `<option>CSV</option>`;
+      ui.sheet.value = 'CSV';
+      rebuildFromActiveRows();
+      setStatus(`CSV inläst (${activeRows.length} rader).`);
+      return;
+    }
+    await ensureXLSX();
+    const buf = await file.arrayBuffer();
+    workbook = XLSX.read(buf, { type: 'array', cellDates: true });
     const names = Array.isArray(workbook?.SheetNames) ? workbook.SheetNames : [];
     if(!names.length){
       alert('Kunde läsa filen men hittade inga arbetsblad. Är det en tom fil eller ogiltigt format?');
@@ -138,8 +153,10 @@ async function onFile(e){
     setStatus(`Fil inläst. Hittade ${names.length} blad.`);
   }catch(err){
     console.error(err);
-    alert('Kunde inte läsa filen. Är det en giltig .xlsx/.xls/.csv?\n' + err);
+    setStatus('Fel vid läsning: ' + (err?.message || err));
+    alert('Kunde inte läsa filen. Är det en giltig .xlsx/.xls/.csv?\\n' + (err?.message || err));
   }
+}
 }
 
 function populateSheetSelect(names){
@@ -173,6 +190,47 @@ function rebuildFromActiveRows(){
     srcName: 'Uppladdad fil',
     genTime: new Date().toISOString()
   });
+}
+
+
+// --- CSV fallback (no XLSX required) ---
+function detectDelimiter(s){
+  const first = s.split(/\r?\n/,1)[0] || "";
+  const score = [
+    [';', (first.match(/;/g)||[]).length],
+    [',', (first.match(/,/g)||[]).length],
+    ['\t', (first.match(/\t/g)||[]).length],
+  ];
+  score.sort((a,b)=>b[1]-a[1]);
+  return (score[0][1]>0 ? score[0][0] : ',');
+}
+function parseCSVLine(line, delim){
+  const out = []; let cur = ''; let q = false; let i=0;
+  while(i < line.length){
+    const ch = line[i];
+    if(ch === '"'){
+      if(q && line[i+1] === '"'){ cur += '"'; i+=2; continue; }
+      q = !q; i++; continue;
+    }
+    if(!q && ch === delim){ out.push(cur); cur=''; i++; continue; }
+    cur += ch; i++;
+  }
+  out.push(cur);
+  return out;
+}
+function parseCSV(text){
+  const delim = detectDelimiter(text);
+  const rows = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if(!rows.length) return [];
+  const header = parseCSVLine(rows[0], delim).map(h => h.trim());
+  const data = [];
+  for(let r=1; r<rows.length; r++){
+    const cols = parseCSVLine(rows[r], delim);
+    const obj = {};
+    for(let i=0;i<header.length;i++) obj[header[i]] = cols[i];
+    data.push(obj);
+  }
+  return data;
 }
 
 // ---- Report computation (same logik som backenden) ----
