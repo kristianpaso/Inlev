@@ -1,155 +1,66 @@
 <!doctype html>
 <html lang="sv">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Inlev • Statistik</title>
-  <link rel="icon" href="./assets/icon.svg">
-  <link rel="stylesheet" href="/styles.css"/>
-  <script src="https://cdn.tailwindcss.com" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Statistik — Excel-överblick</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/auth.js"></script>
+  <script>if(window.InlevAuth){ InlevAuth.requireAuth(); }</script>
   <style>
-    :root{--bg:#0b0f18;--card:#121829;--muted:#94a3b8;--text:#e5e7eb;--accent:#22c55e;--accent2:#60a5fa;--accent3:#f59e0b}
-    .wrap{max-width:1200px;margin:0 auto;padding:20px}
-    .card{background:linear-gradient(180deg,#0f172a 0%,#111827 100%);border:1px solid #1f2937;border-radius:18px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
-    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#0b1220;border:1px solid #24324a;color:#9fb3c8;font-size:12px}
-    .kpi{position:relative;overflow:hidden}
-    .kpi::after{content:'';position:absolute;inset:-20% -20% auto auto;width:140px;height:140px;background:radial-gradient(closest-side,var(--accent),transparent);opacity:.15;filter:blur(8px);transform:translate(20px,-20px)}
-    .kpi h3{font-size:.8rem;color:#94a3b8;margin:0 0 6px}
-    .kpi .v{font-size:2rem;font-weight:800;letter-spacing:.4px}
-    .controls select,.controls input[type="number"],.controls input[type="file"]{background:#0b1220;color:var(--text);border:1px solid #24324a;border-radius:10px;padding:10px;width:100%}
-    canvas{background:#0b1220;border-radius:12px;padding:8px}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:10px 12px;border-bottom:1px solid #22304a}
-    th{text-align:left;color:#aab4c2;font-weight:600}
-    tr:hover td{background:#0b1220}
-    .btn{background:var(--accent);color:#08121c;border:none;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:700}
-    .btn.secondary{background:var(--accent2);color:#08121c}
+    .kpi {background: #0f172a; border:1px solid #1e293b; padding:14px; border-radius:12px; min-width:220px;}
+    .row {display:flex; gap:12px; align-items:stretch; flex-wrap:wrap;}
+    .card {background:#0b1220;border:1px solid #1e293b;border-radius:16px;padding:14px;}
+    #mainChart {max-height:700px !important;}
+    .toolbar {display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+    .nav-fixed {position:sticky; top:0; z-index:20; background:#0b0c10; padding:8px 0; }
+    .nav a { margin-right:10px; }
   </style>
 </head>
 <body>
-  <!-- project bar -->
-  <nav class="projectbar" style="position:sticky;top:0;z-index:50;background:#0e1522;border-bottom:1px solid #1c2030;padding:.5rem 1rem;display:flex;gap:.5rem;align-items:center">
-    <span class="muted" style="margin-right:.75rem">Projekt:</span>
-    <a href="/sandningar.html" class="btn">Sändningar</a>
-    <a href="/trav.html" class="btn">Trav</a>
-    <a href="/plock/" class="btn">Plock</a>
-    <a href="/statistik/" class="btn" style="background:#2f74ff;color:#fff">Statistik</a>
-  </nav>
-
-<script>
-(function(){
-  try {
-    var here = location.pathname.replace(/\/index\.html$/,''); // normalize
-    var as = document.querySelectorAll('.projectbar a');
-    as.forEach(function(a){
-      var url = new URL(a.getAttribute('href'), location.origin);
-      var p = url.pathname.replace(/\/index\.html$/,'');
-      var match = false;
-      // Exact or prefix match for folder links
-      if (p.endsWith('/')) {
-        match = here === p || here.startsWith(p);
-      } else {
-        match = here === p;
-      }
-      if (match) {
-        a.style.background = '#16a34a';   // green
-        a.style.color = '#08121c';
-        a.style.boxShadow = '0 0 0 2px rgba(22,163,74,.35) inset';
-        a.setAttribute('aria-current','page');
-      }
-    });
-  } catch(e) { /* noop */ }
-})();
-</script>
-
-
-  <main class="wrap">
-    <div class="card mb-4">
-      <h1 style="margin:0 0 6px 0">Statistik — Excel-överblick</h1>
-      <p class="muted">Ladda upp en fil eller använd exempeldata. Inga andra projekt påverkas.</p>
+  <div class="nav nav-fixed">
+    <a href="/sandningar.html">Sändningar</a>
+    <a href="/trav/">Trav</a>
+    <a href="/plock/">Plock</a>
+    <a class="active" href="/statistik/">Statistik</a>
+    <a style="float:right" href="#" onclick="InlevAuth.logout();return false;">Logga ut</a>
+  </div>
+  <div class="wrap" style="max-width:1240px;margin:0 auto;padding:16px;">
+    <div class="card">
+      <h2 style="margin:4px 0 12px 0;">Statistik — Excel-överblick</h2>
+      <p class="small">Ladda upp en fil eller använd exempeldata. Inga andra projekt påverkas.</p>
+      <div class="toolbar">
+        <label class="btn"><input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden> Välj fil</label>
+        <select id="sheetSel"></select>
+        <input id="idle" type="number" min="1" value="15" style="width:80px"> <span class="small">Inaktivitet (min)</span>
+        <button id="useDemo" class="btn">Använd exempeldata</button>
+        <button id="exportCsv" class="btn">Exportera rapport</button>
+        <span style="flex:1"></span>
+        <label>Dag</label><input id="dayPicker" type="date">
+        <label>Visa</label><select id="topN"><option>Top 5</option><option selected>Top 8</option><option>Top 10</option><option>Alla</option></select>
+        <input id="userFilter" placeholder="filtrera…">
+      </div>
     </div>
-
-    <section class="card mb-6 controls">
-      <div class="grid md:grid-cols-5 gap-4 items-end">
-        <div class="md:col-span-2">
-          <label class="block text-sm text-slate-400 mb-1">Ladda upp fil (.xlsx/.xls/.csv)</label>
-          <input id="fileInput" type="file" accept=".xlsx,.xls,.csv">
-        </div>
-        <div>
-          <label class="block text-sm text-slate-400 mb-1">Arbetsblad</label>
-          <select id="sheetSelect"></select>
-        </div>
-        <div>
-          <label class="block text-sm text-slate-400 mb-1">Inaktivitet (min)</label>
-          <input id="idleMinutes" type="number" min="1" max="120" value="15">
-        </div>
-        <div class="flex gap-2">
-          <button id="useSample" class="btn">Använd exempeldata</button>
-          <button id="exportJsonBtn" class="btn secondary">Exportera rapport</button>
-        </div>
+    <div class="row" style="margin-top:10px">
+      <div class="kpi"><div class="small muted">Totalt plock</div><div id="kpiTotal" class="kpiValue">—</div></div>
+      <div class="kpi"><div class="small muted">Antal användare</div><div id="kpiUsers" class="kpiValue">—</div></div>
+      <div class="kpi"><div class="small muted">Aktiva timmar (summa)</div><div id="kpiHours" class="kpiValue">—</div></div>
+      <div class="kpi"><div class="small muted">Plock / aktiv timme</div><div id="kpiRate" class="kpiValue">—</div></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <h3 style="margin:0;">Plock per användare per dag</h3>
+        <span class="small muted">Huvudstatistik</span>
       </div>
-      <p id="fileMeta" class="text-slate-500 text-sm mt-2"></p>
-<p id="statusMsg" class="text-slate-400 text-sm mt-1"></p>
-    </section>
+      <canvas id="mainChart" height="360"></canvas>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3 style="margin:0 0 6px 0;">Per användare</h3>
+      <div class="table" id="userTable"></div>
+    </div>
+  </div>
 
-    <section class="grid md:grid-cols-4 gap-4 mb-6">
-      <div class="card kpi"><h3>Totalt plock</h3><div id="kpiTotalPicks" class="v">–</div></div>
-      <div class="card kpi"><h3>Antal användare</h3><div id="kpiUsers" class="v">–</div></div>
-      <div class="card kpi"><h3>Aktiva timmar (summa)</h3><div id="kpiHours" class="v">–</div></div>
-      <div class="card kpi"><h3>Plock / aktiv timme</h3><div id="kpiPPH" class="v">–</div></div>
-    </section>
-    <section class="card mb-6">
-      <div class="flex items-center justify-between mb-3"><h2 class="text-xl font-semibold">Plock per användare per dag</h2><div class="flex items-center gap-2 text-sm"><label for="userMode" class="text-slate-400">Visa</label><select id="userMode" class="px-2 py-1 rounded bg-slate-800 text-slate-100 border border-slate-700"><option value="top8" selected>Top 8</option><option value="top15">Top 15</option><option value="alla">Alla</option></select><label for="userFilter" class="text-slate-400">Filtrera</label><input id="userFilter" type="text" placeholder="användare..." class="px-2 py-1 rounded bg-slate-800 text-slate-100 border border-slate-700 placeholder-slate-500 w-40" /></div></div>
-      <canvas id="usersDailyChart" height="280"></canvas>
-    </section>
-
-
-    <section class="grid md:grid-cols-2 gap-4 mb-6">
-      <div class="card">
-        <h2 class="text-xl font-semibold mb-3">Plock/aktiv timme — top 10</h2>
-        <canvas id="pphChart" height="220"></canvas>
-      </div>
-      <div class="card">
-        <h2 class="text-xl font-semibold mb-3">Uppgifter (UpdateCode)</h2>
-        <canvas id="updateChart" height="220"></canvas>
-      </div>
-    </section>
-    <section class="card mb-6">
-      <h2 class="text-xl font-semibold mb-3">Plock per dag</h2>
-      <canvas id="dailyChart" height="220"></canvas>
-    </section>
-
-
-    <section class="card mb-10">
-      <div class="flex items-center justify-between mb-3">
-        <h2 class="text-xl font-semibold">Per användare</h2>
-        <small id="meta" class="text-slate-400"></small>
-      </div>
-      <div class="overflow-auto">
-        <table id="userTable">
-          <thead>
-            <tr>
-              <th>Användare</th>
-              <th>Totalt plock</th>
-              <th>Aktiva timmar</th>
-              <th>Plock/aktiv timme</th>
-              <th>Perioder</th>
-              <th>Första plock</th>
-              <th>Sista plock</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
-    <footer class="text-center text-slate-500 text-sm mb-10">
-      Källa: <span id="srcName">–</span>. Genererad <span id="genTime">–</span> (UTC).
-    </footer>
-  </main>
-
-  <script src="./app.js" defer></script>
-</body>
-</html>
+  <script src="/statistik/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/statistik/stat.app.js"></script>
+</body></html>

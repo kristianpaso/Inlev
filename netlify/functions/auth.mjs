@@ -23,9 +23,6 @@ export default async (req, ctx)=>{
 
   await ensureAdmin();
 
-  if(req.method==='GET' && path==='auth/health'){ return json(200,{ok:true}); }
-
-
   if(req.method==='POST' && path==='auth/login'){
     const body = await req.json().catch(()=>null);
     if(!body) return json(400,{error:'bad json'});

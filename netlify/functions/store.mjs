@@ -31,7 +31,7 @@ export default async (req, ctx)=>{
     const list=await readList(); 
     list.push({id,name,createdAt:new Date().toISOString()}); 
     await writeList(list); 
-    await store.setJSON(`shipments:${uid}:data:${id}`,{meta:{number:name,start:new Date().toISOString()},linked:[],upp:[],kollin:[],upd:{upp:[],kollin:[]},flags:{cleared:{},everIssue:{}}}); 
+    await store.setJSON(`shipments:${uid}:data:${id}`,{meta:{number:name,start:new Date().toISOString()},linked:[],upp:[],kollin:[],upd:{upp:[],kollin:[]},flags:{cleared:{},everIssue:{}}); 
     return json(200,{id}); 
   }
 

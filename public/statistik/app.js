@@ -1,3 +1,254 @@
+<<<<<<< HEAD
+
+/* Statistik app */
+(function(){
+  const els = {
+    file: document.getElementById('fileInput'),
+    meta: document.getElementById('fileMeta'),
+    sheet: document.getElementById('sheetSelect'),
+    idle: document.getElementById('idleMin'),
+    btnDemo: document.getElementById('btnDemo'),
+    btnExport: document.getElementById('btnExport'),
+    kTotal: document.getElementById('kpiTotal'),
+    kUsers: document.getElementById('kpiUsers'),
+    kHours: document.getElementById('kpiHours'),
+    kRate: document.getElementById('kpiRate'),
+    day: document.getElementById('dayPicker'),
+    topN: document.getElementById('topN'),
+    filter: document.getElementById('userFilter'),
+    chartCanvas: document.getElementById('mainChart')
+  };
+
+  let rows = []; // normalized rows from file
+  let byDay = {}; // date -> rows
+  let chart;
+
+  function fmt(n){ return (Math.round(n*100)/100).toLocaleString('sv-SE'); }
+  function parseDate(s){
+    // accepts 'YYYY-MM-DD hh:mm:ss' or Excel date number
+    if (typeof s === 'number') {
+      // Excel serial date -> JS date
+      const utc_days  = Math.floor(s - 25569);
+      const utc_value = utc_days * 86400; 
+      const date_info = new Date(utc_value * 1000);
+      const fractional_day = s - Math.floor(s) + 0.0000001;
+      let total_seconds = Math.floor(86400 * fractional_day);
+      const seconds = total_seconds % 60; total_seconds -= seconds;
+      const hours = Math.floor(total_seconds / (60 * 60));
+      const minutes = Math.floor(total_seconds / 60) % 60;
+      date_info.setHours(hours, minutes, seconds);
+      return date_info;
+    }
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  function ymd(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+
+  function normalize(ws){
+    // Expect columns: UserName, TimeStamp, UpdateCode (each row = 1 plock)
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    const headers = {};
+    const out = [];
+    for(let C=range.s.c; C<=range.e.c; C++){
+      const cell = ws[XLSX.utils.encode_cell({r:range.s.r, c:C})];
+      if(cell) headers[C] = String(cell.v).trim();
+    }
+    for(let R=range.s.r+1; R<=range.e.r; R++){
+      let obj = {};
+      for(let C=range.s.c; C<=range.e.c; C++){
+        const h = headers[C];
+        if(!h) continue;
+        const cell = ws[XLSX.utils.encode_cell({r:R, c:C})];
+        if(cell) obj[h] = cell.v;
+      }
+      if(Object.keys(obj).length){
+        const d = parseDate(obj.TimeStamp);
+        if(!d) continue;
+        out.push({
+          user: String(obj.UserName || '').trim(),
+          ts: d,
+          code: String(obj.UpdateCode || '').trim()
+        });
+      }
+    }
+    return out.sort((a,b)=>a.ts-b.ts);
+  }
+
+  function segmentActiveMinutes(items, idleMin){
+    // items are for one user, sorted by ts. Count active time by gaps < idleMin
+    if(items.length < 2) return 0;
+    let activeMs = 0;
+    let start = items[0].ts.getTime();
+    for(let i=1;i<items.length;i++){
+      const prev = items[i-1].ts.getTime();
+      const cur  = items[i].ts.getTime();
+      const gapMin = (cur - prev) / 60000;
+      if (gapMin >= idleMin){ // stop previous segment at prev
+        activeMs += (prev - start);
+        start = cur; // new segment
+      }
+    }
+    // close with last timestamp
+    activeMs += (items[items.length-1].ts.getTime() - start);
+    return activeMs / 3600000; // hours
+  }
+
+  function buildByDay(){
+    byDay = {};
+    for(const r of rows){
+      const key = ymd(r.ts);
+      (byDay[key] ||= []).push(r);
+    }
+  }
+
+  function updateSheetSelector(wb){
+    els.sheet.innerHTML = '';
+    wb.SheetNames.forEach((name,i)=>{
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      els.sheet.appendChild(opt);
+    });
+  }
+
+  function loadWorksheet(wb){
+    const name = els.sheet.value || wb.SheetNames[0];
+    const ws = wb.Sheets[name];
+    rows = normalize(ws);
+    buildByDay();
+    // pick latest day
+    const days = Object.keys(byDay).sort();
+    if(days.length){
+      els.day.min = days[0];
+      els.day.max = days[days.length-1];
+      els.day.value = days[days.length-1];
+    }
+    render();
+  }
+
+  function readFile(file){
+    els.meta.textContent = file ? file.name + ' — ' + (file.size/1024/1024).toFixed(2) + ' MB' : '';
+    const ext = (file && file.name.split('.').pop().toLowerCase()) || '';
+    if(ext === 'csv'){
+      const reader = new FileReader();
+      reader.onload = (e)=>{
+        const text = e.target.result;
+        const wb = XLSX.read(text, {type:'string'}); // minimal: let xlsx parse csv
+        updateSheetSelector(wb);
+        loadWorksheet(wb);
+      };
+      reader.readAsText(file);
+    }else{
+      const reader = new FileReader();
+      reader.onload = (e)=>{
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, {type:'array'});
+        updateSheetSelector(wb);
+        loadWorksheet(wb);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  }
+
+  function calcKPIsForDay(day){
+    const dayRows = (byDay[day] || []).slice();
+    const idle = parseFloat(els.idle.value)||15;
+    // group by user
+    const byUser = {};
+    dayRows.forEach(r => { (byUser[r.user] ||= []).push(r); });
+    const users = Object.keys(byUser);
+    let total = dayRows.length;
+    let activeHours = 0;
+    const perUser = users.map(u => {
+      const items = byUser[u].sort((a,b)=>a.ts-b.ts);
+      const hrs = segmentActiveMinutes(items, idle);
+      activeHours += hrs;
+      return { user:u, picks: items.length, hours: hrs };
+    });
+    const rate = activeHours>0 ? total/activeHours : 0;
+    return { total, users: users.length, hours: activeHours, rate, perUser };
+  }
+
+  function render(){
+    if(!els.day.value){ // nothing selected yet
+      els.kTotal.textContent = '—';
+      els.kUsers.textContent = '—';
+      els.kHours.textContent = '—';
+      els.kRate.textContent = '—';
+      if(chart) chart.destroy();
+      return;
+    }
+    const {total, users, hours, rate, perUser} = calcKPIsForDay(els.day.value);
+    els.kTotal.textContent = total.toLocaleString('sv-SE');
+    els.kUsers.textContent = users.toLocaleString('sv-SE');
+    els.kHours.textContent = fmt(hours);
+    els.kRate.textContent  = fmt(rate);
+
+    // Filter + sort
+    let list = perUser;
+    const q = (els.filter.value || '').trim().toLowerCase();
+    if(q) list = list.filter(x => x.user.toLowerCase().includes(q));
+    list.sort((a,b)=> b.picks - a.picks);
+    const n = parseInt(els.topN.value,10)||0;
+    if(n>0) list = list.slice(0,n);
+
+    // Draw
+    const labels = list.map(x=>x.user);
+    const data = list.map(x=>x.picks);
+    if(chart) chart.destroy();
+    chart = new Chart(els.chartCanvas.getContext('2d'), {
+      type:'bar',
+      data: { labels, datasets: [{ label:'Plock', data }]},
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{ legend:{ display:false }, tooltip:{ mode:'index', intersect:false } },
+        scales:{ x:{ ticks:{ autoSkip:false }}, y:{ beginAtZero:true } }
+      }
+    });
+  }
+
+  // Example data
+  function demoData(){
+    // 1 day of simple data
+    const now = new Date();
+    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate()-1);
+    function mk(u, h, m){ const d=new Date(day); d.setHours(h,m,0,0); return { user:u, ts:d, code:'A' }; }
+    rows = [
+      mk('Demo',8,0), mk('Demo',8,3), mk('Demo',8,8),
+      mk('Anna',8,2), mk('Anna',8,6), mk('Anna',9,40),
+      mk('Erik',9,10), mk('Erik',9,15)
+    ];
+    buildByDay();
+    const days = Object.keys(byDay).sort();
+    els.day.min = days[0]; els.day.max = days[days.length-1]; els.day.value = days[days.length-1];
+    render();
+  }
+
+  // Export CSV
+  function exportReport(){
+    if(!els.day.value){ alert('Ingen rapport att exportera ännu.'); return; }
+    const per = calcKPIsForDay(els.day.value).perUser;
+    const lines = ['UserName,Picks,ActiveHours'];
+    per.forEach(r => lines.push([r.user, r.picks, fmt(r.hours)].join(',')));
+    const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'rapport_'+els.day.value+'.csv'; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 500);
+  }
+
+  // Events
+  els.file.addEventListener('change', e=>{ const f=e.target.files[0]; if(f) readFile(f); });
+  els.sheet.addEventListener('change', ()=>render());
+  els.idle.addEventListener('change', ()=>render());
+  els.topN.addEventListener('change', ()=>render());
+  els.filter.addEventListener('input', ()=>render());
+  els.day.addEventListener('change', ()=>render());
+  els.btnDemo.addEventListener('click', demoData);
+  els.btnExport.addEventListener('click', exportReport);
+
+})();
+=======
 // Statistik — klientlogik med uppladdning ELLER report.json
 let charts = { pph: null, updates: null };
 let workbook = null;
@@ -587,3 +838,4 @@ function countBy(arr){
   ui.userMode?.addEventListener('change', renderUsersDaily);
   ui.userFilter?.addEventListener('input', ()=>{ clearTimeout(window.__udt); window.__udt=setTimeout(renderUsersDaily,200); });
 
+>>>>>>> d8d7a1e89c1ca5c243a59af23b3a3e094fbe6945

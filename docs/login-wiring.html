@@ -1,0 +1,29 @@
+
+<!-- Place just before </body> in your existing login.html -->
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  function $(id){ return document.getElementById(id); }
+  var form = $('loginForm') || document.querySelector('form');
+  var u = $('username') || document.querySelector('input[name="username"], input[type="text"]');
+  var p = $('password') || document.querySelector('input[name="password"], input[type="password"]');
+  var btn = $('loginBtn') || (form ? form.querySelector('button[type="submit"], button') : null);
+  var err = $('loginError');
+  function showError(msg){
+    if(!err){ err=document.createElement('p'); err.id='loginError'; err.style.color='#f87171'; err.style.marginTop='.5rem'; (form||document.body).appendChild(err); }
+    err.textContent = msg || 'Fel inloggning'; err.style.display='block';
+  }
+  function doLogin(ev){
+    if(ev) ev.preventDefault();
+    if(!u || !p){ showError('Saknar fält'); return; }
+    if(btn) btn.disabled = true;
+    (window.InlevAuth.signIn || window.InlevAuth.login)(u.value, p.value).then(function(){
+      InlevAuth.afterLoginRedirect();
+    }, function(){
+      showError('Fel inloggning'); if(btn) btn.disabled = false;
+    });
+  }
+  if(form){ form.addEventListener('submit', doLogin); }
+  else if(btn){ btn.addEventListener('click', doLogin); }
+  if (window.InlevAuth && InlevAuth.isAuthed && InlevAuth.isAuthed()) { InlevAuth.afterLoginRedirect(); }
+});
+</script>

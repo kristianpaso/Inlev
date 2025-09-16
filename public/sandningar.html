@@ -11,44 +11,8 @@
   <a href="./plock.html" class="btn">Plock</a>
 </nav>
 
-<script>
-(function(){
-  try {
-    var here = location.pathname.replace(/\/index\.html$/,''); // normalize
-    var as = document.querySelectorAll('.projectbar a');
-    as.forEach(function(a){
-      var url = new URL(a.getAttribute('href'), location.origin);
-      var p = url.pathname.replace(/\/index\.html$/,'');
-      var match = false;
-      // Exact or prefix match for folder links
-      if (p.endsWith('/')) {
-        match = here === p || here.startsWith(p);
-      } else {
-        match = here === p;
-      }
-      if (match) {
-        a.style.background = '#16a34a';   // green
-        a.style.color = '#08121c';
-        a.style.boxShadow = '0 0 0 2px rgba(22,163,74,.35) inset';
-        a.setAttribute('aria-current','page');
-      }
-    });
-  } catch(e) { /* noop */ }
-})();
-</script>
-
-
 <script src="/auth.js"></script>
 <script>try{ if(!InlevAuth.isAuthed||!InlevAuth.isAuthed()) location.href='/login.html'; }catch(e){ location.href='/login.html'; }</script>
-  <!-- Global Project Buttons -->
-  <nav class="projectbar" style="position:sticky;top:0;z-index:50;background:#0e1522;border-bottom:1px solid #1c2030;padding:.5rem 1rem;display:flex;gap:.5rem;align-items:center">
-    <span class="muted" style="margin-right:.75rem">Projekt:</span>
-    <a href="/sandningar.html" class="btn">Sändningar</a>
-    <a href="/trav.html" class="btn">Trav</a>
-    <a href="/plock/" class="btn">Plock</a>
-    <a href="/statistik/" class="btn">Statistik</a>
-  </nav>
-
 
     <div class="nav">
       <a href="/index.html">Hem</a>
@@ -60,7 +24,8 @@
       <div class="right">
         <span class="badge" id="who"></span>
         <button id="logoutBtn">Logga ut</button>
-      </div>
+            <a href="/statistik/">Statistik</a>
+    </div>
     </div>
     <script>
       (function(){

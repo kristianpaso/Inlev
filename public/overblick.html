@@ -4,44 +4,9 @@
 <title>Överblick</title>
 <link rel="stylesheet" href="/styles.css">
 </head><body>
-  <!-- Global Project Buttons -->
-  <nav class="projectbar" style="position:sticky;top:0;z-index:50;background:#0e1522;border-bottom:1px solid #1c2030;padding:.5rem 1rem;display:flex;gap:.5rem;align-items:center">
-    <span class="muted" style="margin-right:.75rem">Projekt:</span>
-    <a href="/sandningar.html" class="btn">Sändningar</a>
-    <a href="/trav.html" class="btn">Trav</a>
-    <a href="/plock/" class="btn">Plock</a>
-    <a href="/statistik/" class="btn">Statistik</a>
-  </nav>
-
-<script>
-(function(){
-  try {
-    var here = location.pathname.replace(/\/index\.html$/,''); // normalize
-    var as = document.querySelectorAll('.projectbar a');
-    as.forEach(function(a){
-      var url = new URL(a.getAttribute('href'), location.origin);
-      var p = url.pathname.replace(/\/index\.html$/,'');
-      var match = false;
-      // Exact or prefix match for folder links
-      if (p.endsWith('/')) {
-        match = here === p || here.startsWith(p);
-      } else {
-        match = here === p;
-      }
-      if (match) {
-        a.style.background = '#16a34a';   // green
-        a.style.color = '#08121c';
-        a.style.boxShadow = '0 0 0 2px rgba(22,163,74,.35) inset';
-        a.setAttribute('aria-current','page');
-      }
-    });
-  } catch(e) { /* noop */ }
-})();
-</script>
-
-
 <div class="container">
-  <div class="nav"></div>
+  <div class="nav">      <a href="/statistik/">Statistik</a>
+    </div>
   <h1>Överblick</h1>
   <div id="head" class="small"></div>
 
