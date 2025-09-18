@@ -1,7 +1,7 @@
 
-// inlev-auth.js v3 — loop-safe auth + postLogin memory + slash normalization
+// inlev-auth.js v4 — loop-proof: no slash redirects, only login/post-login handling.
 (function(){
-  const KEY = 'inlev_auth_token_v3_' + location.host;
+  const KEY = 'inlev_auth_token_v4_' + location.host;
   const ONE_DAY = 24*60*60*1000;
   const POST_KEY = 'postLogin';
 
@@ -19,12 +19,9 @@
 
   async function tryServerLogin(username,password){
     try{
-      const res = await fetch('/api/auth/login',{
-        method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
-        body: JSON.stringify({ username, password })
-      });
+      const res = await fetch('/api/auth/login',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ username, password }) });
       if (res.ok) return token(username);
-    }catch(e){/* ignore */}
+    }catch(e){}
     return null;
   }
 
@@ -32,26 +29,15 @@
     let t = await tryServerLogin(username,password);
     if (!t){
       if (!username) throw new Error('Skriv ett användarnamn.');
-      t = token(username); // static fallback
+      t = token(username);
     }
     save(t); return true;
   }
 
   function logout(){ clear(); }
 
-  function normalizePath(p){
-    if (!p) return '/';
-    if (!p.startsWith('/')) p = '/' + p;
-    if (p.endsWith('.html')) return p;    // don't touch files
-    return p.endsWith('/') ? p : p + '/'; // ensure trailing slash for dirs
-  }
-
-  function redirect(p){ location.replace(normalizePath(p)); }
-
   function rememberTarget(){
-    try{
-      sessionStorage.setItem(POST_KEY, location.pathname + location.search + location.hash);
-    }catch(e){}
+    try{ sessionStorage.setItem(POST_KEY, location.pathname + location.search + location.hash); }catch(e){}
   }
   function consumeTarget(){
     try{
@@ -63,33 +49,21 @@
 
   function guard(){
     const protectedDirs = ['/plock','/trav','/statistik','/schema'];
-    const here = location.pathname;
-
-    // normalize slash once per load to avoid loops
-    const wanted = normalizePath(here);
-    if (here !== wanted){
-      // If Netlify rewrites show as /plock without slash, enforce once
-      if (!sessionStorage.getItem('onceSlashFix')){
-        sessionStorage.setItem('onceSlashFix','1');
-        return redirect(wanted);
-      }
-    }
-
-    const needsAuth = protectedDirs.some(d => wanted.startsWith(normalizePath(d)));
+    const path = location.pathname; // use as-is; no slash normalization to avoid loops
+    const needsAuth = protectedDirs.some(d => path === d || path.startsWith(d + '/') );
     if (needsAuth && !isAuthed()){
       rememberTarget();
-      if (!wanted.endsWith('/login.html')) redirect('/login.html');
+      if (!path.endsWith('/login.html')) location.replace('/login.html');
     }
   }
 
   function init(){
-    window.InlevAuth = { init, login, logout, isAuthed, guard, normalizePath };
+    window.InlevAuth = { init, login, logout, isAuthed, guard };
     try { guard(); } catch (e) { console.warn('Auth guard error', e); }
-    // If we land on login.html but already authed → go to remembered page
     const path = location.pathname.toLowerCase();
     if (isAuthed() && path.endsWith('/login.html')){
       const target = consumeTarget();
-      redirect(target);
+      location.replace(target); // do not normalize; rely on redirects
     }
   }
 

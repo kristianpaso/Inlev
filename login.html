@@ -29,7 +29,7 @@
           await InlevAuth.login($('user').value, $('pass').value);
           const target = sessionStorage.getItem('postLogin') || '/statistik/';
           sessionStorage.removeItem('postLogin');
-          location.replace(InlevAuth.normalizePath(target));
+          location.replace(target);
         } catch (e) { $('err').textContent = e.message || 'Inloggning misslyckades.'; }
       };
     });
