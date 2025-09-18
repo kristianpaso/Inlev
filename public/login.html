@@ -1,28 +1,37 @@
 
-<!doctype html><html lang="sv"><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Logga in – Inleverans</title>
-<link rel="stylesheet" href="/styles.css"/>
-<script src="/auth.js"></script>
-</head><body>
-<div class="container" style="max-width:520px">
-  <div class="card">
-    <h1>Logga in</h1>
-    <div class="grid">
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Logga in</title>
+  <link rel="stylesheet" href="/assets/login.css">
+  <script src="/assets/inlev-auth.js" defer></script>
+</head>
+<body>
+  <main class="login-wrap">
+    <div class="card">
+      <h2>Logga in</h2>
       <label>Användarnamn</label>
-      <input id="u" value="Admin" placeholder="Användarnamn"/>
+      <input id="user" placeholder="Admin">
       <label>Lösenord</label>
-      <input id="p" type="password" value="test" placeholder="Lösenord"/>
-      <button class="btn btn-green" id="go">Fortsätt</button>
-      <div id="msg" class="small"></div>
+      <input id="pass" type="password" placeholder="••••">
+      <button id="go">Fortsätt</button>
+      <div id="err" class="err"></div>
     </div>
-  </div>
-</div>
-<script>
-  try{ if(InlevAuth.isAuthed()) location.href='/index.html'; }catch(e){}
-  document.getElementById('go').onclick=async()=>{
-    const ok = await InlevAuth.signIn(document.getElementById('u').value.trim(), document.getElementById('p').value);
-    if(ok) location.href='/index.html'; else document.getElementById('msg').textContent='Fel inloggning';
-  };
-</script>
-</body></html>
+  </main>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      const $ = id => document.getElementById(id);
+      $('go').onclick = async () => {
+        $('err').textContent = '';
+        try {
+          await InlevAuth.login($('user').value, $('pass').value);
+          const target = sessionStorage.getItem('postLogin') || '/statistik/';
+          location.replace(InlevAuth.normalizePath(target));
+        } catch (e) { $('err').textContent = e.message || 'Inloggning misslyckades.'; }
+      };
+    });
+  </script>
+</body>
+</html>

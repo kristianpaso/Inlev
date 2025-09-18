@@ -1,0 +1,124 @@
+{
+  "areas": [
+    "OUTBOUND",
+    "B2B",
+    "KONSOLIDERING",
+    "FELS\u00d6K",
+    "UTLEVERANS",
+    "Inleverans",
+    "Extern Inleverans",
+    "Retur A.S",
+    "Retur Zalando",
+    "Komplettering",
+    "P\u00e5fyllnad",
+    "Infackning A.S",
+    "Infackning Buffert",
+    "Planerade P\u00e5fyllnader",
+    "Inventering",
+    "\u00d6vrigt",
+    "Upprensning"
+  ],
+  "people": [
+    {
+      "name": "Paso",
+      "aliases": [
+        "Kristian",
+        "Kristian Paso"
+      ]
+    },
+    {
+      "name": "Cissi",
+      "aliases": [
+        "Cecilia"
+      ]
+    },
+    {
+      "name": "Frida",
+      "aliases": []
+    },
+    {
+      "name": "Roudi",
+      "aliases": [
+        "Rodi"
+      ]
+    },
+    {
+      "name": "Morsal",
+      "aliases": []
+    },
+    {
+      "name": "Raziyeh",
+      "aliases": []
+    },
+    {
+      "name": "Ali",
+      "aliases": []
+    },
+    {
+      "name": "Arturo",
+      "aliases": []
+    },
+    {
+      "name": "Haris",
+      "aliases": []
+    },
+    {
+      "name": "Matilda",
+      "aliases": [
+        "Mathilda"
+      ]
+    },
+    {
+      "name": "Sanna",
+      "aliases": []
+    },
+    {
+      "name": "Josef",
+      "aliases": []
+    },
+    {
+      "name": "Sigurd",
+      "aliases": []
+    },
+    {
+      "name": "Asma",
+      "aliases": []
+    },
+    {
+      "name": "Sofia",
+      "aliases": []
+    },
+    {
+      "name": "Axel",
+      "aliases": []
+    },
+    {
+      "name": "Ahmad",
+      "aliases": []
+    },
+    {
+      "name": "Abdi",
+      "aliases": []
+    },
+    {
+      "name": "Muharem",
+      "aliases": []
+    },
+    {
+      "name": "Elia",
+      "aliases": []
+    },
+    {
+      "name": "Samuel",
+      "aliases": []
+    },
+    {
+      "name": "Nasser",
+      "aliases": []
+    },
+    {
+      "name": "Vidar",
+      "aliases": []
+    }
+  ]
+}

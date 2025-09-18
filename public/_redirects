@@ -1,9 +1,10 @@
-/plock   /plock/   301!
-/trav    /trav/    301!
-/statistik  /statistik/  301!
-/api/auth/*   /.netlify/functions/auth/:splat   200
-/api/store/*  /.netlify/functions/store/:splat  200
 
-/api/parse-xlsx   /.netlify/functions/parse-xlsx   200
-
-/api/auth-lite/*   /.netlify/functions/auth-lite/:splat   200
+/plock    /plock/index.html    200
+/plock/*  /plock/index.html    200
+/trav     /trav/index.html     200
+/trav/*   /trav/index.html     200
+/statistik     /statistik/index.html   200
+/statistik/*   /statistik/index.html   200
+/schema    /schema/index.html  200
+/schema/*  /schema/index.html  200
+/login     /login.html         200

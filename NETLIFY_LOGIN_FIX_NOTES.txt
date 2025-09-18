@@ -1,0 +1,11 @@
+
+Netlify-login (utan att röra andra projekt):
+- Felet "Unexpected token 'catch'" beror oftast på `catch {}` (ES2019). Ändra till `catch (e) {}`.
+- Felet "InlevAuth is not defined": se till att `auth.js` laddas före `login.html` och exponerar `window.InlevAuth`.
+- Om ni vill låta /schema vara publik trots auth, lägg i Netlify:
+  _headers
+    /schema/*
+      Cache-Control: no-cache
+  eller i koden: bypassa auth när `location.pathname.startsWith('/schema')`.
+
+Schema-sidan fungerar helt fristående (lagrar lokalt i webbläsaren). Server-API är inte ett krav.
