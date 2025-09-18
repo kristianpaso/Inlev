@@ -1,0 +1,38 @@
+
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Logga in</title>
+  <link rel="stylesheet" href="/assets/login.css">
+  <script src="/assets/inlev-auth.js" defer></script>
+</head>
+<body>
+  <main class="login-wrap">
+    <div class="card">
+      <h2>Logga in</h2>
+      <label>Användarnamn</label>
+      <input id="user" placeholder="Admin">
+      <label>Lösenord</label>
+      <input id="pass" type="password" placeholder="••••">
+      <button id="go">Fortsätt</button>
+      <div id="err" class="err"></div>
+    </div>
+  </main>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      const $ = id => document.getElementById(id);
+      $('go').onclick = async () => {
+        $('err').textContent = '';
+        try {
+          await InlevAuth.login($('user').value, $('pass').value);
+          const target = sessionStorage.getItem('postLogin') || '/statistik/';
+          sessionStorage.removeItem('postLogin');
+          location.replace(InlevAuth.normalizePath(target));
+        } catch (e) { $('err').textContent = e.message || 'Inloggning misslyckades.'; }
+      };
+    });
+  </script>
+</body>
+</html>
