@@ -1,14 +1,14 @@
 {
-  "name": "inlev-schema-module",
-  "version": "1.0.0",
-  "description": "Schema module (image OCR + department/person counters) for Inlev web platform",
-  "main": "server.js",
-  "type": "commonjs",
+  "name": "inlev-fullpack-v2.1",
+  "private": true,
   "scripts": {
-    "start": "node server.js"
+    "dev": "netlify dev --dir=public",
+    "deploy:prod": "netlify deploy --build --prod --dir=public"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "uuid": "^9.0.1"
+    "@netlify/blobs": "^6.3.0"
   }
 }

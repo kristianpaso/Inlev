@@ -1,0 +1,185 @@
+<!doctype html><html lang="sv"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Basinformation – Inleverans</title>
+<link rel="stylesheet" href="/styles.css"/>
+</head><body><script>if(!localStorage.getItem('inlev_user')){location.href='../index.html';}</script>
+
+<nav id="projectBar" style="position:sticky;top:0;z-index:50;background:#0a0f1a;border-bottom:1px solid #1f2937;padding:.5rem 1rem;display:flex;gap:.5rem;align-items:center">
+  <span style="opacity:.7;margin-right:.75rem">Projekt:</span>
+  <a href="./sandningar.html" class="btn">Sändningar</a>
+  <a href="./trav.html" class="btn">Trav</a>
+  <a href="./plock.html" class="btn">Plock</a>
+</nav>
+
+<nav id="mainMenu" style="position:sticky;top:0;z-index:20;background:#0b1220;border-bottom:1px solid #1f2937;padding:.5rem 1rem;display:flex;gap:.5rem;">
+  <a class="btn" href="./insamlare.html">Basinformation</a>
+  <a class="btn" href="./felsok.html">Felsök</a>
+  <button class="btn" id="btnUpdateInfo" title="Uppdatera info">Uppdatera info</button>
+  <button class="btn" id="btnSendDiff" title="Skicka Diff">Skicka Diff</button>
+</nav>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  const noop = ()=>alert('Funktion kommer snart.');
+  (document.getElementById('btnUpdateInfo')||{}).onclick = noop;
+  (document.getElementById('btnSendDiff')||{}).onclick = noop;
+});
+</script>
+
+<script src="/auth.js"></script>
+<script>try{ if(!InlevAuth.isAuthed||!InlevAuth.isAuthed()) location.href='/login.html'; }catch(e){ location.href='/login.html'; }</script>
+
+    <div class="nav">
+      <a href="/index.html">Hem</a>
+      <a href="/sandningar.html">Sändningar</a>
+      <a href="/insamlare.html">Basinformation<span id="flagBase" class="menu-dot"></span></a>
+      <a href="/felsok.html">Felsök</a>
+      <a href="/uppdatera-info.html">Uppdatera info</a>
+      <a href="/skicka-diff.html">Skicka Diff</a>
+      <div class="right">
+        <span class="badge" id="who"></span>
+        <button id="logoutBtn">Logga ut</button>
+      </div>
+    </div>
+    <script>
+      (function(){
+        const w=document.getElementById('who');
+        try{ if(InlevAuth.isAuthed()){ const s=InlevAuth.get(); w.textContent=(s?.user?.name||'')+' '+(s?.user?.role?'('+s.user.role+')':''); } }catch(e){}
+        document.getElementById('logoutBtn').onclick=()=>{ InlevAuth.signOut(); location.href='/login.html'; };
+      })();
+    </script>
+    
+<div class="container">
+<h1>Basinformation – 3 fält</h1>
+
+<div class="card">
+  <h2>Länkade rader <span class="small">(A: Ordernummer, B: Position, C: SKU/Beskrivning, D: Aviserad, E: Beställt, F: Levererat, G: Totalt)</span></h2>
+  <textarea style="height:300px" id="txtLinked" placeholder="Klistra in rader här..."></textarea>
+  <div style="margin-top:8px"><button class="btn" id="parseLinked">Tolka</button> <button class="btn" id="saveLinked">Spara</button> <span class="small" id="rowsLinked">Rader: 0</span></div>
+  <div class="hr"></div>
+  <table class="table" id="tblLinked"><thead><tr><th>Ordernummer</th><th>Position</th><th>SKU/Beskrivning</th><th>Aviserad</th><th>Beställt</th><th>Levererat</th><th>Totalt</th></tr></thead><tbody></tbody></table>
+</div>
+
+<div class="card">
+  <h2>Uppackning <span class="small">(hoppa över 4 rubrikrader)</span></h2>
+  <textarea style="height:300px" id="txtUpp" placeholder="Klistra in uppackningsrader här..."></textarea>
+  <div style="margin-top:8px"><button class="btn" id="parseUpp">Tolka</button> <button class="btn" id="saveUpp">Spara</button> <span class="small" id="rowsUpp">Rader: 0</span></div>
+  <div class="hr"></div>
+  <table class="table" id="tblUpp"><thead><tr><th>Order</th><th>Position</th><th>Lev.SKU</th><th>SKU</th><th>Beskrivning</th><th>Aviserad</th><th>Levererat</th><th>Återstår</th></tr></thead><tbody></tbody></table>
+</div>
+
+<div class="card">
+  <h2>Registrerade kollin</h2>
+  <textarea style="height:300px" id="txtKollin" placeholder="Klistra in kollirader här..."></textarea>
+  <div style="margin-top:8px"><button class="btn" id="parseKollin">Tolka</button> <button class="btn" id="saveKollin">Spara</button> <span class="small" id="rowsKollin">Rader: 0</span></div>
+  <div class="hr"></div>
+  <table class="table" id="tblKollin"><thead><tr><th>Hanteringsenhet</th><th>Artikelbeskrivning</th><th>SKU</th><th>BatchID</th><th>Flöde</th><th>Fack</th><th>Antal</th><th>Sista 4</th></tr></thead><tbody></tbody></table>
+</div>
+
+<div class="card center"><a class="btn btn-green" href="/felsok.html">Nästa: Felsök</a></div>
+</div>
+<script src="../app.js"></script><script src="../api.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  function qs(k){ try{ return new URL(location.href).searchParams.get(k); }catch(e){ return null; } }
+  const id = qs('id') || localStorage.getItem('inleverans_current');
+  if(!id){ window.location.href='/sandningar.html'; return; }
+  const LS='inleverans_shipments_v1';
+  const all = JSON.parse(localStorage.getItem(LS)||'{}');
+  if(!all[id]){
+    all[id] = { meta:{ number:'', createdAt:new Date().toISOString() }, data:{ linked:[], upp:[], kollin:[] }, issue:{} };
+    localStorage.setItem(LS, JSON.stringify(all));
+  }
+  localStorage.setItem('inleverans_current', id);
+  let state = all[id] || {};
+
+  const tbL=document.querySelector('#tblLinked tbody'), rowsL=document.getElementById('rowsLinked');
+  const tbU=document.querySelector('#tblUpp tbody'), rowsU=document.getElementById('rowsUpp');
+  const tbK=document.querySelector('#tblKollin tbody'), rowsK=document.getElementById('rowsKollin');
+  const flag=document.getElementById('flagBase');
+
+  function td(t){ const x=document.createElement('td'); x.textContent=t??''; return x; }
+  
+function rLinked(a){
+  tbL.innerHTML='';
+  (a||[]).forEach(r=>{
+    const tr=document.createElement('tr');
+    tr.appendChild(td(r.order));
+    tr.appendChild(td(r.position));
+    tr.appendChild(td(r.skuBeskrivning));
+    tr.appendChild(td(r.aviserad));
+    tr.appendChild(td(r.bestallt));
+    tr.appendChild(td(r.levererat));
+    tr.appendChild(td(r.totalt));
+    tbL.appendChild(tr);
+  });
+  rowsL.textContent='Rader: '+(a?.length||0);
+}
+
+  function rUpp(a){ tbU.innerHTML=''; (a||[]).forEach(r=>{ const tr=document.createElement('tr'); tr.appendChild(td(r.order)); tr.appendChild(td(r.position)); tr.appendChild(td(r.levSKU)); tr.appendChild(td(r.sku)); tr.appendChild(td(r.beskrivning)); tr.appendChild(td(r.aviserad)); tr.appendChild(td(r.levererat)); tr.appendChild(td(r.aterstar)); tr.appendChild(td(r.behov)); tbU.appendChild(tr); }); rowsU.textContent='Rader: '+(a?.length||0); }
+  
+function rK(a){
+  tbK.innerHTML='';
+  (a||[]).forEach(r=>{
+    const tr=document.createElement('tr');
+    tr.appendChild(td(r.hanteringsenhet ?? r.hantering ?? ''));
+    tr.appendChild(td(r.artikelbeskrivning ?? r.rad ?? ''));
+    tr.appendChild(td(r.sku ?? r.speditorkod ?? ''));
+    tr.appendChild(td(r.batchnummer ?? r.speditor ?? ''));
+    tr.appendChild(td(r.lagerzonsflode ?? ''));
+    tr.appendChild(td(r.fack ?? r.sista4 ?? ''));
+    tr.appendChild(td(r.antal ?? 0));
+    tbK.appendChild(tr);
+  });
+  rowsK.textContent='Rader: '+(a?.length||0);
+}
+
+  function setFlag(){ const ok=(state.linked?.length>0)&&(state.upp?.length>0)&&(state.kollin?.length>0); flag.classList.toggle('ok',!!ok); }
+
+  rLinked(state.linked||[]); rUpp(state.upp||[]); rK(state.kollin||[]); setFlag();
+
+  // Tolka-knappar – använder nya robusta parsern i app.js
+  document.getElementById('parseLinked').addEventListener('click', async function(){ try{ window._L = InlevApp.parseLinked(document.getElementById('txtLinked').value); rLinked(window._L); state.linked = window._L||[]; await saveState(); }catch(e){ alert('Kunde inte tolka Länkade rader'); } });document.getElementById('parseUpp').addEventListener('click', async function(){ try{ window._U = InlevApp.parseUpp(document.getElementById('txtUpp').value); rUpp(window._U); state.upp = window._U||[]; await saveState(); }catch(e){ alert('Kunde inte tolka Uppackning'); } });document.getElementById('parseKollin').addEventListener('click', async function(){ try{ window._K = InlevApp.parseKollin(document.getElementById('txtKollin').value); rK(window._K); state.kollin = window._K||[]; await saveState(); }catch(e){ alert('Kunde inte tolka Kollin'); } });async function saveState(){
+    const all=JSON.parse(localStorage.getItem(LS)||'{}'); all[id]=state; localStorage.setItem(LS, JSON.stringify(all));
+    try{ await InlevAPI.saveShipment(id,state);}catch(e){} setFlag();
+  }
+
+  document.getElementById('saveLinked').addEventListener('click', async function(){ state.linked = window._L||[]; await saveState(); alert('Länkade rader sparade.'); });
+  document.getElementById('saveUpp').addEventListener('click', async function(){ state.upp    = window._U||[]; await saveState(); alert('Uppackning sparad.'); });
+  document.getElementById('saveKollin').addEventListener('click', async function(){ state.kollin = window._K||[]; await saveState(); alert('Kollin sparade.'); });
+});
+</script>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Ta bort legacy-nav: behåll bara #projectBar
+  document.querySelectorAll('nav').forEach(n => {
+    if (n.id === 'projectBar') return;
+    const t = (n.textContent || '').toLowerCase();
+    if (t.includes('inlev') && /(plock|trav|statistik|schema|sandning|users)/.test(t)) {
+      n.remove();
+    }
+  });
+  // Peka projektknappar till .html-filer (inga mappar)
+  const resolve = p => (p.startsWith('../') || p.startsWith('./')) ? p : './' + p;
+  const targets = {
+    'Sändningar': 'sandningar/sandningar.html',
+    'Sandningar': 'sandningar/sandningar.html',
+    'Trav':       'trav.html',
+    'Plock':      'plock.html',
+    'Schema':     'schema.html',
+    'Statistik':  'statistik.html',
+    'Users':      'users.html'
+  };
+  const bar = document.getElementById('projectBar');
+  if (bar) {
+    bar.querySelectorAll('a').forEach(a => {
+      const txt = (a.textContent || '').trim();
+      if (targets[txt]) a.href = resolve(targets[txt]);
+    });
+  }
+});
+</script>
+
+</body></html>

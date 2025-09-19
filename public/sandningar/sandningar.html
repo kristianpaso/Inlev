@@ -1,0 +1,156 @@
+<!doctype html><html lang="sv"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Sändningar – Inleverans</title>
+<link rel="stylesheet" href="/styles.css"/>
+</head><body><script>if(!localStorage.getItem('inlev_user')){location.href='../index.html';}</script>
+
+<nav id="projectBar" style="position:sticky;top:0;z-index:50;background:#0a0f1a;border-bottom:1px solid #1f2937;padding:.5rem 1rem;display:flex;gap:.5rem;align-items:center">
+  <span style="opacity:.7;margin-right:.75rem">Projekt:</span>
+  <a href="./sandningar.html" class="btn">Sändningar</a>
+  <a href="./trav.html" class="btn">Trav</a>
+  <a href="./plock.html" class="btn">Plock</a>
+</nav>
+
+<script src="/auth.js"></script>
+<script>try{ if(!InlevAuth.isAuthed||!InlevAuth.isAuthed()) location.href='/login.html'; }catch(e){ location.href='/login.html'; }</script>
+
+    <div class="nav">
+      <a href="/index.html">Hem</a>
+      <a href="/sandningar.html">Sändningar</a>
+      <a href="/insamlare.html">Basinformation<span id="flagBase" class="menu-dot"></span></a>
+      <a href="/felsok.html">Felsök</a>
+      <a href="/uppdatera-info.html">Uppdatera info</a>
+      <a href="/skicka-diff.html">Skicka Diff</a>
+      <div class="right">
+        <span class="badge" id="who"></span>
+        <button id="logoutBtn">Logga ut</button>
+            <a href="/statistik/">Statistik</a>
+    </div>
+    </div>
+    <script>
+      (function(){
+        const w=document.getElementById('who');
+        try{ if(InlevAuth.isAuthed()){ const s=InlevAuth.get(); w.textContent=(s?.user?.name||'')+' '+(s?.user?.role?'('+s.user.role+')':''); } }catch(e){}
+        document.getElementById('logoutBtn').onclick=()=>{ InlevAuth.signOut(); location.href='/login.html'; };
+      })();
+    </script>
+    
+<div class="container">
+<h1>Sändningar</h1>
+<div class="card grid grid-2">
+  <div>
+    <label>Namn på ny sändning</label>
+    <input id="newName" placeholder="Sändningsnummer eller valfritt namn"/>
+    <div style="margin-top:8px"><button class="btn btn-green" id="createBtn">Skapa</button></div>
+  </div>
+  <div>
+    <div class="small">Klicka på en rad för att öppna sändningen.</div>
+    <div id="srv" class="small"></div>
+  </div>
+</div>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>Namn</th><th>Skapad</th><th></th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+</div>
+<script src="../app.js"></script><script src="../api.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const tbody = document.getElementById('tbody');
+
+  function rowHTML(it){
+    const name = (it.name||'').replace(/</g,'&lt;');
+    const created = (it.createdAt||'').replace('T',' ').slice(0,19);
+    return `<tr>
+      <td><a href="/insamlare.html?id=${encodeURIComponent(it.id)}" data-id="${it.id}">${name}</a></td>
+      <td>${created}</td>
+      <td>
+        <button class="btn" data-ren="${it.id}">Byt namn</button>
+        <button class="btn" data-exp="${it.id}">Export</button>
+        <button class="btn" data-del="${it.id}">Ta bort</button>
+      </td>
+    </tr>`;
+  }
+
+  function renderShip(){
+    // Endast lokal lista för stabilitet; serverhämtning kan läggas på igen vid behov
+    const list = (window.InlevApp && InlevApp.list) ? InlevApp.list() : [];
+    tbody.innerHTML = list.map(rowHTML).join('');
+  }
+  window.renderShip = renderShip;
+
+  tbody.addEventListener('click', function(e){
+    const t = e.target.closest('button,a'); if(!t) return;
+    if(t.matches('a[data-id]')){
+      e.preventDefault();
+      InlevApp.setCurrent(t.dataset.id);
+      // gå in i sändningen först när man klickar på namnet
+      window.location.href = '/insamlare.html?id='+encodeURIComponent(t.dataset.id);
+      return;
+    }
+    if(t.dataset.del){ InlevApp.remove(t.dataset.del); renderShip(); return; }
+    if(t.dataset.ren){
+      const nn = prompt('Nytt namn:');
+      if(nn){ InlevApp.rename(t.dataset.ren, nn.trim()); renderShip(); }
+      return;
+    }
+    if(t.dataset.exp){
+      const data = InlevApp.get(t.dataset.exp);
+      const a = document.createElement('a');
+      a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(data||{},null,2));
+      a.download=(data?.meta?.number||t.dataset.exp)+'.json';
+      a.click();
+      return;
+    }
+  });
+
+  document.getElementById('createBtn').addEventListener('click', function(ev){
+    ev.preventDefault();
+    const input = document.getElementById('newName');
+    let name = (input.value||'').trim();
+    if(!name) name = 'Sändning ' + Date.now();
+    InlevApp.create(name);
+    input.value='';
+    renderShip(); // stanna kvar på sidan och uppdatera listan
+  });
+
+  renderShip();
+});
+</script>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Ta bort legacy-nav: behåll bara #projectBar
+  document.querySelectorAll('nav').forEach(n => {
+    if (n.id === 'projectBar') return;
+    const t = (n.textContent || '').toLowerCase();
+    if (t.includes('inlev') && /(plock|trav|statistik|schema|sandning|users)/.test(t)) {
+      n.remove();
+    }
+  });
+  // Peka projektknappar till .html-filer (inga mappar)
+  const resolve = p => (p.startsWith('../') || p.startsWith('./')) ? p : './' + p;
+  const targets = {
+    'Sändningar': 'sandningar/sandningar.html',
+    'Sandningar': 'sandningar/sandningar.html',
+    'Trav':       'trav.html',
+    'Plock':      'plock.html',
+    'Schema':     'schema.html',
+    'Statistik':  'statistik.html',
+    'Users':      'users.html'
+  };
+  const bar = document.getElementById('projectBar');
+  if (bar) {
+    bar.querySelectorAll('a').forEach(a => {
+      const txt = (a.textContent || '').trim();
+      if (targets[txt]) a.href = resolve(targets[txt]);
+    });
+  }
+});
+</script>
+
+</body></html>

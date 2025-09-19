@@ -1,0 +1,1 @@
+(async function(){const t=document.getElementById('site-header');if(!t)return;try{const r=await fetch('/assets/header.html',{cache:'no-cache'});if(!r.ok)throw new Error('header saknas');t.innerHTML=await r.text();}catch(e){console.warn('header include misslyckades',e)}})();

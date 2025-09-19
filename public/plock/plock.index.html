@@ -70,5 +70,37 @@
 
     setTimeout(()=>{ window.postMessage({type:'PLOCK_GET_STATS'}, '*'); }, 800);
   </script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Ta bort legacy-nav: behåll bara #projectBar
+  document.querySelectorAll('nav').forEach(n => {
+    if (n.id === 'projectBar') return;
+    const t = (n.textContent || '').toLowerCase();
+    if (t.includes('inlev') && /(plock|trav|statistik|schema|sandning|users)/.test(t)) {
+      n.remove();
+    }
+  });
+  // Peka projektknappar till .html-filer (inga mappar)
+  const resolve = p => (p.startsWith('../') || p.startsWith('./')) ? p : './' + p;
+  const targets = {
+    'Sändningar': 'sandningar/sandningar.html',
+    'Sandningar': 'sandningar/sandningar.html',
+    'Trav':       'trav.html',
+    'Plock':      'plock.html',
+    'Schema':     'schema.html',
+    'Statistik':  'statistik.html',
+    'Users':      'users.html'
+  };
+  const bar = document.getElementById('projectBar');
+  if (bar) {
+    bar.querySelectorAll('a').forEach(a => {
+      const txt = (a.textContent || '').trim();
+      if (targets[txt]) a.href = resolve(targets[txt]);
+    });
+  }
+});
+</script>
+
 </body>
 </html>

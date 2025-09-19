@@ -1,38 +1,63 @@
-
-<!doctype html>
-<html lang="sv">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Logga in</title>
-  <link rel="stylesheet" href="/assets/login.css">
-  <script src="/assets/inlev-auth.js" defer></script>
-</head>
-<body>
-  <main class="login-wrap">
-    <div class="card">
-      <h2>Logga in</h2>
-      <label>Användarnamn</label>
-      <input id="user" placeholder="Admin">
-      <label>Lösenord</label>
-      <input id="pass" type="password" placeholder="••••">
-      <button id="go">Fortsätt</button>
-      <div id="err" class="err"></div>
-    </div>
-  </main>
-  <script>
-    window.addEventListener('DOMContentLoaded', () => {
-      const $ = id => document.getElementById(id);
-      $('go').onclick = async () => {
-        $('err').textContent = '';
-        try {
-          await InlevAuth.login($('user').value, $('pass').value);
-          const target = sessionStorage.getItem('postLogin') || '/statistik/';
-          sessionStorage.removeItem('postLogin');
-          location.replace(target);
-        } catch (e) { $('err').textContent = e.message || 'Inloggning misslyckades.'; }
-      };
+<!doctype html><html lang='sv'><head>
+<style>
+.topbar{position:sticky;top:0;z-index:90;display:flex;gap:.5rem;align-items:center;background:#0a0f1a;border-bottom:1px solid #1f2937;padding:.5rem 1rem}
+.btn{padding:.5rem .8rem;border-radius:.5rem;background:#1f2937;color:#f3f4f6;border:1px solid #334155;text-decoration:none;cursor:pointer}
+.btn-active{outline:2px solid #64748b}
+.muted{opacity:.75;margin-right:.5rem}
+.small{font-size:.9em}
+.spacer{flex:1}
+</style>
+<meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Login</title><link rel='stylesheet' href='/assets/site.css'><script src='/assets/header.js' defer></script></head><body>
+<nav id="projectBar" class="topbar">
+  <span class="muted">Projekt:</span>
+  <a href="./sandningar/sandningar.html" class="btn">Sändningar</a>
+  <a href="./trav.html" class="btn">Trav</a>
+  <a href="./plock.html" class="btn">Plock</a>
+  <a href="./schema.html" class="btn">Schema</a>
+  <a href="./statistik.html" class="btn">Statistik</a>
+  <a href="./users.html" class="btn">Users</a>
+  <span class="spacer"></span>
+  <span id="whoami" class="muted small"></span>
+  <button id="btnLogout" class="btn">Logga ut</button>
+</nav>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  const u = localStorage.getItem('inlev_user') || 'inloggad';
+  const w = document.getElementById('whoami'); if(w) w.textContent = 'Inloggad som: ' + u;
+  const b = document.getElementById('btnLogout'); if(b) b.onclick = () => { localStorage.clear(); location.href='./index.html'; };
+});
+</script>
+<div id='site-header'></div><main class='wrap'><div class='card'><h2>Logga in</h2><div style="display:flex;gap:10px;flex-wrap:wrap"><input id="u" placeholder="Användarnamn"><input id="p" type="password" placeholder="Lösenord"><button id="go">Fortsätt</button></div><div id="err" class="badge" style="margin-top:6px"></div></div><script>
+document.getElementById('go').onclick=async()=>{ const u=document.getElementById('u').value.trim(), p=document.getElementById('p').value; try{ const r=await fetch('/.netlify/functions/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({username:u,password:p})}); if(!r.ok){ document.getElementById('err').textContent='Fel inloggning'; return; } location.replace('/statistik/'); }catch(e){ document.getElementById('err').textContent='Nätverksfel'; } }; </script></main>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Ta bort legacy-nav: behåll bara #projectBar
+  document.querySelectorAll('nav').forEach(n => {
+    if (n.id === 'projectBar') return;
+    const t = (n.textContent || '').toLowerCase();
+    if (t.includes('inlev') && /(plock|trav|statistik|schema|sandning|users)/.test(t)) {
+      n.remove();
+    }
+  });
+  // Peka projektknappar till .html-filer (inga mappar)
+  const resolve = p => (p.startsWith('../') || p.startsWith('./')) ? p : './' + p;
+  const targets = {
+    'Sändningar': 'sandningar/sandningar.html',
+    'Sandningar': 'sandningar/sandningar.html',
+    'Trav':       'trav.html',
+    'Plock':      'plock.html',
+    'Schema':     'schema.html',
+    'Statistik':  'statistik.html',
+    'Users':      'users.html'
+  };
+  const bar = document.getElementById('projectBar');
+  if (bar) {
+    bar.querySelectorAll('a').forEach(a => {
+      const txt = (a.textContent || '').trim();
+      if (targets[txt]) a.href = resolve(targets[txt]);
     });
-  </script>
-</body>
-</html>
+  }
+});
+</script>
+
+</body></html>

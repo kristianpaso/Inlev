@@ -1,81 +1,31 @@
 
-import { blobs } from '@netlify/blobs';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { getStore, json, parseCookies, rnd } from './_util.mjs';
+const USERS_KEY='users.json', SESS_KEY='sessions.json';
 
-const SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
-function json(status,obj){ return new Response(JSON.stringify(obj),{status,headers:{'Content-Type':'application/json'}}); }
-function parse(path){ return path.replace(/^\/api\//,''); }
-function tokenFor(u){ const exp=Math.floor(Date.now()/1000)+3600; const t=jwt.sign({sub:u.username, role:u.role, exp}, SECRET); return {token:t,exp}; }
-async function readUsers(){ const store=blobs(); const users = await store.get('users:db',{ type:'json' }); return Array.isArray(users)?users:[]; }
-async function writeUsers(list){ const store=blobs(); await store.setJSON('users:db', list); }
-async function ensureAdmin(){ const users=await readUsers(); if(!users.find(u=>u.username==='Admin')){ const hash = await bcrypt.hash('test',10); users.push({username:'Admin', role:'admin', pass:hash}); await writeUsers(users); } }
-
-function getUserFromAuth(auth){
-  const raw = auth?.startsWith('Bearer ') ? auth.slice(7) : null;
-  if(!raw) return null;
-  try{ return jwt.verify(raw, SECRET); }catch(e){ return null; }
+async function ensureAdmin(store){
+  const u=await store.get(USERS_KEY,{type:'json'})||{users:{}};
+  if(!u.users['Admin']){ u.users['Admin']={hash:'123'}; await store.setJSON(USERS_KEY,u); }
 }
+export async function handler(event){
+  const store=await getStore(); await ensureAdmin(store);
+  const path=(event.path||'').replace(/^\/.netlify\/functions\/[\w-]+/, ''); const method=event.httpMethod||'GET'; const cookies=parseCookies(event);
 
-export default async (req, ctx)=>{
-  const url=new URL(req.url);
-  const path=parse(url.pathname);
+  async function getSessions(){ return await store.get(SESS_KEY,{type:'json'})||{}; }
+  async function saveSessions(S){ await store.setJSON(SESS_KEY,S); }
 
-  await ensureAdmin();
-
-  if(req.method==='POST' && path==='auth/login'){
-    const body = await req.json().catch(()=>null);
-    if(!body) return json(400,{error:'bad json'});
-    const {username,password}=body;
-    const users = await readUsers();
-    const user = users.find(u=>u.username===username);
-    if(!user) return json(401,{error:'invalid'});
-    const ok = await bcrypt.compare(password, user.pass);
-    if(!ok) return json(401,{error:'invalid'});
-    const {token,exp}=tokenFor(user);
-    return json(200,{token,exp,user:{name:user.username,role:user.role}});
+  if (path.endsWith('/login') && method==='POST'){
+    const b=JSON.parse(event.body||'{}'); const db=await store.get(USERS_KEY,{type:'json'})||{users:{}}; const rec=db.users[b.username];
+    if(!rec || rec.hash!==String(b.password)) return json(401,{error:'bad creds'});
+    const token=rnd(); const S=await getSessions(); S[token]=b.username; await saveSessions(S);
+    return json(200,{ok:true,user:b.username},`inlev_sess=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`);
   }
-
-  const me = getUserFromAuth(req.headers.get('authorization')||'');
-  if(req.method==='GET' && path==='auth/me'){
-    if(!me) return json(401,{error:'unauthorized'});
-    return json(200,{user:{name:me.sub,role:me.role}});
+  if (path.endsWith('/logout') && method==='POST'){
+    const token=cookies['inlev_sess']; const S=await getSessions(); if(token){ delete S[token]; await saveSessions(S); }
+    return json(200,{ok:true},'inlev_sess=; Path=/; Max-Age=0');
   }
-  if(!me) return json(401,{error:'unauthorized'});
-
-  if(path==='admin/users'){
-    if(me.role!=='admin') return json(403,{error:'forbidden'});
-    if(req.method==='GET'){
-      const users=await readUsers();
-      return json(200, users.map(u=>({username:u.username, role:u.role})));
-    }
-    if(req.method==='POST'){
-      const body = await req.json().catch(()=>null);
-      if(!body || !body.username || !body.password || !body.role) return json(400,{error:'bad json'});
-      const users=await readUsers();
-      if(users.find(u=>u.username===body.username)) return json(409,{error:'exists'});
-      const pass = await bcrypt.hash(body.password,10);
-      users.push({username:body.username, role:body.role, pass});
-      await writeUsers(users);
-      return json(200,{ok:true});
-    }
+  if (path.endsWith('/me')){
+    const token=cookies['inlev_sess']; const S=await getSessions(); const user=token&&S[token]; if(!user) return json(401,{error:'no'});
+    return json(200,{user});
   }
-  const m = path.match(/^admin\/users\/([^\/]+)$/);
-  if(m){
-    if(me.role!=='admin') return json(403,{error:'forbidden'});
-    const uname=decodeURIComponent(m[1]);
-    if(req.method==='PUT'){
-      const body = await req.json().catch(()=>null);
-      if(!body) return json(400,{error:'bad json'});
-      const users=await readUsers();
-      const u = users.find(x=>x.username===uname);
-      if(!u) return json(404,{error:'not found'});
-      if(body.password){ u.pass = await bcrypt.hash(body.password,10); }
-      if(body.role){ u.role = body.role; }
-      await writeUsers(users);
-      return json(200,{ok:true});
-    }
-  }
-
-  return json(404,{error:'not found', path});
-};
+  return json(404,{error:'not found',path,method});
+}
