@@ -1,0 +1,23 @@
+<!doctype html><html lang=sv><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1"><title>Users</title>
+<link rel=stylesheet href="/assets/site.css"><script src="/assets/header.js" defer></script></head>
+<body><main class="wrap">
+<div class=card><h2>Användare</h2>
+<div id=guard>Kontrollerar...</div><div id=ui style="display:none">
+<form id=add class=flex><input id=nu placeholder="Användare"> <input id=np type=password placeholder="Lösenord"> <button>Skapa</button></form>
+<table><thead><tr><th>Användare</th><th>Åtgärd</th></tr></thead><tbody id=tb></tbody></table></div></div>
+<script>
+async function me(){ const r=await fetch('/.netlify/functions/api/auth/me',{credentials:'include'}); if(!r.ok) return null; return r.json(); }
+async function list(){ const r=await fetch('/.netlify/functions/api/users/list',{credentials:'include'}); return r.json(); }
+async function addU(u,p){ await fetch('/.netlify/functions/api/users/add',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({username:u,password:p})}); }
+async function delU(u){ await fetch('/.netlify/functions/api/users/delete',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({username:u})}); }
+(async()=>{
+  const u=await me(); if(!u||u.user!=='Admin'){ guard.textContent='Endast Admin.'; return; }
+  guard.style.display='none'; ui.style.display='block';
+  async function render(){ const d=await list(); tb.innerHTML=(d.users||[]).map(x=>`<tr><td>${x}</td><td>${x==='Admin'?'—':'<button data-u="${x}">Ta bort</button>'}</td></tr>`).join(''); }
+  add.onsubmit=async e=>{ e.preventDefault(); await addU(nu.value,np.value); nu.value=np.value=''; render(); };
+  tb.onclick=async e=>{ const u=e.target.dataset.u; if(!u) return; if(confirm('Ta bort '+u+'?')){ await delU(u); render(); } };
+  render();
+})();
+</script>
+</main></body></html>

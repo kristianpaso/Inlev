@@ -1,0 +1,1 @@
+Denna mapp (public/plock) innehåller index.html UTAN redirect. Om du ser meta refresh i DevTools, ta bort gamla 'index.html' eller 'index.htm' som innehåller redirect och rensa cache.

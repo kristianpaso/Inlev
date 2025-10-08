@@ -1,0 +1,14 @@
+
+/plock           /plock/index.html           200
+/plock/*         /plock/index.html           200
+/trav            /trav/index.html            200
+/trav/*          /trav/index.html            200
+/statistik       /statistik/index.html       200
+/statistik/*     /statistik/index.html       200
+/schema          /schema/index.html          200
+/schema/*        /schema/index.html          200
+/sändningar      /sändningar/index.html      200
+/sändningar/*    /sändningar/index.html      200
+/sandningar      /sändningar/index.html      200
+/sandningar/*    /sändningar/index.html      200
+/login           /login.html                 200

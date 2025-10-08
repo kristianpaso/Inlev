@@ -1,2 +1,38 @@
-<!doctype html><meta charset="utf-8"><title>Plock</title>
-<meta http-equiv="refresh" content="0; url=plock.index.html"><script>location.replace('plock.index.html');</script>
+
+<!doctype html><html lang="sv"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plock</title><link rel="stylesheet" href="/plock/css/style.css">
+</head><body>
+<h1>Plock</h1>
+<div class="grid">
+  <div class="card">
+    <div class="row">
+      <button class="btn" onclick="location.href='/downloads/plock-extension.zip'">Ladda ner Chrome Extension</button>
+      <button class="btn" onclick="window.postMessage({type:'PLOCK_PAGE_READY'}, '*')">Aktivera</button>
+      <button class="btn" onclick="window.dispatchEvent(new CustomEvent('PLOCK_STATS_NORMALIZED',{detail:{}}))">Uppdatera statistik</button>
+    </div>
+    <div class="card">
+      <div class="small">Status</div>
+      <div id="statusText" class="small">Väntar på tillägg…</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="small">Plock totalt</div>
+    <div class="kpi"><span id="kpiCount">0</span></div>
+  </div>
+</div>
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <div class="row small">
+      <div>Antal: <span id="totalToday">0</span></div><span>&nbsp;·&nbsp;</span>
+      <div>Felplock: <span id="errorCount">0</span></div>
+    </div>
+    <label class="row"><input type="checkbox" id="voiceOn"> &nbsp;Röst på</label>
+  </div>
+  <hr>
+  <div class="small">Kvar till mål / +COUNT: <span id="badgeValue" class="badge">–</span></div>
+  <div class="small" style="margin-top:10px">Timlogg</div>
+  <ul class="list" id="logList"></ul>
+</div>
+<script src="/plock/js/plock-page-adapter.js"></script>
+</body></html>

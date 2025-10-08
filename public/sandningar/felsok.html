@@ -1,0 +1,193 @@
+<!doctype html><html lang='sv'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'><title>Felsök</title><link rel='stylesheet' href='../styles.css'>
+<style>
+  /* modern table look */
+  .table-modern{ width:100%; border-collapse:separate; border-spacing:0 8px; }
+  .table-modern thead th{
+    position:sticky; top:48px; z-index:2;
+    background:#0c1220; color:#cbd5e1; text-transform:none;
+    font-weight:600; letter-spacing:.02em; padding:10px 14px;
+    border-bottom:1px solid #1f2937;
+  }
+  .table-modern td{ padding:12px 16px; vertical-align:middle; }
+  .table-modern tr{ border-radius:12px; overflow:hidden; }
+  .table-modern tr:hover{ outline:1px solid #47556966; }
+  .num{ text-align:right; font-variant-numeric:tabular-nums; }
+
+  /* badges & chips in palette */
+  .badge, .chip{
+    display:inline-flex; align-items:center; gap:.35rem;
+    padding:.2rem .6rem; border-radius:.5rem; font-size:.78rem; font-weight:600;
+    box-shadow:0 1px 0 rgba(0,0,0,.25) inset, 0 0 0 1px rgba(255,255,255,.06);
+  }
+  .badge-ok{ background:#369730; color:#fff; }
+  .badge-plus{ background:#a74a14; color:#fff; }
+  .badge-minus{ background:#306797; color:#fff; }
+  .badge-rest{ background:#3a2a0a; color:#fff; }
+  .badge-resolved{ background:#2c4405; color:#fff; }
+
+  .chip{ font-size:.9rem; padding:.25rem .7rem; border-radius:.7rem; }
+  .chip-ok{ background:#369730; color:#fff; }
+  .chip-plus{ background:#a74a14; color:#fff; }
+  .chip-minus{ background:#306797; color:#fff; }
+  .chip-rest{ background:#3a2a0a; color:#fff; }
+</style>
+</head><body>
+
+<nav id="projectBar" style="position:sticky;top:0;z-index:50;background:#0a0f1a;border-bottom:1px solid #1f2937;padding:.5rem 1rem;display:flex;gap:.5rem;align-items:center">
+  <span style="opacity:.7;margin-right:.75rem">Projekt:</span>
+  <a href="./index.html" class="btn">Sändningar</a>
+  <a href="../trav/index.html" class="btn">Trav</a>
+  <a href="../plock/index.html" class="btn">Plock</a>
+</nav>
+
+<nav id="mainMenu" style="position:sticky;top:0;z-index:20;background:#0b1220;border-bottom:1px solid #1f2937;padding:.5rem 1rem;display:flex;gap:.5rem;">
+  <a class="btn" href="./insamlare.html">Basinformation</a>
+  <a class="btn" href="./felsok.html">Felsök</a>
+  <button class="btn" id="btnUpdateInfo" title="Uppdatera info">Uppdatera info</button>
+  <button class="btn" id="btnSendDiff" title="Skicka Diff">Skicka Diff</button>
+</nav>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  const noop = ()=>alert('Funktion kommer snart.');
+  (document.getElementById('btnUpdateInfo')||{}).onclick = noop;
+  (document.getElementById('btnSendDiff')||{}).onclick = noop;
+});
+</script>
+
+<div class="container" style="max-width:1400px;margin:0 auto;padding:1rem;">
+  <div class="grid" style="display:grid;grid-template-columns:1fr 360px;gap:1rem;">
+    <div class="left card" style="background:#0b1220;border:1px solid #1f2937;border-radius:1rem;">
+      <div class="card-header" style="padding:1rem;border-bottom:1px solid #1f2937;display:flex;gap:.5rem;align-items:center;">
+        <button id="toggleComplete" class="btn">Visa kompletta</button>
+        <button id="toggleResolved" class="btn">Visa endast ej klara</button>
+        <span id="count" style="opacity:.7;margin-left:.5rem;"></span>
+      </div>
+      <div class="card-body" style="padding:1rem;">
+        <table class="table" style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr>
+              <th>Order</th><th>Position</th><th>SKU</th><th>Beskrivning</th>
+              <th>Aviserad</th><th>Levererat</th><th>Återstår</th><th>Diff</th><th>Status</th><th>Felsök</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyDiff"></tbody>
+        </table>
+      </div>
+    </div>
+    <aside class="right card" style="background:#0b1220;border:1px solid #1f2937;border-radius:1rem;position:sticky;top:1rem;height:fit-content;">
+      <div class="card-body" style="padding:1rem;">
+        <h3 style="margin:0 0 .75rem 0;">Kollilista</h3>
+        <ul id="kollilista" style="list-style:none;padding:0;margin:0 0 1rem 0;display:flex;flex-direction:column;gap:.5rem;"></ul>
+        <h3 style="margin:.5rem 0 .5rem 0;">Kolliruta</h3>
+        <textarea id="kolliruta" style="width:100%;height:300px;background:#0a1020;color:#e5e7eb;border:1px solid #1f2937;border-radius:.5rem;padding:.5rem;"></textarea>
+      </div>
+    </aside>
+  </div>
+</div>
+<script src="./app.js"></script><script src="./api.js"></script>
+<script>
+(function(){
+  const tbody = document.getElementById('tbodyDiff');
+  const toggleComplete = document.getElementById('toggleComplete');
+  const toggleResolved = document.getElementById('toggleResolved');
+  const countEl = document.getElementById('count');
+  const LS='inleverans_shipments_v1';
+  const cur = localStorage.getItem('inleverans_current');
+  const store = JSON.parse(localStorage.getItem(LS)||'{}');
+  const ship = store[cur] || {};
+  const upp = ship.upp || [];
+  const resolved = (ship.issue && ship.issue.resolved) ? ship.issue.resolved : {};
+
+  // Sidebar: kollilista & kolliruta
+  const list = document.getElementById('kollilista');
+  const notes = document.getElementById('kolliruta');
+  const kollin = ship.kollin || [];
+  list.innerHTML = (kollin||[]).map(k => `<li><strong>${k.antal||0} st</strong> ${k.speditorkod||''} ${k.speditor||''} <span style="opacity:.7">${k.sista4||''}</span></li>`).join('');
+  notes.value = (ship.issue && ship.issue.kolliruta) ? ship.issue.kolliruta : '';
+  notes.addEventListener('input', ()=>{
+    const s = JSON.parse(localStorage.getItem(LS)||'{}');
+    s[cur]=s[cur]||{}; s[cur].issue=s[cur].issue||{}; s[cur].issue.kolliruta=notes.value;
+    localStorage.setItem(LS, JSON.stringify(s));
+  });
+
+  function key(r){ return [r.order,r.position,r.sku].join('|'); }
+  function isResolved(r){ return !!resolved[key(r)]; }
+  function saveResolved(r,val){
+    const s = JSON.parse(localStorage.getItem(LS)||'{}');
+    s[cur] = s[cur] || {};
+    s[cur].issue = s[cur].issue || {};
+    s[cur].issue.resolved = s[cur].issue.resolved || {};
+    s[cur].issue.resolved[key(r)] = !!val;
+    localStorage.setItem(LS, JSON.stringify(s));
+  }
+
+  function classify(r){
+    const A=Number(r.aviserad||0), L=Number(r.levererat||0), Ar=Number(r.aterstar||0);
+    if(A===L && Ar===0) return {cls:'ok', diff:0, label:'Komplett'};
+    if(L < A)           return {cls:'minus', diff:(L-A), label:'Under'};
+    if(L > A && Ar===0) return {cls:'plus',  diff:(L-A), label:'Över'};
+    return {cls:'rest', diff:Ar, label:'Återstår'};
+  }
+
+  function td(t,cls){ const x=document.createElement('td'); x.textContent=t; if(cls) x.className=cls; x.style.padding='.5rem .6rem'; x.style.borderTop='1px solid #1f2937'; return x; }
+  function badge(text,kind){ const s=document.createElement('span'); s.textContent=text; s.style.padding='.15rem .45rem'; s.style.borderRadius='.5rem'; s.style.fontSize='.75rem'; s.style.background = (kind==='minus'?'#451a1a':(kind==='plus'?'#0f3b2f':(kind==='rest'?'#3a2a0a':'#0f2a19'))); s.style.color='#fff'; return s; }
+
+  function render(){
+      tbody.innerHTML='';
+      const bg = { minus:'#306797', plus:'#a74a14', rest:'#3a2a0a', ok:'#369730' };
+    const hideComplete = toggleComplete.dataset.mode!=='all';
+    const onlyUnresolved = toggleResolved.dataset.mode==='only';
+    let shown=0, total=upp.length;
+    upp.forEach(r=>{
+      const c = classify(r);
+      if(hideComplete && c.cls==='ok') return;
+      if(onlyUnresolved && isResolved(r)) return;
+      const tr=document.createElement('tr'); tr.style.background = (isResolved(r)?'#2c4405': (bg[c.cls] || '#369730')); tr.style.color='#e5e7eb'; tr.appendChild(td(r.order||''));
+      tr.appendChild(td(r.position||''));
+      tr.appendChild(td(r.sku||''));
+      tr.appendChild(td(r.beskrivning||''));
+      tr.appendChild(td(r.aviserad||0));
+      tr.appendChild(td(r.levererat||0));
+      tr.appendChild(td(r.aterstar||0));
+      const d=(c.diff>=0? '+'+c.diff : String(c.diff));
+      const tdD=td(''); tdD.appendChild(badge(d, c.cls==='ok'?'ok':(c.cls==='minus'?'minus':(c.cls==='plus'?'plus':'rest')))); tr.appendChild(tdD);
+      const tdS=td(''); tdS.appendChild(badge(c.label, c.cls==='ok'?'ok':(c.cls==='minus'?'minus':(c.cls==='plus'?'plus':'rest')))); tr.appendChild(tdS);
+      const tdB=td(''); const btn=document.createElement('button'); btn.textContent=isResolved(r)?'Ångra':'Klar'; btn.className='btn'; btn.addEventListener('click', ()=>{ saveResolved(r,!isResolved(r)); render(); }); tdB.appendChild(btn); tr.appendChild(tdB);
+      tbody.appendChild(tr);
+      shown++;
+    });
+    countEl.textContent = `Visar ${shown} av ${total} rader`;
+  }
+
+  toggleComplete.addEventListener('click', function(){
+    if(this.dataset.mode==='all'){ this.dataset.mode='incomplete'; this.textContent='Visa kompletta'; }
+    else { this.dataset.mode='all'; this.textContent='Dölj kompletta'; }
+    render();
+  });
+  toggleResolved.addEventListener('click', function(){
+    if(this.dataset.mode==='only'){ this.dataset.mode='all'; this.textContent='Visa endast ej klara'; }
+    else { this.dataset.mode='only'; this.textContent='Visa alla'; }
+    render();
+  });
+
+  render();
+})();
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('nav').forEach(n => {
+    if (n.id === 'projectBar') return;
+    const t = (n.textContent || '').toLowerCase();
+    if (t.includes('inlev') && /(plock|trav|statistik|schema|sandning|users)/.test(t)) n.remove();
+  });
+  // Force .html targets
+  const map = {'Sändningar':'sandningar/sandningar.html','Sandningar':'sandningar/sandningar.html','Trav':'trav.html','Plock':'plock.html','Schema':'schema.html','Statistik':'statistik.html','Users':'users.html'};
+  document.querySelectorAll('#projectBar a').forEach(a=>{
+    const txt=(a.textContent||'').trim(); if(map[txt]) a.href = (a.href.includes('../')?'../':'') + map[txt];
+  });
+});
+</script>
+
+<script src="../projectbar-indexify.js"></script>
+</body></html>

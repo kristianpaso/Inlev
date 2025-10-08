@@ -1,66 +1,16 @@
-<!doctype html>
-<html lang="sv">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Statistik — Excel-överblick</title>
-  <link rel="stylesheet" href="/styles.css">
-  <script src="/auth.js"></script>
-  <script>if(window.InlevAuth){ InlevAuth.requireAuth(); }</script>
-  <style>
-    .kpi {background: #0f172a; border:1px solid #1e293b; padding:14px; border-radius:12px; min-width:220px;}
-    .row {display:flex; gap:12px; align-items:stretch; flex-wrap:wrap;}
-    .card {background:#0b1220;border:1px solid #1e293b;border-radius:16px;padding:14px;}
-    #mainChart {max-height:700px !important;}
-    .toolbar {display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
-    .nav-fixed {position:sticky; top:0; z-index:20; background:#0b0c10; padding:8px 0; }
-    .nav a { margin-right:10px; }
-  </style>
-</head>
-<body>
-  <div class="nav nav-fixed">
-    <a href="/sandningar.html">Sändningar</a>
-    <a href="/trav/">Trav</a>
-    <a href="/plock/">Plock</a>
-    <a class="active" href="/statistik/">Statistik</a>
-    <a style="float:right" href="#" onclick="InlevAuth.logout();return false;">Logga ut</a>
-  </div>
-  <div class="wrap" style="max-width:1240px;margin:0 auto;padding:16px;">
-    <div class="card">
-      <h2 style="margin:4px 0 12px 0;">Statistik — Excel-överblick</h2>
-      <p class="small">Ladda upp en fil eller använd exempeldata. Inga andra projekt påverkas.</p>
-      <div class="toolbar">
-        <label class="btn"><input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden> Välj fil</label>
-        <select id="sheetSel"></select>
-        <input id="idle" type="number" min="1" value="15" style="width:80px"> <span class="small">Inaktivitet (min)</span>
-        <button id="useDemo" class="btn">Använd exempeldata</button>
-        <button id="exportCsv" class="btn">Exportera rapport</button>
-        <span style="flex:1"></span>
-        <label>Dag</label><input id="dayPicker" type="date">
-        <label>Visa</label><select id="topN"><option>Top 5</option><option selected>Top 8</option><option>Top 10</option><option>Alla</option></select>
-        <input id="userFilter" placeholder="filtrera…">
-      </div>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <div class="kpi"><div class="small muted">Totalt plock</div><div id="kpiTotal" class="kpiValue">—</div></div>
-      <div class="kpi"><div class="small muted">Antal användare</div><div id="kpiUsers" class="kpiValue">—</div></div>
-      <div class="kpi"><div class="small muted">Aktiva timmar (summa)</div><div id="kpiHours" class="kpiValue">—</div></div>
-      <div class="kpi"><div class="small muted">Plock / aktiv timme</div><div id="kpiRate" class="kpiValue">—</div></div>
-    </div>
-    <div class="card" style="margin-top:14px">
-      <div class="row" style="justify-content:space-between;align-items:center;">
-        <h3 style="margin:0;">Plock per användare per dag</h3>
-        <span class="small muted">Huvudstatistik</span>
-      </div>
-      <canvas id="mainChart" height="360"></canvas>
-    </div>
-    <div class="card" style="margin-top:14px">
-      <h3 style="margin:0 0 6px 0;">Per användare</h3>
-      <div class="table" id="userTable"></div>
-    </div>
-  </div>
-
-  <script src="/statistik/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="/statistik/stat.app.js"></script>
-</body></html>
+<!doctype html><html lang=sv><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1"><title>Statistik</title>
+<link rel=stylesheet href="/assets/site.css"><script src="/assets/header.js" defer></script></head>
+<body><main class="wrap">
+<div class=card><h2>Statistik</h2><button id=refresh class=secondary>Uppdatera</button>
+<table><thead><tr><th>Person</th><th>Totalt</th><th>Per avdelning</th></tr></thead><tbody id=tb></tbody></table></div>
+<script>
+async function get(){ const r=await fetch('/.netlify/functions/api/schema/stats',{credentials:'include'}); return r.json(); }
+async function render(){ const d=await get(); const tb=document.getElementById('tb'); tb.innerHTML='';
+  const people=[...new Set(Object.keys(d.totals||{}))].sort((a,b)=>(d.totals[b]||0)-(d.totals[a]||0));
+  if(!people.length){ tb.innerHTML='<tr><td colspan=3>Inga data ännu.</td></tr>'; return; }
+  people.forEach(p=>{ const areas=d.perAreas[p]||{}; tb.insertAdjacentHTML('beforeend', `<tr><td>${p}</td><td>${d.totals[p]||0}</td><td>${Object.keys(areas).sort().map(k=>k+': '+areas[k]).join(', ')}</td></tr>`); });
+}
+document.getElementById('refresh').onclick=render; render();
+</script>
+</main></body></html>

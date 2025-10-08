@@ -1,10 +1,13 @@
-
-/plock    /plock/index.html    200
-/plock/*  /plock/index.html    200
-/trav     /trav/index.html     200
-/trav/*   /trav/index.html     200
-/statistik     /statistik/index.html   200
-/statistik/*   /statistik/index.html   200
-/schema    /schema/index.html  200
-/schema/*  /schema/index.html  200
-/login     /login.html         200
+/plock /plock/index.html 200
+/plock/* /plock/index.html 200
+/trav /trav/index.html 200
+/trav/* /trav/index.html 200
+/sandningar /sandningar/index.html 200
+/sandningar/* /sandningar/index.html 200
+/schema /schema/index.html 200
+/schema/* /schema/index.html 200
+/statistik /statistik/index.html 200
+/statistik/* /statistik/index.html 200
+/users /users/index.html 200
+/users/* /users/index.html 200
+/login /login.html 200

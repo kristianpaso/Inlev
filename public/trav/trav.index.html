@@ -1,6 +1,14 @@
 <!doctype html>
 <html lang="sv">
 <head>
+<style>
+.topbar{position:sticky;top:0;z-index:90;display:flex;gap:.5rem;align-items:center;background:#0a0f1a;border-bottom:1px solid #1f2937;padding:.5rem 1rem}
+.btn{padding:.5rem .8rem;border-radius:.5rem;background:#1f2937;color:#f3f4f6;border:1px solid #334155;text-decoration:none;cursor:pointer}
+.muted{opacity:.75;margin-right:.5rem}
+.small{font-size:.9em}
+.spacer{flex:1}
+</style>
+
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Inlev • Trav (Förhandsvisning + Kalibrering v2)</title>
@@ -24,6 +32,26 @@
   </style>
 </head>
 <body>
+<nav id="projectBar" class="topbar">
+  <span class="muted">Projekt:</span>
+  <a href="../sandningar/index.html" class="btn">Sändningar</a>
+  <a href="../trav/index.html" class="btn">Trav</a>
+  <a href="../plock/index.html" class="btn">Plock</a>
+  <a href="../schema/index.html" class="btn">Schema</a>
+  <a href="../statistik/index.html" class="btn">Statistik</a>
+  <a href="../users/index.html" class="btn">Users</a>
+  <span class="spacer"></span>
+  <span id="whoami" class="muted small"></span>
+  <button id="btnLogout" class="btn">Logga ut</button>
+</nav>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  const u = localStorage.getItem('inlev_user') || 'inloggad';
+  const w = document.getElementById('whoami'); if(w) w.textContent = 'Inloggad som: ' + u;
+  const b = document.getElementById('btnLogout'); if(b) b.onclick = () => { localStorage.clear(); location.href='../login.html'; };
+});
+</script>
+
   <main class="wrap">
     <div class="card">
       <div class="head">
@@ -70,5 +98,21 @@
     </div>
     <div id="host" class="grid"></div>
   </main>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('nav').forEach(n => {
+    if (n.id === 'projectBar') return;
+    const t = (n.textContent || '').toLowerCase();
+    if (t.includes('inlev') && /(plock|trav|statistik|schema|sandning|users)/.test(t)) n.remove();
+  });
+  // Force .html targets
+  const map = {'Sändningar':'sandningar/sandningar.html','Sandningar':'sandningar/sandningar.html','Trav':'trav.html','Plock':'plock.html','Schema':'schema.html','Statistik':'statistik.html','Users':'users.html'};
+  document.querySelectorAll('#projectBar a').forEach(a=>{
+    const txt=(a.textContent||'').trim(); if(map[txt]) a.href = (a.href.includes('../')?'../':'') + map[txt];
+  });
+});
+</script>
+
 </body>
 </html>

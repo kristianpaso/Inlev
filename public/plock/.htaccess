@@ -1,0 +1,12 @@
+# ==== STOPPA ALLA OMDIRIGERINGAR I DEN HÄR KATALOGEN ====
+# Stäng av ev. arv från överordnade .htaccess
+RewriteEngine Off
+
+# Stäng av DirectorySlash (så /plock inte tvingar slash)
+DirectorySlash Off
+
+# Inaktivera MultiViews (kan orsaka konstiga matchningar)
+Options -MultiViews
+
+# Använd explicit indexfil
+DirectoryIndex index.html index.htm

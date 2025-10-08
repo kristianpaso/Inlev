@@ -1,0 +1,24 @@
+
+
+/* FIX46: projectBar links -> folder index.html */
+(function(){
+  function indexify(a){
+    const map={
+      'Sändningar':'sandningar/index.html','Sandningar':'sandningar/index.html',
+      'Trav':'trav/index.html','Plock':'plock/index.html','Schema':'schema/index.html',
+      'Statistik':'statistik/index.html','Users':'users/index.html'
+    };
+    const t=(a.textContent||'').trim();
+    if (!map[t]) return;
+    // Compute relative base from current page to /public root (heuristic: preserve existing ../)
+    let href = a.getAttribute('href')||'';
+    let prefix='';
+    if (href.startsWith('../')) prefix='../';
+    a.setAttribute('href', prefix + map[t]);
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    var bar=document.getElementById('projectBar');
+    if (!bar) return;
+    Array.from(bar.querySelectorAll('a')).forEach(indexify);
+  });
+})();

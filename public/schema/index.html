@@ -1,92 +1,95 @@
+<!doctype html><html lang=sv><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>Schema – OCR v6</title><link rel=stylesheet href="/assets/site.css"><script src="/assets/header.js" defer></script></head>
+<body><main class=wrap>
+<div class=card>
+  <h2>Ladda upp schema-bild</h2>
+  <div class=flex>
+    <input id=f type=file accept="image/*,.jpg,.jpeg,.png">
+    <button id=run disabled>Starta OCR</button>
+    <button id=save disabled>Spara</button>
+    <span id=st class=badge>Välj bild</span>
+  </div>
+  <div class=flex style="margin-top:8px">
+    <label><input type=checkbox id=showGuides> Kolumnguider (5 streck)</label>
+    <label><input type=checkbox id=showCrop> Manuell beskärning</label>
+    <span class=hint>1=start kol1 • 5=slut kol4</span>
+  </div>
+  <div class=flex>
+    <select id=profiles style="min-width:200px"></select>
+    <input id=profName placeholder="Namn på layout">
+    <button id=saveProfile class=ghost>💾 Spara layout</button>
+    <button id=loadProfile class=secondary>↩︎ Ladda layout</button>
+    <button id=delProfile class=danger>🗑 Ta bort layout</button>
+  </div>
+  <div id=imgw class="card img-wrap" style="display:none"><img id=img style="max-width:100%"><div id=guides></div><div id=crop class=crop style="display:none"><div class="handle br"></div></div><div class=cover></div></div>
+  <details><summary>Visa rå OCR</summary><pre id=raw></pre></details>
+</div>
 
-<!doctype html>
-<html lang="sv">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Schema – OCR</title>
-  <link rel="stylesheet" href="./style.css">
-  <!-- OpenCV.js för auto-beskärning & perspektivkorrigering -->
-  <script async src="https://docs.opencv.org/4.x/opencv.js"
-          onload="cv['onRuntimeInitialized']=()=>{window.__cvReady=true;}"></script>
-  <!-- Tesseract.js för OCR -->
-  <script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
-</head>
-<body>
-  <header class="topbar">
-    <div class="brand">Inlev • <strong>Schema</strong></div>
-    <nav id="projectBar" class="project-bar">
-      <a href="/plock/">Plock</a>
-      <a href="/trav/">Trav</a>
-      <a href="/statistik/">Statistik</a>
-      <a class="active" href="/schema/">Schema</a>
-    </nav>
-  </header>
+<div class=card><h2>Resultat (denna bild)</h2><div id=matrix>—</div></div>
+<div class=card><h2>Sammanställning (alla poster)</h2><div id=sum class=badge>Hämtar...</div></div>
+<div class=card><h2>Historik</h2><div id=hist class=badge>Hämtar...</div></div>
 
-  <main class="wrap">
-    <section class="card upload">
-      <h2>Ladda upp schema-bild</h2>
-
-      <div class="uploader" id="dropZone">
-        <input type="file" id="fileInput" accept="image/*" />
-        <span>Dra & släpp bild här eller klicka för att välja…</span>
-      </div>
-
-      <div id="previewWrap" class="preview hidden">
-        <div class="previewInner">
-          <img id="preview" alt="Förhandsvisning">
-          <canvas id="cropCanvas" class="cropCanvas hidden"></canvas>
-        </div>
-      </div>
-
-      <div class="actions">
-        <label><input type="checkbox" id="autoRectify" checked> Auto hitta & räta upp tabellen</label>
-        <button id="cropModeBtn" disabled>Manuell beskärning</button>
-        <button id="applyCropBtn" class="hidden">Använd beskärning</button>
-        <button id="cancelCropBtn" class="hidden">Avbryt</button>
-        <button id="startOcrBtn" disabled>Starta OCR</button>
-        <button id="saveBtn" disabled>Spara denna OCR-post</button>
-        <span id="status" class="status"></span>
-      </div>
-
-      <details class="raw">
-        <summary>Visa rå OCR-text</summary>
-        <pre id="rawText"></pre>
-      </details>
-
-      <h3>Resultat från denna bild</h3>
-      <div id="parsed"></div>
-    </section>
-
-    <section class="grid">
-      <div class="card">
-        <h2>Historik</h2>
-        <div id="history"></div>
-      </div>
-      <div class="card">
-        <h2>Statistik per person</h2>
-        <div id="stats"></div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Inställningar</h2>
-      <details id="config" open>
-        <summary>Personer & alias</summary>
-        <form id="addPersonForm" class="row">
-          <input id="addPersonName" placeholder="Namn (kanoniskt)" required>
-          <input id="addPersonAliases" placeholder="Alias (kommaseparerade) t.ex. Cecilia,Cissi">
-          <button>Lägg till</button>
-        </form>
-        <div id="personList" class="personList"></div>
-      </details>
-    </section>
-  </main>
-
-  <footer class="foot">
-    Tips: Om auto-funktionen missar tabellen – klicka <em>Manuell beskärning</em>, dra en ruta runt själva schemat och välj <em>Använd beskärning</em>.
-  </footer>
-
-  <script src="./app.js" type="module"></script>
-</body>
-</html>
+<script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
+<script>
+const $=s=>document.getElementById(s);
+const api=(p,opt)=>fetch('/.netlify/functions/api'+p,Object.assign({credentials:'include',headers:{'Content-Type':'application/json'}},opt||{})).then(r=>{if(!r.ok)throw new Error(p+':'+r.status);return r.json()});
+const PEOPLE=[{name:"Sigurd"},{name:"Haris"},{name:"Paso",aliases:["Kristian"]},{name:"Cissi",aliases:["Cecilia"]},{name:"Morsal"},{name:"Abdi"},{name:"Raziyeh"},{name:"Roudi",aliases:["Rodi"]},{name:"Belissa"},{name:"Frida"},{name:"Nasser"},{name:"Elia"},{name:"Axel"},{name:"Vidar"},{name:"Sanna"},{name:"Sofia"},{name:"Ahmad"},{name:"Ali"},{name:"Asma"},{name:"Samuel"},{name:"Rasha"}];
+const AREAS=["OUTBOUND","B2B","KONSOLIDERING","FELSÖK","UTLEVERANS","Inleverans","Extern Inleverans","Retur A.S","Retur Zalando","Komplettering","Påfyllnad","Infackning A.S","Infackning Buffert","Planerade Påfyllnader","Inventering","Övrigt","Upprensning"];
+const AREA_ALIASES={"outbound":"OUTBOUND","b2b":"B2B","konsolidering":"KONSOLIDERING","felsok":"FELSÖK","utleverans":"UTLEVERANS","inleverans":"Inleverans","extern inleverans":"Extern Inleverans","retur as":"Retur A.S","retur a.s":"Retur A.S","retur zalando":"Retur Zalando","komplettering":"Komplettering","pafyllnad":"Påfyllnad","infackning as":"Infackning A.S","infackning a.s":"Infackning A.S","infackning buffert":"Infackning Buffert","planerade pafyllnader":"Planerade Påfyllnader","inventering":"Inventering","ovrigt":"Övrigt","upprensning":"Upprensning"};
+const PORT_SET=new Set(["port-2","port-3","port-4","port-5","port-28","port-26","port-24","port-22","port-20","port-18","port-16","port-14","port-12","port-11","port-10","port 2","port 3","port 4","port 5","port 28","port 26","port 24","port 22","port 20","port 18","port 16","port 14","port 12","port 11","port 10"]);
+const f=$('f'),runBtn=$('run'),saveBtn=$('save'),img=$('img'),imgw=$('imgw'),guidesHost=$('guides'),crop=$('crop'),showGuides=$('showGuides'),showCrop=$('showCrop');
+let guides=[], assigns=[], profileList=[], currentProfile=null, cropBox=null, configGuides=null;
+const norm=s=>(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+const sim=(a,b)=>{a=norm(a);b=norm(b);if(!a||!b)return 0;if(a===b)return 1;let h=0,t=0;for(let i=0;i<b.length-2;i++){t++;if(a.includes(b.slice(i,i+3)))h++}if(a.startsWith(b)||b.startsWith(a))h++;return h/Math.max(t,1)};
+function parseTSV(tsv,onlyWords=true){const out=[],L=tsv.split(/\r?\n/);const head=L.shift()?.split('\t')||[];const idx=Object.fromEntries(head.map((k,i)=>[k,i]));for(const ln of L){if(!ln)continue;const c=ln.split('\t');const lvl=c[idx.level];if(onlyWords&&lvl!=='word')continue;const text=c[idx.text];if(!text)continue;const left=+c[idx.left],top=+c[idx.top],width=+c[idx.width],height=+c[idx.height];out.push({text,level:lvl,left,top,width,height,cx:left+width/2,cy:top+height/2})}return out}
+function personMap(){const m={};for(const p of PEOPLE){m[norm(p.name)]=p.name;(p.aliases||[]).forEach(a=>m[norm(a)]=p.name)}return m}
+function areaResolver(){const m={};AREAS.forEach(a=>m[norm(a)]=a);for(const k in AREA_ALIASES)m[k]=AREA_ALIASES[k];return raw=>{const key=norm(raw);if(m[key])return m[key];let best=null,sc=0;for(const k in m){const s=sim(key,k);if(s>sc){sc=s;best=m[k]}}return sc>=0.78?best:null}}
+function setupGuides(){ guidesHost.innerHTML=''; guides=[]; const rect=img.getBoundingClientRect(); const W=rect.width; const step=W/4; const base=configGuides||[0,step,2*step,3*step,4*step];
+  for(let i=0;i<5;i++){ const x=Math.round(base[i]); guides.push(x); const g=document.createElement('div'); g.className='guide'; g.style.left=x+'px'; g.dataset.i=String(i+1); let down=false,off=0;
+    g.onmousedown=e=>{down=true;off=e.clientX-(img.getBoundingClientRect().left+guides[i]); e.preventDefault();};
+    window.addEventListener('mousemove',e=>{ if(!down||!showGuides.checked) return; let nx=e.clientX-off-img.getBoundingClientRect().left; nx=Math.max(0,Math.min(W,Math.round(nx))); guides[i]=nx; g.style.left=nx+'px'; });
+    window.addEventListener('mouseup',()=>down=false);
+    guidesHost.appendChild(g);
+  }
+  guidesHost.style.display='block';
+}
+function guidesAssign(){ if(!guides||guides.length!==5) return null; const g=[...guides].sort((a,b)=>a-b); return x=>{ for(let i=0;i<4;i++){ if(x>=g[i] && x<g[i+1]) return i; } return 3; } }
+showGuides.onchange=()=>{ guidesHost.style.display=showGuides.checked?'block':'none'; if(showGuides.checked && img.src) setupGuides(); };
+function setupCrop(){ const r=img.getBoundingClientRect(); if(!cropBox){ cropBox={x:Math.round(r.width*0.05),y:Math.round(r.height*0.12),w:Math.round(r.width*0.9),h:Math.round(r.height*0.76)} }
+  crop.style.display='block'; crop.style.left=cropBox.x+'px'; crop.style.top=cropBox.y+'px'; crop.style.width=cropBox.w+'px'; crop.style.height=cropBox.h+'px';
+  let dragging=false, resizing=false, ox=0, oy=0;
+  crop.onmousedown=(e)=>{ if(e.target.classList.contains('handle')){resizing=true;} else {dragging=true;} ox=e.clientX-cropBox.x; oy=e.clientY-cropBox.y; e.preventDefault(); };
+  window.addEventListener('mousemove',e=>{ if(!showCrop.checked) return; if(dragging){ cropBox.x=Math.max(0,Math.min(r.width-cropBox.w,e.clientX-ox)); cropBox.y=Math.max(0,Math.min(r.height-cropBox.h,e.clientY-oy)); }
+    if(resizing){ cropBox.w=Math.max(40,Math.min(r.width-cropBox.x,e.clientX-(r.left+cropBox.x))); cropBox.h=Math.max(40,Math.min(r.height-cropBox.y,e.clientY-(r.top+cropBox.y))); }
+    crop.style.left=cropBox.x+'px'; crop.style.top=cropBox.y+'px'; crop.style.width=cropBox.w+'px'; crop.style.height=cropBox.h+'px';
+  });
+  window.addEventListener('mouseup',()=>{ dragging=false; resizing=false; });
+}
+showCrop.onchange=()=>{ crop.style.display=showCrop.checked?'block':'none'; if(showCrop.checked && img.src) setupCrop(); };
+f.onchange=async()=>{ if(!f.files[0])return; img.src=URL.createObjectURL(f.files[0]); imgw.style.display='block'; $('st').textContent='Bild laddad'; runBtn.disabled=false; saveBtn.disabled=true; $('matrix').textContent='—'; 
+  try{ const c=await api('/schema/config'); configGuides=(c.guides||null); }catch{}
+  await loadProfiles();
+  if(showGuides.checked) setTimeout(setupGuides,100);
+  if(showCrop.checked) setTimeout(setupCrop,120);
+};
+async function loadProfiles(){ const d=await api('/schema/profiles'); profileList=d.items||[]; const s=$('profiles'); s.innerHTML=profileList.map(p=>`<option value="${p.name}">${p.name}</option>`).join(''); }
+$('saveProfile').onclick=async()=>{ const name=$('profName').value.trim(); if(!name){ alert('Namn saknas'); return; } const data={name, guides, crop:cropBox}; await api('/schema/profiles',{method:'POST',body:JSON.stringify(data)}); await loadProfiles(); alert('Layout sparad'); };
+$('loadProfile').onclick=async()=>{ const s=$('profiles'); const name=s.value; if(!name){ alert('Välj layout'); return;} const d=await api('/schema/profiles?name='+encodeURIComponent(name)); if(d.item){ configGuides=d.item.guides||null; cropBox=d.item.crop||null; if(showGuides.checked) setupGuides(); if(showCrop.checked) setupCrop(); } };
+$('delProfile').onclick=async()=>{ const s=$('profiles'); const name=s.value; if(!name) return; if(confirm('Ta bort '+name+'?')){ await api('/schema/profiles?name='+encodeURIComponent(name),{method:'DELETE'}); await loadProfiles(); } };
+function areaBoxes(words,assign){ const isArea=areaResolver(); const boxes=[]; for(const w of words){ const a=isArea(w.text); if(a){ const col=assign?assign(w.cx): (w.cx < img.getBoundingClientRect().width/2 ? 0 : 2); const nameCol=(a==='OUTBOUND')?0:(col>=2?2:0); boxes.push({area:a,col:nameCol,y:w.top,h:w.height}); } } boxes.sort((a,b)=>a.y-b.y); const regs=[]; for(let i=0;i<boxes.length;i++){ const b=boxes[i],n=boxes[i+1]; const ymin=b.y+b.h*0.6, ymax=n?n.y-4:1e9; regs.push({area:b.area,col:b.col,ymin,ymax}); } return regs; }
+function renderMatrix(as){ const P=[...new Set(PEOPLE.map(p=>p.name))].sort((a,b)=>a.localeCompare(b,'sv')); const A=AREAS.slice(); const has=new Set(as.map(x=>x.person+'|'+x.area)); let h='<div style="overflow:auto"><table><thead><tr><th>Person</th>'+A.map(a=>`<th>${a}</th>`).join('')+'</tr></thead><tbody>'; for(const p of P) h+='<tr><td>'+p+'</td>'+A.map(a=>`<td style="text-align:center">${has.has(p+'|'+a)?'✓':''}</td>`).join('')+'</tr>'; return h+'</tbody></table></div>'; }
+async function runOCR(){ $('st').textContent='Kör OCR…'; const worker=await Tesseract.createWorker('swe+eng'); await worker.setParameters({ tessjs_create_tsv:'1', tessedit_pageseg_mode:'6', user_defined_dpi:'320' });
+  let src=img; // apply crop to a canvas if cropBox enabled
+  if(showCrop.checked && cropBox){ const r=img.getBoundingClientRect(); const scale=img.naturalWidth/r.width; const cx=cropBox.x*scale, cy=cropBox.y*scale, cw=cropBox.w*scale, ch=cropBox.h*scale;
+    const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch; const ctx=cv.getContext('2d'); ctx.drawImage(img, cx, cy, cw, ch, 0,0,cw,ch); src=cv; }
+  const {data}=await worker.recognize(src); await worker.terminate(); $('raw').textContent=data.text||''; const all=parseTSV(data.tsv||'',false).sort((a,b)=>a.top-b.top||a.left-b.left);
+  const words=all.filter(w=>{const t=norm(w.text); if(!t) return false; if(PORT_SET.has(t)) return false; if(/\bport[- ]\d+\b/.test(t)) return false; return true;}).map(w=>({ ...w, text:w.text.replace(/\/.*/,'') }));
+  const assign=guidesAssign(); const regs=areaBoxes(words,assign); const persons=personMap(); assigns=[];
+  for(const w of words){ const key=norm(w.text); const person=persons[key]; if(!person) continue; const col=assign?assign(w.cx):0; const reg=regs.find(r=>w.cy>=r.ymin && w.cy<r.ymax && r.col===col); if(!reg) continue; assigns.push({person,area:reg.area,cy:w.cy}); }
+  assigns.sort((a,b)=>a.person.localeCompare(b,'sv')||a.cy-b.cy); $('matrix').innerHTML=renderMatrix(assigns); saveBtn.disabled=false; $('st').textContent=`Klar (${assigns.length} träffar)`; }
+$('run').onclick=runOCR; $('save').onclick=async()=>{ await api('/schema/entries',{method:'POST',body:JSON.stringify({ts:new Date().toISOString(),assignments:assigns})}); $('st').textContent='Sparat'; loadSummary(); loadHistory(); };
+async function loadSummary(){ const s=await api('/schema/stats'); const A=AREAS; const persons=[...new Set(Object.keys(s.totals||{}).concat(PEOPLE.map(p=>p.name)))].sort((a,b)=>a.localeCompare(b,'sv')); let h='<div style="overflow:auto"><table><thead><tr><th>Person</th>'+A.map(a=>`<th>${a}</th>`).join('')+'<th>Totalt</th></tr></thead><tbody>'; persons.forEach(p=>{ const per=s.perAreas[p]||{}; h+='<tr><td>'+p+'</td>'+A.map(a=>`<td style="text-align:center">${per[a]||''}</td>`).join('')+'<td>'+(s.totals[p]||0)+'</td></tr>'; }); $('sum').innerHTML=h+'</tbody></table></div>'; }
+async function loadHistory(){ const d=await api('/schema/entries'); const el=$('hist'); const rows=(d.items||[]).slice().reverse(); if(!rows.length){ el.textContent='Ingen historik ännu.'; return; } el.innerHTML=rows.map(r=>`<div class=badge>${new Date(r.ts).toLocaleString('sv-SE')} – ${r.assignments.length} träffar</div>`).join(' '); }
+loadSummary(); loadHistory();
+</script>
+</main></body></html>

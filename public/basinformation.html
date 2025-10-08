@@ -1,1 +1,37 @@
-<!doctype html><html><body><h1>Basinformation</h1><textarea></textarea><button>Tolka</button></body></html>
+<!doctype html><html><body>
+<nav id="projectBar" class="topbar">
+  <span class="muted">Projekt:</span>
+  <a href="./sandningar/sandningar.html" class="btn">Sändningar</a>
+  <a href="./trav.html" class="btn">Trav</a>
+  <a href="./plock.html" class="btn">Plock</a>
+  <a href="./schema.html" class="btn">Schema</a>
+  <a href="./statistik.html" class="btn">Statistik</a>
+  <a href="./users.html" class="btn">Users</a>
+  <span class="spacer"></span>
+  <span id="whoami" class="muted small"></span>
+  <button id="btnLogout" class="btn">Logga ut</button>
+</nav>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  const u = localStorage.getItem('inlev_user') || 'inloggad';
+  const w = document.getElementById('whoami'); if(w) w.textContent = 'Inloggad som: ' + u;
+  const b = document.getElementById('btnLogout'); if(b) b.onclick = () => { localStorage.clear(); location.href='./login.html'; };
+});
+</script>
+<h1>Basinformation</h1><textarea></textarea><button>Tolka</button>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('nav').forEach(n => {
+    if (n.id === 'projectBar') return;
+    const t = (n.textContent || '').toLowerCase();
+    if (t.includes('inlev') && /(plock|trav|statistik|schema|sandning|users)/.test(t)) n.remove();
+  });
+  // Force .html targets
+  const map = {'Sändningar':'sandningar/sandningar.html','Sandningar':'sandningar/sandningar.html','Trav':'trav.html','Plock':'plock.html','Schema':'schema.html','Statistik':'statistik.html','Users':'users.html'};
+  document.querySelectorAll('#projectBar a').forEach(a=>{
+    const txt=(a.textContent||'').trim(); if(map[txt]) a.href = (a.href.includes('../')?'../':'') + map[txt];
+  });
+});
+</script>
+
+</body></html>

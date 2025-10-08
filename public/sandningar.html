@@ -121,4 +121,20 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('nav').forEach(n => {
+    if (n.id === 'projectBar') return;
+    const t = (n.textContent || '').toLowerCase();
+    if (t.includes('inlev') && /(plock|trav|statistik|schema|sandning|users)/.test(t)) n.remove();
+  });
+  // Force .html targets
+  const map = {'Sändningar':'sandningar/sandningar.html','Sandningar':'sandningar/sandningar.html','Trav':'trav.html','Plock':'plock.html','Schema':'schema.html','Statistik':'statistik.html','Users':'users.html'};
+  document.querySelectorAll('#projectBar a').forEach(a=>{
+    const txt=(a.textContent||'').trim(); if(map[txt]) a.href = (a.href.includes('../')?'../':'') + map[txt];
+  });
+});
+</script>
+
 </body></html>

@@ -1,0 +1,123 @@
+<!doctype html><html lang="sv"><head>
+<style>
+.topbar{position:sticky;top:0;z-index:90;display:flex;gap:.5rem;align-items:center;background:#0a0f1a;border-bottom:1px solid #1f2937;padding:.5rem 1rem}
+.btn{padding:.5rem .8rem;border-radius:.5rem;background:#1f2937;color:#f3f4f6;border:1px solid #334155;text-decoration:none;cursor:pointer}
+.muted{opacity:.75;margin-right:.5rem}
+.small{font-size:.9em}
+.spacer{flex:1}
+</style>
+
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Skicka Diff – Inleverans</title>
+<link rel="stylesheet" href="../styles.css"/>
+</head><body>
+<nav id="projectBar" class="topbar">
+  <span class="muted">Projekt:</span>
+  <a href="../sandningar/index.html" class="btn">Sändningar</a>
+  <a href="../trav/index.html" class="btn">Trav</a>
+  <a href="../plock/index.html" class="btn">Plock</a>
+  <a href="../schema/index.html" class="btn">Schema</a>
+  <a href="../statistik/index.html" class="btn">Statistik</a>
+  <a href="../users/index.html" class="btn">Users</a>
+  <span class="spacer"></span>
+  <span id="whoami" class="muted small"></span>
+  <button id="btnLogout" class="btn">Logga ut</button>
+</nav>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  const u = localStorage.getItem('inlev_user') || 'inloggad';
+  const w = document.getElementById('whoami'); if(w) w.textContent = 'Inloggad som: ' + u;
+  const b = document.getElementById('btnLogout'); if(b) b.onclick = () => { localStorage.clear(); location.href='./login.html'; };
+});
+</script>
+
+<script src="../auth.js"></script>
+<script>try{ if(!InlevAuth.isAuthed||!InlevAuth.isAuthed()) location.href='/login.html'; }catch(e){ location.href='/login.html'; }</script>
+
+    <div class="nav">
+      <a href="../index.html">Hem</a>
+      <a href="./index.html">Sändningar</a>
+      <a href="./insamlare.html">Basinformation<span id="flagBase" class="menu-dot"></span></a>
+      <a href="./felsok.html">Felsök</a>
+      <a href="./uppdatera-info.html">Uppdatera info</a>
+      <a href="./skicka-diff.html">Skicka Diff</a>
+      <div class="right">
+        <span class="badge" id="who"></span>
+        <button id="logoutBtn">Logga ut</button>
+      </div>
+    </div>
+    <script>
+      (function(){
+        const w=document.getElementById('who');
+        try{ if(InlevAuth.isAuthed()){ const s=InlevAuth.get(); w.textContent=(s?.user?.name||'')+' '+(s?.user?.role?'('+s.user.role+')':''); } }catch(e){}
+        document.getElementById('logoutBtn').onclick=()=>{ InlevAuth.signOut(); location.href='/login.html'; };
+      })();
+    </script>
+    
+<div class="container">
+<h1>Skicka Diff</h1>
+<div class="card">
+  <table class="table"><thead><tr><th>Order</th><th>SKU</th><th>Beskrivning</th><th>Aviserad</th><th>Levererat</th><th>Återstår</th><th>Diff</th><th>Status</th></tr></thead><tbody id="tb"></tbody></table>
+</div>
+</div>
+<script src="../app.js"></script><script src="../api.js"></script>
+
+<script>
+(function(){ 
+  const id=(localStorage.getItem('inleverans_current')||null); if(!id){ location.href='/sandningar.html'; return; }
+  const all=JSON.parse(localStorage.getItem('inleverans_shipments_v1')||'{}'); let st=all[id]||{}; st.flags=st.flags||{cleared:{},everIssue:{}};
+  const tb=document.getElementById('tb');
+
+  function overlayRows(base, upd){ 
+    const bySkuBase={}; base.forEach(r=>{ const k=r.sku||'__'; (bySkuBase[k]=bySkuBase[k]||[]).push(r); });
+    const bySkuUpd={}; (upd||[]).forEach(r=>{ const k=r.sku||'__'; (bySkuUpd[k]=bySkuUpd[k]||[]).push(r); });
+    const result=[];
+    for(const sku in bySkuBase){
+      const B=bySkuBase[sku], U=bySkuUpd[sku]||[];
+      for(let i=0;i<B.length;i++){
+        const b=B[i], u=U[i]||null;
+        const m={order:b.order,position:b.position,sku:b.sku,beskrivning:b.beskrivning,aviserad:b.aviserad,levererat:b.levererat,aterstar:b.aterstar||0};
+        if(u){ m.order=u.order||m.order; m.aviserad=(u.aviserad??m.aviserad); m.levererat=(u.levererat??m.levererat); m.aterstar=(u.aterstar??m.aterstar); }
+        result.push(m);
+      }
+    }
+    return result;
+  }
+
+  function rowKey(r, idx){ return (r.order||'')+'|'+(r.position||'')+'|'+(r.sku||'')+'|'+idx; }
+
+  function render(){ 
+    tb.innerHTML='';
+    const rows=overlayRows(st.upp||[], (st.upd||{}).upp||[]);
+    rows.forEach((r,idx)=>{ 
+      const diff=Number(r.levererat||0)-Number(r.aviserad||0);
+      const key=rowKey(r,idx);
+      if(!st.flags.cleared[key]) return;
+      const status = (diff===0) ? '✔ Klar' : ('✔ Diff '+(diff>=0?'+':'')+diff);
+      const tr=document.createElement('tr');
+      tr.innerHTML = `<td>${r.order||''}</td><td>${r.sku||''}</td><td>${r.beskrivning||''}</td><td>${r.aviserad||0}</td><td>${r.levererat||0}</td><td>${r.aterstar||0}</td><td>${diff>=0?'+':''}${diff}</td><td>${status}</td>`;
+      tb.appendChild(tr);
+    });
+  }
+  render();
+})(); 
+</script>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('nav').forEach(n => {
+    if (n.id === 'projectBar') return;
+    const t = (n.textContent || '').toLowerCase();
+    if (t.includes('inlev') && /(plock|trav|statistik|schema|sandning|users)/.test(t)) n.remove();
+  });
+  // Force .html targets
+  const map = {'Sändningar':'sandningar/sandningar.html','Sandningar':'sandningar/sandningar.html','Trav':'trav.html','Plock':'plock.html','Schema':'schema.html','Statistik':'statistik.html','Users':'users.html'};
+  document.querySelectorAll('#projectBar a').forEach(a=>{
+    const txt=(a.textContent||'').trim(); if(map[txt]) a.href = (a.href.includes('../')?'../':'') + map[txt];
+  });
+});
+</script>
+
+<script src="../projectbar-indexify.js"></script>
+</body></html>

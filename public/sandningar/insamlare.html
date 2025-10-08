@@ -1,0 +1,46 @@
+<!doctype html><html lang="sv"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Insamlare – Sändningar</title>
+<link rel="stylesheet" href="../styles.css"/>
+</head><body>
+<script src="./guard-rebuild.js"></script>
+<div id="host" style="min-height:60vh"></div>
+<script>
+(async function(){
+  const host = document.getElementById('host');
+  async function tryFetch(url){
+    try{
+      const r = await fetch(url, { credentials:'same-origin', redirect:'manual' });
+      if (r.type === 'opaqueredirect' || (r.status>=300 && r.status<400)) return null;
+      if (!r.ok) return null;
+      return await r.text();
+    }catch{ return null; }
+  }
+  let html = await tryFetch('./insamlare-legacy.html');
+  if (!html) html = await tryFetch('../insamlare.html');
+  if (!html){
+    host.innerHTML = '<div style="padding:1rem;border:1px solid #334155;border-radius:.5rem;background:#0b1220;color:#e5e7eb">Kunde inte läsa Insamlare-koden.<br> Lägg en kopia av din gamla <code>public/insamlare.html</code> som <code>public/sandningar/insamlare-legacy.html</code> så laddas den här permanent.</div>';
+    return;
+  }
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  doc.querySelectorAll('[src],[href]').forEach(el=>{
+    if (el.hasAttribute('src')){
+      const v=el.getAttribute('src');
+      if (v && v.startsWith('./')) el.setAttribute('src','../'+v.slice(2));
+    }
+    if (el.hasAttribute('href')){
+      const v=el.getAttribute('href');
+      if (v && v.startsWith('./')) el.setAttribute('href','../'+v.slice(2));
+      if (v === '/insamlare.html') el.setAttribute('href','./insamlare.html');
+      if (v === '/felsok.html') el.setAttribute('href','./felsok.html');
+      if (v === '/skicka-diff.html') el.setAttribute('href','./skicka-diff.html');
+      if (v === '/sandningar.html') el.setAttribute('href','./index.html');
+    }
+  });
+  host.innerHTML='';
+  Array.from(doc.body.childNodes).forEach(n=>host.appendChild(document.importNode(n,true)));
+  const s=document.createElement('script'); s.src='../projectbar-indexify.js'; document.body.appendChild(s);
+})();
+</script>
+<script src="../auth.js"></script><script src="../api.js"></script><script src="../app.js"></script>
+</body></html>

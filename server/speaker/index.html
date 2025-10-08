@@ -1,0 +1,33 @@
+
+<!doctype html><html lang="sv"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Plock Speaker</title>
+<style>
+body{font-family:system-ui;background:#0e1522;color:#e6e8ec;margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center}
+.card{background:#0c1626;border:1px solid #1d2b44;border-radius:16px;padding:18px;min-width:280px;box-shadow:0 22px 60px rgba(0,0,0,.4)}
+.row{display:flex;gap:8px;margin:8px 0}
+input,button{padding:10px;border-radius:10px;border:1px solid #273a63;background:#0b1322;color:#e6e8ec}
+button{background:#2f74ff;border-color:#2f74ff;color:#fff;cursor:pointer}
+.big{font-size:56px;font-weight:900;text-align:center;margin:8px 0}
+small{color:#9fb2d1}
+</style></head><body>
+<div class="card">
+  <h3 style="margin:0 0 6px 0">Plock Speaker</h3>
+  <div class="row"><input id="host" placeholder="Server/IP (t.ex. 192.168.1.50)"></div>
+  <div class="row"><input id="id" placeholder="Session-ID (default)"><button id="go">Anslut</button></div>
+  <div class="big" id="val">0</div>
+  <div class="row"><label><input id="voice" type="checkbox" checked> Röst på</label></div>
+  <small>Lägg till på hemskärmen för helskärmsläge.</small>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+function speak(n){ if(!$('voice').checked) return; try{ const u=new SpeechSynthesisUtterance(String(n)); u.lang='sv-SE'; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch{} }
+$('go').onclick=()=>{
+  const host=$('host').value.trim(); const id=$('id').value.trim()||'default';
+  if(!host) return alert('Fyll i server/IP');
+  const url=location.protocol+'//'+host+':5001/plock/stream?id='+encodeURIComponent(id);
+  const es=new EventSource(url); es.onmessage=(ev)=>{ try{ const d=JSON.parse(ev.data||'{}'); if(typeof d.count==='number'){ $('val').textContent=d.count; speak(d.count);} }catch{} };
+};
+</script>
+</body></html>
