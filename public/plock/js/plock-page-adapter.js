@@ -1,5 +1,4 @@
 
-// /plock page adapter – normaliserar och uppdaterar UI + röst + timlogg
 (function(){
   const $=(s)=>document.querySelector(s);
   const set=(el,v)=>{ if(el) el.textContent=String(v); };
@@ -33,7 +32,29 @@
     }
     renderKPI(stats);
   }
-  window.addEventListener('message',ev=>{const m=ev.data||{}; if(m.type!=='PLOCK_STATS') return; const s=m.data?m.data:m; onStats(s);});
-  window.addEventListener('PLOCK_STATS_NORMALIZED',e=>onStats(e.detail||{}));
+  // Desktop events från extension
+  let gotEvent=false;
+  window.addEventListener('message',ev=>{const m=ev.data||{}; if(m.type!=='PLOCK_STATS') return; const s=m.data?m.data:m; gotEvent=true; onStats(s);});
+
+  // Netlify polling fallback (mobil)
+  const STATE_URL='https://sage-vacherin-aa5cd3.netlify.app/plock/state';
+  setTimeout(()=>{
+    if(gotEvent) return;
+    const POLL_MS=1200;
+    async function poll(){
+      try{
+        const r=await fetch(STATE_URL,{cache:'no-store'});
+        if(r.ok){
+          const s=await r.json();
+          if(s && typeof s==='object'){
+            window.postMessage({type:'PLOCK_STATS',data:s},'*');
+          }
+        }
+      }catch{}
+      setTimeout(poll,POLL_MS);
+    }
+    poll();
+  },2000);
+
   renderLog(); renderKPI({count:st.lastCount,errorCount:st.error,tracking:false,goal:165});
 })();
