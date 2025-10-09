@@ -1,4 +1,5 @@
 
+// /plock page adapter – mobil-polling robustare: testar båda Netlify-URL:er + statusvisning
 (function(){
   const $=(s)=>document.querySelector(s);
   const set=(el,v)=>{ if(el) el.textContent=String(v); };
@@ -10,6 +11,17 @@
   const save=(s)=>{try{localStorage.setItem(KEY,JSON.stringify(s));}catch{}};
   let st=load();
   (function(){const t=dateKey(new Date());if(st.today!==t){st={today:t,total:0,error:0,hours:{},voice:st.voice,lastCount:0};save(st);}})();
+
+  // --- statusrad för polling
+  let pollEl = document.getElementById('pollStatus');
+  if(!pollEl){
+    pollEl = document.createElement('div');
+    pollEl.id = 'pollStatus';
+    pollEl.style.cssText = 'position:fixed;left:8px;bottom:8px;background:#0b1320;color:#9fb3d9;border:1px solid #1e2b44;border-radius:8px;padding:6px 8px;font:12px system-ui;z-index:2147483647;opacity:.85';
+    pollEl.textContent = 'Polling: init';
+    document.body.appendChild(pollEl);
+  }
+  function setPollStatus(txt){ pollEl && (pollEl.textContent = 'Polling: ' + txt); }
 
   const chk=$('#voiceOn'); if(chk){chk.checked=!!st.voice;chk.addEventListener('change',()=>{st.voice=chk.checked;save(st);});}
 
@@ -44,41 +56,67 @@
     renderKPI(stats);
   }
 
+  // Desktop via extension
   let gotEvent=false;
   window.addEventListener('message',ev=>{const m=ev.data||{}; if(m.type!=='PLOCK_STATS') return; const s=m.data?m.data:m; gotEvent=true; onStats(s);});
 
-  const STATE_URL='https://sage-vacherin-aa5cd3.netlify.app/plock/state';
-  setTimeout(()=>{
-    if(gotEvent) return;
-    const POLL_MS=1200;
-    async function poll(){
+  // ---- Netlify polling fallback (mobil) – testa flera endpoints
+  const ENDPOINTS = [
+    'https://sage-vacherin-aa5cd3.netlify.app/plock/state',
+    'https://sage-vacherin-aa5cd3.netlify.app/.netlify/functions/plock-state'
+  ];
+  async function fetchState(){
+    for(const url of ENDPOINTS){
       try{
-        const r=await fetch(STATE_URL,{cache:'no-store'});
+        const r = await fetch(url, { cache:'no-store' });
         if(r.ok){
-          const s=await r.json();
-          if(s && typeof s==='object'){
-            window.postMessage({type:'PLOCK_STATS',data:s},'*');
-          }
+          const s = await r.json();
+          if(s && typeof s==='object'){ return { ok:true, url, data:s }; }
         }
-      }catch{}
-      setTimeout(poll,POLL_MS);
+      }catch(e){}
+    }
+    return { ok:false };
+  }
+
+  function startPolling(){
+    const POLL_MS=1200;
+    setPollStatus('pågår…');
+    async function poll(){
+      const res = await fetchState();
+      if(res.ok){
+        setPollStatus('OK från ' + res.url);
+        window.postMessage({ type:'PLOCK_STATS', data: res.data }, '*');
+      }else{
+        setPollStatus('fel (inget svar)');
+      }
+      setTimeout(poll, POLL_MS);
     }
     poll();
-  },2000);
+  }
 
-  // Mobil: Starta röst + Håll skärmen vaken (Android)
+  setTimeout(()=>{ if(!gotEvent) startPolling(); }, 1800);
+
+  // Manuell testknapp (om den finns i DOM)
+  const btn = document.getElementById('forceFetch');
+  btn?.addEventListener('click', async ()=>{
+    const res = await fetchState();
+    if(res.ok){
+      setPollStatus('OK manuellt');
+      window.postMessage({ type:'PLOCK_STATS', data: res.data }, '*');
+      alert('Hämtade state från:\\n' + res.url + '\\ncount=' + (res.data?.count ?? 'N/A'));
+    }else{
+      alert('Kunde inte hämta state från någon endpoint.');
+    }
+  });
+
+  // Mobil röst-init + wake-lock (Android) – funkar bara om elementen finns
   (function(){
     const btnInit=document.getElementById('voiceInit');
     const chkAwake=document.getElementById('keepAwake');
     let wakeLock=null;
 
-    function primeTTS(){
-      try{ const u=new SpeechSynthesisUtterance(''); u.lang='sv-SE'; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch{}
-    }
-    btnInit?.addEventListener('click',()=>{
-      primeTTS();
-      const u=new SpeechSynthesisUtterance('Röst aktiverad'); const v=pickSV(); if(v) u.voice=v; u.lang='sv-SE'; speechSynthesis.speak(u);
-    });
+    function primeTTS(){ try{ const u=new SpeechSynthesisUtterance(''); u.lang='sv-SE'; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch{} }
+    btnInit?.addEventListener('click',()=>{ primeTTS(); const u=new SpeechSynthesisUtterance('Röst aktiverad'); const v=pickSV(); if(v) u.voice=v; u.lang='sv-SE'; speechSynthesis.speak(u); });
     document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ try{ speechSynthesis.resume(); }catch{} } });
 
     async function requestWakeLock(){ try{ if('wakeLock' in navigator && !wakeLock){ wakeLock=await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',()=>{wakeLock=null;}); } }catch{} }
