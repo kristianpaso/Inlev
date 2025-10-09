@@ -23,11 +23,15 @@
 </div>
 <div class="card">
   <div class="row" style="justify-content:space-between">
-    <div class="row small">
+    <div class="row small" style="gap:8px;">
       <div>Antal: <span id="totalToday">0</span></div><span>&nbsp;·&nbsp;</span>
       <div>Felplock: <span id="errorCount">0</span></div>
     </div>
-    <label class="row"><input type="checkbox" id="voiceOn"> &nbsp;Röst på</label>
+    <div class="row small" style="gap:8px;">
+      <button class="btn" id="voiceInit">Starta röst</button>
+      <label class="row"><input type="checkbox" id="voiceOn"> &nbsp;Röst på</label>
+      <label class="row"><input type="checkbox" id="keepAwake"> &nbsp;Håll skärmen vaken (Android)</label>
+    </div>
   </div>
   <hr>
   <div class="small">Kvar till mål / +COUNT: <span id="badgeValue" class="badge">–</span></div>

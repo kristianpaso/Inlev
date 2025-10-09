@@ -13,7 +13,18 @@
 
   const chk=$('#voiceOn'); if(chk){chk.checked=!!st.voice;chk.addEventListener('change',()=>{st.voice=chk.checked;save(st);});}
 
-  function speak(txt){ try{ if(!st.voice) return; const u=new SpeechSynthesisUtterance(String(txt)); u.lang='sv-SE'; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch{} }
+  function pickSV(){ try{const vs=speechSynthesis.getVoices();const sv=vs.find(v=>/sv|swedish/i.test(v.lang));return sv||vs[0];}catch{return null;} }
+  window.speechSynthesis?.addEventListener('voiceschanged', pickSV);
+
+  function speak(txt){
+    try{
+      if(!st.voice) return;
+      const u=new SpeechSynthesisUtterance(String(txt));
+      const v=pickSV(); if(v) u.voice=v;
+      u.lang='sv-SE'; u.rate=1; u.pitch=1;
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    }catch{}
+  }
 
   function renderLog(){ const list=$('#logList'); if(!list) return; list.innerHTML=''; const keys=Object.keys(st.hours).sort(); for(const k of keys){ const li=document.createElement('li'); li.textContent=`${k} : ${st.hours[k]} plock`; list.appendChild(li);} }
   function renderKPI(stats){
@@ -32,11 +43,10 @@
     }
     renderKPI(stats);
   }
-  // Desktop events från extension
+
   let gotEvent=false;
   window.addEventListener('message',ev=>{const m=ev.data||{}; if(m.type!=='PLOCK_STATS') return; const s=m.data?m.data:m; gotEvent=true; onStats(s);});
 
-  // Netlify polling fallback (mobil)
   const STATE_URL='https://sage-vacherin-aa5cd3.netlify.app/plock/state';
   setTimeout(()=>{
     if(gotEvent) return;
@@ -55,6 +65,27 @@
     }
     poll();
   },2000);
+
+  // Mobil: Starta röst + Håll skärmen vaken (Android)
+  (function(){
+    const btnInit=document.getElementById('voiceInit');
+    const chkAwake=document.getElementById('keepAwake');
+    let wakeLock=null;
+
+    function primeTTS(){
+      try{ const u=new SpeechSynthesisUtterance(''); u.lang='sv-SE'; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch{}
+    }
+    btnInit?.addEventListener('click',()=>{
+      primeTTS();
+      const u=new SpeechSynthesisUtterance('Röst aktiverad'); const v=pickSV(); if(v) u.voice=v; u.lang='sv-SE'; speechSynthesis.speak(u);
+    });
+    document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ try{ speechSynthesis.resume(); }catch{} } });
+
+    async function requestWakeLock(){ try{ if('wakeLock' in navigator && !wakeLock){ wakeLock=await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',()=>{wakeLock=null;}); } }catch{} }
+    async function releaseWakeLock(){ try{ await (wakeLock?.release()); }catch{} finally{ wakeLock=null; } }
+    chkAwake?.addEventListener('change',e=>{ if(e.target.checked) requestWakeLock(); else releaseWakeLock(); });
+    window.addEventListener('focus',()=>{ if(chkAwake?.checked && !wakeLock) requestWakeLock(); });
+  })();
 
   renderLog(); renderKPI({count:st.lastCount,errorCount:st.error,tracking:false,goal:165});
 })();
