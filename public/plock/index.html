@@ -10,7 +10,6 @@
       <button class="btn" onclick="location.href='/downloads/plock-extension.zip'">Ladda ner Chrome Extension</button>
       <button class="btn" onclick="window.postMessage({type:'PLOCK_PAGE_READY'}, '*')">Aktivera</button>
       <button class="btn" onclick="window.dispatchEvent(new CustomEvent('PLOCK_STATS_NORMALIZED',{detail:{}}))">Uppdatera statistik</button>
-      <button class="btn" id="testOrder" title="Simulera 'Task 1 of N' (N=2..5)">Testa orderstorlek</button>
     </div>
     <div class="card">
       <div class="small">Status</div>
@@ -22,6 +21,7 @@
     <div class="kpi"><span id="kpiCount">0</span></div>
   </div>
 </div>
+
 <div class="card">
   <div class="row" style="justify-content:space-between">
     <div class="row small" style="gap:8px;">
@@ -30,14 +30,13 @@
     </div>
     <div class="row small" style="gap:8px;">
       <button class="btn" id="voiceInit">Starta röst</button>
-      <label class="row"><input type="checkbox" id="voiceOn"> &nbsp;Röst på</label>
+      <label class="row"><input type="checkbox" id="voiceOn" checked> &nbsp;Röst på</label>
       <label class="row"><input type="checkbox" id="keepAwake"> &nbsp;Håll skärmen vaken (Android)</label>
     </div>
   </div>
-  <hr>
-  <div class="small">Kvar till mål / +COUNT: <span id="badgeValue" class="badge">–</span></div>
-  <div class="small" style="margin-top:10px">Timlogg</div>
-  <ul class="list" id="logList"></ul>
 </div>
+
+<div id="daysContainer"></div>
+
 <script src="/plock/js/plock-page-adapter.js"></script>
 </body></html>
