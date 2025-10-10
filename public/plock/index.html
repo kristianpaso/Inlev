@@ -10,6 +10,7 @@
       <button class="btn" onclick="location.href='/downloads/plock-extension.zip'">Ladda ner Chrome Extension</button>
       <button class="btn" onclick="window.postMessage({type:'PLOCK_PAGE_READY'}, '*')">Aktivera</button>
       <button class="btn" onclick="window.dispatchEvent(new CustomEvent('PLOCK_STATS_NORMALIZED',{detail:{}}))">Uppdatera statistik</button>
+      <button class="btn" id="testOrder" title="Simulera 'Task 1 of N' (N=2..5)">Testa orderstorlek</button>
     </div>
     <div class="card">
       <div class="small">Status</div>
