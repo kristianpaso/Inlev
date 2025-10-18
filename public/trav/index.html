@@ -1,4 +1,214 @@
-<!doctype html><html lang=sv><head><meta charset=utf-8>
-<meta name=viewport content="width=device-width,initial-scale=1"><title>Trav</title>
-<link rel=stylesheet href="/assets/site.css"><script src="/assets/header.js" defer></script></head>
-<body><main class="wrap"><div class=card><h2>Trav</h2><p>Kommer snart.</p></div></main></body></html>
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Trav – Överblick & Spel</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script defer src="./app.js"></script>
+  <style>
+  :root{--bg:#0b0f16;--panel:#0f172a;--line:#1f2a44;--fg:#e7ecf3;--muted:#9aa3b2;--brand:#6aa3ff;--pop:#22d3ee;--none:#2a1320;--none-b:#6b2141;--tag:#9b87f5}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,Segoe UI,Roboto,Arial}
+  .wrap{max-width:1200px;margin:0 auto;padding:18px}
+  .btn{background:var(--brand);color:#061329;border:0;padding:8px 12px;border-radius:10px;font-weight:700;cursor:pointer}
+  .btn.secondary{background:#18243c;color:#dbe7ff;border:1px solid var(--line)} .btn.danger{background:#3a1520;color:#ffd4db;border:1px solid #5a1f2e}
+  .mini{color:var(--muted);font-size:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  table{width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  thead th{background:#0f172a;color:#c8d4f9} th,td{padding:8px;border-top:1px solid var(--line);text-align:left}
+  .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#152035;border:1px solid var(--line);font-size:12px}
+  .name{background:#0b1020;border:1px solid var(--line);color:#e7ecf3;border-radius:8px;padding:6px}
+  .chkgrid{display:grid;grid-template-columns:repeat(15, 1fr);gap:6px}
+  .cell{position:relative;border:1px solid var(--line);border-radius:10px;padding:6px;text-align:center;min-height:56px;transition:opacity .12s ease, transform .12s ease}
+  .cell .num{font-weight:800;display:block}
+  .cell .meta{font-size:10px;line-height:1.2;color:#c9d6f8;opacity:.9;margin-top:3px;white-space:normal}
+  .badge{position:absolute;top:4px;left:4px;padding:2px 6px;border-radius:999px;font-size:10px;border:1px solid #334;background:#1a1f33;color:#cfe4ff}
+  .cell.pop{background:linear-gradient(180deg,#0aa3b3,#085c66);border-color:#11b6c7;box-shadow:0 0 0 2px #0ea5b333 inset}
+  .cell.on{outline:2px solid #41558a}.cell.none{background:var(--none);border-color:var(--none-b);color:#ffcad8}
+  .cell.tagged{box-shadow:0 0 0 2px var(--tag) inset}.cell.dim{opacity:.35}
+  .legend{display:flex;gap:10px;align-items:center;margin:6px 0 12px 0}
+  .legend .dot{width:14px;height:14px;border-radius:4px;display:inline-block;border:1px solid #334}
+  .legend .popular{background:linear-gradient(180deg,#0aa3b3,#085c66);border-color:#11b6c7}
+  .legend .none{background:var(--none);border-color:var(--none-b)}.legend .tag{background:var(--tag);border-color:#8877ff}
+  .ta{width:100%;min-height:110px;background:#0b1020;border:1px dashed #2c3c60;color:#e7ecf3;border-radius:10px;padding:8px}
+  @media (max-width:900px){.grid{grid-template-columns:1fr}.chkgrid{grid-template-columns:repeat(5, 1fr)}.cell{min-height:70px}}
+  .hidden{display:none}
+  .hr{height:1px;background:var(--line);margin:8px 0}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h2 id="title">Trav – Överblick</h2>
+  <section id="view-overview">
+    <div class="row" style="margin-bottom:12px">
+      <button id="btnNew" class="btn">Skapa spelsystem</button>
+      <span class="mini">Startvyn listar alla spelsystem. Klicka “Överblick”.</span>
+    </div>
+    <div id="games" class="grid"></div>
+  </section>
+
+  <section id="view-game" class="hidden">
+    <div class="row" style="margin-bottom:10px">
+      <button id="btnBack" class="btn secondary">← Till överblick</button>
+      <span id="gameBadge" class="pill"></span>
+      <button id="btnEditGame" class="btn">Redigera spel</button>
+      <button id="btnDeleteGame" class="btn danger">Ta bort</button>
+    </div>
+
+    <div class="card">
+      <h3>Importera kuponger (OCR / Manuell)</h3>
+      <div class="row">
+        <input type="file" id="couponFiles" accept="image/*" multiple />
+        <input type="text" id="couponName" class="name" placeholder="Namnge kuponger (valfritt)" style="width:240px"/>
+        <button id="btnScan" class="btn secondary">Läs kuponger (OCR)</button>
+        <button id="btnManual" class="btn">Lägg kupong manuellt</button>
+        <button id="btnCalib" class="btn secondary">Kalibrera OCR</button>
+      </div>
+      <div class="mini" id="scanStatus"></div>
+      <div id="couponList" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <h3>Analys</h3>
+      <div class="legend">
+        <span class="dot popular"></span><span class="mini">Populärast val</span>
+        <span class="dot none"></span><span class="mini">Ej spelad ännu</span>
+        <span class="dot tag"></span><span class="mini">Matchar aktiv tagg</span>
+      </div>
+
+      <div class="card" style="margin-bottom:12px">
+        <h4>Populär-kupong</h4>
+        <div id="popularCoupon"></div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between;align-items:flex-end">
+          <div>
+            <h4 style="margin:0">Min kupong</h4>
+            <div id="price" class="mini"></div>
+          </div>
+          <div class="row">
+            <select id="driverTag" class="name"></select>
+            <input id="tagColor" type="color" value="#9b87f5" class="name" style="width:60px;height:34px;padding:0">
+            <button id="btnAddTag" class="btn secondary">Aktivera kusk-tagg</button>
+            <label class="pill" style="cursor:pointer"><input id="tagPopular" type="checkbox" style="vertical-align:-2px"> Populära</label>
+            <button id="btnFillPopular" class="btn secondary">Fyll med populära</button>
+            <button id="btnSaveMy" class="btn">Spara som kupong</button>
+            <button id="btnClearMy" class="btn secondary">Rensa</button>
+          </div>
+        </div>
+        <div id="tagList" class="mini" style="margin-top:6px"></div>
+        <div id="myCoupon"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+  <!-- OCR Calibration Modal (Unified: Bild/Text) -->
+  <div id="ocrCalibModal" class="card hidden" style="position:fixed;inset:0;margin:auto;max-width:1100px;max-height:95vh;overflow:auto;z-index:80;background:var(--panel)">
+    <div class="row" style="justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:8px">
+      <div><b>Kalibrera OCR</b> <span class="mini">(ställ in hur texten tolkas)</span></div>
+      <div class="row">
+        <button id="ocrTest" class="btn secondary">Testa regler</button>
+        <button id="ocrSave" class="btn">Spara</button>
+        <button id="ocrClose" class="btn secondary">Stäng</button>
+      </div>
+    </div>
+
+    <div id="ocrTabs" class="row" style="gap:8px;margin:8px 0">
+      <button id="tabImg" class="btn secondary">Bild</button>
+      <button id="tabText" class="btn secondary">Text</button>
+    </div>
+
+    <div class="row" style="gap:16px">
+      <!-- Text tab -->
+      <div id="ocrTabText" class="card" style="flex:1;min-width:320px">
+        <div class="mini">Klistra in rå OCR-text här (eller kör en testscanning)</div>
+        <textarea id="ocrRaw" class="name" style="width:100%;height:220px"></textarea>
+        <div class="mini">Exempel på radformat där <b>grupp 1</b> = avdelning och <b>grupp 2</b> = hästblock.</div>
+        <input id="ocrLineRegex" class="name" style="width:100%" placeholder="Rad-regex" />
+        <div class="mini">Hästtolkning</div>
+        <select id="ocrHorseMode" class="name">
+          <option value="runs">Sammanhängande nummer (1 2 10 11 12… och 10–15 hanteras)</option>
+          <option value="spaces">Blankstegsseparerade nummer</option>
+        </select>
+        <div class="mini">Avdelningar</div>
+        <div class="row">
+          <input id="ocrAvdOverride" class="name" placeholder="Antal avdelningar (valfritt)" style="width:220px"/>
+          <span class="mini">Lämna tomt för att använda spelets avdelningar.</span>
+        </div>
+        <div class="mini">Spara per spelsystem</div>
+        <select id="ocrScope" class="name">
+          <option value="V64">V64</option>
+          <option value="V75">V75</option>
+          <option value="V86">V86</option>
+        </select>
+      </div>
+
+      <!-- Image tab -->
+      <div id="ocrTabImg" class="card" style="flex:1;min-width:420px">
+        <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="row" style="gap:8px">
+            <input id="imgPick" type="file" accept="image/*" multiple />
+            <button id="imgPrev" class="btn secondary">◀</button>
+            <button id="imgNext" class="btn secondary">▶</button>
+            <span class="mini" id="imgInfo">(ingen bild)</span>
+          </div>
+          <div class="mini">Markera blå (AVD) och grön (Hästar)</div>
+        </div>
+        <canvas id="calibCanvas" style="max-width:100%;background:#0b0f16;border:1px solid var(--line)"></canvas>
+        <div class="row"><label class="mini" style="width:90px">X AVD:</label>
+          <input id="xAvd1" class="name" style="width:70px">–<input id="xAvd2" class="name" style="width:70px"></div>
+        <div class="row"><label class="mini" style="width:90px">X Hästar:</label>
+          <input id="xH1" class="name" style="width:70px">–<input id="xH2" class="name" style="width:70px"></div>
+        <div class="row"><label class="mini" style="width:90px">X Reserv:</label>
+          <input id="xR1" class="name" style="width:70px">–<input id="xR2" class="name" style="width:70px"></div>
+        <div class="row"><label class="mini" style="width:90px">Y top:</label>
+          <input id="yTop" class="name" style="width:70px">
+          <label class="mini" style="width:70px">Radhöjd:</label><input id="rowH" class="name" style="width:70px"></div>
+        <div class="row"><label class="mini" style="width:90px">Rader:</label>
+          <input id="rowsN" class="name" style="width:70px"></div>
+        <div class="row" style="gap:10px">
+          <label class="mini"><input type="checkbox" id="normO"> O→0</label>
+          <label class="mini"><input type="checkbox" id="normI"> I/l→1</label>
+          <label class="mini"><input type="checkbox" id="normP"> ta bort punkt/komma</label>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div class="card" style="flex:1;min-width:320px">
+        <div class="mini">Resultat (identifierade rader)</div>
+        <div id="ocrResult" style="min-height:220px;font-family:ui-monospace,Consolas,monospace;white-space:pre-wrap"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manual Coupon Modal -->
+  <div id="manualModal" class="card hidden" style="position:fixed;inset:0;margin:auto;max-width:900px;max-height:92vh;overflow:auto;z-index:85;background:var(--panel)">
+    <div class="row" style="justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:8px">
+      <div><b>Lägg kupong manuellt</b> <span class="mini">Fyll alla avdelningar</span></div>
+      <div class="row">
+        <button id="manualSave" class="btn">Spara kupong</button>
+        <button id="manualClose" class="btn secondary">Stäng</button>
+      </div>
+    </div>
+    <div class="row" style="gap:16px">
+      <div class="card" style="flex:1;min-width:320px">
+        <div class="row"><label class="mini" style="width:120px">Namn:</label><input id="manualName" class="name" style="flex:1"></div>
+        <div class="mini">Skriv hästnr separerade med mellanslag (intervall 10-15 tillåts)</div>
+        <div id="manualRows" class="grid" style="grid-template-columns: 80px 1fr; gap:6px"></div>
+      </div>
+      <div class="card" style="flex:1;min-width:260px">
+        <div class="mini">Förhandsvisning</div>
+        <div id="manualPreview" style="min-height:200px;font-family:ui-monospace,Consolas,monospace;white-space:pre-wrap"></div>
+      </div>
+    </div>
+  </div>
+  <script src="./additions.js"></script>
+</body>
+
+
+</html>
