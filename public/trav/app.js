@@ -1,703 +1,407 @@
-(()=>{
-const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const GAMES_KEY='trav.games.v7';
-const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(k)||JSON.stringify(d))}catch{return d}};
-const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
-const ensure=a=>Array.isArray(a)?a:[ ];
-const uid=()=>Date.now()+''+Math.floor(Math.random()*1e6);
+// app.js — Trav UI v5.7.0
+// - Fix: defensiv init av meta.avds (hindrar 'reading avds')
+// - OCR: bildförhandsvisning + klistra-in-text + enkel kalibreringsvy med regex-test
+// - Importerade kuponger + Populär-kupong
+// - Avdelningsvy: Populär-lista i vänsterkolumn
+// - Prisguide (50–400 kr) under summering
+(function(){
+  const $  = (s,r=document)=>r.querySelector(s);
+  const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
+  const LS_KEY='games';
+  const TYPES={V64:6,V75:7,GS75:7,V86:8};
+  const DEFAULT_TYPE='V64'; const MAXH=12;
 
-function getGames(){return ensure(load(GAMES_KEY,[]))}
-function setGames(L){save(GAMES_KEY,ensure(L))}
-function getGame(id){return getGames().find(g=>g.id===id)}
-function setGame(id, fn){ const L=getGames(); const i=L.findIndex(x=>x.id===id); if(i<0) return;
-  L[i]=typeof fn==='function'?fn(L[i]):fn; setGames(L);
-}
-
-const normalize = (text)=> (text||'')
-  .replace(/[Il]/g,'1').replace(/O/g,'0')
-  .replace(/[•·\-–—]/g,' ').replace(/[,;]/g,' ')
-  .replace(/\s+/g,' ').trim();
-
-function splitRunsToNumbers(s){
-  s=normalize(s);
-  const runs=(s.match(/\d+/g)||[]);
-  const out=[];
-  for(const r of runs){
-    let i=0;
-    while(i<r.length){
-      if(i+1<r.length){
-        const two=parseInt(r.slice(i,i+2),10);
-        if(two>=10 && two<=15){ out.push(two); i+=2; continue; }
-      }
-      out.push(parseInt(r[i],10)); i++;
-    }
+  // ---------- storage helpers ----------
+  const read  = ()=>{ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'{}'); }catch(_){ return {}; } };
+  const write = (db)=>localStorage.setItem(LS_KEY, JSON.stringify(db));
+  const gid   = ()=>$('#gameId')?.value || null;
+  const getGame=(id=gid())=> read()[id] || null;
+  function upsertGame(obj){ const db=read(); db[obj.id]=obj; write(db); return obj; }
+  function updateGame(id, updater){
+    const db=read(); const prev=db[id]||{id,meta:{}};
+    const next=(typeof updater==='function')?updater(prev):updater;
+    db[id]=next; write(db); return next;
   }
-  return out;
-}
-
-// ---------- Överblick
-function renderOverview(){
-  $('#title').textContent='Trav – Överblick'; 
-  $('#view-overview').classList.remove('hidden'); 
-  $('#view-game').classList.add('hidden');
-  const host=$('#games'); host.innerHTML='';
-  const L=getGames();
-  if(!L.length){ host.innerHTML='<div class=mini>Inga spelsystem ännu. Klicka “Skapa spelsystem”.</div>'; return; }
-  L.forEach(g=>{
-    const card=document.createElement('div'); card.className='card';
-    card.innerHTML='<div class="row" style="justify-content:space-between"><div><b>'+g.name+
-      '</b> <span class="pill">'+g.form+'</span> <span class="mini">('+g.divisions.length+' avd)</span></div>\
-      <div class="row"><button class="btn" data-v="'+g.id+'">Överblick</button>\
-      <button class="btn" data-e="'+g.id+'">Redigera</button>\
-      <button class="btn danger" data-d="'+g.id+'">Ta bort</button></div></div>';
-    host.appendChild(card);
-    card.querySelector('[data-v]').onclick=()=>openGame(g.id);
-    card.querySelector('[data-e]').onclick=()=>editGame(g.id);
-    card.querySelector('[data-d]').onclick=()=>{ setGames(getGames().filter(x=>x.id!==g.id)); renderOverview(); };
-  });
-}
-$('#btnNew').onclick=()=>openCreate();
-$('#btnBack').onclick=renderOverview;
-
-function openCreate(existing=null){
-  const box=document.createElement('div'); box.className='card';
-  Object.assign(box.style,{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',margin:'auto',maxWidth:'980px',maxHeight:'92vh',overflow:'auto',zIndex:60});
-  const form0=existing?.form||'V64';
-  let header='<div class="row" style="justify-content:space-between;position:sticky;top:0;background:#0f172a;border-bottom:1px solid #223050;padding-bottom:6px">';
-  header+='<input id="gname" class="name" placeholder="Spelnamn" style="width:260px" value="'+(existing?.name||'')+'">';
-  header+='<div class="row"><select id="gform" class="name"><option'+(form0==='V64'?' selected':'')+'>V64</option><option'+(form0==='V65'?' selected':'')+'>V65</option><option'+(form0==='V75'?' selected':'')+'>V75</option><option'+(form0==='V85'?' selected':'')+'>V85</option><option'+(form0==='V86'?' selected':'')+'>V86</option></select>';
-  header+='<button id="gsave" class="btn">'+(existing?'Uppdatera':'Skapa')+'</button><button id="gclose" class="btn secondary">Stäng</button></div></div>';
-  box.innerHTML=header+'<div id="gcontent"></div>'; document.body.appendChild(box);
-  const content=box.querySelector('#gcontent');
-
-  function renderHorseFields(avd,n){ const host=box.querySelector('#hwrap-'+avd); let h=''; const form=box.querySelector('#gform')?.value||'V64';
-    for(let i=1;i<=n;i++){
-      const rec=(existing?.info?.[avd+'-'+i])||{};
-      h+='<div class="row" style="margin:6px 0"><span class="pill">Häst '+i+'</span>\
-      <input class="name" placeholder="Hästens namn" data-f="name" data-k="'+avd+'-'+i+'" style="width:220px" value="'+(rec.name||'')+'">\
-      <input class="name" placeholder="Kusk" data-f="driver" data-k="'+avd+'-'+i+'" style="width:180px" value="'+(rec.driver||'')+'">\
-      <input class="name" placeholder="'+form+' %" data-f="percent" data-k="'+avd+'-'+i+'" style="width:120px" value="'+(rec.percent||'')+'">\
-      <input class="name" placeholder="Kommentar" data-f="note" data-k="'+avd+'-'+i+'" style="width:280px" value="'+(rec.note||'')+'"></div>';
-    }
-    host.innerHTML=h;
+  function ensureHorses(meta){
+    const avd=meta.avds||6;
+    meta.horses = meta.horses && meta.horses.length===avd ? meta.horses : Array.from({length:avd},()=>({}));
+    return meta;
   }
-  function draw(form){
-    const divs={V64:6,V65:6,V75:7,V85:8,V86:8}[form]||6; let inner='';
-    for(let a=1;a<=divs;a++){
-      const prevCount = existing?.divisions?.find(d=>d.avd===a)?.horses?.length || 15;
-      inner+='<div class="card" style="margin:8px 0"><div class="row"><b>AVD '+a+
-        '</b><label class="mini">Antal hästar: <input type="number" min="1" max="15" value="'+prevCount+'" data-count="'+a+'" class="name" style="width:80px"></label></div>\
-        <details style="margin:4px 0"><summary class="mini">Klistra in lista (Häst/Kusk/% – 3 rader per häst)</summary>\
-        <textarea class="ta" data-paste="'+a+'" placeholder="1 Häst\nKusk\n62%\n2 Häst\nKusk\n0%\n..."></textarea>\
-        <div class="row" style="margin-top:6px"><button class="btn secondary" data-pastebtn="'+a+'">Klistra in i AVD '+a+'</button></div>\
-        </details><div id="hwrap-'+a+'"></div></div>';
-    }
-    content.innerHTML=inner;
-    for(let a=1;a<=divs;a++){ const cnt=+content.querySelector('[data-count="'+a+'"]').value||15; renderHorseFields(a,cnt); }
-    content.querySelectorAll('[data-count]').forEach(inp=>inp.onchange=()=>renderHorseFields(+inp.dataset.count, Math.max(1,Math.min(15,+inp.value||1))));
-    content.querySelectorAll('[data-pastebtn]').forEach(btn=>btn.onclick=()=>{
-      const avd=+btn.dataset.pastebtn; const ta=content.querySelector('[data-paste="'+avd+'"]');
-      const data=parseHorseBlock(ta.value); const maxNum=Math.max(0,...Object.keys(data).map(n=>+n)); const countInput=content.querySelector('[data-count="'+avd+'"]');
-      if(maxNum>(+countInput.value||15)){ countInput.value=maxNum; renderHorseFields(avd,maxNum); }
-      Object.entries(data).forEach(([num,rec])=>{ ['name','driver','percent'].forEach(f=>{ const el=content.querySelector('[data-k="'+avd+'-'+num+'"][data-f="'+f+'"]'); if(el) el.value=rec[f]||''; }); });
+  function ensureGameIdFromUrl(){
+    const q=new URLSearchParams(location.search); const id=q.get('game'); if(!id) return null;
+    let hidden=$('#gameId'); if(!hidden){ hidden=document.createElement('input'); hidden.type='hidden'; hidden.id='gameId'; document.body.appendChild(hidden); }
+    hidden.value=id; return id;
+  }
+
+  // ---------- ÖVERBLICK ----------
+  function renderOverview(){
+    if(location.search.includes('game=')) return; // endast på överblick
+    const host=document.createElement('section'); host.id='trv-overview';
+    host.innerHTML=`
+      <style>
+        .ov{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;color:#e5e7eb;margin:12px 0}
+        .grid{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+        @media (min-width:1100px){.grid{grid-template-columns:repeat(3,1fr)}}
+        @media (min-width:1400px){.grid{grid-template-columns:repeat(4,1fr)}}
+        .card{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:12px}
+        .title{font-weight:800;margin-bottom:6px}
+        .muted{opacity:.8;font-size:.9rem}
+        .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+        .btn{background:#38bdf8;color:#001826;border:0;border-radius:10px;padding:.45rem .8rem;font-weight:700;cursor:pointer}
+        .btn.ghost{background:#0b1220;color:#e5e7eb;border:1px solid #334155}
+        .head{display:flex;align-items:center;gap:8px;margin:12px 0}
+      </style>
+      <div class="ov">
+        <div class="head">
+          <button class="btn" data-action="create-game">Skapa spelsystem</button>
+          <span class="muted">Startvyn listar alla spelsystem. Klicka ”Överblick”.</span>
+        </div>
+        <div id="ov-grid" class="grid"></div>
+      </div>`;
+    (document.querySelector('main')||document.body).appendChild(host);
+    const grid=$('#ov-grid',host);
+    const db=read();
+    grid.innerHTML = Object.values(db).sort((a,b)=> (b.meta?.createdAt||'').localeCompare(a.meta?.createdAt||''))
+      .map(g=>`<div class="card">
+        <div class="title">${g.meta?.name||g.id}</div>
+        <div class="muted">Typ: ${g.meta?.type||'V64'} • Avd: ${g.meta?.avds||6}</div>
+        <div class="row">
+          <a class="btn" href="index.html?game=${encodeURIComponent(g.id)}">Öppna</a>
+          <button class="btn ghost" data-del="${g.id}">Ta bort</button>
+        </div>
+      </div>`).join('') || '<div class="muted">Inga sparade spelsystem ännu.</div>';
+    grid.addEventListener('click',e=>{
+      const b=e.target.closest('[data-del]'); if(!b) return;
+      const id=b.dataset.del; const db=read(); delete db[id]; write(db); host.remove(); renderOverview();
     });
   }
-  box.querySelector('#gform').onchange=e=>draw(e.target.value);
-  box.querySelector('#gclose').onclick=()=>document.body.removeChild(box);
-  box.querySelector('#gsave').onclick=()=>{
-    const name=(box.querySelector('#gname').value||'').trim()||'Spel';
-    const form=box.querySelector('#gform').value;
-    const divs={V64:6,V65:6,V75:7,V85:8,V86:8}[form]||6; const divisions=[]; const info={};
-    for(let a=1;a<=divs;a++){
-      const count=+box.querySelector('[data-count="'+a+'"]').value||15;
-      const horses=Array.from({length:count},(_,i)=>i+1); divisions.push({avd:a, horses});
-      for(let h=1;h<=count;h++){ const rec={}; ['name','driver','percent','note'].forEach(f=>{ const el=box.querySelector('[data-k="'+a+'-'+h+'"][data-f="'+f+'"]'); rec[f]=el?el.value:'' }); info[a+'-'+h]=rec; }
-    }
-    const base={id:existing?.id||uid(), name, form, divisions, info, coupons:existing?.coupons||[], my:existing?.my||Array.from({length:divs},()=>[]), tags:existing?.tags||[]};
-    const L=getGames(); const i=L.findIndex(x=>x.id===base.id); if(i<0) L.push(base); else L[i]=base; setGames(L); document.body.removeChild(box); renderOverview();
-  };
-  draw(form0);
-}
-function editGame(id){ const g=getGame(id); if(!g) return; openCreate(g); }
-function parseHorseBlock(txt){
-  const lines=(txt||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean); const out={}; let i=0;
-  while(i<lines.length){
-    const m=lines[i].match(/^(\d{1,2})\s+(.+)$/); if(!m){ i++; continue; }
-    const num=+m[1]; const name=m[2].trim(); const driver=(lines[i+1]||'').trim();
-    const pm=(lines[i+2]||'').match(/(\d{1,3})(?:[\.,](\d+))?%/); const percent=pm?(pm[1]+(pm[2]?','+pm[2]:'')):''; 
-    out[num]={name,driver,percent}; i+=3;
-  }
-  return out;
-}
 
-// ---------- Spelets sida
-function openGame(id){
-  const g=getGame(id); if(!g) return renderOverview();
-  $('#title').textContent=g.name+' – '+g.form; $('#view-overview').classList.add('hidden'); $('#view-game').classList.remove('hidden');
-  $('#gameBadge').textContent=g.form+' · '+g.divisions.length+' AVD';
-  $('#btnDeleteGame').onclick=()=>{ setGames(getGames().filter(x=>x.id!==id)); renderOverview(); };
-  $('#btnEditGame').onclick=()=>editGame(id);
-
-  const drivers = [...new Set(Object.values(g.info||{}).map(x=>x?.driver).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const sel = $('#driverTag'); sel.innerHTML = '<option value="">Kusk-tagg (välj)</option>'+drivers.map(d=>'<option>'+d+'</option>').join('');
-
-  $('#btnScan').onclick=()=>scanCoupons(g);
-  $('#btnManual').onclick=()=>manualCoupon(g);
-
-  renderCoupons(g);
-  renderAnalysis(g);
-  renderMyCoupon(g);
-}
-
-function renderCoupons(g){
-  const host=$('#couponList'); host.innerHTML='';
-  if(!g.coupons?.length){ host.innerHTML='<div class=mini>Inga kuponger uppladdade ännu.</div>'; return; }
-  g.coupons.forEach((c,idx)=>{
-    const card=document.createElement('div'); card.className='card';
-    let html='<div class="row" style="justify-content:space-between"><div><b>'+(c.name||('Kupong '+(idx+1)))+
-      '</b></div><button class="btn danger" data-del="'+c.id+'">Ta bort</button></div><div class="hr"></div>';
-    html+='<table><thead><tr><th>AVD</th><th>Hästar</th></tr></thead><tbody>';
-    (c.rows||[]).forEach(r=>{ html+='<tr><td>'+r.avd+'</td><td>'+r.horses.join(" ")+'</td></tr>' });
-    html+='</tbody></table>';
-    card.innerHTML=html; host.appendChild(card);
-    card.querySelector('[data-del]').onclick=()=>{ setGame(g.id, s=>({...s, coupons:s.coupons.filter(x=>x.id!==c.id)})); openGame(g.id); };
-  });
-}
-
-async function scanCoupons(g){
-  const files=$('#couponFiles').files; if(!files?.length){ alert('Välj en eller flera bilder.'); return; }
-  qs('#scanStatus').textContent='Laddar OCR...';
-  const worker=await Tesseract.createWorker();
-  const newCoupons=[];
-  for(const f of files){
-    qs('#scanStatus').textContent='Läser '+f.name+'...';
-    const {data:{text}}=await worker.recognize(f);
-    const rows=parseCouponText(text,g.divisions.length);
-    newCoupons.push({id:uid(), name:(qs('#couponName').value||'').trim(), rows});
-  }
-  await worker.terminate();
-  qs('#scanStatus').textContent='Klart.';
-  setGame(g.id, s=>({...s, coupons:[...(s.coupons||[]), ...newCoupons]}));
-  openGame(g.id);
-}
-function normalizeText(t){return (t||'').replace(/\r/g,'\n')}
-function parseCouponText(txt, avdCount){
-  txt = normalizeText(txt);
-  const lines = txt.split(/\n/).map(x=>x.trim()).filter(Boolean);
-  const rows=[];
-  for(const ln of lines){
-    const m=ln.match(/^(\d{1,2})\s+([0-9\s]+)/); 
-    if(m){
-      const avd=+m[1]; if(avd<1||avd>avdCount) continue;
-      const horses = splitRunsToNumbers(m[2]);
-      if(horses.length) rows.push({avd,horses:[...new Set(horses)].sort((a,b)=>a-b)});
-    }
-  }
-  const seen=new Set(); const out=[];
-  for(const r of rows){ if(!seen.has(r.avd)){ seen.add(r.avd); out.push(r); } }
-  return out.sort((a,b)=>a.avd-b.avd);
-}
-function manualCoupon(g){
-  const avd=g.divisions.length; const rows=[];
-  for(let a=1;a<=avd;a++){ const input=prompt('AVD '+a+': ange hästar separerade med mellanslag (t.ex. \"1 4 5 6 8 11 12\")',''); if(input===null) return; rows.push({avd:a, horses:splitRunsToNumbers(input)}) }
-  setGame(g.id, s=>({...s, coupons:[...(s.coupons||[]), {id:uid(), name:'Manuell', rows}]})); openGame(g.id);
-}
-
-function buildPopularity(g){
-  const map={}; for(const d of g.divisions){ map[d.avd]=Object.fromEntries(d.horses.map(h=>[h,0])) }
-  (g.coupons||[]).forEach(c=>{ (c.rows||[]).forEach(r=>{ (r.horses||[]).forEach(h=>{ if(map[r.avd]&&map[r.avd][h]!=null) map[r.avd][h]++ }) }) })
-  return map;
-}
-function renderAnalysis(g){
-  const pop = buildPopularity(g);
-  const popularSelections = g.divisions.map(div=>{
-    const counts = pop[div.avd]; const max = Math.max(0,...Object.values(counts));
-    const best = Object.entries(counts).filter(([,c])=>c===max && c>0).map(([h])=>+h);
-    return {avd:div.avd, best, counts};
-  });
-  drawCouponGrid('popularCoupon', g, popularSelections, {showPopularity:true});
-  $('#btnFillPopular').onclick=()=>{
-    setGame(g.id, s=>({...s, my: popularSelections.map(x=>x.best.slice()) }));
-    renderMyCoupon(getGame(g.id));
-  };
-}
-
-function renderMyCoupon(g){
-  const my = g.my && g.my.length===g.divisions.length ? g.my : Array.from({length:g.divisions.length},()=>[]);
-  setGame(g.id, s=>({...s, my}));
-  const host = $('#myCoupon'); host.innerHTML='';
-  const pop = buildPopularity(g);
-  const driversByKey = g.info||{};
-
-  const tagColor = $('#tagColor').value||'#9b87f5';
-  const activeTag = $('#driverTag').value||'';
-  $('#btnAddTag').onclick=()=>{ if(!activeTag) return; setGame(g.id, s=>({...s, tags:[...new Set([...(s.tags||[]), activeTag])]})); renderMyCoupon(getGame(g.id)); };
-  $('#tagPopular').onchange=()=>renderMyCoupon(getGame(g.id));
-
-  const tags = [...new Set(g.tags||[])]; $('#tagList').textContent = tags.length ? 'Aktiva kusk-taggar: '+tags.join(', ') : 'Inga aktiva kusk-taggar.';
-
-  let total=1; g.divisions.forEach((div,idx)=>{ total*=Math.max(1,(my[idx]||[]).length||1) }); $('#price').textContent='Pris: '+total+' kr';
-
-  const opts = {activeTag, tagColor, popMap:pop, showPopularity: $('#tagPopular').checked, driversByKey};
-  drawCouponGrid('myCoupon', g, g.divisions.map((div,idx)=>({avd:div.avd, best:my[idx]})), opts, (avd,horse)=>{
-    const cur = new Set(my[avd-1]||[]); if(cur.has(horse)) cur.delete(horse); else cur.add(horse);
-    my[avd-1]=[...cur].sort((a,b)=>a-b); setGame(g.id, s=>({...s, my})); renderMyCoupon(getGame(g.id));
-  });
-}
-
-function drawCouponGrid(containerId, g, selections, opts={}, onToggle){
-  const root = $('#'+containerId); root.innerHTML='';
-  const grid = document.createElement('div'); grid.className='grid'; root.appendChild(grid);
-  selections.forEach(sel=>{
-    const div = g.divisions.find(d=>d.avd===sel.avd);
-    const card = document.createElement('div'); card.className='card'; grid.appendChild(card);
-    card.innerHTML='<div class="row" style="justify-content:space-between"><b>AVD '+sel.avd+'</b></div>';
-    const wrap = document.createElement('div'); wrap.className='chkgrid'; card.appendChild(wrap);
-    const chosen = new Set(sel.best||[]);
-    div.horses.forEach(h=>{
-      const key=sel.avd+'-'+h; const info=g.info?.[key]||{};
-      const meta = [info.name, info.driver, info.percent].filter(Boolean).join(' • ');
-      const cell=document.createElement('div'); cell.className='cell'+(chosen.has(h)?' on':'');
-      const count = opts.popMap?.[sel.avd]?.[h]||0;
-      const isPopular = opts.showPopularity && count && count===Math.max(0,...Object.values(opts.popMap?.[sel.avd]||{}));
-      const never = (opts.popMap && (opts.popMap[sel.avd]?.[h]||0)===0);
-      if(isPopular) cell.classList.add('pop');
-      if(never && containerId==='popularCoupon') cell.classList.add('none');
-      const driver=info.driver||'';
-      if(opts.activeTag && driver===opts.activeTag) {cell.classList.add('tagged'); cell.style.setProperty('--tag', opts.tagColor||'#9b87f5');}
-      if((g.tags||[]).includes(driver)) {cell.classList.add('tagged'); cell.style.setProperty('--tag', opts.tagColor||'#9b87f5');}
-      cell.innerHTML = '<span class="num">'+h+'</span><div class="meta">'+(meta||'&nbsp;')+'</div>'+ (count?'<span class="badge">'+count+'</span>':'');
-      if(onToggle) cell.onclick=()=>onToggle(sel.avd,h);
-      wrap.appendChild(cell);
-    });
-  });
-}
-
-renderOverview();
-})();
-
-
-// ===== OCR Calibration & Manual Modal Additions =====
-function getOcrRules(){ try{ return JSON.parse(localStorage.getItem('ocrRules')||'{}'); }catch(e){ return {}; } }
-const IMG_RULES_KEY='ocrImageRules';
-function getImgRules(){ try{ return JSON.parse(localStorage.getItem(IMG_RULES_KEY)||'{}'); }catch(e){ return {}; } }
-function setImgRules(r){ localStorage.setItem(IMG_RULES_KEY, JSON.stringify(r||{})); }
-let __calib={img:null, w:0, h:0, avd:[50,120], horses:[150,450], reserv:[480,560], yTop:250, rowH:32, rows:6, norm:{O:false,I:false,P:false}};
-
-function switchCalibTab(which){
-  const tImg=document.querySelector('#ocrTabImg'); const tText=document.querySelector('#ocrTabText');
-  if(!tImg||!tText) return; if(which==='img'){tImg.style.display='block';tText.style.display='none';}else{tImg.style.display='none';tText.style.display='block';}
-}
-document.addEventListener('click',(e)=>{
-  if(e.target&&e.target.id==='tabImg') switchCalibTab('img');
-  if(e.target&&e.target.id==='tabText') switchCalibTab('text');
-},true);
-
-function setInputsFromState(){ const v=(id,val)=>{const el=document.querySelector('#'+id); if(el) el.value=val;};
-  v('xAvd1',Math.round(__calib.avd[0])); v('xAvd2',Math.round(__calib.avd[1]));
-  v('xH1',Math.round(__calib.horses[0])); v('xH2',Math.round(__calib.horses[1]));
-  v('xR1',Math.round(__calib.reserv[0])); v('xR2',Math.round(__calib.reserv[1]));
-  v('yTop',Math.round(__calib.yTop)); v('rowH',Math.round(__calib.rowH)); v('rowsN',Math.round(__calib.rows));
-}
-function updateStateFromInputs(){ const g=(id)=>parseFloat(document.querySelector('#'+id)?.value||'')||0;
-  __calib.avd=[g('xAvd1'),g('xAvd2')]; __calib.horses=[g('xH1'),g('xH2')]; __calib.reserv=[g('xR1'),g('xR2')]; __calib.yTop=g('yTop'); __calib.rowH=g('rowH'); __calib.rows=Math.max(1,Math.round(g('rowsN'))||6);
-}
-function drawCalib(){ const c=document.querySelector('#calibCanvas'); if(!c) return; const ctx=c.getContext('2d'); ctx.clearRect(0,0,c.width,c.height); if(__calib.img){ctx.drawImage(__calib.img,0,0,__calib.w,__calib.h);} ctx.strokeStyle='#f59e0b'; ctx.lineWidth=2; ctx.strokeRect(10,__calib.yTop,__calib.w-20,__calib.rowH*__calib.rows); ctx.fillStyle='rgba(59,130,246,0.35)'; ctx.fillRect(__calib.avd[0],__calib.yTop,(__calib.avd[1]-__calib.avd[0]),__calib.rowH*__calib.rows); ctx.fillStyle='rgba(34,197,94,0.35)'; ctx.fillRect(__calib.horses[0],__calib.yTop,(__calib.horses[1]-__calib.horses[0]),__calib.rowH*__calib.rows); ctx.fillStyle='rgba(148,163,184,0.30)'; ctx.fillRect(__calib.reserv[0],__calib.yTop,(__calib.reserv[1]-__calib.reserv[0]),__calib.rowH*__calib.rows); }
-function loadImageToCanvas(file){ const fr=new FileReader(); fr.onload=()=>{ const img=new Image(); img.onload=()=>{ const c=document.querySelector('#calibCanvas'); const scale=Math.min(1,700/img.width); c.width=Math.floor(img.width*scale); c.height=Math.floor(img.height*scale); __calib.img=img; __calib.w=c.width; __calib.h=c.height; if(!__calib.rowH) __calib.rowH=Math.floor(c.height/12); if(!__calib.rows) __calib.rows=6; if(!__calib.avd) __calib.avd=[Math.floor(c.width*0.06),Math.floor(c.width*0.12)]; if(!__calib.horses) __calib.horses=[Math.floor(c.width*0.20),Math.floor(c.width*0.72)]; if(!__calib.reserv) __calib.reserv=[Math.floor(c.width*0.78),Math.floor(c.width*0.93)]; setInputsFromState(); drawCalib(); }; img.src=fr.result; }; fr.readAsDataURL(file); }
-document.addEventListener('change',(e)=>{ if(e.target&&e.target.id==='imgPick'){ const files=Array.from(e.target.files||[]); if(files.length) loadImageToCanvas(files[0]); }},true);
-document.addEventListener('click',(e)=>{ if(e.target&&e.target.id==='btnCalib'){ const m=document.querySelector('#ocrCalibModal'); if(m) m.classList.remove('hidden'); const files=document.querySelector('#couponFiles')?.files; if(files&&files.length) loadImageToCanvas(files[0]); else switchCalibTab('img'); document.querySelector('#ocrClose').onclick=()=>m.classList.add('hidden'); document.querySelector('#ocrSave').onclick=()=>{ updateStateFromInputs(); const gid=qs('#gameId')?.value; const g=gid?getGame(gid):null; const scope=g?.form||'V64'; const all=getImgRules(); all[scope]={...__calib}; setImgRules(all); alert('Mall sparad för '+scope); }; document.querySelector('#ocrTest').onclick=async ()=>{ updateStateFromInputs(); const res=await runImageOcr(__calib); qs('#ocrResult').textContent=res.map(r=>`AVD ${r.avd}: ${r.horses.join(' ')}`).join('\\n')||'(Inget matchat)'; }; }},true);
-async function runImageOcr(state){ const worker=await Tesseract.createWorker(); const out=[]; const scale=state.scale||1; for(let i=0;i<state.rows;i++){ const y=Math.round((state.yTop+i*state.rowH)/scale); const h=Math.round(state.rowH/scale); const a=await ocrCrop(state.img,Math.round(state.avd[0]/scale),y,Math.round((state.avd[1]-state.avd[0])/scale),h,worker); const htxt=await ocrCrop(state.img,Math.round(state.horses[0]/scale),y,Math.round((state.horses[1]-state.horses[0])/scale),h,worker); const avdNum=parseInt(((a.text||'').match(/\\d+/)||[''])[0],10); const hs=((htxt.text||'').match(/\\d+/g)||[]).map(x=>parseInt(x,10)).filter(n=>!isNaN(n)); if(!isNaN(avdNum)&&hs.length) out.push({avd:avdNum, horses:[...new Set(hs)].sort((a,b)=>a-b)}); } await worker.terminate(); const seen=new Set(),tidy=[]; for(const r of out){ if(!seen.has(r.avd)){ seen.add(r.avd); tidy.push(r);} } return tidy.sort((a,b)=>a.avd-b.avd); }
-async function ocrCrop(img,sx,sy,sw,sh,worker){ const c=document.createElement('canvas'); const ctx=c.getContext('2d'); c.width=sw; c.height=sh; ctx.drawImage(img,sx,sy,sw,sh,0,0,sw,sh); const {data:{text}}=await worker.recognize(c.toDataURL()); return {text}; }
-// Guarded overrides
-(function(){
-// ---- tiny DOM helpers (no jQuery) ----
-window.qs  = (sel, root=document) => root.querySelector(sel);
-window.qsa = (sel, root=document) => Array.from(root.querySelectorAll(sel));
-if (!window.$) window.$ = (sel) => document.querySelector(sel);
- try{ if(typeof parseCouponText==='function'){ const __orig=parseCouponText; parseCouponText=function(txt,avdCount){ try{ const gid=qs('#gameId')?.value; if(gid){ const g=getGame(gid); const r=(getOcrRules()||{})[g?.form]; if(r){ const lineRegex=new RegExp(r.lineRegex||'^(?:AVD\\s*)?(\\d{1,2})[^\\d]*(?:-|:)?\\s*([0-9\\s]+)$','i'); const mode=r.horseMode||'runs'; if(r.avdOverride){ const n=parseInt(r.avdOverride,10); if(n>0) avdCount=n; } const rows=[]; for(const ln of normalizeText(txt).split(/\\n/).map(x=>x.trim()).filter(Boolean)){ const m=ln.match(lineRegex); if(m){ const avd=+m[1]; if(avd<1||avd>avdCount) continue; const hs=(mode==='spaces')?(m[2].trim().split(/\\s+/).map(x=>parseInt(x,10)).filter(n=>!isNaN(n))):splitRunsToNumbers(m[2]); if(hs.length) rows.push({avd,horses:[...new Set(hs)].sort((a,b)=>a-b)}); } } const seen=new Set(),o=[]; for(const r of rows){ if(!seen.has(r.avd)){ seen.add(r.avd); o.push(r);} } return o.sort((a,b)=>a.avd-b.avd); } } }catch(e){} return __orig(txt,avdCount); }; } if(typeof scanCoupons==='function'){ const __origScan=scanCoupons; scanCoupons=async function(g){ const rules=(getImgRules()[g?.form]||null); const files=$('#couponFiles')?.files; if(!rules) return __origScan(g); if(!files?.length){ alert('Välj en eller flera bilder.'); return; } const newCoupons=[]; for(const f of files){ await new Promise(res=>{ const img=new Image(); const fr=new FileReader(); fr.onload=()=>{ img.onload=async ()=>{ const state={...rules,img,scale:1}; const rows=await runImageOcr(state); newCoupons.push({id:uid(), name:(qs('#couponName').value||'').trim(), rows}); res(); }; img.src=fr.result; }; fr.readAsDataURL(f); }); } setGame(g.id,s=>({...s, coupons:[...(s.coupons||[]), ...newCoupons]})); openGame(g.id); }; } }catch(e){} })();
-
-// Manual modal
-function openManualModal(g){ const m=qs('#manualModal'); if(!m) return; m.classList.remove('hidden'); const host=qs('#manualRows'); host.innerHTML=''; const count=(g?.divisions?.length)||6; for(let i=1;i<=count;i++){ const lbl=document.createElement('div'); lbl.textContent='AVD '+i; lbl.className='mini'; const inp=document.createElement('input'); inp.className='name'; inp.placeholder='t.ex. 1 2 5 10-12'; inp.dataset.avd=i; inp.addEventListener('input',manualPreview); host.appendChild(lbl); host.appendChild(inp);} $('#manualClose').onclick=()=>m.classList.add('hidden'); $('#manualSave').onclick=()=>{ const name=(qs('#manualName')?.value||'').trim(); const inputs=[...host.querySelectorAll('input')]; const rows=[]; inputs.forEach(inp=>{ const avd=+inp.dataset.avd; const hs=splitRunsToNumbers(inp.value||''); if(hs.length) rows.push({avd, horses:[...new Set(hs)].sort((a,b)=>a-b)}); }); if(!rows.length){ alert('Fyll i minst en avdelning.'); return; } const gid=qs('#gameId')?.value; const game=gid?getGame(gid):g; const coupon={id:uid(), name, rows}; setGame(game.id,s=>({...s, coupons:[...(s.coupons||[]), coupon]})); openGame(game.id); m.classList.add('hidden'); }; manualPreview(); }
-function manualPreview(){ const host=qs('#manualRows'); const out=qs('#manualPreview'); if(!host||!out) return; const rows=[]; host.querySelectorAll('input').forEach(inp=>{ const avd=+inp.dataset.avd; const hs=splitRunsToNumbers(inp.value||''); if(hs.length) rows.push({avd, horses:[...new Set(hs)].sort((a,b)=>a-b)}); }); out.textContent=rows.map(r=>`AVD ${r.avd}: ${r.horses.join(' ')}`).join('\\n')||'(ingen data)'; }
-document.addEventListener('click',(e)=>{ if(e.target&&e.target.id==='btnManual'){ const gid=qs('#gameId')?.value; const g=gid?getGame(gid):null; openManualModal(g);} },true);
-
-
-
-// ---- Robust OCR horses parser + improved runImageOcr (appended) ----
-function parseOcrHorses(raw, normFlags){
-  let t = raw || '';
-  if(normFlags && normFlags.O) t = t.replace(/[OØ]/g, '0');
-  if(normFlags && normFlags.I) t = t.replace(/[Il]/g, '1');
-  t = t.replace(/[.,]/g, ' ').replace(/[–—]/g, '-');
-  t = t.replace(/\s+/g, ' ').trim();
-  t = t.replace(/\b1[\s]*([0-5])\b/g, '1$1'); // 1 3 -> 13
-  t = t.replace(/(^|\D)0($|\D)/g, ' '); // drop lone zeros
-  let out = [];
-  const rangeRe = /(\d+)\s*-\s*(\d+)/g;
-  t = t.replace(rangeRe, (m,a,b)=>{
-    let s=parseInt(a,10), e=parseInt(b,10);
-    if(!isNaN(s)&&!isNaN(e)&&e>=s){
-      for(let n=s;n<=e;n++){ if(n>=1&&n<=15) out.push(n); }
-    }
-    return ' ';
-  });
-  (t.match(/\d+/g)||[]).forEach(x=>{ const n=parseInt(x,10); if(n>=1&&n<=15) out.push(n); });
-  out = [...new Set(out)].sort((a,b)=>a-b);
-  return out;
-}
-
-const __runImageOcr_prev = typeof runImageOcr==='function' ? runImageOcr : null;
-async function runImageOcr(state){
-  const scale = state.scale||1;
-  const img = state.img;
-  const out=[];
-  const worker = await Tesseract.createWorker();
-  const pad = Math.max(2, Math.round((state.rowH||24) * 0.18));
-  const normFlags = state.norm||{};
-  const normText=(t)=>{
-    let s=t||'';
-    if(normFlags.O) s=s.replace(/[OØ]/g,'0');
-    if(normFlags.I) s=s.replace(/[Il]/g,'1');
-    if(normFlags.P) s=s.replace(/[.,]/g,' ');
-    return s;
-  }
-
-  for(let i=0;i<state.rows;i++){
-    const y = Math.round((state.yTop + i*state.rowH)/scale);
-    const h = Math.round((state.rowH + 2*pad)/scale);
-    const yCrop = Math.max(0, y - Math.round(pad/scale));
-
-    const avdRes = await ocrCrop(img, Math.round(state.avd[0]/scale), yCrop,
-        Math.round((state.avd[1]-state.avd[0])/scale), h, worker);
-    const avdStr = normText(avdRes.text||'');
-    const avdMatch = (avdStr.match(/\d{1,2}/)||[''])[0];
-    const avdNum = parseInt(avdMatch,10);
-
-    const horsesRes = await ocrCrop(img, Math.round(state.horses[0]/scale), yCrop,
-        Math.round((state.horses[1]-state.horses[0])/scale), h, worker);
-    const horses = parseOcrHorses(normText(horsesRes.text||''), normFlags);
-
-    if(!isNaN(avdNum) && horses.length){
-      out.push({avd:avdNum, horses:[...new Set(horses)].sort((a,b)=>a-b)});
-    }
-  }
-  await worker.terminate();
-  const seen=new Set(); const tidy=[];
-  for(const r of out){ if(!seen.has(r.avd)){ seen.add(r.avd); tidy.push(r);} }
-  return tidy.sort((a,b)=>a.avd-b.avd);
-}
-
-
-// ===== Late hook: ensure our OCR rules are actually used when scanning =====
-(function ensureImageRulesHook(){
-  let hooked = false;
-  const tryHook = ()=>{
-    if(hooked) return;
-    if (typeof scanCoupons === 'function') {
-      hooked = true;
-      const __scanCoupons_orig = scanCoupons;
-      scanCoupons = async function(g){
-        try{
-          const scope = (g && g.form) ? g.form : 'V64';
-          const imgRulesAll = (function(){ try { return JSON.parse(localStorage.getItem('ocrImageRules')||'{}'); } catch(e){ return {}; }})();
-          const rules = imgRulesAll[scope] || null;
-          const files = (document.querySelector('#couponFiles')||{}).files;
-          if(rules && files && files.length){
-            const newCoupons = [];
-            const name = (document.querySelector('#couponName')?.value||'').trim();
-            const statusEl = document.querySelector('#scanStatus');
-            if(statusEl) statusEl.textContent = 'Läser kuponger (bild‑OCR)...';
-            for (const f of files){
-              await new Promise(res=>{
-                const img = new Image();
-                const fr = new FileReader();
-                fr.onload = ()=>{ img.onload = async ()=>{
-                    const state = {...rules, img, scale: Math.min(1, 700/img.width)};
-                    const rows = await runImageOcr(state);
-                    newCoupons.push({id:uid(), name, rows});
-                    res();
-                  }; img.src = fr.result; };
-                fr.readAsDataURL(f);
-              });
-            }
-            if(statusEl) statusEl.textContent = 'Klart.';
-            setGame(g.id, s=>({...s, coupons:[...(s.coupons||[]), ...newCoupons]}));
-            openGame(g.id);
-            return;
-          }
-        }catch(e){ /* fall back to original */ }
-        return __scanCoupons_orig(g);
-      };
-    }
-    if (typeof parseCouponText === 'function') {
-      if (!parseCouponText.__patchedByImg) {
-        const __parseCouponText_orig = parseCouponText;
-        parseCouponText = function(txt, avdCount){
-          try{
-            const gidEl = document.querySelector('#gameId');
-            const gid = gidEl ? gidEl.value : null;
-            if(gid){
-              const g = getGame(gid);
-              const rules = (function(){ try { return JSON.parse(localStorage.getItem('ocrRules')||'{}'); } catch(e){ return {}; }})()[g && g.form];
-              if(rules){
-                const lineRegex = new RegExp(rules.lineRegex || '^(?:AVD\\s*)?(\\d{1,2})[^\\d]*(?:-|:)?\\s*([0-9\\s]+)$', 'i');
-                const horseMode = rules.horseMode || 'runs';
-                if(rules.avdOverride){ const n = parseInt(rules.avdOverride,10); if(n>0) avdCount=n; }
-                const lines = (txt||'').replace(/\\r/g,'\\n').split(/\\n/).map(x=>x.trim()).filter(Boolean);
-                const out=[]; const seen=new Set();
-                for(const ln of lines){
-                  const m = ln.match(lineRegex);
-                  if(m){
-                    const avd = +m[1];
-                    if(avd>=1 && avd<=avdCount){
-                      const horses = (horseMode==='spaces')
-                        ? (m[2].trim().split(/\\s+/).map(x=>parseInt(x,10)).filter(n=>!isNaN(n)))
-                        : splitRunsToNumbers(m[2]);
-                      if(horses.length && !seen.has(avd)){
-                        seen.add(avd); out.push({avd, horses:[...new Set(horses)].sort((a,b)=>a-b)});
-                      }
-                    }
-                  }
-                }
-                return out.sort((a,b)=>a.avd-b.avd);
-              }
-            }
-          }catch(e){}
-          return __parseCouponText_orig(txt, avdCount);
-        };
-        parseCouponText.__patchedByImg = true;
-      }
-    }
-  };
-  const id = setInterval(()=>{
-    tryHook();
-    if (hooked && typeof parseCouponText==='function') clearInterval(id);
-  }, 60);
-  if (document.readyState==='complete' || document.readyState==='interactive'){ setTimeout(tryHook, 0); }
-  else document.addEventListener('DOMContentLoaded', tryHook);
-})();
-
-// ===== Prefill inputs from saved rules on open =====
-(function bindCalibOpen(){
-  function getScope(){ try { const gid = document.querySelector('#gameId')?.value; return gid ? (getGame(gid)?.form || 'V64') : 'V64'; } catch(e){ return 'V64'; } }
-  function openAndPrefill(){
-    const scope = getScope();
-    const rulesAll = (function(){ try { return JSON.parse(localStorage.getItem('ocrImageRules')||'{}'); } catch(e){ return {}; }})();
-    const r = rulesAll[scope];
-    if(r){
-      window.__calib = Object.assign(window.__calib||{}, r);
-      const val=(id,v)=>{ const el=document.getElementById(id); if(el) el.value = Math.round(v); };
-      val('xAvd1', r.avd?.[0]); val('xAvd2', r.avd?.[1]);
-      val('xH1', r.horses?.[0]); val('xH2', r.horses?.[1]);
-      val('xR1', r.reserv?.[0]); val('xR2', r.reserv?.[1]);
-      val('yTop', r.yTop); val('rowH', r.rowH); val('rowsN', r.rows);
-    }
-  }
-  document.addEventListener('click', (e)=>{
-    if(e.target && e.target.id==='btnCalib'){ setTimeout(openAndPrefill, 30); }
-  }, true);
-})();
-
-// === Defaults for calibration if nothing saved ===
-(function ensureCalibDefaults(){
-  const DEF = { avd:[0,30], horses:[45,220], reserv:[480,560], yTop:220, rowH:32, rows:6, norm:{O:false,I:false,P:false} };
-  window.__calib = Object.assign(DEF, window.__calib||{});
-  document.addEventListener('click', (e)=>{
-    if(e.target && e.target.id==='btnCalib'){
-      setTimeout(()=>{
-        const setVal=(id,v)=>{ const el=document.getElementById(id); if(el) el.value = (v!=null? Math.round(v):''); };
-        setVal('xAvd1', __calib.avd[0]); setVal('xAvd2', __calib.avd[1]);
-        setVal('xH1', __calib.horses[0]); setVal('xH2', __calib.horses[1]);
-        setVal('yTop', __calib.yTop); setVal('rowH', __calib.rowH); setVal('rowsN', __calib.rows);
-        if(__calib.img && __calib.w){ drawCalib(); }
-      }, 30);
-    }
-  }, true);
-})();
-// === Helper: draw parsed labels next to each row ===
-function drawRowLabels(rows){
-  const canvas = document.getElementById('calibCanvas'); if(!canvas) return;
-  const ctx = canvas.getContext('2d');
-  ctx.font = '12px ui-monospace, Consolas, monospace';
-  ctx.fillStyle = '#a7f3d0';
-  if(!Array.isArray(rows)) return;
-  rows.forEach((r,i)=>{
-    const y = __calib.yTop + i*__calib.rowH + 12;
-    const label = (r && r.parsed && r.parsed.horses && r.parsed.horses.length) ? r.parsed.horses.join(' ') : '';
-    ctx.fillText(label, __calib.horses[1] + 6, y);
-  });
-}
-// === Preprocess with canvas filter ===
-function ocrCropWithPreprocess(img, sx, sy, sw, sh, worker){
-  const c = document.createElement('canvas'); const ctx = c.getContext('2d');
-  c.width = sw; c.height = sh;
-  ctx.filter = 'contrast(160%) brightness(110%)';
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-  ctx.filter = 'none';
-  return worker.recognize(c.toDataURL()).then(res=>({text: (res.data && res.data.text) || ''}));
-}
-// === Detailed OCR ===
-async function runImageOcrDetailed(state){
-  const scale = state.scale||1;
-  const img = state.img;
-  const out=[];
-  const worker = await Tesseract.createWorker();
-  const pad = Math.max(2, Math.round((state.rowH||24) * 0.18));
-  const normFlags = state.norm||{};
-  const normText=(t)=>{
-    let s=t||'';
-    if(normFlags.O) s=s.replace(/[OØ]/g,'0');
-    if(normFlags.I) s=s.replace(/[Il]/g,'1');
-    if(normFlags.P) s=s.replace(/[.,]/g,' ');
-    return s;
-  }
-  for(let i=0;i<state.rows;i++){
-    const y = Math.round((state.yTop + i*state.rowH)/scale);
-    const h = Math.round((state.rowH + 2*pad)/scale);
-    const yCrop = Math.max(0, y - Math.round(pad/scale));
-    const avdRes = await ocrCropWithPreprocess(img, Math.round(state.avd[0]/scale), yCrop,
-        Math.round((state.avd[1]-state.avd[0])/scale), h, worker);
-    const horsesRes = await ocrCropWithPreprocess(img, Math.round(state.horses[0]/scale), yCrop,
-        Math.round((state.horses[1]-state.horses[0])/scale), h, worker);
-    const avdStr = normText(avdRes.text||''); const horsesStr = normText(horsesRes.text||'');
-    const avdMatch = (avdStr.match(/\d{1,2}/)||[''])[0]; const avdNum = parseInt(avdMatch,10);
-    const horses = (typeof parseOcrHorses==='function') ? parseOcrHorses(horsesStr, normFlags) : ((horsesStr.match(/\d+/g)||[]).map(x=>+x));
-    const row = { index:i+1, raw:{avd:avdStr, horses:horsesStr}, parsed:{ avd: avdNum, horses } };
-    out.push(row);
-  }
-  await worker.terminate();
-  const rows=[]; const seen=new Set();
-  out.forEach(r=>{ if(!isNaN(r.parsed.avd) && r.parsed.horses.length && !seen.has(r.parsed.avd)){ seen.add(r.parsed.avd); rows.push({avd:r.parsed.avd, horses:[...new Set(r.parsed.horses)].sort((a,b)=>a-b)});} });
-  return {debug:out, rows: rows.sort((a,b)=>a.avd-b.avd)};
-}
-
-
-// --- Force default calibration values on modal open ---
-(function(){
-  const DEF = { avd:[0,30], horses:[45,220], yTop:220, rowH:32, rows:6 };
-  document.addEventListener('click', (e)=>{
-    if(e.target && e.target.id==='btnCalib'){
-      setTimeout(()=>{
-        window.__calib = Object.assign({}, DEF, window.__calib||{});
-        const setV=(id,v)=>{ const el=document.getElementById(id); if(el) el.value = v; };
-        setV('xAvd1', DEF.avd[0]); setV('xAvd2', DEF.avd[1]);
-        setV('xH1', DEF.horses[0]); setV('xH2', DEF.horses[1]);
-        setV('yTop', DEF.yTop); setV('rowH', DEF.rowH); setV('rowsN', DEF.rows);
-        if(typeof drawCalib==='function') drawCalib();
-      }, 30);
-    }
-  }, true);
-})();
-
-
-
-// --- Replace 'Testa regler' to print raw OCR per rad ---
-(function(){
-  function ensure(){
-    const btn = document.querySelector('#ocrTest');
-    if(!btn || btn.__patched) return;
-    btn.__patched = true;
-    btn.onclick = async () => {
-      const read=(id)=>parseFloat(document.getElementById(id)?.value||'')||0;
-      const st = window.__calib || (window.__calib = {});
-      st.avd=[read('xAvd1'), read('xAvd2')];
-      st.horses=[read('xH1'), read('xH2')];
-      st.yTop=read('yTop'); st.rowH=read('rowH'); st.rows=Math.max(1,read('rowsN')||6);
-      if(typeof runImageOcrDetailed!=='function'){ alert('runImageOcrDetailed saknas'); return; }
-      const out = await runImageOcrDetailed(st);
-      const lines = out.debug.map(r=>`Rad ${r.index} | AVD(txt:"${(r.raw.avd||'').trim()}") -> ${isNaN(r.parsed.avd)?'?':r.parsed.avd} | H(txt:"${(r.raw.horses||'').trim()}") -> ${r.parsed.horses.join(' ')}`);
-      const res = document.getElementById('ocrResult'); if(res) res.textContent = lines.join('\\n') || '(Inget matchat)';
-      if(typeof drawCalib==='function' && typeof drawRowLabels==='function'){ drawCalib(); drawRowLabels(out.debug); }
+  // ---------- Skapa spelsystem ----------
+  function openCreateModal(){
+    if($('#createGameModal')) return;
+    const wrap=document.createElement('div'); wrap.id='createGameModal';
+    wrap.innerHTML=`<style>
+      .cg-back{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;z-index:9999}
+      .cg{width:min(820px,94vw);background:#0f172a;border:1px solid #334155;border-radius:14px;padding:16px;color:#e5e7eb;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif}
+      .row{display:grid;grid-template-columns:160px 1fr;gap:12px;margin:8px 0}
+      .col{display:flex;gap:8px;flex-wrap:wrap}
+      .pill{padding:.35rem .6rem;border:1px solid #94a3b8;border-radius:999px;cursor:pointer;color:#e2e8f0}
+      .pill.on{background:#38bdf8;border-color:#38bdf8;color:#0b1220}
+      .grid2{display:grid;gap:8px;grid-template-columns:1fr 1fr}
+      .btn{background:#38bdf8;color:#001a22;border:0;padding:.6rem 1rem;border-radius:10px;font-weight:700;cursor:pointer}
+      .btn.ghost{background:#0b1220;color:#e5e7eb;border:1px solid #334155}
+      input[type=text],input[type=datetime-local]{background:#0b1220;border:1px solid #334155;border-radius:8px;padding:.5rem;color:#e5e7eb;width:100%}
+    </style>
+    <div class="cg-back"><div class="cg">
+      <h2 style="margin:0 0 8px 0">Skapa spelsystem</h2>
+      <div class="row"><div>Spelform</div>
+        <div class="col" id="cg-types">${Object.keys(TYPES).map(t=>`<span class="pill" data-type="${t}">${t}</span>`).join('')}</div>
+      </div>
+      <div class="grid2">
+        <div class="row"><div>Omgångsnamn</div><div><input id="cg-name" type="text" placeholder="t.ex. Halmstad fredag"></div></div>
+        <div class="row"><div>Starttid</div><div><input id="cg-dt" type="datetime-local"></div></div>
+      </div>
+      <div class="row"><div>Förifyll hästar</div><div><label><input id="cg-prefill" type="checkbox" checked> Lägg in 1–12 tomma namn</label></div></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+        <button class="btn ghost" id="cg-cancel">Avbryt</button>
+        <button class="btn" id="cg-create">Skapa</button>
+      </div>
+    </div></div>`;
+    document.body.appendChild(wrap);
+    const box=$('#cg-types',wrap);
+    function sel(t){ $$('.pill',box).forEach(p=>p.classList.toggle('on',p.dataset.type===t)); wrap.dataset.sel=t; }
+    sel(DEFAULT_TYPE);
+    box.addEventListener('click',e=>{const p=e.target.closest('.pill'); if(p) sel(p.dataset.type)});
+    $('#cg-cancel',wrap).onclick=()=>wrap.remove();
+    $('#cg-create',wrap).onclick=()=>{
+      const t=wrap.dataset.sel||DEFAULT_TYPE;
+      const id = `${t}-${new Date().toISOString().slice(0,10)}-${Math.floor(Math.random()*100000)}`;
+      const avd=TYPES[t]; const pre=$('#cg-prefill',wrap).checked;
+      const meta={type:t,avds:avd,name:$('#cg-name',wrap).value||'',start:$('#cg-dt',wrap).value||'',createdAt:new Date().toISOString()};
+      ensureHorses(meta);
+      if(pre){ meta.horses = Array.from({length:avd},()=>{const o={}; for(let h=1;h<=12;h++) o[h]={name:'',driver:'',pct:''}; return o;}); }
+      upsertGame({id,meta,coupons:[]});
+      location.href=`index.html?game=${encodeURIComponent(id)}`;
     };
   }
-  document.addEventListener('click', (e)=>{ if(e.target && e.target.id==='btnCalib'){ setTimeout(ensure, 50); } }, true);
-  if(document.readyState==='complete' || document.readyState==='interactive'){ setTimeout(ensure,200); }
-  else document.addEventListener('DOMContentLoaded', ()=>setTimeout(ensure,200));
-})();
+  document.addEventListener('click',e=>{
+    const btn=e.target.closest('[data-action="create-game"],#createGameBtn'); if(!btn) return;
+    if(!location.search.includes('game=')){ e.preventDefault(); openCreateModal(); }
+  },{capture:true});
 
-// ===== Manual Coupon Modal (all divisions) =====
-function openManualModal(g){
-  const m = qs('#manualModal'); if(!m) return; m.classList.remove('hidden');
-  const host = qs('#manualRows'); host.innerHTML='';
-  const avdCount = (g?.divisions?.length) || 6;
-  for(let i=1;i<=avdCount;i++){
-    const lbl=document.createElement('div'); lbl.textContent='AVD '+i; lbl.className='mini';
-    const inp=document.createElement('input'); inp.className='name'; inp.placeholder='t.ex. 1 2 5 10-12'; inp.dataset.avd=i; inp.style.width='100%';
-    inp.addEventListener('input', manualPreview);
-    host.appendChild(lbl); host.appendChild(inp);
-  }
-  qs('#manualClose').onclick=()=>m.classList.add('hidden');
-  qs('#manualSave').onclick=()=>{
-    const name=(qs('#manualName')?.value||'').trim();
-    const inputs=[...host.querySelectorAll('input')];
-    const rows=[];
-    inputs.forEach(inp=>{
-      const avd=parseInt(inp.dataset.avd,10);
-      const nums = (inp.value||'').match(/\d+/g)||[];
-      const horses=[...new Set(nums.map(x=>parseInt(x,10)).filter(n=>n>=1&&n<=15))].sort((a,b)=>a-b);
-      if(horses.length) rows.push({avd, horses});
-    });
-    if(!rows.length){ alert('Fyll i minst en avdelning.'); return; }
-    const gid=qs('#gameId')?.value; const game=gid?getGame(gid):g;
-    const coupon={id:uid(), name, rows};
-    setGame(game.id, s=>({...s, coupons:[...(s.coupons||[]), coupon]})); openGame(game.id);
-    m.classList.add('hidden');
-  };
-  manualPreview();
-}
-function manualPreview(){
-  const host=qs('#manualRows'); const out=qs('#manualPreview'); if(!host||!out) return;
-  const inputs=[...host.querySelectorAll('input')]; const rows=[];
-  inputs.forEach(inp=>{ const avd=+inp.dataset.avd; const nums=(inp.value||'').match(/\d+/g)||[]; const hs=[...new Set(nums.map(x=>+x).filter(n=>n>=1&&n<=15))].sort((a,b)=>a-b); if(hs.length) rows.push({avd, horses:hs}); });
-  out.textContent = rows.map(r=>`AVD ${r.avd}: ${r.horses.join(' ')}`).join('\n') || '(ingen data)';
-}
-document.addEventListener('click', (e)=>{ if(e.target && e.target.id==='btnManual'){ const gid=qs('#gameId')?.value; const g=gid?getGame(gid):null; openManualModal(g);} }, true);
-
-// --- Auto-test after saving calibration (safe append) ---
-(function(){
-  function ensure(){
-    const btn = document.querySelector('#ocrSave');
-    if(!btn || btn.__autoWired) return;
-    btn.__autoWired = true;
-    btn.addEventListener('click', async ()=>{
-      const v = id => parseFloat((document.querySelector('#'+id)?.value)||'')||0;
-      const gid = (document.querySelector('#gameId')||{}).value;
-      const g = gid ? getGame(gid) : null;
-      const scope = g?.form || 'V64';
-      const state = window.__calib || (window.__calib={});
-      state.avd=[v('xAvd1'), v('xAvd2')];
-      state.horses=[v('xH1'), v('xH2')];
-      state.reserv=state.reserv||[480,560];
-      state.yTop=v('yTop'); state.rowH=v('rowH'); state.rows=Math.max(1, Math.round(v('rowsN'))||6);
-      let rulesAll={}; try{ rulesAll=JSON.parse(localStorage.getItem('ocrImageRules')||'{}'); }catch(e){}
-      rulesAll[scope]={...state}; localStorage.setItem('ocrImageRules', JSON.stringify(rulesAll));
-      if(typeof drawCalib==='function') drawCalib();
-      if(typeof runImageOcrDetailed==='function'){
-        const out = await runImageOcrDetailed(state);
-        const res = document.querySelector('#ocrResult');
-        if(res){
-          const lines = out.debug.map(r=>`Rad ${r.index} | AVD(txt:"${(r.raw.avd||'').trim()}") -> ${isNaN(r.parsed.avd)?'?':r.parsed.avd} | H(txt:"${(r.raw.horses||'').trim()}") -> ${r.parsed.horses.join(' ')}`);
-          res.textContent = lines.join('\n') || '(Inget matchat)';
-        }
-        if(typeof drawRowLabels==='function'){ drawRowLabels(out.debug); }
-      }
-    });
-  }
-  if (document.readyState!=='loading') setTimeout(ensure, 200); else document.addEventListener('DOMContentLoaded', ()=>setTimeout(ensure,200));
-})();
-// --- Defaults on calibration modal open ---
-(function(){
-  const DEF = { avd:[0,30], horses:[45,220], yTop:220, rowH:32, rows:6 };
-  document.addEventListener('click', (e)=>{
-    if(e.target && e.target.id==='btnCalib'){
-      setTimeout(()=>{
-        window.__calib = Object.assign({}, DEF, window.__calib||{});
-        const setV=(id,v)=>{ const el=document.getElementById(id); if(el) el.value = v; };
-        setV('xAvd1', DEF.avd[0]); setV('xAvd2', DEF.avd[1]);
-        setV('xH1', DEF.horses[0]); setV('xH2', DEF.horses[1]);
-        setV('yTop', DEF.yTop); setV('rowH', DEF.rowH); setV('rowsN', DEF.rows);
-        if(typeof drawCalib==='function') drawCalib();
-      }, 30);
+  // ---------- GAME VIEW ----------
+  function mountGame(){
+    const id = ensureGameIdFromUrl(); if(!id) return;
+    let g=getGame(id);
+    if(!g){
+      g=upsertGame({id, meta:{type:DEFAULT_TYPE,avds:6,createdAt:new Date().toISOString()}, coupons:[]});
     }
-  }, true);
+    g.meta = g.meta || {type:DEFAULT_TYPE,avds:6};
+    g.meta.avds = g.meta.avds || TYPES[g.meta.type] || 6;
+    ensureHorses(g.meta);
+    upsertGame(g);
+
+    const host=document.createElement('section'); host.id='trv-game';
+    host.innerHTML=`
+      <style>
+        .ui{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;color:#e5e7eb;margin:12px 0}
+        .grid{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+        @media (min-width:1300px){.grid{grid-template-columns:repeat(3,1fr)}}
+        @media (min-width:1650px){.grid{grid-template-columns:repeat(4,1fr)}}
+        .card{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:12px}
+        .title{font-weight:800;margin-bottom:6px}
+        .muted{opacity:.8;font-size:.9rem}
+        .btn{background:#38bdf8;color:#001826;border:0;border-radius:10px;padding:.45rem .8rem;font-weight:700;cursor:pointer}
+        .btn.ghost{background:#0b1220;color:#e5e7eb;border:1px solid #334155}
+        .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+        .a-card{margin:10px 0;padding:10px;border:1px solid #263142;border-radius:10px;background:#0b1220}
+        .row3{display:grid;grid-template-columns:160px 1fr 46px;gap:10px;align-items:center;margin:8px 0}
+        .num{width:36px;height:36px;border:3px solid #e5e7eb;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:800}
+        .mine{cursor:pointer;border-color:#94a3b8}
+        .mine.on{background:#38bdf8;border-color:#38bdf8;color:#001926}
+        .inp{background:#0b1220;border:1px solid #334155;border-radius:8px;padding:.45rem;color:#e5e7eb;width:100%}
+        .small{font-size:.85rem;opacity:.9}
+        .pop{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+        .pill{display:inline-block;padding:.15rem .45rem;border-radius:999px;background:#1f2937;margin:0 4px 4px 0}
+        .sticky{position:sticky;bottom:0;background:#0e1422;border-top:1px solid #263142;padding:10px;border-radius:12px 12px 0 0;margin-top:10px}
+        .sum{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+        @media (max-width:900px){.sum{grid-template-columns:repeat(3,1fr)}}
+        textarea.t{width:100%;min-height:120px;background:#0b1220;border:1px solid #334155;border-radius:10px;color:#e5e7eb;padding:.6rem}
+      </style>
+      <div class="ui">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <a class="btn ghost" href="index.html">Till överblick</a>
+          <button class="btn ghost" id="editGame">Redigera spelform</button>
+        </div>
+        <div class="grid" id="couponGrid"></div>
+        <div class="card">
+          <div class="title">Avdelning 1–${g.meta.avds}</div>
+          <div id="divBox"></div>
+          <div class="sticky">
+            <div id="summary" class="sum"></div>
+            <div class="row" style="justify-content:space-between;align-items:center">
+              <div id="priceGuide" class="small"></div>
+              <div style="text-align:right"><span id="price" style="font-weight:800">Pris: 0 kr</span></div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    (document.querySelector('main')||document.body).appendChild(host);
+    $('#editGame',host).onclick=()=>openCreateModal();
+
+    // ----- Helpers -----
+    const game = ()=>getGame(id);
+    function couponUid(){ return 'c'+Math.random().toString(36).slice(2,9); }
+    function addCoupon(name, rows){
+      updateGame(id, p=>{
+        const c={ uid:couponUid(), gameId:id, name:name||('Kupong '+(p.coupons?.length+1||1)), rows };
+        return {...p, coupons:[...(p.coupons||[]), c]};
+      });
+      renderCoupons(); renderDivs();
+    }
+    function countsByAvd(){
+      const list=(game()?.coupons||[]).filter(c=>c && c.gameId===id);
+      const avd=game().meta.avds; const arr=Array.from({length:avd},()=>({}));
+      list.forEach(c=>c.rows?.forEach(r=> r.horses.forEach(h=> arr[r.avd-1][h]=(arr[r.avd-1][h]||0)+1 )));
+      return arr;
+    }
+
+    // ----- Importerade / OCR / Kalibrera / Populär -----
+    function renderCoupons(){
+      const grid=$('#couponGrid',host);
+      const list=(game()?.coupons||[]).filter(c=>c && c.gameId===id);
+      const rows=list.map(c=>{
+        const lines=(c.rows||[]).sort((a,b)=>a.avd-b.avd).map(r=>`<div class="small">Avd ${r.avd}: ${r.horses.join(' ')}</div>`).join('');
+        return `<div class="card"><div class="title">${c.name||'Kupong'}</div>${lines||'<div class="muted small">Tom</div>'}<div class="row"><button class="btn ghost" data-del="${c.uid}">Ta bort</button></div></div>`;
+      });
+      const ctl=`<div class="card">
+        <div class="title">Importerade kuponger / OCR / Manuell</div>
+        <div class="row"><input id="cName" type="text" placeholder="Kupongnamn (valfritt)" style="flex:1" class="inp"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="btnMan">Lägg kupong manuellt</button>
+          <button class="btn" id="btnOCR">Klistra in OCR-text</button>
+          <button class="btn ghost" id="btnCal">Kalibrera OCR</button>
+          <button class="btn" id="btnPopular">Skapa populär kupong</button>
+        </div>
+        <div id="extra"></div>
+      </div>`;
+      grid.innerHTML = ctl + rows.join('');
+      grid.onclick=(e)=>{
+        const del=e.target.closest('[data-del]'); if(del){ const uid=del.dataset.del; updateGame(id,p=>({...p,coupons:(p.coupons||[]).filter(x=>x.uid!==uid)})); renderCoupons(); renderDivs(); }
+      };
+      $('#btnMan',grid).onclick=()=>openManual();
+      $('#btnOCR',grid).onclick=()=>openOCR();
+      $('#btnCal',grid).onclick=()=>openCal();
+      $('#btnPopular',grid).onclick=()=>createPopular();
+    }
+    function openManual(){
+      const box=$('#extra',host); const avd=game().meta.avds;
+      const inputs = Array.from({length:avd},(_,i)=>`<div class="row"><div class="muted">Avd ${i+1}</div><input class="inpMan inp" data-a="${i+1}" placeholder="t.ex. 1 4 6 7"></div>`).join('');
+      box.innerHTML = `<div class="card" style="margin-top:10px"><div class="title">Manuell kupong</div>${inputs}<div class="row"><button class="btn" id="saveMan">Spara kupong</button><button class="btn ghost" id="cancelMan">Stäng</button></div></div>`;
+      $('#cancelMan',box).onclick=()=>box.innerHTML='';
+      $('#saveMan',box).onclick=()=>{
+        const rows = $$('.inpMan',box).map(i=>({avd:+i.dataset.a, horses: (i.value||'').trim().split(/\s+/).filter(Boolean)})).filter(r=>r.horses.length);
+        if(rows.length) addCoupon($('#cName')?.value || 'Manuell', rows);
+        box.innerHTML='';
+      };
+    }
+    function openOCR(){
+      const box=$('#extra',host);
+      box.innerHTML = `<div class="card" style="margin-top:10px">
+        <div class="title">Klistra in OCR-text</div>
+        <textarea id="ocrText" class="t" placeholder="Klistra in råtext... en rad per avdelning ex: '1: 2 4 6'"></textarea>
+        <div class="row"><button class="btn" id="parseText">Läs text</button><button class="btn ghost" id="cancelO">Stäng</button></div>
+      </div>`;
+      $('#cancelO',box).onclick=()=>box.innerHTML='';
+      $('#parseText',box).onclick=()=>{
+        const src=$('#ocrText').value||'';
+        const rows = src.split(/\r?\n/).map(line=>{
+          const m=line.match(/^\s*([1-9])\s*:\s*([0-9\s]+)\s*$/);
+          if(!m) return null;
+          return { avd:+m[1], horses: m[2].trim().split(/\s+/).filter(Boolean) };
+        }).filter(Boolean);
+        if(rows.length) addCoupon($('#cName')?.value || 'OCR', rows);
+        box.innerHTML='';
+      };
+    }
+    function openCal(){
+      const box=$('#extra',host);
+      box.innerHTML = `<div class="card" style="margin-top:10px">
+        <div class="title">Kalibrera OCR (förhandsvisning)</div>
+        <div class="row"><input id="imgFile" type="file" accept="image/*" class="inp"><span class="small muted">(visar bara bilden – ingen OCR-motor körs)</span></div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
+          <div><img id="imgPrev" style="max-width:360px;border:1px solid #334155;border-radius:8px;display:none"/></div>
+          <div style="flex:1;min-width:260px">
+            <div class="small muted">Regex eller /regex/flagor</div>
+            <input id="rx" class="inp" type="text" value="^\\s*([1-9])\\s*:\\s*([0-9\\s]+)\\s*$">
+            <textarea id="rxSample" class="t" placeholder="Testa din OCR-råtext här..."></textarea>
+            <div class="row"><button class="btn" id="testRx">Testa</button><button class="btn ghost" id="closeRx">Stäng</button></div>
+            <div id="rxResult" class="small" style="margin-top:6px"></div>
+          </div>
+        </div>
+      </div>`;
+      $('#closeRx',box).onclick=()=>box.innerHTML='';
+      $('#imgFile',box).onchange=(e)=>{
+        const f=e.target.files?.[0]; if(!f) return;
+        const url=URL.createObjectURL(f); const img=$('#imgPrev',box); img.src=url; img.style.display='block';
+      };
+      $('#testRx',box).onclick=()=>{
+        let pat = ($('#rx').value||'').trim(), flags='', body=pat;
+        const mm = pat.match(/^\/(.+)\/([gimsuy]*)$/); if(mm){ body=mm[1]; flags=mm[2]; }
+        let re; try{ re=new RegExp(body,flags); }catch(e){ $('#rxResult',box).innerHTML='<span style="color:#fca5a5">Fel i regex: '+e.message+'</span>'; return; }
+        const out=[]; ($('#rxSample').value||'').split(/\r?\n/).forEach(line=>{ const m=re.exec(line); if(m){ out.push({avd:+m[1],horses:(m[2]||'').trim().split(/\s+/).filter(Boolean)}); } });
+        $('#rxResult',box).innerHTML = out.length? out.map(r=>`Avd ${r.avd}: ${r.horses.join(' ')}`).join('<br>') : '<i>Inget matchat</i>';
+      };
+    }
+    function createPopular(){
+      const avd=game().meta.avds; const cnt=countsByAvd();
+      const rows = cnt.map((map,i)=>{
+        const sorted=Object.entries(map).sort((a,b)=>b[1]-a[1] || (+a[0])-(+b[0])).map(([h])=>h);
+        return {avd:i+1, horses:sorted.slice(0, Math.max(1, Math.min(sorted.length, 10)))};
+      });
+      addCoupon('Populär kupong', rows);
+    }
+
+    // ----- Avdelningsrender -----
+    function renderDivs(){
+      const avd=game().meta.avds; const box=$('#divBox',host);
+      const popular = countsByAvd();
+      box.innerHTML='';
+      for(let a=1;a<=avd;a++){
+        const pop = Object.entries(popular[a-1]).sort((x,y)=>y[1]-x[1] || (+x[0])-(+y[0])).slice(0,6).map(([h,c])=>`${h}(${c})`).join(' ');
+        const head = `<div class="small">Populära: ${pop||'—'}</div>`;
+        const rows=[];
+        for(let h=1;h<=12;h++){
+          const rec=((game().meta.horses?.[a-1]||{})[h])||{name:'',driver:'',pct:''};
+          rows.push(`<div class="row3">
+            <div>
+              <div class="num">${h}</div>
+              ${h===1?head:''}
+            </div>
+            <div>
+              <input class="inp" data-a="${a}" data-h="${h}" data-k="name" placeholder="Hästnamn" value="${(rec.name||'').replace(/"/g,'&quot;')}">
+              <input class="inp" data-a="${a}" data-h="${h}" data-k="driver" placeholder="Kusk" value="${(rec.driver||'').replace(/"/g,'&quot;')}">
+            </div>
+            <div style="text-align:right"><div class="num mine" data-a="${a}" data-h="${h}">${h}</div></div>
+          </div>`);
+        }
+        const node=document.createElement('div'); node.className='a-card';
+        node.innerHTML=`<div class="title">Avdelning ${a}</div>${rows.join('')}`;
+        box.appendChild(node);
+      }
+      box.onclick=(e)=>{ const t=e.target.closest('.mine'); if(!t) return; t.classList.toggle('on'); updateSummary(); };
+      box.addEventListener('input',e=>{
+        const i=e.target.closest('.inp'); if(!i) return;
+        updateGame(id, prev=>{
+          const meta=ensureHorses(prev.meta||{type:DEFAULT_TYPE,avds:6});
+          meta.horses[i.dataset.a-1][i.dataset.h] = meta.horses[i.dataset.a-1][i.dataset.h]||{name:'',driver:'',pct:''};
+          meta.horses[i.dataset.a-1][i.dataset.h][i.dataset.k] = i.value;
+          return {...prev, meta};
+        });
+      });
+      updateSummary();
+    }
+
+    // ----- Pris + Guide -----
+    function currentPickCounts(){
+      const avd=game().meta.avds; const arr=[];
+      for(let a=1;a<=avd;a++){ const n=$$(`.mine.on[data-a="${a}"]`,host).length; arr.push(n||0); }
+      return arr;
+    }
+    function updateSummary(){
+      const avd=game().meta.avds; const sum=$('#summary',host); const priceEl=$('#price',host);
+      let price=1; sum.innerHTML='';
+      for(let a=1;a<=avd;a++){
+        const picked=$$(`.mine.on[data-a="${a}"]`,host).map(x=>+x.dataset.h).sort((x,y)=>x-y);
+        const col=document.createElement('div');
+        col.innerHTML=`<div class="small">Avd ${a}:</div><div>${picked.map(n=>`<span class="pill">${n}</span>`).join('')||'<span class="muted">—</span>'}</div>`;
+        sum.appendChild(col); price*=Math.max(1,picked.length);
+      }
+      priceEl.textContent=`Pris: ${price} kr`;
+      renderPriceGuide();
+    }
+    function renderPriceGuide(){
+      const base = currentPickCounts(); // ex [1,3,2,0,0,1]
+      const avd=game().meta.avds;
+      const slots = base.map(v=>Math.max(1,v)); // 0 betyder 1 rad
+      const MIN=50, MAX=400;
+      const choices = Array.from({length:avd},(_,i)=>{
+        const cur = slots[i];
+        const list = []; for(let k=1;k<=12;k++) list.push(k);
+        list.sort((a,b)=> Math.abs(a-cur)-Math.abs(b-cur));
+        return list;
+      });
+      const uniq = new Set();
+      const out = [];
+      function dfs(i, mult, path){
+        if(mult>MAX) return;
+        if(i===avd){
+          if(mult>=MIN && mult<=MAX){
+            const key = path.slice().sort((a,b)=>a-b).join('x');
+            if(!uniq.has(key)){ uniq.add(key); out.push([key, mult]); }
+          }
+          return;
+        }
+        for(const k of choices[i]){
+          dfs(i+1, mult*k, path.concat(k));
+          if(out.length>60) break;
+        }
+      }
+      dfs(0,1,[]);
+      out.sort((a,b)=>a[1]-b[1]);
+      $('#priceGuide',host).innerHTML = out.length
+        ? '<div class="small">Prisguide (50–400 kr):<br>'+ out.slice(0,36).map(([k,v])=>`${k} = <b>${v} kr</b>`).join(' • ') +'</div>'
+        : '<span class="small muted">Prisguide: inga kombinationer 50–400 kr.</span>';
+    }
+
+    // init
+    renderCoupons();
+    renderDivs();
+  }
+
+  // boot
+  document.addEventListener('DOMContentLoaded', ()=>{
+    renderOverview();
+    if(location.search.includes('game=')) mountGame();
+  });
 })();

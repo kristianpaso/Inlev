@@ -1,0 +1,1 @@
+v5.7.0 – robust init + bildförhandsvisning i OCR + prisguide + populär lista i avdelning.
