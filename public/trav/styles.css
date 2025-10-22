@@ -1,0 +1,79 @@
+:root{
+  --bg:#0c121a; --fg:#e9f0f7; --muted:#8ea2b8;
+  --panel:#101826; --panel2:#0f1622; --card:#0f1824;
+  --primary:#27a5ff; --danger:#e35b66;
+  --shadow:0 6px 24px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,Segoe UI,Roboto,Helvetica,Arial}
+#app{max-width:1200px;margin:0 auto;padding:20px}
+.hidden{display:none!important}
+.muted{color:var(--muted)}
+.grow{flex:1 1 auto}
+
+.btn{background:var(--primary);color:#03121c;border:0;border-radius:10px;
+  padding:10px 14px;font-weight:600;cursor:pointer;box-shadow:var(--shadow);}
+.btn:hover{filter:brightness(1.05)}
+.btn:active{transform:translateY(1px)}
+.btn-ghost{background:transparent;color:var(--fg);border:1px solid #26364b}
+.btn-danger{background:var(--danger);color:#fff}
+.input,.textarea,select{width:100%;background:#0a1320;color:var(--fg);border:1px solid #26364b;border-radius:10px;padding:10px 12px}
+.textarea{resize:vertical}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.mt{margin-top:12px}
+
+.pagebar{display:flex;gap:12px;align-items:center;margin:8px 0 16px}
+.pagebar h1{font-size:28px;margin:0}
+.section{background:var(--panel);border-radius:14px;box-shadow:var(--shadow);margin:16px 0}
+.section-header{display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid #1b2638}
+.section-header h2{margin:0}
+.actions{display:flex;gap:8px;align-items:center}
+.input[type="file"]{padding:6px}
+
+.game-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-top:12px}
+.game-card{background:var(--panel2);border:1px solid #1b2638;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.badges{display:flex;gap:8px;color:var(--muted)}
+
+.coupon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;padding:12px}
+.coupon-card{background:var(--card);border:1px solid #1b283e;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:6px}
+
+.avd-list{display:grid;grid-template-columns:1fr;gap:16px;padding:12px}
+.avd-card{background:var(--card);border:1px solid #1b283e;border-radius:16px;padding:12px;display:grid;grid-template-columns:220px 1fr 220px;gap:16px}
+.col-title{color:var(--muted);font-size:12px;margin-bottom:6px;display:flex;gap:8px;align-items:center}
+.badge{background:#152236;border:1px solid #203149;border-radius:8px;padding:4px 8px;color:var(--muted);}
+.num{display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;border-radius:8px;border:1px solid #2a3c59;background:#0d1625}
+.row{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pillset{display:flex;flex-wrap:wrap;gap:6px}
+.pill{background:#0b2033;color:var(--fg);border:1px solid #24364b;padding:6px 10px;border-radius:999px;cursor:pointer}
+.pill.active{background:var(--primary);color:#03121c;border-color:transparent}
+.box{background:#08111d;border:1px solid #1e2b42;border-radius:10px;padding:10px}
+
+.modal{border:0;padding:0;background:transparent}
+.modal::backdrop{background:rgba(0,0,0,.45)}
+.card{min-width:720px;max-width:1000px;background:var(--panel);border:1px solid #1b283e;border-radius:14px;box-shadow:var(--shadow)}
+.card-header,.card-footer{padding:12px 16px;border-bottom:1px solid #1b283e}
+.card-footer{border-top:1px solid #1b283e;border-bottom:0;display:flex;gap:8px;align-items:center}
+.card-body{padding:12px 16px}
+.modal.large .card{min-width:960px}
+
+.tabs{display:flex;gap:6px;margin-bottom:8px}
+.tab{background:#0b2033;border:1px solid #24364b;color:var(--fg);border-radius:8px;padding:6px 10px;cursor:pointer}
+.tab.active{background:var(--primary);color:#03121c}
+.tabpage.hidden{display:none}
+
+.imgbox{position:relative;background:#07101c;border:1px solid #1a2740;border-radius:12px;display:flex;align-items:center;justify-content:center;min-height:360px}
+.imgbox img{max-width:100%;max-height:360px;object-fit:contain}
+.imgbox .hint{position:absolute;bottom:8px;left:8px;font-size:12px;color:var(--muted);}
+
+.sticky-minicart{position:sticky;bottom:8px;display:flex;gap:14px;align-items:center;background:#0b1828;border:1px solid #1b2c45;border-radius:14px;padding:10px 12px;margin:12px}
+
+@media (max-width:900px){
+  .card{min-width:unset}
+  .grid-2{grid-template-columns:1fr}
+  .avd-card{grid-template-columns:1fr}
+  .game-grid{grid-template-columns:1fr}
+  .coupon-grid{grid-template-columns:1fr}
+  .pagebar{flex-wrap:wrap;gap:8px}
+  #app{padding:12px}
+}

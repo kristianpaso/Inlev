@@ -1,0 +1,1 @@
+Patch v2.6 – Tolka 'Klistra in hel lista (alla avdelningar)'

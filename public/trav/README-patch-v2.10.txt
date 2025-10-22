@@ -1,0 +1,1 @@
+Patch v2.10 – Visa endast hästar med info + siffror jämte raderna i båda sidokolumnerna.

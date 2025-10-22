@@ -1,0 +1,1 @@
+Patch v2.11 – Info-rader = knapphöjd, kusk står på samma rad, centrerad navigation, radpris 0.50 kr, fix för dubbelhopp i nav + kuponglayout tweak.
