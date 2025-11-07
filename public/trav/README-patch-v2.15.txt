@@ -1,1 +1,0 @@
-Patch v2.15 – Alla slider-stilar är namnskopade (ts-*) så chipparna för speltyper påverkas inte. Slider byggs om vid behov efter inklistring.

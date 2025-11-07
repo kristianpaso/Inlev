@@ -1,1 +1,0 @@
-Patch v2.14 – Hästinfo visas direkt efter inklistring: slider byggs om när antal avdelningar ändras. Populär-markerar endast max>0, bibehåller övriga v2.13-fixar.

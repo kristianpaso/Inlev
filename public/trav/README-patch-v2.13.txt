@@ -1,1 +1,0 @@
-Patch v2.13 – Populär röd endast på max i aktuell avdelning, döljer endast gamla avdelningslistan (OCR/manuella kuponger syns igen).

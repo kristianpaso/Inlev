@@ -1,1 +1,0 @@
-Patch v2.12 – Flerbockning i Min kupong (ingen reset), populär per avdelning, hästinfo på en rad utan vänster-nummer, höjdanpassad mot rutorna, localStorage för hästinfo, centrerad navigation och döljer gamla .section-blocket.

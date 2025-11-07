@@ -1,1 +1,0 @@
-README v5.6.9 – fixar regex-felet (saknad '/') i OCR-kalibrering och behåller funktionerna.

@@ -1,1 +1,0 @@
-Patch v2.17 – Populärt räknar även disabled/readonly inputs och hittar importerade kuponger via .coupon-row.

@@ -1,1 +1,0 @@
-Patch v2.16 – Klick på #formPills .pill byter speltyp + antal avdelningar och renderar slidern. Namnskopade 'ts-*' stilar.

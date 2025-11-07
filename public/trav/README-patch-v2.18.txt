@@ -1,1 +1,0 @@
-Patch v2.18 – Läser kuponger från #couponGrid (.coupon-card .row > div) och uppdaterar popularitet live via MutationObserver.
