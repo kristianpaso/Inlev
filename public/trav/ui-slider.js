@@ -1,7 +1,9 @@
-// ui-slider.js — kompakt häst/kusk, uppdaterad CSS, margin 34px, ingen siffra i häst-info
+// ui-slider.js — kompakt häst/kusk, villkorsstyrd padding för strukna/tomma rader,
+// direkt kupong-render, och uppdaterad design
 (function () {
   if (window.__TRAV_SLIDER__) return; window.__TRAV_SLIDER__ = true;
 
+  // ---------- helpers ----------
   const $  = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const on = (el, ev, fn) => el && el.addEventListener(ev, fn, false);
@@ -10,6 +12,7 @@
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const safe  = (fn) => { try { return fn(); } catch (e) { console.error('[trav]', e); } };
 
+  // ---------- keys / system ----------
   const gameId = safe(() => new URL(location.href).searchParams.get('game') || 'GAME-DEFAULT') || 'GAME-DEFAULT';
   const K = {
     INFO:    id => 'ts:info:'    + id,
@@ -19,18 +22,20 @@
     PRICE:   id => 'ts:price:'   + id,
   };
 
+  // ---------- form / price ----------
   const FORM_PRICE = { V64:1, V65:1, GS75:1, V75:0.5, V86:0.5, V85:0.5 };
   const getForm = () => read(K.FORM(gameId), 'V64');
   const setForm = (f) => { write(K.FORM(gameId), f); write(K.PRICE(gameId), (FORM_PRICE[f] != null ? FORM_PRICE[f] : 1)); };
   if (!localStorage.getItem(K.PRICE(gameId))) setForm(getForm());
   const price = () => read(K.PRICE(gameId), 1);
 
+  // ---------- state ----------
   let legs    = read(K.INFO(gameId), null);
   let coupons = read(K.COUPONS(gameId), []);
   let mine    = read(K.MINE(gameId), []);
   let curLeg  = 1;
 
-  // ---------- styles (med dina uppdateringar) ----------
+  // ---------- styles ----------
   (function injectCss(){
     if ($('style[data-ts-core]')) return;
     const st = document.createElement('style'); st.setAttribute('data-ts-core','1');
@@ -47,13 +52,13 @@
       '#trav-slider-host .ts-nav .ts-dot.active{background:#d88715;color:#fff;border-color:#a96a16}' +
 
       '#trav-slider-host .ts-grid{display:grid;grid-template-columns:120px minmax(420px,1fr) 130px;gap:12px;align-items:start}' +
-      '#trav-slider-host .ts-col{background:var(--bg);border:1px dashed #223146;border-radius:12px;padding:8px;align-content:start;font-size:26px}' + /* <- uppdaterad font-size */
+      '#trav-slider-host .ts-col{background:var(--bg);border:1px dashed #223146;border-radius:12px;padding:8px;align-content:start;font-size:26px}' +
       '#trav-slider-host .ts-col h4{margin:0 0 6px 0;font-size:13px;letter-spacing:.02em;color:#b9c5d9;text-transform:uppercase;font-weight:700}' +
 
       '#trav-slider-host .ts-sq{height:var(--row);display:flex;align-items:center;justify-content:center;border:2px solid var(--line);border-radius:12px;background:#111c2b;color:#e6edf7;font-weight:800;cursor:pointer;user-select:none;margin-bottom:6px}' +
       '#trav-slider-host .ts-sq.red{background:#b23c3c;color:#fff;border-color:#a83838}' +
-      '#trav-slider-host .ts-sq.active{outline:2px solid #2aa198;background:#2aa198}' + /* <- uppdaterad */
-      '#trav-slider-host .ts-sq.disabled{color:#ffffff;background:#656565}' + /* <- uppdaterad, ej opacity */
+      '#trav-slider-host .ts-sq.active{outline:2px solid #2aa198;background:#2aa198}' +
+      '#trav-slider-host .ts-sq.disabled{color:#ffffff;background:#656565}' +
 
       /* mitten-tabell + kompakt häst/kusk */
       '#trav-slider-host .horse-table{width:100%;border-collapse:separate;border-spacing:0 6px;font-size:14px}' +
@@ -61,7 +66,7 @@
       '#trav-slider-host .horse-table td{background:#111c2b;border:1px solid #223146;color:#e6edf7;padding:8px 10px;vertical-align:middle}' +
       '#trav-slider-host .horse-table td:first-child{border-top-left-radius:12px;border-bottom-left-radius:12px;font-weight:900}' +
       '#trav-slider-host .horse-table td:last-child{border-top-right-radius:12px;border-bottom-right-radius:12px;text-align:center;min-width:70px}' +
-      '#trav-slider-host .hk-line{display:flex;gap:10px;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:3px}' + /* <- uppdaterad */
+      '#trav-slider-host .hk-line{display:flex;gap:10px;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:3px}' +
       '#trav-slider-host .hk-name{font-weight:900}' +
       '#trav-slider-host .hk-driver{opacity:.85}' +
 
@@ -83,6 +88,7 @@
     document.head.appendChild(st);
   })();
 
+  // ---------- mount ----------
   function ensureHostAndToolbar(){
     const sec = $('.section') || document.body;
     const oh=$('.section .section-header'); if(oh) oh.style.display='none';
@@ -113,6 +119,7 @@
 
   function ensureMine(){ if(!legs) return; if(!Array.isArray(mine)) mine=[]; while(mine.length<legs.length) mine.push([]); write(K.MINE(gameId), mine); }
 
+  // ---------- slider ----------
   function buildNav(r){
     const nav=r.nav; if(!nav||!legs) return; nav.innerHTML='';
     for(let i=1;i<=legs.length;i++){
@@ -138,24 +145,27 @@
     for(const h of leg.horses){ mapByNum[h.num]=h; if(h.num>maxNum) maxNum=h.num; }
     for(let i=1;i<=maxNum;i++) nums.push(i);
 
+    // populärt från kuponger
     const cnt={}, max={v:0};
     for(const c of coupons){
       const arr=(c.legs||[])[curLeg-1]||[];
       for(const n of arr){ cnt[n]=(cnt[n]||0)+1; if(cnt[n]>max.v) max.v=cnt[n]; }
     }
 
+    // vänster (populärt)
     const pop=$('#colPop');
     if(pop){
       pop.innerHTML='<h4>Populärt</h4>';
       nums.forEach((n,idx)=>{
         const d=document.createElement('div'); d.className='ts-sq';
-        if (idx===0) d.style.marginTop='34px'; // <- uppdaterad linjering
+        if (idx===0) d.style.marginTop='34px';   // linjering med tabellens första rad
         const v=cnt[n]||0; if(v===max.v&&max.v>0) d.classList.add('red'); if(v===0) d.classList.add('disabled');
-        d.textContent=String(n); pop.appendChild(d);
+        d.textContent=String(n);
+        pop.appendChild(d);
       });
     }
 
-    // mitten-tabell: visa ENDAST "Hästnamn — Kusk" (ingen siffra)
+    // mitten (tabell) — visa ENDAST "Hästnamn — Kusk" (ingen siffra här)
     if(r.tbody){
       r.tbody.innerHTML='';
       nums.forEach(n=>{
@@ -164,6 +174,8 @@
 
         const tdName=document.createElement('td');
         const line=document.createElement('div'); line.className='hk-line';
+        // Lägg extra padding bara när häst saknas eller markerats struken
+        if (!h || h.scratched) { line.style.padding = '14px'; }
         const spanName=document.createElement('span');  spanName.className='hk-name';   spanName.textContent=h?(h.name||''):'';
         const spanDriver=document.createElement('span'); spanDriver.className='hk-driver'; spanDriver.textContent=h&&h.driver?('— '+h.driver):'';
         line.appendChild(spanName); line.appendChild(spanDriver);
@@ -182,13 +194,14 @@
       });
     }
 
+    // höger (min kupong)
     const mineWrap=r.mine;
     if(mineWrap){
       mineWrap.innerHTML='<h4>Min kupong</h4>';
       const set=new Set(mine[curLeg-1]||[]);
       nums.forEach((nn,idx)=>{
         const pill=document.createElement('div'); pill.className='ts-sq'+(set.has(nn)?' active':''); pill.textContent=String(nn);
-        if (idx===0) pill.style.marginTop='34px'; // <- uppdaterad linjering
+        if (idx===0) pill.style.marginTop='34px'; // linjering
         pill.onclick=()=>{
           const arr=new Set(mine[curLeg-1]||[]);
           if(arr.has(nn)) arr.delete(nn); else arr.add(nn);
@@ -219,6 +232,7 @@
     r.sum.appendChild(tot);
   }
 
+  // ---------- kuponglista ----------
   const couponPrice = c => {
     const L=(c.legs&&c.legs.length)||0; if(!L) return 0;
     let rows=1; for(let i=0;i<L;i++){ const len=(c.legs[i]?c.legs[i].length:0); rows*=Math.max(len,1); }
@@ -248,6 +262,7 @@
     }
   }
 
+  // Engångs-observer för att fånga när #couponGrid dyker upp (render direkt)
   function renderCouponGridWhenReady(){
     const grid=$('#couponGrid');
     if (grid) { renderCouponGrid(); return; }
@@ -261,6 +276,7 @@
 
   const persistCouponsAndRefresh = () => { write(K.COUPONS(gameId), coupons); renderCouponGrid(); };
 
+  // ---------- manuell dialog ----------
   function getManualDialog(){
     let dlg=$('#dlgManual');
     if(!dlg){
@@ -278,6 +294,7 @@
     body.innerHTML='';
     if(!legs||!legs.length){ body.innerHTML='<div>Inga avdelningar inlästa ännu.</div>'; return; }
 
+    // egna selections per öppning – kuponger kopieras inte längre
     const selections = Array.from({length: legs.length}, () => ({}));
 
     for(let l=0;l<legs.length;l++){
@@ -315,6 +332,7 @@
     setTimeout(()=> buildPillUI(dlg), 0);
   }
 
+  // ---------- PASTE-ALL: TAB-parser (HÄST/KUSK/V64%/TREND%/DISTANS & SPÅR/STARTER I ÅR/VAGN/V-ODDS) ----------
   function wirePasteAll(){
     const ta=$('#fldAllPaste'); if(!ta) return;
     on(ta,'input',()=>{
@@ -324,7 +342,7 @@
       const out=[]; let lastNum=0, idx=1, cur={idx, horses:[]};
 
       for (const line of rows) {
-        if (/^HÄST(\t| )+KUSK/i.test(line)) continue;
+        if (/^HÄST(\t| )+KUSK/i.test(line)) continue; // hoppa rubrik
 
         const cols = line.split('\t');
         let num, name, driver='', pct='', trend='', dist='', starts='', vagn='', vodds='';
@@ -372,6 +390,7 @@
     });
   }
 
+  // ---------- init ----------
   function init(){
     ensureHostAndToolbar();
 
@@ -385,7 +404,7 @@
       const r=refs(); if(r.price) r.price.textContent='';
     }
 
-    renderCouponGridWhenReady();
+    renderCouponGridWhenReady(); // kuponger direkt
     wirePasteAll();
 
     const pills=$('#formPills');
@@ -399,17 +418,6 @@
       });
       const cur=getForm(); const act=pills.querySelector('button[data-form="'+cur+'"]'); if(act) act.classList.add('active');
     }
-  }
-
-  function renderCouponGridWhenReady(){
-    const grid=$('#couponGrid');
-    if (grid) { renderCouponGrid(); return; }
-    const obs = new MutationObserver(() => {
-      const g = $('#couponGrid');
-      if (g) { obs.disconnect(); renderCouponGrid(); }
-    });
-    obs.observe(document.body, { childList:true, subtree:true });
-    setTimeout(()=>obs.disconnect(), 5000);
   }
 
   if (document.readyState === 'loading'){
