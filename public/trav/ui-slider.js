@@ -1,282 +1,228 @@
-// ui-slider.js — kompakt häst/kusk, villkorsstyrd padding för strukna/tomma rader,
-// direkt kupong-render, och uppdaterad design
+// ui-slider.js — per-game state, SPA-aware mounting under <!-- Avdelningar -->,
+// star markers for "spik", mobile swipe navigation, live price for "Min kupong".
 (function () {
-  if (window.__TRAV_SLIDER__) return; window.__TRAV_SLIDER__ = true;
+  if (window.__TRAV_SLIDER__) return;
+  window.__TRAV_SLIDER__ = true;
 
   // ---------- helpers ----------
   const $  = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
-  const on = (el, ev, fn) => el && el.addEventListener(ev, fn, false);
-  const read  = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
-  const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
-  const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
-  const safe  = (fn) => { try { return fn(); } catch (e) { console.error('[trav]', e); } };
+  const on = (el, ev, fn, opt) => el && el.addEventListener(ev, fn, opt||false);
+  const jget = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
+  const jset = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+  const sget = (k, d) => { try { const v = sessionStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
+  const sset = (k, v) => { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch {} };
+  const sdel = (k)     => { try { sessionStorage.removeItem(k); } catch {} };
+  const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
 
-  // ---------- keys / system ----------
-  const gameId = safe(() => new URL(location.href).searchParams.get('game') || 'GAME-DEFAULT') || 'GAME-DEFAULT';
-  const K = {
-    INFO:    id => 'ts:info:'    + id,
-    COUPONS: id => 'ts:coupons:' + id,
-    MINE:    id => 'ts:mine:'    + id,
-    FORM:    id => 'ts:form:'    + id,
-    PRICE:   id => 'ts:price:'   + id,
-  };
+  const getGameId = () => new URL(location.href).searchParams.get('game') || null;
+  const KEY = (gid, slot) => `trav:${gid||'__nogame__'}:${slot}`;
 
-  // ---------- form / price ----------
-  const FORM_PRICE = { V64:1, V65:1, GS75:1, V75:0.5, V86:0.5, V85:0.5 };
-  const getForm = () => read(K.FORM(gameId), 'V64');
-  const setForm = (f) => { write(K.FORM(gameId), f); write(K.PRICE(gameId), (FORM_PRICE[f] != null ? FORM_PRICE[f] : 1)); };
-  if (!localStorage.getItem(K.PRICE(gameId))) setForm(getForm());
-  const price = () => read(K.PRICE(gameId), 1);
+  // ---------- mount under <!-- Avdelningar --> ----------
+  function findAvdComment(root) {
+    try {
+      const walker = document.createTreeWalker(root || document, NodeFilter.SHOW_COMMENT);
+      let n; while ((n = walker.nextNode())) if (/Avdelningar/i.test(n.nodeValue||'')) return n;
+    } catch {}
+    return null;
+  }
+  function removeLegacySectionAfter(commentNode) {
+    if (!commentNode) return;
+    let sib = commentNode.nextSibling;
+    while (sib && sib.nodeType !== 1) sib = sib.nextSibling;
+    if (sib && sib.nodeType === 1 && sib.classList.contains('section')) sib.remove();
+  }
+  function ensureHostAtAvd() {
+    const game = $('#view-game'); if (!game) return null;
+    const avdCmt = findAvdComment(game); if (!avdCmt) return null;
 
-  // ---------- state ----------
-  let legs    = read(K.INFO(gameId), null);
-  let coupons = read(K.COUPONS(gameId), []);
-  let mine    = read(K.MINE(gameId), []);
-  let curLeg  = 1;
+    // Döda gammal <div class="section"> under kommentaren
+    removeLegacySectionAfter(avdCmt);
 
-  // ---------- styles ----------
-  (function injectCss(){
+    // Om host finns men ligger fel: flytta om
+    const wrong = $('#trav-slider-host');
+    if (wrong) {
+      let sib = avdCmt.nextSibling; while (sib && sib.nodeType !== 1) sib = sib.nextSibling;
+      if (sib !== wrong) wrong.remove();
+    }
+
+    let host = $('#trav-slider-host');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'trav-slider-host';
+      host.innerHTML = `
+        <div class="ts-head">
+          <div class="ts-title">
+            <span>Avdelning</span>
+            <span id="tsLegPos">1</span><span id="tsLegTotal">/ 0</span>
+            <span id="tsPrice" class="ts-price"></span>
+          </div>
+          <div id="tsSummaryTop"></div>
+        </div>
+        <div class="ts-grid" id="tsSwipeArea">
+          <div class="ts-col" id="colPop"><h4>Populärt</h4></div>
+          <div class="ts-col" id="colInfo">
+            <h4>Hästar</h4>
+            <table class="horse-table">
+              <thead><tr>
+                <th>Häst/Kusk</th><th>V64%</th><th>Trend%</th><th>Distans & spår</th><th>Starter i år</th><th>Vagn</th><th>V-odds</th>
+              </tr></thead>
+              <tbody id="horseTBody"></tbody>
+            </table>
+          </div>
+          <div class="ts-col" id="colMine"><h4>Min kupong</h4></div>
+        </div>
+        <div id="couponGrid" class="coupon-grid"></div>
+      `;
+      avdCmt.parentNode.insertBefore(host, avdCmt.nextSibling);
+    }
+    return host;
+  }
+  function isGameVisible() {
+    const game = $('#view-game');
+    const overview = $('#view-overview');
+    const gameShown = !!game && !game.classList.contains('hidden') && game.offsetParent !== null;
+    const overviewHidden = !overview || overview.classList.contains('hidden') || overview.offsetParent === null;
+    return gameShown && overviewHidden;
+  }
+
+  // ---------- CSS ----------
+  (function css(){
     if ($('style[data-ts-core]')) return;
-    const st = document.createElement('style'); st.setAttribute('data-ts-core','1');
-    st.textContent =
-      '#trav-toolbar{display:flex;gap:8px;justify-content:flex-end;margin:8px 0}' +
-      '#trav-toolbar .btn{border:1px solid #2a3a52;border-radius:10px;padding:6px 10px;background:#0f1724;color:#e6edf7;cursor:pointer}' +
-      '#trav-toolbar .btn.primary{background:#1f6feb;border-color:#1f6feb;color:#fff}' +
+    const st=document.createElement('style'); st.setAttribute('data-ts-core','1');
+    st.textContent = `
+#trav-slider-host{--row:44px;--bg:#0f1724;--line:#223146;--text:#e6edf7;margin:10px 0 12px}
+#trav-slider-host .ts-head{display:flex;flex-direction:column;gap:10px;margin:8px 0 12px}
+#trav-slider-host .ts-title{font-weight:800;color:var(--text);display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap}
+#trav-slider-host .ts-title .ts-price{margin-left:10px;opacity:.95;padding:2px 10px;border-radius:999px;background:#14324d;border:1px solid #1d4465}
+#trav-slider-host .ts-grid{display:grid;grid-template-columns:120px minmax(420px,1fr) 130px;gap:12px;align-items:start}
+@media (max-width:960px){ #trav-slider-host .ts-grid{grid-template-columns:84px minmax(240px,1fr) 96px} }
+#trav-slider-host .ts-col{background:var(--bg);border:1px dashed var(--line);border-radius:12px;padding:8px;align-content:start}
+#trav-slider-host .ts-col h4{margin:0 0 6px 0;font-size:13px;color:#b9c5d9;text-transform:uppercase}
+#trav-slider-host .ts-sq{height:var(--row);display:flex;align-items:center;justify-content:center;border:2px solid #28384f;border-radius:12px;background:#111c2b;color:#e6edf7;font-weight:800;cursor:pointer;user-select:none;margin-bottom:6px}
+#trav-slider-host .ts-sq.red{background:#b23c3c;color:#fff;border-color:#a83838}
+#trav-slider-host .ts-sq.active{outline:2px solid #2aa198;background:#2aa198}
+#trav-slider-host .ts-sq.disabled{color:#ffffff;background:#656565}
+#trav-slider-host .ts-poprow{position:relative}
+#trav-slider-host .ts-stars{position:absolute; left:-18px; top:50%; transform:translateY(-50%); display:flex; gap:2px; pointer-events:none}
+#trav-slider-host .ts-stars .star{font-size:11px; line-height:1; color:#ffd84d; text-shadow:0 0 2px #5b4700}
+#trav-slider-host .horse-table{width:100%;border-collapse:separate;border-spacing:0 6px;font-size:14px}
+#trav-slider-host .horse-table th{font-size:12px;text-transform:uppercase;color:#b9c5d9;text-align:left;padding:0 10px;white-space:nowrap}
+#trav-slider-host .horse-table td{background:#111c2b;border:1px solid #223146;color:#e6edf7;padding:8px 10px;vertical-align:middle}
+#trav-slider-host .horse-table td:first-child{border-top-left-radius:12px;border-bottom-left-radius:12px;font-weight:900}
+#trav-slider-host .horse-table td:last-child{border-top-right-radius:12px;border-bottom-right-radius:12px;text-align:center;min-width:70px}
+#trav-slider-host .hk-line{display:flex;gap:10px;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:3px}
+#trav-slider-host .hk-name{font-weight:900}
+#trav-slider-host .hk-driver{opacity:.85}
 
-      '#trav-slider-host{--row:44px;--line:#28384f;--bg:#0f1724;--text:#e6edf7;--accent:#1f6feb;white-space:normal;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial,sans-serif;margin-bottom:12px}' +
-      '#trav-slider-host .ts-head{display:flex;flex-direction:column;gap:10px;margin:8px 0 12px}' +
-      '#trav-slider-host .ts-title{font-weight:800;color:var(--text);display:flex;gap:10px;align-items:center;justify-content:center}' +
-      '#trav-slider-host .ts-nav{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}' +
-      '#trav-slider-host .ts-nav .ts-dot{min-width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:#111c2b;color:#e6edf7;font-weight:800;cursor:pointer}' +
-      '#trav-slider-host .ts-nav .ts-dot.active{background:#d88715;color:#fff;border-color:#a96a16}' +
+/* SUMMARY BAR (desktop + mobil) */
+#trav-slider-host .ts-sbar{background:#f39a24;border-radius:12px;padding:8px 10px}
+#trav-slider-host .ts-sbar .row1{display:flex;gap:8px;justify-content:center;overflow-x:auto;scrollbar-width:none}
+#trav-slider-host .ts-sbar .row1::-webkit-scrollbar{display:none}
+#trav-slider-host .ts-legbtn{min-width:42px;height:34px;border-radius:8px;border:0;background:#c57929;color:#fff;font-weight:900;display:flex;align-items:center;justify-content:center}
+#trav-slider-host .ts-legbtn.active{background:#1976d2}
+#trav-slider-host .ts-sbar .row2{display:flex;gap:12px;margin-top:6px;color:#fff;font-weight:900;justify-content:center;flex-wrap:wrap}
+#trav-slider-host .ts-sbar .count{min-width:42px;text-align:center;font-size:16px;line-height:1.2}
 
-      '#trav-slider-host .ts-grid{display:grid;grid-template-columns:120px minmax(420px,1fr) 130px;gap:12px;align-items:start}' +
-      '#trav-slider-host .ts-col{background:var(--bg);border:1px dashed #223146;border-radius:12px;padding:8px;align-content:start;font-size:26px}' +
-      '#trav-slider-host .ts-col h4{margin:0 0 6px 0;font-size:13px;letter-spacing:.02em;color:#b9c5d9;text-transform:uppercase;font-weight:700}' +
+@media (max-width:640px){
+  #trav-slider-host .ts-sbar{padding:10px 12px;border-radius:14px}
+  #trav-slider-host .ts-legbtn{min-width:48px;height:38px;border-radius:10px;font-size:16px}
+  #trav-slider-host .ts-sbar .count{min-width:48px;font-size:18px}
+  #trav-slider-host .ts-title{gap:12px}
+  #trav-slider-host .ts-title .ts-price{font-size:16px}
+}
 
-      '#trav-slider-host .ts-sq{height:var(--row);display:flex;align-items:center;justify-content:center;border:2px solid var(--line);border-radius:12px;background:#111c2b;color:#e6edf7;font-weight:800;cursor:pointer;user-select:none;margin-bottom:6px}' +
-      '#trav-slider-host .ts-sq.red{background:#b23c3c;color:#fff;border-color:#a83838}' +
-      '#trav-slider-host .ts-sq.active{outline:2px solid #2aa198;background:#2aa198}' +
-      '#trav-slider-host .ts-sq.disabled{color:#ffffff;background:#656565}' +
-
-      /* mitten-tabell + kompakt häst/kusk */
-      '#trav-slider-host .horse-table{width:100%;border-collapse:separate;border-spacing:0 6px;font-size:14px}' +
-      '#trav-slider-host .horse-table th{font-size:12px;text-transform:uppercase;color:#b9c5d9;text-align:left;padding:0 10px;white-space:nowrap}' +
-      '#trav-slider-host .horse-table td{background:#111c2b;border:1px solid #223146;color:#e6edf7;padding:8px 10px;vertical-align:middle}' +
-      '#trav-slider-host .horse-table td:first-child{border-top-left-radius:12px;border-bottom-left-radius:12px;font-weight:900}' +
-      '#trav-slider-host .horse-table td:last-child{border-top-right-radius:12px;border-bottom-right-radius:12px;text-align:center;min-width:70px}' +
-      '#trav-slider-host .hk-line{display:flex;gap:10px;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:3px}' +
-      '#trav-slider-host .hk-name{font-weight:900}' +
-      '#trav-slider-host .hk-driver{opacity:.85}' +
-
-      '#trav-slider-host .summary{margin-top:12px}' +
-      '#trav-slider-host .leg-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(70px,1fr));gap:8px}' +
-      '#trav-slider-host .leg{background:#111c2b;border:1px solid #223146;border-radius:8px;padding:7px 0;text-align:center;font-weight:800;color:#e6edf7}' +
-
-      '#couponGrid .coupon-card{border:1px solid #223146;border-radius:12px;padding:10px;margin:8px;background:#0f1724;color:#e6edf7}' +
-      '#couponGrid .coupon-lines{margin-top:8px;font-family:ui-monospace,Consolas,Menlo,monospace;white-space:pre-wrap;line-height:1.35;opacity:.95}' +
-      '#couponGrid .coupon-price{margin-top:6px;opacity:.8}' +
-
-      'dialog.modal{border:none;border-radius:12px;background:#0f1724;color:#e6edf7;width:min(820px,calc(100% - 32px));max-height:85vh;padding:0;overflow:auto}' +
-      'dialog.modal::backdrop{background:rgba(0,0,0,.55)}' +
-      'dialog.modal .card-header{padding:12px 16px;font-weight:800;border-bottom:1px solid #223146}' +
-      'dialog.modal .card-body{padding:14px 16px}' +
-      'dialog.modal .card-footer{padding:12px 16px;border-top:1px solid #223146;display:flex;gap:8px;justify-content:flex-end}' +
-      '#dlgManual .pill{border:1px solid #2a3a52;border-radius:16px;padding:4px 10px;background:#0f1724;color:#e6edf7}' +
-      '#dlgManual .pill.active{background:#1f6feb;border-color:#1f6feb;color:#fff}';
+#couponGrid .coupon-card{border:1px solid #223146;border-radius:12px;padding:10px;margin:8px;background:#0f1724;color:#e6edf7}
+#couponGrid .coupon-lines{margin-top:8px;font-family:ui-monospace,Consolas,Menlo,monospace;white-space:pre-wrap;line-height:1.35;opacity:.95}
+#couponGrid .coupon-price{margin-top:6px;opacity:.8}
+    `;
     document.head.appendChild(st);
   })();
 
-  // ---------- mount ----------
-  function ensureHostAndToolbar(){
-    const sec = $('.section') || document.body;
-    const oh=$('.section .section-header'); if(oh) oh.style.display='none';
-    const avd=$('#avdList');               if(avd) avd.style.display='none';
-    const st =$('#stickySummary');         if(st)  st.style.display='none';
+  // ---------- state (per game) ----------
+  let curGameId = null;
+  let legs  = null;         // [{horses: [...]}, ...]
+  let mine  = [];           // [[1,4,7],[],...]
+  let form  = 'V64';
+  let priceUnit = 1;
+  let coupons = [];
+  let curLeg = 1;
 
-    if(!$('#trav-toolbar')){
-      const tb=document.createElement('div'); tb.id='trav-toolbar';
-      tb.innerHTML='<button id="btnOpenManualTS" class="btn primary">Lägg kupong manuellt</button>';
-      sec.insertBefore(tb, sec.firstChild);
-      on($('#btnOpenManualTS',tb),'click', openManualDialog);
+  function loadStateFor(gid){
+    if (!gid) { legs=null; mine=[]; coupons=[]; return; }
+    legs  = jget(KEY(gid,'info'), null);
+    // Om inget finns men pending buffert finns (nyskapad), applicera den nu
+    if (!legs) {
+      const pending = sget('trav:pendingInfo', null);
+      if (pending) {
+        jset(KEY(gid,'info'), pending);
+        legs = pending;
+        sdel('trav:pendingInfo');
+      }
     }
-    if(!$('#trav-slider-host')){
-      const host=document.createElement('div'); host.id='trav-slider-host';
-      host.innerHTML =
-        '<div class="ts-head"><div class="ts-title"><span>Avdelning</span> <span id="tsLegPos">1</span><span id="tsLegTotal">/ 0</span><span id="tsPrice" style="margin-left:10px;opacity:.9"></span></div><div class="ts-nav" id="tsNav"></div></div>' +
-        '<div class="ts-grid">' +
-          '<div class="ts-col" id="colPop"><h4>Populärt</h4></div>' +
-          '<div class="ts-col" id="colInfo"><h4>Hästar</h4><table class="horse-table"><thead><tr>' +
-            '<th>Häst/Kusk</th><th>V64%</th><th>Trend%</th><th>Distans & spår</th><th>Starter i år</th><th>Vagn</th><th>V-odds</th>' +
-          '</tr></thead><tbody id="horseTBody"></tbody></table></div>' +
-          '<div class="ts-col" id="colMine"><h4>Min kupong</h4></div>' +
-        '</div><div class="summary" id="sumRow"></div>';
-      sec.insertBefore(host, $('#trav-toolbar').nextSibling);
-    }
+    mine  = jget(KEY(gid,'mine'), []);
+    form  = jget(KEY(gid,'form'),'V64');
+    priceUnit = jget(KEY(gid,'price'), (form==='V75'||form==='V86'||form==='V85')?0.5:1);
+    coupons = (jget(KEY(gid,'coupons'),[])||[]).filter(c=>c && c.gameId===gid);
+    normalizeMine();
   }
-  const refs = () => { const h=$('#trav-slider-host'); return { nav:$('#tsNav',h), pos:$('#tsLegPos',h), tot:$('#tsLegTotal',h), price:$('#tsPrice',h), pop:$('#colPop',h), tbody:$('#horseTBody',h), mine:$('#colMine',h), sum:$('#sumRow',h) }; };
-
-  function ensureMine(){ if(!legs) return; if(!Array.isArray(mine)) mine=[]; while(mine.length<legs.length) mine.push([]); write(K.MINE(gameId), mine); }
-
-  // ---------- slider ----------
-  function buildNav(r){
-    const nav=r.nav; if(!nav||!legs) return; nav.innerHTML='';
-    for(let i=1;i<=legs.length;i++){
-      const b=document.createElement('button'); b.className='ts-dot'; b.textContent=String(i);
-      b.onclick=()=> setLeg(i);
-      if(i===curLeg) b.classList.add('active');
-      nav.appendChild(b);
-    }
-  }
-  function setLeg(n){
-    if(!legs||!legs.length) return;
-    const r=refs(); curLeg=clamp(n,1,legs.length);
-    if(r.pos) r.pos.textContent=String(curLeg);
-    if(r.tot) r.tot.textContent='/ '+legs.length;
-    renderLeg(r); renderSummary(r);
+  function saveMine(){ if(curGameId) jset(KEY(curGameId,'mine'), mine); }
+  function normalizeMine(){
+    if (!Array.isArray(legs)) return;
+    if (!Array.isArray(mine)) mine=[];
+    for(let i=0;i<legs.length;i++) if(!Array.isArray(mine[i])) mine[i]=[];
+    mine.length=legs.length;
   }
 
-  function renderLeg(r){
-    r=r||refs(); if(!legs||!legs.length) return; ensureMine(); buildNav(r);
-
-    const leg=legs[curLeg-1];
-    const mapByNum={}, nums=[]; let maxNum=1;
-    for(const h of leg.horses){ mapByNum[h.num]=h; if(h.num>maxNum) maxNum=h.num; }
-    for(let i=1;i<=maxNum;i++) nums.push(i);
-
-    // populärt från kuponger
-    const cnt={}, max={v:0};
-    for(const c of coupons){
-      const arr=(c.legs||[])[curLeg-1]||[];
-      for(const n of arr){ cnt[n]=(cnt[n]||0)+1; if(cnt[n]>max.v) max.v=cnt[n]; }
+  // ---------- price for "Min kupong" ----------
+  function calcMyPrice(){
+    if (!Array.isArray(legs) || !Array.isArray(mine) || legs.length===0) return 0;
+    let prod = 1, anyZero=false;
+    for (let i=0;i<legs.length;i++){
+      const c = (mine[i]||[]).length;
+      if (c===0) { anyZero=true; break; }
+      prod *= c;
     }
-
-    // vänster (populärt)
-    const pop=$('#colPop');
-    if(pop){
-      pop.innerHTML='<h4>Populärt</h4>';
-      nums.forEach((n,idx)=>{
-        const d=document.createElement('div'); d.className='ts-sq';
-        if (idx===0) d.style.marginTop='34px';   // linjering med tabellens första rad
-        const v=cnt[n]||0; if(v===max.v&&max.v>0) d.classList.add('red'); if(v===0) d.classList.add('disabled');
-        d.textContent=String(n);
-        pop.appendChild(d);
-      });
-    }
-
-    // mitten (tabell) — visa ENDAST "Hästnamn — Kusk" (ingen siffra här)
-    if(r.tbody){
-      r.tbody.innerHTML='';
-      nums.forEach(n=>{
-        const h=mapByNum[n];
-        const tr=document.createElement('tr');
-
-        const tdName=document.createElement('td');
-        const line=document.createElement('div'); line.className='hk-line';
-        // Lägg extra padding bara när häst saknas eller markerats struken
-        if (!h || h.scratched) { line.style.padding = '14px'; }
-        const spanName=document.createElement('span');  spanName.className='hk-name';   spanName.textContent=h?(h.name||''):'';
-        const spanDriver=document.createElement('span'); spanDriver.className='hk-driver'; spanDriver.textContent=h&&h.driver?('— '+h.driver):'';
-        line.appendChild(spanName); line.appendChild(spanDriver);
-        tdName.appendChild(line);
-
-        const tdPct   = document.createElement('td'); tdPct.textContent   = (h&&h.pct   != null ? String(h.pct)   : '');
-        const tdTrend = document.createElement('td'); tdTrend.textContent = (h&&h.trend != null ? String(h.trend) : '');
-        const tdDist  = document.createElement('td'); tdDist.textContent  = (h&&h.dist  || '');
-        const tdStart = document.createElement('td'); tdStart.textContent = (h&&h.starts|| '');
-        const tdVagn  = document.createElement('td'); tdVagn.textContent  = (h&&h.vagn  || '');
-        const tdOdds  = document.createElement('td'); tdOdds.textContent  = (h&&h.vodds || '');
-
-        tr.appendChild(tdName); tr.appendChild(tdPct); tr.appendChild(tdTrend);
-        tr.appendChild(tdDist); tr.appendChild(tdStart); tr.appendChild(tdVagn); tr.appendChild(tdOdds);
-        r.tbody.appendChild(tr);
-      });
-    }
-
-    // höger (min kupong)
-    const mineWrap=r.mine;
-    if(mineWrap){
-      mineWrap.innerHTML='<h4>Min kupong</h4>';
-      const set=new Set(mine[curLeg-1]||[]);
-      nums.forEach((nn,idx)=>{
-        const pill=document.createElement('div'); pill.className='ts-sq'+(set.has(nn)?' active':''); pill.textContent=String(nn);
-        if (idx===0) pill.style.marginTop='34px'; // linjering
-        pill.onclick=()=>{
-          const arr=new Set(mine[curLeg-1]||[]);
-          if(arr.has(nn)) arr.delete(nn); else arr.add(nn);
-          mine[curLeg-1]=Array.from(arr).sort((a,b)=>a-b);
-          write(K.MINE(gameId),mine);
-          renderSummary(r); renderLeg(r);
-        };
-        mineWrap.appendChild(pill);
-      });
-    }
+    if (anyZero) return 0;
+    return prod * (priceUnit||1);
   }
 
-  function renderSummary(r){
-    r=r||refs(); if(!legs||!legs.length||!r.sum) return; r.sum.innerHTML='';
-    const counts=[]; for(let i=0;i<mine.length;i++) counts.push((mine[i]&&mine[i].length)?mine[i].length:0);
-    while(counts.length<legs.length) counts.push(0);
-    const row=document.createElement('div'); row.className='leg-row';
-    counts.forEach((c,i)=>{
-      const cell=document.createElement('div'); cell.className='leg';
-      cell.innerHTML = `<div>Avd ${i+1}</div><div style="opacity:.9">${c}</div>`;
-      row.appendChild(cell);
-    });
-    r.sum.appendChild(row);
-    let rows=1; counts.forEach(c => rows *= Math.max(c,1));
-    if(r.price) r.price.textContent='Pris: '+String(price()).replace('.',',')+' kr';
-    const tot=document.createElement('div'); tot.className='coupon-price';
-    tot.textContent='= '+(rows*price()).toLocaleString('sv-SE')+' kr';
-    r.sum.appendChild(tot);
-  }
+  // ---------- parser ----------
+  function parseAllPaste(text){
+    if (!text || !text.trim()) return null;
+    const rows=text.replace(/\r/g,'').split('\n').filter(l=>l.trim().length>0);
 
-  // ---------- kuponglista ----------
-  const couponPrice = c => {
-    const L=(c.legs&&c.legs.length)||0; if(!L) return 0;
-    let rows=1; for(let i=0;i<L;i++){ const len=(c.legs[i]?c.legs[i].length:0); rows*=Math.max(len,1); }
-    return rows*price();
-  };
-  const linesForCoupon = c => {
-    const L=(c.legs&&c.legs.length)||0, out=[];
-    for(let i=0;i<L;i++){ const arr=c.legs[i]||[]; out.push(`Avd ${i+1}: ${arr.length?arr.join(' '):'—'}`); }
-    return out.join('\n');
-  };
+    const out=[]; let current=null; let lastNum=-Infinity;
+    for (const raw of rows){
+      const line = raw.trim();
+      if (/^HÄST(\s|\t)+KUSK/i.test(line)) continue;
 
-  function renderCouponGrid(){
-    const grid=$('#couponGrid'); if(!grid) return;
-    grid.innerHTML='';
-    for(let i=0;i<coupons.length;i++){
-      const c=coupons[i]||{name:'Kupong '+(i+1), legs:[]};
-      const card=document.createElement('div'); card.className='coupon-card';
-      const title=document.createElement('b'); title.textContent=c.name||('Kupong '+(i+1)); card.appendChild(title);
-      const lines=document.createElement('div'); lines.className='coupon-lines'; lines.textContent=linesForCoupon(c); card.appendChild(lines);
-      const p=document.createElement('div'); p.className='coupon-price'; p.textContent='Pris: '+couponPrice(c).toLocaleString('sv-SE')+' kr'; card.appendChild(p);
-      const del=document.createElement('button');
-      del.className='btn'; del.style.cssText='margin-top:8px;background:#b23c3c;border:1px solid #b23c3c;color:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;';
-      del.textContent='Ta bort';
-      del.onclick=()=>{ coupons.splice(i,1); write(K.COUPONS(gameId),coupons); renderCouponGrid(); renderLeg(); renderSummary(); };
-      card.appendChild(del);
-      grid.appendChild(card);
+      const cols = raw.indexOf('\t')>-1 ? raw.split('\t') : raw.trim().split(/\s{2,}/);
+      if (!cols.length) continue;
+
+      const m = /^(\d+)\s+(.*)$/.exec((cols[0]||'').toString().trim());
+      if (!m) continue;
+
+      const num   = parseInt(m[1],10);
+      const name  = m[2];
+      const driver= (cols[1]||'').toString().trim();
+      const pct   = (cols[2]||'').toString().trim().replace('%','');
+      const trend = (cols[3]||'').toString().trim().replace('%','');
+      const dist  = (cols[4]||'').toString().trim();
+      const starts= (cols[5]||'').toString().trim();
+      const vagn  = (cols[6]||'').toString().trim();
+      const vodds = (cols[7]||'').toString().trim();
+
+      const startsNewLeg = /^1(\s|\t)/.test(line) || (current && isFinite(lastNum) && isFinite(num) && num <= lastNum);
+      if (!current || startsNewLeg){ current = { horses: [] }; out.push(current); lastNum = -Infinity; }
+      current.horses.push({num,name,driver,pct,trend,dist,starts,vagn,vodds});
+      lastNum = num;
     }
+    const clean = out.filter(l => (l.horses||[]).length>0);
+    return clean.length ? clean : null;
   }
 
-  // Engångs-observer för att fånga när #couponGrid dyker upp (render direkt)
-  function renderCouponGridWhenReady(){
-    const grid=$('#couponGrid');
-    if (grid) { renderCouponGrid(); return; }
-    const obs = new MutationObserver(() => {
-      const g = $('#couponGrid');
-      if (g) { obs.disconnect(); renderCouponGrid(); }
-    });
-    obs.observe(document.body, { childList:true, subtree:true });
-    setTimeout(()=>obs.disconnect(), 5000);
-  }
-
-  const persistCouponsAndRefresh = () => { write(K.COUPONS(gameId), coupons); renderCouponGrid(); };
-
-  // ---------- manuell dialog ----------
+  // ---------- dialogs/hooks ----------
   function getManualDialog(){
     let dlg=$('#dlgManual');
     if(!dlg){
@@ -285,24 +231,19 @@
       document.body.appendChild(dlg);
       on($('#btnManualClose',dlg),'click',()=>{ if(dlg.open) dlg.close(); });
     }
-    if(dlg.className.indexOf('modal')===-1) dlg.classList.add('modal');
     return dlg;
   }
-
   function buildPillUI(dlg){
-    const body = $('#manual1blocks',dlg) || $('#manualBlocks',dlg) || $('.card-body',dlg) || dlg;
+    const body=$('#manualBlocks',dlg) || $('.card-body',dlg) || dlg;
     body.innerHTML='';
-    if(!legs||!legs.length){ body.innerHTML='<div>Inga avdelningar inlästa ännu.</div>'; return; }
-
-    // egna selections per öppning – kuponger kopieras inte längre
-    const selections = Array.from({length: legs.length}, () => ({}));
-
+    if(!Array.isArray(legs) || legs.length===0){ body.innerHTML='<div>Inga avdelningar inlästa ännu.</div>'; return; }
+    const selections=Array.from({length:legs.length},()=>({}));
     for(let l=0;l<legs.length;l++){
       const leg=legs[l];
       const wrap=document.createElement('div'); wrap.className='mt';
       const label=document.createElement('label'); label.style.color='#e6edf7'; label.textContent='AVD '+(l+1)+' — välj hästar';
       const grid=document.createElement('div'); grid.style.display='grid'; grid.style.gridTemplateColumns='repeat(auto-fit,minmax(44px,1fr))'; grid.style.gap='6px';
-      let maxNum=1; for(const h of leg.horses) if(h.num>maxNum) maxNum=h.num;
+      const maxNum=Math.max(...leg.horses.map(h=>h.num));
       for(let n=1;n<=maxNum;n++){
         const btn=document.createElement('button'); btn.type='button'; btn.className='pill'; btn.textContent=String(n);
         btn.onclick=()=>{ const s=selections[l]; s[n]=!s[n]; btn.classList.toggle('active', !!s[n]); };
@@ -310,119 +251,264 @@
       }
       wrap.appendChild(label); wrap.appendChild(grid); body.appendChild(wrap);
     }
-
     const save=$('#btnManualSave',dlg);
-    save.onclick = (e)=>{
+    save.onclick=(e)=>{
       e.preventDefault&&e.preventDefault();
       const arr=[];
       for(let i=0;i<selections.length;i++){
-        const s=selections[i];
-        const nums=Object.keys(s).filter(k=>s[k]).map(Number).sort((a,b)=>a-b);
+        const s=selections[i]; const nums=Object.keys(s).filter(k=>s[k]).map(Number).sort((a,b)=>a-b);
         arr.push(nums);
       }
-      coupons.push({ name:'Kupong ' + (coupons.length+1), legs:arr });
-      persistCouponsAndRefresh();
+      const list=(jget(KEY(curGameId,'coupons'),[])||[]).filter(c=>c && c.gameId===curGameId);
+      list.push({ name:'Kupong ' + (list.length+1), legs:arr, gameId:curGameId });
+      jset(KEY(curGameId,'coupons'), list);
+      coupons=list;
+      renderCouponGrid(); renderLeg(); renderSummary(); // pris kan ändras (spik-stjärnor)
       if(dlg.open) dlg.close();
     };
   }
+  function openManualDialog(){ const dlg=getManualDialog(); try{ if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','open'); }catch{ dlg.setAttribute('open','open'); } setTimeout(()=>buildPillUI(dlg),0); }
 
-  function openManualDialog(){
-    const dlg=getManualDialog();
-    try{ if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','open'); }catch{ dlg.setAttribute('open','open'); }
-    setTimeout(()=> buildPillUI(dlg), 0);
+  // manuella-knappen
+  (function hookManualBtn(){
+    const tryBind=()=>{
+      const btn = $$('.btn,button').find(b=>/lägg kupong manuellt/i.test((b.textContent||'')));
+      if(btn && !btn.__bound){ btn.__bound=true; on(btn,'click',openManualDialog); }
+    };
+    const mo=new MutationObserver(tryBind); mo.observe(document.body,{childList:true,subtree:true}); tryBind();
+  })();
+
+  // fånga Editera/Skapa -> spara per aktivt game, eller buffra om game saknas ännu
+  function hookEditDialog(){
+    const mo = new MutationObserver(()=>{
+      const dlg = $$('dialog, .modal').find(d => $('#fldAllPaste', d) && $$('.btn,button', d).some(b => /spara/i.test((b.textContent||''))));
+      if (!dlg) return;
+      const txt = $('#fldAllPaste', dlg);
+      const btnSave = $$('.btn,button', dlg).find(b => /spara/i.test((b.textContent||'')));
+      if (btnSave.__ts_bound) return;
+      btnSave.__ts_bound = true;
+      on(btnSave,'click',()=>{
+        const parsed = parseAllPaste(txt && txt.value);
+        if (!parsed) return;
+        const gid = getGameId();
+        if (gid) {
+          jset(KEY(gid,'info'), parsed);
+          legs = parsed;
+          mine = Array.from({length:legs.length}, ()=>[]);
+          saveMine();
+          renderAll(1);
+        } else {
+          // Skapa nytt spel: buffra tills URL:en byter till nya ?game
+          sset('trav:pendingInfo', parsed);
+        }
+      });
+    });
+    mo.observe(document.body,{childList:true,subtree:true});
   }
 
-  // ---------- PASTE-ALL: TAB-parser (HÄST/KUSK/V64%/TREND%/DISTANS & SPÅR/STARTER I ÅR/VAGN/V-ODDS) ----------
-  function wirePasteAll(){
-    const ta=$('#fldAllPaste'); if(!ta) return;
-    on(ta,'input',()=>{
-      const raw=ta.value; if(!raw || !raw.trim()) return;
-      const rows = raw.split(/\r?\n/).map(s => (s||'').trim()).filter(Boolean);
+  // ---------- swipe ----------
+  function hookSwipe(el){
+    if (!el || el.__ts_swipe) return; el.__ts_swipe = true;
+    let sx=0, sy=0, moved=false;
+    on(el,'touchstart',e=>{ const t=e.changedTouches[0]; sx=t.clientX; sy=t.clientY; moved=false; }, {passive:true});
+    on(el,'touchmove',()=>{ moved=true; }, {passive:true});
+    on(el,'touchend',e=>{ if(!moved) return; const t=e.changedTouches[0]; const dx=t.clientX-sx, dy=t.clientY-sy; if(Math.abs(dx)>40 && Math.abs(dx)>Math.abs(dy)){ if(dx<0) { curLeg=clamp(curLeg+1,1,legs.length); } else { curLeg=clamp(curLeg-1,1,legs.length); } renderAll(); } }, {passive:true});
+    on(el,'wheel',e=>{ if(Math.abs(e.deltaX)>Math.abs(e.deltaY) && Math.abs(e.deltaX)>10){ if(e.deltaX>0) { curLeg=clamp(curLeg+1,1,legs.length); } else { curLeg=clamp(curLeg-1,1,legs.length); } renderAll(); } }, {passive:true});
+  }
 
-      const out=[]; let lastNum=0, idx=1, cur={idx, horses:[]};
-
-      for (const line of rows) {
-        if (/^HÄST(\t| )+KUSK/i.test(line)) continue; // hoppa rubrik
-
-        const cols = line.split('\t');
-        let num, name, driver='', pct='', trend='', dist='', starts='', vagn='', vodds='';
-
-        if (cols.length >= 8) {
-          const m = (cols[0]||'').match(/^(\d{1,2})\s+(.*)$/);
-          if (!m) continue;
-          num   = +m[1];
-          name  = m[2] || '';
-
-          driver = (cols[1]||'').trim();
-          pct    = (cols[2]||'').trim();
-          trend  = (cols[3]||'').trim();
-          dist   = (cols[4]||'').trim();
-          starts = (cols[5]||'').trim();
-          vagn   = (cols[6]||'').trim();
-          vodds  = (cols[7]||'').trim();
-        } else {
-          const m = line.match(/^(\d{1,2})\s+(.*)$/);
-          if (!m) continue;
-          num = +m[1];
-          let rest = m[2];
-          const pm = rest.match(/\s(\d{1,2})\%\s*$/);
-          if (pm) { pct = pm[1]+'%'; rest = rest.replace(pm[0],'').trim(); }
-          const dash = rest.indexOf(' — ');
-          if (dash >= 0) { driver = rest.slice(dash+3).trim(); rest = rest.slice(0,dash).trim(); }
-          name = rest;
-        }
-
-        if (lastNum && num < lastNum) { out.push(cur); idx++; cur={idx, horses:[]}; }
-        lastNum = num;
-
-        const scratched = /struken/i.test(line);
-        cur.horses.push({ num, name, driver, pct, trend, dist, starts, vagn, vodds, scratched });
-      }
-
-      if (cur.horses.length) out.push(cur);
-      if (!out.length) return;
-
-      legs = out; write(K.INFO(gameId), legs);
-      mine = Array.from({ length: legs.length }, () => []);
-      write(K.MINE(gameId), mine);
-      curLeg = 1; setLeg(1);
-      renderCouponGrid();
+  // ---------- coupons render ----------
+  const couponPrice = (c) => {
+    const L=(c.legs&&c.legs.length)||0; if(!L) return 0;
+    let rows=1; for(let i=0;i<L;i++){ const len=(c.legs[i]?c.legs[i].length:0); rows*=Math.max(len,1); }
+    return rows*priceUnit;
+  };
+  const linesForCoupon = (c) => {
+    const L=(c.legs&&c.legs.length)||0, out=[];
+    for(let i=0;i<L;i++){ const arr=c.legs[i]||[]; out.push(`Avd ${i+1}: ${arr.length?arr.join(' '):'—'}`); }
+    return out.join('\n');
+  };
+  function renderCouponGrid(){
+    const grid=$('#couponGrid'); if(!grid) return;
+    grid.innerHTML='';
+    const list=(jget(KEY(curGameId,'coupons'),[])||[]).filter(c=>c && c.gameId===curGameId);
+    coupons=list;
+    list.forEach((c, i)=>{
+      const card=document.createElement('div'); card.className='coupon-card';
+      const title=document.createElement('b'); title.textContent=c?.name || ('Kupong '+(i+1)); card.appendChild(title);
+      const lines=document.createElement('div'); lines.className='coupon-lines'; lines.textContent=linesForCoupon(c||{legs:[]}); card.appendChild(lines);
+      const p=document.createElement('div'); p.className='coupon-price'; p.textContent='Pris: '+couponPrice(c||{legs:[]}).toLocaleString('sv-SE')+' kr'; card.appendChild(p);
+      const del=document.createElement('button'); del.className='btn'; del.style.cssText='margin-top:8px;background:#b23c3c;border:1px solid #b23c3c;color:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;'; del.textContent='Ta bort';
+      del.onclick=()=>{ const arr=(jget(KEY(curGameId,'coupons'),[])||[]).filter(x=>x && x.gameId===curGameId); arr.splice(i,1); jset(KEY(curGameId,'coupons'),arr); coupons=arr; renderCouponGrid(); renderLeg(); renderSummary(); };
+      card.appendChild(del);
+      grid.appendChild(card);
     });
   }
 
-  // ---------- init ----------
-  function init(){
-    ensureHostAndToolbar();
+  // ---------- rendering ----------
+  const refs = () => { const h=$('#trav-slider-host'); return { host:h, pos:$('#tsLegPos',h), tot:$('#tsLegTotal',h), price:$('#tsPrice',h), pop:$('#colPop',h), tbody:$('#horseTBody',h), mine:$('#colMine',h), sumTop:$('#tsSummaryTop',h), swipe:$('#tsSwipeArea',h) }; };
 
-    if (legs && legs.length){
-      if(!Array.isArray(mine) || mine.length!==legs.length){
-        mine = Array.from({ length: legs.length }, () => []);
-        write(K.MINE(gameId), mine);
-      }
-      setLeg(1);
-    } else {
-      const r=refs(); if(r.price) r.price.textContent='';
+  function renderAll(goLeg){
+    const host=ensureHostAtAvd(); if(!host) return;
+    hookSwipe($('#tsSwipeArea',host));
+
+    if (!Array.isArray(legs) || legs.length===0){
+      const r=refs();
+      if (r.tbody) r.tbody.innerHTML='';
+      if (r.pop)   r.pop.innerHTML='<h4>Populärt</h4>';
+      if (r.mine)  r.mine.innerHTML='<h4>Min kupong</h4>';
+      if (r.sumTop) r.sumTop.innerHTML='';
+      if (r.tot) r.tot.textContent='/ 0';
+      if (r.pos) r.pos.textContent='1';
+      if (r.price) r.price.textContent='Pris: 0 kr';
+      renderCouponGrid();
+      return;
     }
 
-    renderCouponGridWhenReady(); // kuponger direkt
-    wirePasteAll();
+    normalizeMine();
+    if (goLeg) curLeg = clamp(goLeg, 1, legs.length);
 
-    const pills=$('#formPills');
-    if (pills){
-      on(pills,'click',e=>{
-        const btn=e.target && e.target.closest ? e.target.closest('button[data-form]') : null;
-        if(!btn) return; e.preventDefault&&e.preventDefault();
-        $$('#formPills button[data-form]').forEach(b=>b.classList.remove('active'));
-        btn.classList.add('active'); setForm(btn.getAttribute('data-form'));
-        renderSummary(); renderCouponGrid();
+    const r=refs();
+    if(r.pos) r.pos.textContent=String(curLeg);
+    if(r.tot) r.tot.textContent='/ '+legs.length;
+    if(r.price) r.price.textContent='Pris: '+calcMyPrice().toLocaleString('sv-SE')+' kr';
+
+    renderSummary(r);
+    renderLeg(r);
+    renderCouponGrid();
+  }
+
+  function renderSummary(r){
+    r=r||refs();
+    const bar=document.createElement('div'); bar.className='ts-sbar';
+    const row1=document.createElement('div'); row1.className='row1';
+    const row2=document.createElement('div'); row2.className='row2';
+    for (let i=0;i<legs.length;i++){
+      const b=document.createElement('button'); b.className='ts-legbtn'; b.textContent=String(i+1);
+      if(i+1===curLeg) b.classList.add('active');
+      b.onclick=()=>{ curLeg=i+1; renderAll(); };
+      row1.appendChild(b);
+      const c=document.createElement('div'); c.className='count'; c.textContent=String((mine[i]||[]).length||0);
+      row2.appendChild(c);
+    }
+    r.sumTop.innerHTML=''; r.sumTop.appendChild(bar); bar.appendChild(row1); bar.appendChild(row2);
+  }
+
+  function renderLeg(r){
+    r=r||refs(); const leg = legs[curLeg-1];
+    const nums = [...new Set(leg.horses.map(h=>h.num))].sort((a,b)=>a-b);
+    const map=new Map(leg.horses.map(h=>[h.num,h]));
+
+    const list=(jget(KEY(curGameId,'coupons'),[])||[]).filter(c=>c && c.gameId===curGameId);
+    const cnt={}, mx={v:0};
+    const spikStars={}; // n -> count of coupons that spikar this n
+    for (const c of list){
+      const arr=(c.legs&&c.legs[curLeg-1])||[];
+      if (arr.length===1) { const n=arr[0]; spikStars[n]=(spikStars[n]||0)+1; }
+      for (const n of arr){ cnt[n]=(cnt[n]||0)+1; if(cnt[n]>mx.v) mx.v=cnt[n]; }
+    }
+
+    if (r.pop){
+      r.pop.innerHTML='<h4>Populärt</h4>';
+      nums.forEach((n,idx)=>{
+        const wrap=document.createElement('div'); wrap.className='ts-poprow';
+        const stars=document.createElement('div'); stars.className='ts-stars';
+        const starCount = spikStars[n]||0;
+        for(let i=0;i<starCount;i++){ const s=document.createElement('span'); s.className='star'; s.textContent='★'; stars.appendChild(s); }
+        const el=document.createElement('div'); el.className='ts-sq'; el.textContent=String(n);
+        if(idx===0){ el.style.marginTop='34px'; }
+        const v=cnt[n]||0; if(v===mx.v&&mx.v>0) el.classList.add('red'); if(v===0) el.classList.add('disabled');
+        wrap.appendChild(stars); wrap.appendChild(el); r.pop.appendChild(wrap);
       });
-      const cur=getForm(); const act=pills.querySelector('button[data-form="'+cur+'"]'); if(act) act.classList.add('active');
     }
+
+    if (r.tbody){
+      r.tbody.innerHTML='';
+      nums.forEach(n=>{
+        const h=map.get(n);
+        const tr=document.createElement('tr');
+
+        const tdName=document.createElement('td');
+        const line=document.createElement('div'); line.className='hk-line';
+        if (!h) line.style.padding='11px'; // struken, håll höjden
+        const nm=document.createElement('span'); nm.className='hk-name';   nm.textContent=h?(h.name||''):'';
+        const dr=document.createElement('span'); dr.className='hk-driver'; dr.textContent=h&&h.driver?('— '+h.driver):'';
+        line.appendChild(nm); line.appendChild(dr); tdName.appendChild(line);
+
+        const tdPct=document.createElement('td'); tdPct.textContent = h&&h.pct||'';
+        const tdTr =document.createElement('td'); tdTr.textContent  = h&&h.trend||'';
+        const tdDi =document.createElement('td'); tdDi.textContent  = h&&h.dist||'';
+        const tdSt =document.createElement('td'); tdSt.textContent  = h&&h.starts||'';
+        const tdVa =document.createElement('td'); tdVa.textContent  = h&&h.vagn||'';
+        const tdOd =document.createElement('td'); tdOd.textContent  = h&&h.vodds||'';
+
+        tr.appendChild(tdName); tr.appendChild(tdPct); tr.appendChild(tdTr);
+        tr.appendChild(tdDi); tr.appendChild(tdSt); tr.appendChild(tdVa); tr.appendChild(tdOd);
+        r.tbody.appendChild(tr);
+      });
+    }
+
+    if (r.mine){
+      r.mine.innerHTML='<h4>Min kupong</h4>';
+      const sel = new Set(Array.isArray(mine[curLeg-1])?mine[curLeg-1]:[]);
+      nums.forEach((n,idx)=>{
+        const pill=document.createElement('div'); pill.className='ts-sq'+(sel.has(n)?' active':''); pill.textContent=String(n);
+        if(idx===0) pill.style.marginTop='34px';
+        pill.onclick=()=>{
+          const s=new Set(Array.isArray(mine[curLeg-1])?mine[curLeg-1]:[]);
+          if(s.has(n)) s.delete(n); else s.add(n);
+          mine[curLeg-1]=Array.from(s).sort((a,b)=>a-b);
+          saveMine();
+          // uppdatera pris och summering
+          const rr=refs(); if(rr.price) rr.price.textContent='Pris: '+calcMyPrice().toLocaleString('sv-SE')+' kr';
+          renderSummary(); renderLeg();
+        };
+        r.mine.appendChild(pill);
+      });
+    }
+
+    // uppdatera pris i titeln (om man hoppat/scrollat mm)
+    const rr=refs(); if(rr.price) rr.price.textContent='Pris: '+calcMyPrice().toLocaleString('sv-SE')+' kr';
   }
 
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', () => safe(init), { once:true });
-  } else {
-    safe(init);
+  // ---------- SPA/route & visibility ----------
+  function syncAndRender(forceLeg1){
+    const gid = getGameId();
+    if (!gid) { const h=$('#trav-slider-host'); if(h) h.remove(); return; }
+    if (gid !== curGameId) { curGameId = gid; loadStateFor(gid); curLeg = 1; }
+    if (isGameVisible()) { ensureHostAtAvd(); renderAll(forceLeg1?1:undefined); }
   }
+
+  function mountIfNeeded(){ syncAndRender(true); }
+
+  const gameNode = $('#view-game');
+  const overview  = $('#view-overview');
+  const mo = new MutationObserver(()=>syncAndRender());
+  if (gameNode)  mo.observe(gameNode,  {attributes:true,attributeFilter:['class']});
+  if (overview)  mo.observe(overview,  {attributes:true,attributeFilter:['class']});
+
+  const fireRoute = ()=>syncAndRender(true);
+  const _ps = history.pushState; history.pushState = function(){ const r=_ps.apply(this,arguments); window.dispatchEvent(new Event('trav:route')); return r; };
+  const _rs = history.replaceState; history.replaceState = function(){ const r=_rs.apply(this,arguments); window.dispatchEvent(new Event('trav:route')); return r; };
+  on(window,'popstate', fireRoute);
+  on(window,'trav:route', fireRoute);
+
+  // cross-tab sync per game
+  on(window,'storage',(e)=>{
+    const gid=getGameId();
+    if (!gid || !e.key || !e.key.startsWith(`trav:${gid}:`)) return;
+    if (e.key.endsWith(':info'))    legs    = jget(KEY(gid,'info'), null);
+    if (e.key.endsWith(':mine'))    mine    = jget(KEY(gid,'mine'), []);
+    if (e.key.endsWith(':coupons')) coupons = (jget(KEY(gid,'coupons'),[])||[]).filter(c=>c && c.gameId===gid);
+    renderAll();
+  });
+
+  // init
+  function init(){
+    hookEditDialog();
+    syncAndRender(true);
+    setTimeout(()=>syncAndRender(true), 0);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true});
+  else init();
+
 })();
