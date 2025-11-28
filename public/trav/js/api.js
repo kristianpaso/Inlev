@@ -1,6 +1,10 @@
 // public/trav/js/api.js
 
-const API_BASE_URL = 'http://localhost:4000/api/trav/games'; // backend-porten
+const API_BASE_URL =
+  window.location.hostname === 'localhost'
+    ? 'http://localhost:4000/api/trav/games' // din lokala dev-API
+    : 'https://trav-api.onrender.com/api/trav/games'; // Render-URL
+
 
 export async function getGames() {
   const res = await fetch(API_BASE_URL);

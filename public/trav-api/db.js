@@ -1,11 +1,14 @@
 // trav-api/db.js
 const mongoose = require('mongoose');
 
-const MONGODB_URI = process.env.MONGODB_URI;
+// 1) Läs från env, annars använd lokal databas (för dev)
+const MONGODB_URI =
+  process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/trav';
 
-if (!MONGODB_URI) {
-  console.error('❌ MONGODB_URI saknas i .env');
-  process.exit(1);
+if (!process.env.MONGODB_URI) {
+  console.warn(
+    '⚠️ MONGODB_URI saknas i environment, använder lokal MongoDB på mongodb://127.0.0.1:27017/trav'
+  );
 }
 
 mongoose.set('strictQuery', false);
