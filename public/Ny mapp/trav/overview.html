@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <title>Trav – Överblick</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="./css/trav.css">
+</head>
+<body>
+  <div class="page">
+    <header class="topbar overview-topbar">
+      <button class="btn" id="btn-back">&#8592; Tillbaka</button>
+
+      <div class="topbar-center">
+        <h1 id="ov-title">Överblick</h1>
+        <p class="subtitle" id="ov-meta"></p>
+      </div>
+
+      <div class="topbar-right">
+        <span id="ov-game-type" class="badge"></span>
+      </div>
+    </header>
+
+    <main class="overview-layout">
+      <!-- Slider-header för avdelningar -->
+  <section class="division-header">
+  <div class="division-header-title">Totalen</div>
+  <div class="division-number-row" id="division-number-row">
+    <!-- Fylls av overview.js -->
+  </div>
+  <!-- 🔹 NYTT: prisinfo -->
+  <div id="price-info" class="price-info"></div>
+</section>
+
+      <!-- Stora blocket med tre kolumner -->
+      <section class="big-block">
+  <div class="side-block" id="popular-block">
+    <h2>Populärfält</h2>
+    <div id="popular-number-list" class="number-column">
+      <!-- Fylls med siffror 1,2,3,... i fyrkanter (ej klickbara) -->
+    </div>
+  </div>
+
+  <div class="center-block">
+    <div class="center-block">
+  <h2>
+    Hästar i avdelning
+    <span id="center-division-index">1</span>
+  </h2>
+
+  <!-- 🔹 NYTT: välj visningsmall -->
+  <div class="list-mode-toggle">
+    <button class="btn list-mode-btn" data-mode="simple">Enkel lista</button>
+    <button class="btn list-mode-btn" data-mode="detailed">Detaljerad lista</button>
+  </div>
+
+  <div id="horse-table-container" class="horse-table-wrapper">
+    <!-- Tabell fylls av overview.js -->
+  </div>
+</div>
+  </div>
+
+  <div class="side-block" id="idea-block">
+    <h2>Idéfält</h2>
+    <div id="idea-number-list" class="number-column">
+      <!-- Fylls med klickbara siffror i fyrkant -->
+    </div>
+  </div>
+</section>
+    </main>
+  </div>
+
+  <script type="module" src="./js/overview.js"></script>
+</body>
+</html>

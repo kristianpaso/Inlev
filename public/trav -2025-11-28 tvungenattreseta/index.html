@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trav</title>
+
+  <!-- Din (eller enkel) slider-stil. Behåll/peka om till din befintliga CSS om du har en egen. -->
+  <link rel="stylesheet" href="./css/slider.css">
+
+  <style>
+    /* Baslayout – mörkt, tydligt tema */
+    :root{
+      --bg:#0b1219;
+      --panel:#0f1b26;
+      --border:#223146;
+      --text:#e9f1fb;
+      --muted:#b9c7d8;
+      --btn:#0ea5e9;
+      --btn-text:#001019;
+    }
+    *{box-sizing:border-box}
+    body{background:var(--bg);color:var(--text);
+         font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0}
+    .wrap{max-width:1200px;margin:0 auto;padding:16px}
+    .card{background:var(--panel);border:1px solid var(--border);
+          border-radius:12px;padding:12px}
+    h1,h2{margin:0 0 12px}
+    .muted{opacity:.85;color:var(--muted)}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .btn{background:var(--btn);border:0;border-radius:10px;padding:8px 12px;
+         color:var(--btn-text);font-weight:700;cursor:pointer}
+    .list{display:grid;grid-template-columns: repeat(auto-fit,minmax(260px,1fr));gap:12px}
+    .game{padding:10px;border:1px dashed var(--border);border-radius:10px;background:#0c141d}
+    .game .id{font-size:.9rem;color:var(--muted)}
+    #trav-slider-host{margin-top:10px}
+    a.cardlink{color:inherit;text-decoration:none}
+  </style>
+</head>
+<body>
+  <div class="wrap" id="app">
+    <!-- ========== ÖVERBLICK (syns när ingen ?game= finns) ========== -->
+    <section id="overview" class="card" style="display:none">
+      <h1>Trav – Överblick</h1>
+      <div class="row">
+        <button id="btnCreateGame" class="btn">Skapa spelsystem</button>
+        <span class="muted">Välj spelform i dialogen. Du hamnar direkt i spelet.</span>
+      </div>
+
+      <h2 style="margin-top:16px">Mina spel</h2>
+      <div id="list" class="list"></div>
+    </section>
+
+    <!-- ========== SPEL (syns när ?game=... finns) ========== -->
+    <section id="game" class="card" style="display:none">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h1 id="gameTitle">Spel</h1>
+        <a href="index.html" class="btn" style="background:#1f2a36;color:#cfe8ff">← Till överblicken</a>
+      </div>
+
+      <!-- Slidern mountas in här av mount.game.js -->
+      <div id="trav-slider-host"></div>
+    </section>
+  </div>
+
+  <!-- 1) Klassiska slidern (global/IIFE). Måste laddas före mount.game.js -->
+  <script src="./js/ui-slider.js"></script>
+
+  <!-- 2) Skapa spelsystem-dialog (exponerar window.TravCreate.mount) -->
+  <script src="./js/overview.create.js"></script>
+
+  <!-- 3) Mountar spelet (ES module). Importerar moduler & injicerar slider i #trav-slider-host -->
+  <script type="module" src="./js/mount.game.js"></script>
+
+  <script>
+    // Enkel router/navigering: växlar mellan "överblick" och "spel".
+    const $ = sel => document.querySelector(sel);
+    const params = new URL(location.href).searchParams;
+    const gameId = params.get('game');
+
+    function readGameList(){
+      try { return JSON.parse(localStorage.getItem('trav.games.v1') || '[]'); }
+      catch { return []; }
+    }
+
+    function renderOverview(){
+      $('#overview').style.display = '';
+      $('#game').style.display = 'none';
+
+      const list = readGameList();
+      const root = $('#list');
+      root.innerHTML = '';
+
+      if (!list.length) {
+        const d = document.createElement('div');
+        d.className = 'game';
+        d.textContent = 'Inga spel ännu – klicka på ”Skapa spelsystem”.';
+        root.appendChild(d);
+      } else {
+        for (const g of list) {
+          const a = document.createElement('a');
+          a.href = 'index.html?game=' + encodeURIComponent(g.id);
+          a.className = 'cardlink';
+
+          const d = document.createElement('div');
+          d.className = 'game';
+          d.innerHTML =
+            '<div><strong>'+ (g.type || 'Spel') +'</strong> • '+ (g.name || '') +'</div>' +
+            '<div class="id">'+ g.id +'</div>';
+
+          a.appendChild(d);
+          root.appendChild(a);
+        }
+      }
+
+      // Aktivera "Skapa spelsystem"-knappen om dialogen är laddad
+      if (window.TravCreate && typeof window.TravCreate.mount === 'function') {
+        window.TravCreate.mount('#btnCreateGame');
+      }
+    }
+
+    function renderGame(){
+      $('#overview').style.display = 'none';
+      $('#game').style.display = '';
+
+      let game = null;
+      try {
+        game = JSON.parse(localStorage.getItem('trav.game:'+gameId) || 'null');
+      } catch {}
+
+      $('#gameTitle').textContent =
+        (game?.type || 'Spel') + ' — ' + (game?.name || gameId);
+
+      // Själva slidern och alla delar mountas i ./js/mount.game.js (ES module)
+    }
+
+    if (gameId) renderGame();
+    else renderOverview();
+  </script>
+</body>
+</html>

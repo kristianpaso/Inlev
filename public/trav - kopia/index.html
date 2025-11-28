@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Trav</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- OVERVIEW -->
+    <section id="view-overview" class="view">
+      <header class="pagebar">
+        <h1>Trav – Överblick</h1>
+        <div class="actions">
+          <button id="btnNew" class="btn">Skapa spelsystem</button>
+        </div>
+      </header>
+      <p class="muted">Startvyn listar alla spelsystem. Klicka ”Öppna”.</p>
+      <div id="games" class="game-grid"></div>
+    </section>
+
+    <!-- GAME PAGE -->
+    <section id="view-game" class="view hidden">
+      <header class="pagebar">
+        <div class="left">
+          <button id="btnBack" class="btn btn-ghost">← Till överblick</button>
+        </div>
+        <h1 id="gameTitle" class="grow"></h1>
+        <div class="actions">
+          <button id="btnEdit" class="btn">Redigera spel</button>
+          <button id="btnDelete" class="btn btn-danger">Ta bort</button>
+        </div>
+      </header>
+
+      <!-- Importerade/Manuella kuponger -->
+      <div class="section">
+        <div class="section-header">
+          <h2>Importerade kuponger</h2>
+          <div class="actions">
+            <input id="couponName" class="input" placeholder="Namnge kupong (valfritt)" />
+            <input id="couponFile" type="file" accept="image/*" />
+            <button id="btnOCR" class="btn">Läs kuponger (OCR)</button>
+            <button id="btnCalibrate" class="btn btn-ghost">Kalibrera OCR</button>
+            <button id="btnManual" class="btn">Lägg kupong manuellt</button>
+          </div>
+        </div>
+        <div id="couponGrid" class="coupon-grid"></div>
+      </div>
+
+      <!-- Avdelningar -->
+      <div class="section">
+        <div class="section-header">
+          <h2>Avdelning 1–<span id="avdCount">6</span></h2>
+          <div class="actions pricebar">
+            <div id="priceLive">Pris: <b>0 kr</b></div>
+          </div>
+        </div>
+
+        <div id="avdList" class="avd-list"></div>
+
+        <div class="sticky-minicart" id="stickySummary">
+          <div id="summaryRows"></div>
+          <div class="grow"></div>
+          <div id="summaryPrice">Pris: 0 kr</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SKAPA / REDIGERA -->
+    <dialog id="dlgGame" class="modal">
+      <form method="dialog" class="card">
+        <header class="card-header">
+          <h3 id="dlgTitle">Skapa spelsystem</h3>
+        </header>
+
+        <div class="card-body">
+          <div class="row">
+            <label>Spelform</label>
+            <div class="pillset" id="formPills">
+              <button data-form="V64" type="button" class="pill active">V64</button>
+              <button data-form="V65" type="button" class="pill">V65</button>
+              <button data-form="V75" type="button" class="pill">V75</button>
+              <button data-form="GS75" type="button" class="pill">GS75</button>
+              <button data-form="V86" type="button" class="pill">V86</button>
+              <button data-form="V85" type="button" class="pill">V85</button>
+            </div>
+          </div>
+
+          <div class="row grid-2">
+            <div>
+              <label>Omgångsnamn</label>
+              <input id="fldName" class="input" placeholder="t.ex. Halmstad fredag" />
+            </div>
+            <div>
+              <label>Starttid</label>
+              <input id="fldStart" type="datetime-local" class="input" />
+            </div>
+          </div>
+
+          <details id="secFillNow" class="mt">
+            <summary>
+              <label><input id="chkFillNow" type="checkbox" checked /> Fyll i nu (klistra in per avdelning)</label>
+            </summary>
+            <div id="perAvdBlocks"></div>
+          </details>
+
+          <details id="secPasteAll" class="mt">
+            <summary>
+              <label><input id="chkPasteAll" type="checkbox" /> Klistra in hel lista (alla avdelningar)</label>
+            </summary>
+            <div class="row">
+              <textarea id="fldAllPaste" class="textarea mono" rows="8"
+                placeholder="Klistra in tabell: 1 Namn TAB Kusk TAB 20% ... 1 ... (Ny avdelning när en rad börjar med '1 ')"></textarea>
+            </div>
+          </details>
+        </div>
+
+        <footer class="card-footer">
+          <button id="btnCancel" value="cancel" class="btn btn-ghost">Avbryt</button>
+          <div class="grow"></div>
+          <button id="btnSaveGame" value="default" class="btn">Spara</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <!-- MANUELL KUPONG -->
+    <dialog id="dlgManual" class="modal">
+      <form method="dialog" class="card">
+        <header class="card-header">
+          <h3>Lägg kupong manuellt</h3>
+        </header>
+        <div class="card-body" id="manualBlocks"></div>
+        <footer class="card-footer">
+          <button value="cancel" class="btn btn-ghost">Stäng</button>
+          <div class="grow"></div>
+          <button id="btnManualSave" value="default" class="btn">Spara kupong</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <!-- OCR KALIBRERING (stub) -->
+    <dialog id="dlgCal" class="modal large">
+      <form method="dialog" class="card">
+        <header class="card-header">
+          <h3>Kalibrera OCR</h3>
+        </header>
+        <div class="card-body grid-2">
+          <div>
+            <div class="tabs">
+              <button type="button" class="tab active" data-tab="img">Bild</button>
+              <button type="button" class="tab" data-tab="txt">Text</button>
+            </div>
+            <div class="tabpage" data-tabpage="img">
+              <input id="calImg" type="file" accept="image/*" />
+              <div class="imgbox">
+                <img id="calPreview" alt="(ingen bild)" />
+                <div class="hint">Markera blå (AVD) och grön (Hästar) med fälten till höger</div>
+              </div>
+            </div>
+            <div class="tabpage hidden" data-tabpage="txt">
+              <textarea id="calRaw" class="textarea mono" rows="16"
+                placeholder="Klistra in rå OCR-text här"></textarea>
+            </div>
+          </div>
+          <div>
+            <div class="grid-2">
+              <div>
+                <label>X AVD</label>
+                <div class="range"><input id="calXAvd1" class="input" value="0" /><span>–</span><input id="calXAvd2" class="input" value="30" /></div>
+                <label>X Hästar</label>
+                <div class="range"><input id="calXH1" class="input" value="45" /><span>–</span><input id="calXH2" class="input" value="220" /></div>
+                <label>Y top / Radhöjd</label>
+                <div class="range"><input id="calTop" class="input" value="220" /><span>•</span><input id="calRowH" class="input" value="32" /></div>
+                <label>Rader</label>
+                <input id="calRows" class="input" value="6" />
+              </div>
+              <div>
+                <label>Exempelrad (regex, grupp1=avd, grupp2=hästar)</label>
+                <input id="calRegex" class="input mono" value="^(?:AVD\\s*)?(\\d{1,2})\\s*(.*)$" />
+                <label>Hästhantolkning</label>
+                <select id="calHorseMode" class="input">
+                  <option value="smart">Sammanhängande nummer (1 2 10 11 ...)</option>
+                  <option value="digits">Endast siffror (1–15)</option>
+                </select>
+                <div class="mt">
+                  <button id="btnCalTest" type="button" class="btn">Testa regler</button>
+                  <button id="btnCalSave" type="button" class="btn btn-ghost">Spara</button>
+                </div>
+              </div>
+            </div>
+            <div class="mt">
+              <label>Resultat (identifierade rader)</label>
+              <pre id="calOut" class="mono box"></pre>
+            </div>
+          </div>
+        </div>
+        <footer class="card-footer">
+          <button value="cancel" class="btn btn-ghost">Stäng</button>
+        </footer>
+      </form>
+    </dialog>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="ui-slider.js"></script>
+</body>
+</html>

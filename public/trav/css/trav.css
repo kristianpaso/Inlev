@@ -1,0 +1,751 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0b1020;
+  color: #f5f5f5;
+}
+
+.page {
+  min-height: 100vh;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+  color: #a8b3cf;
+}
+
+.topbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.8fr);
+  gap: 16px;
+}
+
+.panel {
+  background: #151a2e;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.badge {
+  display: inline-block;
+  background: #222a46;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  color: #c7d2ff;
+}
+
+.btn {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  background: #222a46;
+  color: #e2e8f0;
+}
+
+.btn.primary {
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+.btn:hover {
+  opacity: 0.9;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+}
+
+label {
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+  color: #cbd5f5;
+}
+
+input,
+select,
+textarea {
+  border-radius: 8px;
+  border: 1px solid #283250;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 1px;
+}
+
+.hint {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.form-error {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: #fecaca;
+}
+
+.empty-state {
+  font-size: 0.9rem;
+  color: #9ca3af;
+}
+
+.game-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+}
+
+.game-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #0f172a;
+  border: 1px solid #1f2937;
+  margin-bottom: 8px;
+}
+
+.game-main {
+  flex: 1;
+}
+
+.game-title {
+  font-size: 1rem;
+  margin: 0 0 4px;
+}
+
+.game-meta {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.game-meta span + span::before {
+  content: " • ";
+  margin: 0 4px;
+}
+
+.game-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.game-actions .btn {
+  font-size: 0.8rem;
+  padding: 6px 10px;
+}
+
+.game-actions .btn.danger {
+  background: #dc2626;
+  color: #fff;
+}
+
+@media (max-width: 800px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+/* ---- Överblick-layout ---- */
+
+.overview-topbar {
+  align-items: center;
+}
+
+.topbar-center {
+  flex: 1;
+  text-align: center;
+}
+
+.topbar-right {
+  min-width: 80px;
+  text-align: right;
+}
+
+.overview-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Slider-header */
+
+.division-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #151a2e;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.division-info {
+  flex: 1;
+  text-align: center;
+}
+
+.division-label {
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+
+.division-total {
+  color: #9ca3af;
+}
+
+.division-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.division-track {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: #1f2937;
+  overflow: hidden;
+}
+
+.division-progress {
+  height: 100%;
+  width: 0%;
+  background: #3b82f6;
+  transition: width 0.25s ease;
+}
+
+.division-end {
+  min-width: 16px;
+  text-align: center;
+}
+
+.btn.ghost {
+  background: transparent;
+  border: 1px solid #283250;
+}
+
+/* Stora blocket (populär / center / idé) */
+
+.big-block {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr) 60px; /* vänster 60px, mitten flex, höger 60px */
+  gap: 12px;
+  align-items: flex-start;
+}
+
+/*
+.side-block,
+.center-block {
+  background: #151a2e;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+} */
+
+.side-block {
+    /* background: #151a2e; */
+    border-radius: 12px;
+    padding: 8px 4px;
+    /* box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); */
+    max-width: 60px;
+}
+
+.side-block h2,
+.center-block h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.placeholder-text {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+/* Hästtabell i mittenblocket */
+
+.horse-table-wrapper {
+  margin-top: 8px;
+  overflow-x: auto;
+}
+
+.horse-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.horse-table thead {
+  background: #111827;
+}
+
+.horse-table th,
+.horse-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #1f2937;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.horse-table th:first-child,
+.horse-table td:first-child {
+  text-align: left;
+  width: 32px;
+}
+
+.horse-table tbody tr:nth-child(even) {
+  background: #0b1120;
+}
+
+.horse-table tbody tr:hover {
+  background: #1f2937;
+}
+
+.horse-table tbody tr.scratched {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+/* Större text i övriga fält (t.ex. V85%, TREND%, osv) */
+.horse-table tbody td {
+    font-size: 21px;
+}
+
+/* Header i hästtabellen – lite större, vänsterjusterad, nästan "gömd" */
+.horse-table thead th {
+    font-size: 18px;                          /* lite större */
+    text-align: left;                         /* vänsterjusterad */
+    color: rgba(229, 231, 235, 0.353);         /* nästan osynlig på mörk bakgrund */
+    font-weight: 500;
+}
+
+
+/* Mobilanpassning */
+
+
+
+@media (max-width: 900px) {
+  /* behåll annan mobil-CSS om du har den här */
+
+  .big-block {
+    grid-template-columns: 60px minmax(0, 1fr) 60px; /* samma som desktop */
+  }
+
+   .topbar-center {
+    text-align: left;
+  }
+  .side-block {
+    max-width: 60px;
+  }
+}
+
+/* ---- "Totalen" ovanför slider ---- */
+
+.division-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  background: #151a2e;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.division-header-title {
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.division-number-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.division-square {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid #374151;
+  background: #020617;
+  color: #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.division-square.active {
+  background: #3b82f6;
+  border-color: #60a5fa;
+  color: #ffffff;
+}
+
+/* ---- Nummerkolumner i vänster/högerblock ---- */
+
+.number-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0px;
+    margin-top: 0; /* JS sätter exakt samma som tabellhuvudet */
+}
+
+.num-square {
+    min-height: 40px;           /* grundhöjd om JS inte hunnit räkna */
+    border-radius: 6px;
+    border: 1px solid #374151;
+    background: #020617;
+    color: #e5e7eb;
+    font-size: 1.75rem;         /* din större siffra */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+     position: relative;   /* 🔹 ny rad */
+}
+/*
+
+
+/* strukna hästar – gör numret lite ljusare/gråare */
+.num-square.scratched {
+  opacity: 0.5;
+}
+
+/* högerkolumn – klickbar */
+.num-square.clickable {
+  cursor: pointer;
+}
+
+/* markerad idé-häst */
+.num-square.clickable.selected {
+  background: #3b82f6;
+  border-color: #60a5fa;
+  color: #ffffff;
+}
+
+.horse-table tbody tr {
+    min-height: 71px; /* samma nivå som du gillar på rutorna */
+}
+/* ---- Totalen: fyrkant + räknare under ---- */
+
+.division-number-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.division-square-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.division-square-count {
+  font-size: 0.7rem;
+  color: #e5e7eb;
+  min-height: 0.9em; /* så att det inte hoppar */
+}
+
+.list-mode-toggle {
+  display: flex;
+  justify-content: center; /* tidigare flex-end */
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+
+.center-block h2 {
+  text-align: center;
+}
+
+.price-info {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: #e5e7eb;
+}
+
+.price-info-main {
+  font-weight: 500;
+}
+
+.price-info-sub {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+.horse-name {
+    font-weight: 600;
+    font-size: 1.5rem;
+    line-height: 1.2;
+}
+
+.horse-driver {
+    font-size: 1.1rem;
+    color: #9ca3af;
+    line-height: 1.7;
+}
+
+.horse-name,
+.horse-driver {
+    text-align: left;
+}
+
+
+/* ---- Kupong-sektion ---- */
+
+.coupon-section {
+  margin-top: 16px;
+  background: #020617;
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.coupon-section > h2 {
+  font-size: 1rem;
+  margin: 0 0 8px;
+}
+
+.coupon-hint {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin: 0 0 6px;
+}
+
+.coupon-add-panel {
+  border-radius: 8px;
+  background: #020617;
+  padding: 8px 10px 10px;
+  border: 1px solid #1f2937;
+  margin-bottom: 10px;
+}
+
+.coupon-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.coupon-division-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.coupon-division-label {
+  width: 46px;
+  font-size: 0.8rem;
+  color: #e5e7eb;
+}
+
+.coupon-number-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.coupon-number {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #374151;
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.coupon-number.selected {
+  background: #3b82f6;
+  border-color: #60a5fa;
+  color: #ffffff;
+}
+
+.coupon-add-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.coupon-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  align-items: flex-start;
+}
+
+/* Kupongkort liknande ATG-kvittot (enkel version) */
+
+.coupon-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  align-items: flex-start;
+}
+
+.coupon-card {
+  background: #030712;
+  border-radius: 10px;
+  padding: 8px 10px;
+  border: 1px solid #1f2937;
+  width: 220px;          /* 🔹 din önskade bredd */
+  box-sizing: border-box;
+}
+
+
+.coupon-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.coupon-card-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.coupon-card-sub {
+  font-size: 0.7rem;
+  color: #9ca3af;
+}
+
+.coupon-card-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 4px;
+  font-size: 0.8rem;
+}
+
+.coupon-card-table th,
+.coupon-card-table td {
+  padding: 2px 4px;
+}
+
+.coupon-card-table th {
+  font-weight: 500;
+  color: #9ca3af;
+}
+
+.coupon-card-table td {
+  color: #e5e7eb;
+}
+
+.coupon-card-table tr + tr td {
+  border-top: 1px solid #111827;
+}
+
+.btn.small {
+  padding: 3px 6px;
+  font-size: 0.7rem;
+}
+
+.btn.tiny {
+  padding: 2px 6px;
+  font-size: 0.7rem;
+}
+
+.btn.danger {
+  border-color: #b91c1c;
+  color: #fecaca;
+}
+
+.coupon-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+
+
+/* mest spelade hästen i aktuell avdelning */
+.num-square.popular-most {
+  box-shadow: 0 0 0 2px #f97316;
+  border-color: #f97316;
+}
+
+/* Spik – stjärna till vänster om rutan utan att påverka storlek */
+.num-square.has-spike::before {
+    content: attr(data-stars);      /* t.ex. "★" eller "★★\n★" */
+    position: absolute;
+
+    /* 🔹 förankra i vänsterkanten på rutan */
+    right: 100%;                    /* precis till vänster om rutan */
+    margin-right: 6px;              /* avståndet mellan stjärnorna och boxen */
+
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    line-height: 1.1;
+    color: #facc15;
+    white-space: pre;
+    text-align: right;
+}
+
