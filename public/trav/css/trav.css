@@ -307,10 +307,12 @@ textarea:focus {
     max-width: 60px;
 }
 
-.side-block h2,
-.center-block h2 {
-  margin: 0 0 8px;
-  font-size: 1rem;
+/* Dölj texten i sidoblockens rubriker, men behåll höjd/marginaler
+   så att vänster/höger kolumn ligger i linje med mittenblocket */
+.side-block h2 {
+  color: transparent;    /* gör texten osynlig */
+  text-shadow: none;
+  user-select: none;     /* går inte markera texten */
 }
 
 .placeholder-text {
@@ -360,11 +362,11 @@ textarea:focus {
 .horse-table tbody tr.scratched {
     opacity: 0.55;
     text-decoration: line-through;
-    background: #4f1111;
+    background: #404E4D;
 }
 /* Större text i övriga fält (t.ex. V85%, TREND%, osv) */
 .horse-table tbody td {
-    font-size: 21px;
+    font-size: 15px;
 }
 
 /* Header i hästtabellen – lite större, vänsterjusterad, nästan "gömd" */
@@ -465,7 +467,7 @@ textarea:focus {
 
 /* strukna hästar – gör numret lite ljusare/gråare */
 .num-square.scratched {
-  opacity: 0.5;
+  opacity: 0.2;
 }
 
 /* högerkolumn – klickbar */
@@ -475,9 +477,9 @@ textarea:focus {
 
 /* markerad idé-häst */
 .num-square.clickable.selected {
-  background: #3b82f6;
-  border-color: #60a5fa;
-  color: #ffffff;
+    background: #02A9EA;
+    border-color: #0b1020;
+    color: #ffffff;
 }
 
 .horse-table tbody tr {
@@ -521,6 +523,7 @@ textarea:focus {
   margin-top: 6px;
   font-size: 0.8rem;
   color: #e5e7eb;
+  text-align: center;   /* centrera priset */
 }
 
 .price-info-main {
@@ -531,14 +534,54 @@ textarea:focus {
   font-size: 0.75rem;
   color: #9ca3af;
 }
+
+
+/* ---- V85: insatsnivå-panel ---- */
+
+.stake-panel {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.stake-title {
+  color: #9ca3af;
+  margin-bottom: 4px;
+}
+
+.stake-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.stake-option {
+  line-height: 1.2;
+  min-width: 80px;
+}
+
+.stake-option .stake-sub {
+  font-size: 0.7rem;
+  color: #cbd5f5;
+}
+
+/* markerad insats */
+.stake-option.active {
+  background: #2563eb;
+  border-color: #60a5fa;
+}
+
+
+
 .horse-name {
     font-weight: 600;
-    font-size: 1.5rem;
+    font-size: 1.1rem;
     line-height: 1.2;
 }
 
 .horse-driver {
-    font-size: 1.1rem;
+    font-size: 0.7rem;
     color: #9ca3af;
     line-height: 1.7;
 }
@@ -660,8 +703,8 @@ textarea:focus {
 }
 /* "Min kupong" – sparad från Idéfältet */
 .coupon-card.my-coupon-card {
-    background: #083d93;
-    border-color: #1b50a7;
+    background: #002d5d;
+    border-color: #02a9ea;
 }
 
 
@@ -727,41 +770,57 @@ textarea:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
 }
 
+/* Fast bredd på "Ta bort"-knappen i kupong-headern */
+.coupon-card-header .btn.tiny {
+  width: 51px;
+}
 
 
 /* mest spelade hästen i aktuell avdelning */
 .num-square.popular-most {
-    box-shadow: 0 0 0 2px #d35f10;
-    border-color: #d35f10;
-    background: #d35f10;
+    /* box-shadow: 0 0 0 2px #d35f10; */
+    border-color: #000000;
+    background: #EE6352;
     color: #ffffff;
 }
 
 
-/* Spik – stjärna till vänster om rutan utan att påverka storlek */
-.num-square.has-spike::before {
-    content: attr(data-stars);      /* vår 3x3-stjärnram */
-    position: absolute;
-    inset: 0.7px;                     /* avstånd från ytterramen */
-    font-size: 15px;                /* större & tydligare ram */
-    line-height: 0.9;
-    color: #facc15;
-    white-space: pre;
-    text-align: left;
-    font-family: monospace;         /* så 3x3-grid blir symmetrisk */
-
-    z-index: 0;                     /* bakom siffran men inuti rutan */
-    pointer-events: none;
+/* säkerställ att rutan är relativ så vi kan lägga overlay inuti */
+.num-square {
+    position: relative;
 }
+
+/* lager för stjärnramen */
+.star-frame {
+    position: absolute;
+    inset: 4px;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    pointer-events: none;
+    z-index: 0;
+    margin-top: -4px;
+    margin-left: 0px;
+}
+
+/* en enskild stjärna */
+.star-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    line-height: 1;
+    color: #facc15;
+}
+
 
 
 
 /* Häst som inte finns med på en enda kupong */
 .num-square.not-played {
-    background: #ab2f2f;
+    background: #F21B3F;
     border-color: #0b1020;
     color: #ffffff;
     /* opacity: 0.9; */
@@ -775,9 +834,22 @@ textarea:focus {
   align-items: center;
 }
 
+/* wrapper för alla knappar */
 .coupon-header-actions {
   display: flex;
+  align-items: center;
+  gap: 16px;          /* lite större luft mellan grupperna */
+}
+
+/* grupp: Idéfälts-knappar */
+.coupon-idea-actions {
+  display: flex;
   gap: 8px;
+}
+
+/* grupp: Ny kupong – ligger lite mer för sig själv */
+.coupon-new-actions {
+  margin-left: auto; /* puttar den till höger */
 }
 
 .coupon-price {
@@ -913,4 +985,18 @@ textarea:focus {
   margin-top: 6px;
   display: flex;
   gap: 6px;
+}
+
+
+/* Mobilvy – visa kuponger två och två */
+@media (max-width: 700px) {
+  .coupon-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .coupon-card {
+    width: 100%;   /* fyller sin gridkolumn */
+  }
 }

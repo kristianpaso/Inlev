@@ -118,7 +118,7 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/coupons', async (req, res) => {
   try {
     const { id } = req.params;
-    const { selections, name, source } = req.body; // 🔹 uppdaterad
+    const { selections, name, source, stakeLevel } = req.body;
 
     if (!Array.isArray(selections) || !selections.length) {
       return res.status(400).send('Minst en avdelning krävs för kupong.');
@@ -144,11 +144,12 @@ router.post('/:id/coupons', async (req, res) => {
       return res.status(404).send('Spelet hittades inte.');
     }
 
-    game.coupons.push({
-      selections: normalized,
-      name: name || '',
-      source: source || 'manual',
-    });
+   game.coupons.push({
+  selections: normalized,
+  name: name || '',
+  source: source || 'manual',
+  stakeLevel: stakeLevel || 'original',
+});
 
     await game.save();
 

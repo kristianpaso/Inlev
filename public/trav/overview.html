@@ -23,14 +23,33 @@
 
     <main class="overview-layout">
       <!-- Slider-header för avdelningar -->
-  <section class="division-header">
+ <section class="division-header">
   <div class="division-header-title">Totalen</div>
-  <div class="division-number-row" id="division-number-row">
-    <!-- Fylls av overview.js -->
-  </div>
-  <!-- 🔹 NYTT: prisinfo -->
+  <div class="division-number-row" id="division-number-row"></div>
+
+  <!-- Pris-info (redan finns) -->
   <div id="price-info" class="price-info"></div>
+
+  <!-- 🔹 NYTT: insatsnivå – visas bara för V85 via JS -->
+  <div id="stake-panel" class="stake-panel" hidden>
+    <div class="stake-title">Välj insatsnivå (V85)</div>
+    <div class="stake-options">
+      <button class="btn small stake-option" data-stake="original">
+        Original<br><span class="stake-sub">0,50 kr (100%)</span>
+      </button>
+      <button class="btn small stake-option" data-stake="70">
+        70%<br><span class="stake-sub">0,35 kr</span>
+      </button>
+      <button class="btn small stake-option" data-stake="50">
+        50%<br><span class="stake-sub">0,25 kr</span>
+      </button>
+      <button class="btn small stake-option" data-stake="30">
+        30%<br><span class="stake-sub">0,15 kr</span>
+      </button>
+    </div>
+  </div>
 </section>
+
 
       <!-- Stora blocket med tre kolumner -->
       <section class="big-block">
@@ -76,9 +95,16 @@
   <div class="coupon-section-header">
     <h2>Kuponger</h2>
     <div class="coupon-header-actions">
-     <button class="btn small" id="btn-add-coupon">Ny kupong</button>
+             <!-- Grupp: Idéfälts-kontroller -->
+      <div class="coupon-idea-actions">
+        <button class="btn small danger" id="btn-clear-idea">Rensa Idéfält</button>
+        <button class="btn small" id="btn-save-idea-coupon">Spara Min kupong</button>
+      </div>
 
-      <button class="btn small" id="btn-save-idea-coupon">Spara Min kupong</button>
+      <!-- Egen knapp: vanliga kuponger -->
+      <div class="coupon-new-actions">
+        <button class="btn small" id="btn-add-coupon">Ny kupong</button>
+      </div>
     </div>
   </div>
 

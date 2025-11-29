@@ -11,13 +11,18 @@ const CouponDivisionSchema = new mongoose.Schema(
 );
 
 // Själva kupongen
-// Själva kupongen
 const CouponSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   source: { type: String, default: 'manual' }, // t.ex. 'idea' eller 'manual'
-  name: { type: String, default: '' },         // 🔹 NAMN PÅ KUPONGEN
+  name: { type: String, default: '' },         // namn på kupongen
+  stakeLevel: {
+    type: String,
+    enum: ['original', '70', '50', '30'],
+    default: 'original',
+  },
   selections: [CouponDivisionSchema],
 });
+
 
 
 const TravGameSchema = new mongoose.Schema(

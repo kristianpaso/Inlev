@@ -14,6 +14,7 @@ let divisionCountEls = [];
 let coupons = [];                 // sparade kuponger för spelet
 let isBuildingCoupon = false;
 let couponSelections = {};        // { divisionIndex: Set([...]) }
+let stakeLevel = 'original'; // 'original' | '70' | '50' | '30'
 
 
 // markerade idé-hästar per avdelning (Set med nummer)
@@ -54,6 +55,7 @@ try {
     loadIdeaSelections(currentGameId);
     setupOverview(game);
     renderTrackInfo();            // 🔹 visa banblocket
+      initStakePanel();   
   } catch (err) {
     console.error(err);
     alert('Kunde inte hämta spelet.');
@@ -200,15 +202,60 @@ function setupOverview(game) {
     divisionCountEls.push(countEl);
   });
 
-  currentIndex = 0;
+ currentIndex = 0;
   renderCurrentDivision();
   computeAndRenderPrice();
   initCouponUI();
   initSaveIdeaCouponButton();
+  initClearIdeaButton();
   renderCouponList();
-  setupSwipeNavigation(); // 🔹 lägg till denna
+  setupSwipeNavigation(); 
 
 
+}
+function initStakePanel() {
+  const panel = document.getElementById('stake-panel');
+  if (!panel) return;
+
+  const gameType = String(game?.gameType || '').toUpperCase();
+
+  // bara V85 ska ha panelen
+  if (gameType !== 'V85') {
+    panel.hidden = true;
+    return;
+  }
+
+  panel.hidden = false;
+
+  // läs ev. sparad nivå per spel
+  const key = `trav_stake_${currentGameId}`;
+  const saved = localStorage.getItem(key);
+  if (saved === '30' || saved === '50' || saved === '70' || saved === 'original') {
+    stakeLevel = saved;
+  } else {
+    stakeLevel = 'original';
+  }
+
+  const buttons = panel.querySelectorAll('.stake-option');
+
+  const applyActive = () => {
+    buttons.forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.stake === stakeLevel);
+    });
+  };
+
+  applyActive();
+
+  buttons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const level = btn.dataset.stake;
+      if (!level) return;
+      stakeLevel = level;
+      localStorage.setItem(key, stakeLevel);
+      applyActive();
+      computeAndRenderPrice(); // uppdatera priset i totalen
+    });
+  });
 }
 
 
@@ -728,48 +775,58 @@ if (maxCount > 0 && count === maxCount) {
 }
 
 const spikeCount = spiked[horse.number] || 0;
+
+// rensa ev. gammal ram först
+const oldFrame = leftSquare.querySelector('.star-frame');
+if (oldFrame) oldFrame.remove();
+
 if (spikeCount > 0) {
   leftSquare.classList.add('has-spike');
 
-  // 3x3-grid:
-  // stjärnor runt kanten i ordning:
-  // [0,0] [0,1] [0,2] [1,2] [2,2] [2,1] [2,0] [1,0]
   const size = 5;
-  const borderPositions = [
-    [0, 0],
-    [0, 1],
-    [0, 2],
-    [0, 3],
-    [1, 0],
-    [2, 0],
-    [3, 0],
-    [4, 0],
-    [4, 1],
-    [4, 2],
-    [4, 3],
-    [2, 4],
-    [1, 4],
-    [3, 4],
-  ];
+  const borderPositions = [];
 
-  const maxStarsInFrame = borderPositions.length;
+  // överkant: (0,0) -> (0,4)
+  for (let c = 0; c < size; c++) {
+    borderPositions.push([0, c]);
+  }
+  // högerkant (utan hörn): (1,4) -> (3,4)
+  for (let r = 1; r < size - 1; r++) {
+    borderPositions.push([r, size - 1]);
+  }
+  // nederkant: (4,4) -> (4,0)
+  for (let c = size - 1; c >= 0; c--) {
+    borderPositions.push([size - 1, c]);
+  }
+  // vänsterkant (utan hörn): (3,0) -> (1,0)
+  for (let r = size - 2; r > 0; r--) {
+    borderPositions.push([r, 0]);
+  }
+
+  const maxStarsInFrame = borderPositions.length; // 16
   const usedStars = Math.min(spikeCount, maxStarsInFrame);
 
-  const grid = Array.from({ length: size }, () =>
-    Array.from({ length: size }, () => ' ')
-  );
+  // skapa overlay-lagret
+  const frameEl = document.createElement('div');
+  frameEl.className = 'star-frame';
 
   for (let i = 0; i < usedStars; i++) {
     const [r, c] = borderPositions[i];
-    // r och c är alltid inom 0..size-1 här
-    grid[r][c] = '★';
+
+    const star = document.createElement('span');
+    star.className = 'star-cell';
+    star.textContent = '★';
+
+    // grid-position (1-baserat)
+    star.style.gridRowStart = r + 1;
+    star.style.gridColumnStart = c + 1;
+
+    frameEl.appendChild(star);
   }
 
-  // centrum lämnas alltid tomt
-  const frame = grid.map((row) => row.join('')).join('\n');
-
-  leftSquare.setAttribute('data-stars', frame);
+  leftSquare.appendChild(frameEl);
 }
+
 
 
 
@@ -867,8 +924,10 @@ function computeAndRenderPrice() {
     return set ? set.size : 0;
   });
 
-  const radPris = getRadPris(game?.gameType);
-  const radPrisFormatted = formatMoney(radPris);
+  const baseRadPris = getRadPris(game?.gameType);     // t.ex. 0.50 på V85
+const radPris = getEffectiveRadPris();              // tar hänsyn till stakeLevel
+const radPrisFormatted = formatMoney(radPris);
+
 
   if (!counts.length) {
     priceEl.innerHTML = `
@@ -890,14 +949,28 @@ function computeAndRenderPrice() {
     rows = countsForProduct.reduce((p, c) => p * c, 1);
   }
 
-  const total = rows * radPris;
+   const total = rows * radPris;
   const countsExpr = counts.join('x'); // t.ex. 3x5x3x1x1x5
 
   const main = `Pris: ${formatMoney(total)} kr`;
   let sub;
 
   if (rows > 0) {
-    sub = `${countsExpr} = ${rows} rader • Radpris: ${radPrisFormatted} kr`;
+    let stakeText = '';
+    const up = String(game?.gameType || '').toUpperCase();
+    if (up === 'V85') {
+      const map = {
+        original: '100% insats',
+        '70': '70% insats',
+        '50': '50% insats',
+        '30': '30% insats',
+      };
+      stakeText = ` • ${map[stakeLevel] || ''}`;
+    }
+
+    sub =
+      `${countsExpr} = ${rows} rader • ` +
+      `Radpris: ${radPrisFormatted} kr${stakeText}`;
   } else {
     sub = 'Inga val.';
   }
@@ -909,7 +982,8 @@ function computeAndRenderPrice() {
 }
 
 function computeCouponPrice(coupon) {
-  const radPris = getRadPris(game?.gameType);
+  const radPris = getEffectiveRadPrisForCoupon(coupon);
+
 
   if (!divisions.length || !coupon || !Array.isArray(coupon.selections)) {
     return {
@@ -970,6 +1044,53 @@ function formatMoney(value) {
   return value.toFixed(2).replace('.', ',');
 }
 
+
+function getEffectiveRadPris() {
+  const base = getRadPris(game?.gameType);
+
+  const up = String(game?.gameType || '').toUpperCase();
+  if (up !== 'V85') {
+    // andra spelformer bryr sig inte om stakeLevel
+    return base;
+  }
+
+  switch (stakeLevel) {
+    case '30':
+      return 0.15;
+    case '50':
+      return 0.25;
+    case '70':
+      return 0.35;
+    case 'original':
+    default:
+      return 0.5; // ordinarie V85
+  }
+}
+
+function getEffectiveRadPrisForCoupon(coupon) {
+  const base = getRadPris(game?.gameType);
+  const up = String(game?.gameType || '').toUpperCase();
+
+  // Bara V85 har sänkt insats
+  if (up !== 'V85') return base;
+
+  const level = coupon?.stakeLevel || 'original';
+
+  switch (level) {
+    case '30':
+      return 0.15;
+    case '50':
+      return 0.25;
+    case '70':
+      return 0.35;
+    case 'original':
+    default:
+      return 0.5; // ordinarie V85
+  }
+}
+
+
+
 //
 // ---- Autofix: align sidokolumner med tabellrader ----
 //
@@ -990,7 +1111,7 @@ function syncNumberPositions() {
     : 0;
 
   // liten offset så siffer-rutorna hamnar mitt i hästraden
-  const offset = 38;
+  const offset = 51;
 
   leftCol.style.marginTop = `${headerHeight + offset}px`;
   rightCol.style.marginTop = `${headerHeight + offset}px`;
@@ -1117,22 +1238,73 @@ function initSaveIdeaCouponButton() {
     const name = nameInput.trim() || defaultName;
 
     try {
-      const newCoupon = await createCoupon(currentGameId, {
-        ...payload,
-        source: 'idea',
-        name, // 🔹 skicka med kupongnamnet till API:t
-      });
+  // bygg upp body till API:t
+  const body = {
+    ...payload,
+    source: 'idea',
+    name,
+  };
 
-      coupons.push(newCoupon);
-      renderCouponList();
-      renderCurrentDivision(); // uppdatera populärfältet med nya counts
-    } catch (err) {
-      console.error(err);
-      alert('Kunde inte spara kupongen.');
-    }
+  // Om spelet är V85 – skicka med aktuell insatsnivå
+  const up = String(game?.gameType || '').toUpperCase();
+  if (up === 'V85') {
+    body.stakeLevel = stakeLevel; // samma stakeLevel som totalen använder
+  }
+
+  const newCoupon = await createCoupon(currentGameId, body);
+
+  coupons.push(newCoupon);
+  renderCouponList();
+  renderCurrentDivision(); // uppdatera populärfältet med nya counts
+} catch (err) {
+  console.error(err);
+  alert('Kunde inte spara kupongen.');
+}
+
   });
 }
 
+function initClearIdeaButton() {
+  const btn = document.getElementById('btn-clear-idea');
+  if (!btn) return;
+
+  btn.addEventListener('click', () => {
+    if (!divisions.length) return;
+
+    // Finns det ens något att rensa?
+    const anySelected = Object.values(selectedIdeaNumbersByDivIndex || {}).some(
+      (set) => set && set.size > 0
+    );
+    if (!anySelected) return;
+
+    const ok = window.confirm(
+      'Vill du rensa alla markeringar i idéfältet för ALLA avdelningar i detta spel?'
+    );
+    if (!ok) return;
+
+    // 1) Töm ALLA avdelningars idé-val
+    Object.keys(selectedIdeaNumbersByDivIndex).forEach((key) => {
+      selectedIdeaNumbersByDivIndex[key] = new Set();
+    });
+
+    // 2) Ta bort markeringsklass i nuvarande högerspalt
+    const ideaList = document.getElementById('idea-number-list');
+    if (ideaList) {
+      ideaList
+        .querySelectorAll('.num-square.selected')
+        .forEach((el) => el.classList.remove('selected'));
+    }
+
+    // 3) Sätt markeringar i Totalen till 0 för alla avdelningar
+    divisions.forEach((_, idx) => {
+      updateDivisionCount(idx, 0);
+    });
+
+    // 4) Spara + räkna om priset (nu blir det 0 rader)
+    saveIdeaSelections();
+    computeAndRenderPrice();
+  });
+}
 
 
 function buildCouponBuilderUI(builder) {
