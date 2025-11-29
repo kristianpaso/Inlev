@@ -11,10 +11,14 @@ const CouponDivisionSchema = new mongoose.Schema(
 );
 
 // Själva kupongen
+// Själva kupongen
 const CouponSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
+  source: { type: String, default: 'manual' }, // t.ex. 'idea' eller 'manual'
+  name: { type: String, default: '' },         // 🔹 NAMN PÅ KUPONGEN
   selections: [CouponDivisionSchema],
 });
+
 
 const TravGameSchema = new mongoose.Schema(
   {
@@ -22,15 +26,14 @@ const TravGameSchema = new mongoose.Schema(
     date: { type: String, required: true },
     track: { type: String, required: true },
     gameType: { type: String, required: true },
+
     horseText: { type: String, default: '' },
 
-    // resultat från parsning av inklistrad text
     parsedHorseInfo: {
       type: Object,
       default: {},
     },
 
-    // 🔹 alla kuponger kopplade till spelet
     coupons: {
       type: [CouponSchema],
       default: [],
@@ -38,5 +41,6 @@ const TravGameSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
 
 module.exports = mongoose.model('TravGame', TravGameSchema);

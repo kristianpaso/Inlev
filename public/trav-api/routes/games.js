@@ -118,7 +118,7 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/coupons', async (req, res) => {
   try {
     const { id } = req.params;
-    const { selections } = req.body; // [{ divisionIndex, horses: [1,4,9] }, ...]
+    const { selections, name, source } = req.body; // 🔹 uppdaterad
 
     if (!Array.isArray(selections) || !selections.length) {
       return res.status(400).send('Minst en avdelning krävs för kupong.');
@@ -144,7 +144,12 @@ router.post('/:id/coupons', async (req, res) => {
       return res.status(404).send('Spelet hittades inte.');
     }
 
-    game.coupons.push({ selections: normalized });
+    game.coupons.push({
+      selections: normalized,
+      name: name || '',
+      source: source || 'manual',
+    });
+
     await game.save();
 
     const newCoupon = game.coupons[game.coupons.length - 1];
@@ -154,6 +159,7 @@ router.post('/:id/coupons', async (req, res) => {
     res.status(500).send('Serverfel vid skapande av kupong.');
   }
 });
+
 
 // Ta bort kupong
 router.delete('/:id/coupons/:couponId', async (req, res) => {

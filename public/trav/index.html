@@ -15,7 +15,7 @@
       </div>
       <div class="topbar-actions">
         <button id="btn-new-game" class="btn primary">Skapa spel</button>
-        <button id="btn-new-track" class="btn">Skapa bana</button>
+       <button id="btn-toggle-track-panel" class="btn">Skapa bana</button>
       </div>
     </header>
 
@@ -34,10 +34,15 @@
             <input id="game-date" name="date" type="date" required>
           </div>
 
-          <div class="form-row">
-            <label for="game-track">Bana</label>
-            <input id="game-track" name="track" type="text" required placeholder="Ex: Åby, Solvalla">
-          </div>
+        <div class="form-row">
+  <label for="game-track">Bana</label>
+  <select id="game-track" name="track">
+    <option value="">Välj bana...</option>
+    <!-- JS fyller på alternativen -->
+  </select>
+  <div id="game-track-info" class="hint"></div>
+</div>
+
 
           <div class="form-row">
             <label for="game-type">Spelform</label>
@@ -77,6 +82,71 @@ HÄST	KUSK	V85%	TREND%	DISTANS & SPÅR	STARTER I ÅR	VAGN	V-ODDS
           <p class="form-error" id="game-form-error" hidden></p>
         </form>
       </section>
+<section class="panel" id="track-panel" hidden>
+  <div class="panel-header">
+    <h2>Banor</h2>
+    <span class="badge" id="track-count">0 banor</span>
+  </div>
+
+  <form id="track-form" class="stack">
+    <div class="form-row">
+      <label for="track-name">Namn</label>
+      <input id="track-name" type="text" placeholder="Solvalla" required />
+    </div>
+
+    <div class="form-row">
+      <label for="track-code">Banförkortning</label>
+      <input id="track-code" type="text" placeholder="S" maxlength="3" required />
+    </div>
+
+    <div class="form-row">
+      <label for="track-length">Längd</label>
+      <input id="track-length" type="text" placeholder="1000 m" />
+    </div>
+
+    <div class="form-row">
+      <label for="track-width">Bredd</label>
+      <input
+        id="track-width"
+        type="text"
+        placeholder="20,7 m (2140 m), 21,7 m (1640 m)"
+      />
+    </div>
+
+    <div class="form-row">
+      <label for="track-homeStretch">Upplopp</label>
+      <input id="track-homeStretch" type="text" placeholder="200 m" />
+    </div>
+
+    <div class="form-row">
+      <label for="track-openStretch">Open stretch</label>
+      <input id="track-openStretch" type="text" placeholder="Ja / Nej" />
+    </div>
+
+    <div class="form-row">
+      <label for="track-angledGate">Vinklad startbilsvinge</label>
+      <input id="track-angledGate" type="text" placeholder="Ja / Nej" />
+    </div>
+<div class="form-row">
+  <label for="track-lat">Latitud</label>
+  <input id="track-lat" type="text" placeholder="t.ex. 59.342" />
+</div>
+
+<div class="form-row">
+  <label for="track-lon">Longitud</label>
+  <input id="track-lon" type="text" placeholder="t.ex. 18.008" />
+</div>
+
+    <button class="btn primary" type="submit">Spara bana</button>
+  </form>
+
+  <div class="track-list-wrapper">
+    <h3>Sparade banor</h3>
+    <ul id="track-list" class="track-list">
+      <!-- Fylls av JS -->
+    </ul>
+  </div>
+</section>
 
       <!-- Höger: lista med spel -->
       <section class="panel panel-list">

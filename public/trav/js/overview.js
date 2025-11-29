@@ -1,11 +1,11 @@
 // public/trav/js/overview.js
 
 // var innan: import { getGame } from './api.js';
-import { getGame, createCoupon, deleteCoupon } from './api.js';
+import { getGame, createCoupon, deleteCoupon, getTracks } from './api.js';
 
 let game = null;
 let currentGameId = null;
-
+let allTracks = [];  
 let divisions = [];
 let currentIndex = 0;
 let headerColumns = [];
@@ -41,18 +41,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  try {
-    game = await getGame(gameId);
+try {
+    const [gameData, tracks] = await Promise.all([
+      getGame(gameId),
+      getTracks().catch(() => []), // om ban-API failar vill vi ändå visa spelet
+    ]);
+
+    game = gameData;
+    allTracks = Array.isArray(tracks) ? tracks : [];
     currentGameId = game._id;
-    loadIdeaSelections(currentGameId);        // 🔹 läs markeringar från localStorage
+
+    loadIdeaSelections(currentGameId);
     setupOverview(game);
+    renderTrackInfo();            // 🔹 visa banblocket
   } catch (err) {
     console.error(err);
     alert('Kunde inte hämta spelet.');
   }
 
   // 🔹 Kör om alignment när fönstret ändrar storlek (t.ex. text bryts om)
-  window.addEventListener('resize', syncNumberPositions);
+  setupResponsiveSync();
 });
 
 //
@@ -194,11 +202,218 @@ function setupOverview(game) {
 
   currentIndex = 0;
   renderCurrentDivision();
-  computeAndRenderPrice();   // startpris (utifrån sparade markeringar)
+  computeAndRenderPrice();
   initCouponUI();
-renderCouponList();
+  initSaveIdeaCouponButton();
+  renderCouponList();
+  setupSwipeNavigation(); // 🔹 lägg till denna
+
 
 }
+
+
+function renderTrackInfo() {
+  const section = document.getElementById('track-info-section');
+  const box = document.getElementById('track-info-box');
+  if (!section || !box) return;
+
+  box.innerHTML = '';
+
+  if (!game || !game.track) {
+    section.style.display = 'none';
+    return;
+  }
+
+  const trackName = (game.track || '').trim();
+  if (!trackName) {
+    section.style.display = 'none';
+    return;
+  }
+
+  // Försök matcha mot ban-listan (namn först, fall back på kod)
+  const match =
+    (allTracks || []).find(
+      (t) =>
+        (t.name &&
+          t.name.toLowerCase() === trackName.toLowerCase()) ||
+        (t.code &&
+          t.code.toLowerCase() === trackName.toLowerCase())
+    ) || null;
+
+  section.style.display = '';
+
+if (!match) {
+  const p = document.createElement('p');
+  p.className = 'track-info-text';
+  p.textContent = trackName;
+  box.appendChild(p);
+
+  // Ingen matchad bana → ingen position → göm väder
+  const weatherBox = document.getElementById('track-weather-box');
+  if (weatherBox) weatherBox.style.display = 'none';
+
+  return;
+}
+
+  // Titel, t.ex. "Solvalla (S)"
+  const title = document.createElement('div');
+  title.className = 'track-info-title';
+  title.textContent = `${match.name} (${match.code})`;
+  box.appendChild(title);
+
+  const list = document.createElement('ul');
+  list.className = 'track-info-list';
+
+  const addRow = (label, value) => {
+    if (!value) return;
+    const li = document.createElement('li');
+    const spanLabel = document.createElement('span');
+    spanLabel.textContent = label;
+
+    const spanValue = document.createElement('span');
+    spanValue.textContent = value;
+
+    li.appendChild(spanLabel);
+    li.appendChild(spanValue);
+    list.appendChild(li);
+  };
+
+  addRow('Längd', match.length);
+  addRow('Bredd', match.width);
+  addRow('Upplopp', match.homeStretch);
+  addRow('Open stretch', match.openStretch);
+  addRow('Vinklad vinge', match.angledGate);
+
+  box.appendChild(list);
+    // 🔹 hämta & visa väder för denna bana
+  renderTrackWeather(match);
+}
+function getWeatherSymbol(code) {
+  const c = Number(code);
+
+  if (c === 0) return { icon: '☀️', label: 'Klart' };
+  if (c === 1 || c === 2) return { icon: '🌤️', label: 'Mest klart' };
+  if (c === 3) return { icon: '☁️', label: 'Mulet' };
+  if (c >= 45 && c <= 48) return { icon: '🌫️', label: 'Dimma' };
+
+  if ((c >= 51 && c <= 57) || (c >= 61 && c <= 67)) {
+    return { icon: '🌧️', label: 'Regn' };
+  }
+
+  if ((c >= 71 && c <= 77) || (c >= 85 && c <= 86)) {
+    return { icon: '🌨️', label: 'Snö' };
+  }
+
+  if (c >= 80 && c <= 82) return { icon: '🌦️', label: 'Skurar' };
+
+  if (c >= 95 && c <= 99) return { icon: '⛈️', label: 'Åska' };
+
+  return { icon: '❓', label: 'Okänt väder' };
+}
+
+async function renderTrackWeather(track) {
+  const box = document.getElementById('track-weather-box');
+  if (!box) return;
+
+  box.innerHTML = '';
+
+  if (!track || track.lat == null || track.lon == null) {
+    box.style.display = 'none';
+    return;
+  }
+
+  box.style.display = '';
+
+  const title = document.createElement('div');
+  title.className = 'track-weather-title';
+  title.textContent = 'Väder (nu & kommande timmar)';
+  box.appendChild(title);
+
+  const status = document.createElement('div');
+  status.className = 'track-weather-status';
+  status.textContent = 'Hämtar väder...';
+  box.appendChild(status);
+
+  try {
+    const lat = track.lat;
+    const lon = track.lon;
+    const url =
+  `https://api.open-meteo.com/v1/forecast` +
+  `?latitude=${lat}&longitude=${lon}` +
+  `&current_weather=true` +
+  `&hourly=temperature_2m,precipitation_probability,weathercode` +
+  `&forecast_days=1` +
+  `&timezone=auto`;
+
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Kunde inte hämta väder.');
+    const data = await res.json();
+
+    // Rensa “hämtar...”
+    status.remove();
+
+   const current = data.current_weather;
+if (current) {
+  const cur = document.createElement('div');
+  cur.className = 'track-weather-current';
+
+  const { icon, label } = getWeatherSymbol(current.weathercode);
+
+  cur.textContent = `Nu: ${icon} ${label} – ${current.temperature}°C, vind ${
+    current.windspeed
+  } m/s`;
+
+  box.appendChild(cur);
+}
+
+
+    // Hitta index för “nu” i hourly
+   const hourly = data.hourly || {};
+const times = hourly.time || [];
+const temps = hourly.temperature_2m || [];
+const pops = hourly.precipitation_probability || [];
+const codes = hourly.weathercode || [];
+
+
+    if (times.length) {
+      const nowIso = current ? current.time : times[0];
+      const startIndex = Math.max(
+        times.findIndex((t) => t >= nowIso),
+        0
+      );
+
+      const list = document.createElement('ul');
+      list.className = 'track-weather-list';
+
+      // Visa ca 6 kommande timmar (inkl ev. nu)
+     for (let i = startIndex; i < Math.min(startIndex + 6, times.length); i++) {
+  const li = document.createElement('li');
+
+  const time = new Date(times[i]);
+  const hh = time.getHours().toString().padStart(2, '0');
+  const temp = temps[i];
+  const pop = pops[i];
+  const code = codes[i];
+
+  const { icon, label } = getWeatherSymbol(code);
+
+  li.textContent =
+    `${hh}:00 – ${icon} ${label}, ${temp}°C` +
+    (typeof pop === 'number' ? `, nederbörd: ${pop}%` : '');
+
+  list.appendChild(li);
+}
+
+
+      box.appendChild(list);
+    }
+  } catch (err) {
+    console.error(err);
+    status.textContent = 'Kunde inte hämta väder.';
+  }
+}
+
 
 function renderCurrentDivision() {
   const division = divisions[currentIndex];
@@ -213,18 +428,30 @@ function renderCurrentDivision() {
 
 function updateDivisionHeader(index, total) {
   const centerDivIndexEl = document.getElementById('center-division-index');
+  const centerDivDistanceEl = document.getElementById('center-division-distance');
 
   if (!total) {
-    centerDivIndexEl.textContent = '-';
+    if (centerDivIndexEl) centerDivIndexEl.textContent = '-';
+    if (centerDivDistanceEl) centerDivDistanceEl.textContent = '';
   } else {
-    const humanIndex = divisions[index]?.index || index + 1;
-    centerDivIndexEl.textContent = humanIndex;
+    const division = divisions[index];
+    const humanIndex = division?.index || index + 1;
+
+    if (centerDivIndexEl) centerDivIndexEl.textContent = humanIndex;
+
+    const distance = getDivisionDistance(division);
+    if (centerDivDistanceEl) {
+      centerDivDistanceEl.textContent = distance
+        ? ` : ${distance} meter`
+        : '';
+    }
   }
 
   divisionSquares.forEach((sq, i) => {
     sq.classList.toggle('active', i === index);
   });
 }
+
 
 //
 // ---- Parsing helpers ----
@@ -287,6 +514,33 @@ function getHorseName(divisionIndex, horseNumber) {
   return extractHorseNameFromRawLine(horse.rawLine || '');
 }
 
+function getDivisionDistance(division) {
+  if (!division || !division.horses || !division.horses.length) return null;
+
+  // hitta kolumnindex för DISTANS & SPÅR / DISTANS
+  const distIndex = headerColumns.findIndex((name) =>
+    name.toUpperCase().startsWith('DISTANS')
+  );
+  if (distIndex === -1) return null;
+
+  // ta första icke-strukna häst som har ett värde i den kolumnen
+  for (const horse of division.horses) {
+    if (!horse || horse.scratched) continue;
+    const cols = parseLineColumns(horse.rawLine || '');
+    const val = cols[distIndex];
+    if (!val) continue;
+
+    // format "2140 : 4" → ta siffrorna före kolon
+    const m = String(val).match(/^(\d+)\s*:/);
+    if (m) {
+      return m[1]; // "2140"
+    }
+  }
+
+  return null;
+}
+
+
 function computePopularityForDivision(division) {
   if (!division || !coupons || !coupons.length) {
     return { counts: {}, spiked: {}, maxCount: 0 };
@@ -342,6 +596,7 @@ function createNumberSquare(num, { clickable = false } = {}) {
 
 function buildHorseView(division, divIndex, popularity) {
   const { counts = {}, spiked = {}, maxCount = 0 } = popularity || {};
+
   const container = document.getElementById('horse-table-container');
   const popularList = document.getElementById('popular-number-list');
   const ideaList = document.getElementById('idea-number-list');
@@ -368,6 +623,9 @@ function buildHorseView(division, divIndex, popularity) {
 
   const thead = document.createElement('thead');
   const headRow = document.createElement('tr');
+
+  // ... (resten av koden som redan finns kvar)
+
 
   // 🔹 Ingen nummer-kolumn längre, bara våra valda kolumner
   visibleColumns.forEach(({ name }) => {
@@ -460,6 +718,10 @@ if (horse.scratched) {
 }
 
 const count = counts[horse.number] || 0;
+// 🔹 Häst som inte finns på någon kupong → röd ruta
+if (coupons && coupons.length > 0 && !horse.scratched && count === 0) {
+  leftSquare.classList.add('not-played');
+}
 if (maxCount > 0 && count === maxCount) {
   // mest spelade hästen i denna avdelning
   leftSquare.classList.add('popular-most');
@@ -469,18 +731,48 @@ const spikeCount = spiked[horse.number] || 0;
 if (spikeCount > 0) {
   leftSquare.classList.add('has-spike');
 
-  // Bygg stjärnor 2 och 2 per rad
-  const rows = [];
-  let remaining = spikeCount;
-  while (remaining > 0) {
-    const thisRow = Math.min(2, remaining);
-    rows.push('★'.repeat(thisRow));
-    remaining -= thisRow;
+  // 3x3-grid:
+  // stjärnor runt kanten i ordning:
+  // [0,0] [0,1] [0,2] [1,2] [2,2] [2,1] [2,0] [1,0]
+  const size = 5;
+  const borderPositions = [
+    [0, 0],
+    [0, 1],
+    [0, 2],
+    [0, 3],
+    [1, 0],
+    [2, 0],
+    [3, 0],
+    [4, 0],
+    [4, 1],
+    [4, 2],
+    [4, 3],
+    [2, 4],
+    [1, 4],
+    [3, 4],
+  ];
+
+  const maxStarsInFrame = borderPositions.length;
+  const usedStars = Math.min(spikeCount, maxStarsInFrame);
+
+  const grid = Array.from({ length: size }, () =>
+    Array.from({ length: size }, () => ' ')
+  );
+
+  for (let i = 0; i < usedStars; i++) {
+    const [r, c] = borderPositions[i];
+    // r och c är alltid inom 0..size-1 här
+    grid[r][c] = '★';
   }
 
-  const stars = rows.join('\n'); // t.ex. "★★\n★★\n★"
-  leftSquare.setAttribute('data-stars', stars);
+  // centrum lämnas alltid tomt
+  const frame = grid.map((row) => row.join('')).join('\n');
+
+  leftSquare.setAttribute('data-stars', frame);
 }
+
+
+
 
 
 popularList.appendChild(leftSquare);
@@ -616,6 +908,57 @@ function computeAndRenderPrice() {
   `;
 }
 
+function computeCouponPrice(coupon) {
+  const radPris = getRadPris(game?.gameType);
+
+  if (!divisions.length || !coupon || !Array.isArray(coupon.selections)) {
+    return {
+      rows: 0,
+      total: 0,
+      countsExpr: '',
+      radPris,
+    };
+  }
+
+  // Mappa divisionIndex -> position i divisions-arrayen
+  const indexToPos = {};
+  divisions.forEach((div, i) => {
+    const idx = div.index ?? i + 1;
+    indexToPos[idx] = i;
+  });
+
+  // Starta med 0 val i alla avdelningar
+  const counts = new Array(divisions.length).fill(0);
+
+  coupon.selections.forEach((sel) => {
+    const pos = indexToPos[sel.divisionIndex];
+    if (pos === undefined) return;
+
+    const n = Array.isArray(sel.horses) ? sel.horses.length : 0;
+    counts[pos] = n;
+  });
+
+  const hasAny = counts.some((c) => c > 0);
+  let rows = 0;
+
+  if (hasAny) {
+    // Samma logik som egen kupong: 0 räknas som 1 när minst en avdelning har val
+    const countsForProduct = counts.map((c) => (c === 0 ? 1 : c));
+    rows = countsForProduct.reduce((p, c) => p * c, 1);
+  }
+
+  const total = rows * radPris;
+  const countsExpr = counts.join('x'); // t.ex. "3x5x3x1x1x5"
+
+  return {
+    rows,
+    total,
+    countsExpr,
+    radPris,
+  };
+}
+
+
 function getRadPris(gameType) {
   if (!gameType) return 1;
   const up = String(gameType).toUpperCase();
@@ -677,6 +1020,34 @@ function syncNumberPositions() {
   });
 }
 
+function setupResponsiveSync() {
+  let rafId = null;
+
+  const schedule = () => {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+    }
+    rafId = requestAnimationFrame(() => {
+      rafId = null;
+      syncNumberPositions();
+    });
+  };
+
+  // Desktop + när man roterar mobilen
+  window.addEventListener('resize', schedule);
+  window.addEventListener('orientationchange', schedule);
+
+  // Mobil-special: när man scrollar (adressfält upp/ner)
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (window.innerWidth <= 900) {
+        schedule();
+      }
+    },
+    { passive: true }
+  );
+}
 
 //
 // ---- Kupongbyggare ----
@@ -721,6 +1092,48 @@ renderCurrentDivision(); // 🔹 uppdatera populärfältet
     }
   };
 }
+
+function initSaveIdeaCouponButton() {
+  const btn = document.getElementById('btn-save-idea-coupon');
+  if (!btn) return;
+
+  btn.addEventListener('click', async () => {
+    const payload = buildCouponPayloadFromIdea();
+
+    if (!payload.selections.length) {
+      alert('Du måste välja minst en häst i något lopp för att spara kupongen.');
+      return;
+    }
+
+    // hur många "Min kupong" finns redan?
+    const existingIdeaCount = coupons.filter((c) => c.source === 'idea').length;
+    const defaultName = `Min kupong ${existingIdeaCount + 1}`;
+
+    const nameInput = prompt('Ange namn på kupongen:', defaultName);
+    if (nameInput === null) {
+      // användaren tryckte Avbryt
+      return;
+    }
+    const name = nameInput.trim() || defaultName;
+
+    try {
+      const newCoupon = await createCoupon(currentGameId, {
+        ...payload,
+        source: 'idea',
+        name, // 🔹 skicka med kupongnamnet till API:t
+      });
+
+      coupons.push(newCoupon);
+      renderCouponList();
+      renderCurrentDivision(); // uppdatera populärfältet med nya counts
+    } catch (err) {
+      console.error(err);
+      alert('Kunde inte spara kupongen.');
+    }
+  });
+}
+
+
 
 function buildCouponBuilderUI(builder) {
   builder.innerHTML = '';
@@ -810,15 +1223,27 @@ function renderCouponList() {
   }
 
   coupons.forEach((coupon, idx) => {
-    const card = document.createElement('div');
-    card.className = 'coupon-card';
+  const isIdea = coupon.source === 'idea';
 
-    const header = document.createElement('div');
-    header.className = 'coupon-card-header';
+const card = document.createElement('div');
+card.className = 'coupon-card';
+if (isIdea) {
+  card.classList.add('my-coupon-card'); // 🔹 speciell bakgrund för "Min kupong"
+}
 
-    const title = document.createElement('div');
-    title.className = 'coupon-card-title';
-    title.textContent = `Kupong ${idx + 1}`;
+const header = document.createElement('div');
+header.className = 'coupon-card-header';
+
+const baseName = isIdea ? 'Min kupong' : 'Kupong';
+const defaultTitle = `${baseName} ${idx + 1}`;
+
+const title = document.createElement('div');
+title.className = 'coupon-card-title';
+title.textContent = coupon.name || defaultTitle;
+
+
+
+
 
     const sub = document.createElement('div');
     sub.className = 'coupon-card-sub';
@@ -910,11 +1335,102 @@ if (nums && nums.length) {
       tbody.appendChild(tr);
     });
 
-    table.appendChild(tbody);
+      table.appendChild(tbody);
     card.appendChild(table);
+
+        // 🔹 Räkna ut priset för den här kupongen
+    const price = computeCouponPrice(coupon);
+    const priceWrap = document.createElement('div');
+    priceWrap.className = 'coupon-price';
+
+    const main = document.createElement('div');
+    main.className = 'coupon-price-main';
+    main.textContent = `Pris: ${formatMoney(price.total)} kr`;
+
+    const priceSub = document.createElement('div');
+    priceSub.className = 'coupon-price-sub';
+
+    if (price.rows > 0) {
+      priceSub.textContent =
+        `${price.countsExpr} = ${price.rows} rader ` +
+        `• Radpris: ${formatMoney(price.radPris)} kr`;
+    } else {
+      priceSub.textContent = 'Inga val i kupongen.';
+    }
+
+    priceWrap.appendChild(main);
+    priceWrap.appendChild(priceSub);
+    card.appendChild(priceWrap);
+
 
     listEl.appendChild(card);
   });
 }
 
 
+
+function buildCouponPayloadFromIdea() {
+  const selections = [];
+
+  divisions.forEach((div) => {
+    const divIndex = div.index ?? 0;
+    const key = getDivisionKey(div); // samma nyckel som vi använder i övrigt
+
+    const set = selectedIdeaNumbersByDivIndex[key];
+    if (set && set.size > 0) {
+      selections.push({
+        divisionIndex: divIndex,
+        horses: Array.from(set).sort((a, b) => a - b),
+      });
+    }
+  });
+
+  return { selections };
+}
+
+function goToDivision(newIndex) {
+  if (newIndex < 0 || newIndex >= divisions.length) return;
+  currentIndex = newIndex;
+  renderCurrentDivision();
+}
+
+function setupSwipeNavigation() {
+  const swipeArea = document.querySelector('.big-block');
+  if (!swipeArea) return;
+
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  swipeArea.addEventListener(
+    'touchstart',
+    (e) => {
+      const t = e.touches[0];
+      touchStartX = t.clientX;
+      touchStartY = t.clientY;
+    },
+    { passive: true }
+  );
+
+  swipeArea.addEventListener(
+    'touchend',
+    (e) => {
+      const t = e.changedTouches[0];
+      const dx = t.clientX - touchStartX;
+      const dy = t.clientY - touchStartY;
+
+      // Bara horisontella swipes, minst 50px
+      if (Math.abs(dx) < 50 || Math.abs(dx) <= Math.abs(dy)) {
+        return;
+      }
+
+      if (dx < 0) {
+        // swipe vänster → nästa avdelning
+        goToDivision(currentIndex + 1);
+      } else {
+        // swipe höger → föregående avdelning
+        goToDivision(currentIndex - 1);
+      }
+    },
+    { passive: true }
+  );
+}
