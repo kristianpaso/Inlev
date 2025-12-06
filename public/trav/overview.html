@@ -24,7 +24,7 @@
     <main class="overview-layout">
       <!-- Slider-header för avdelningar -->
  <section class="division-header">
-  <div class="division-header-title">Totalen</div>
+ 
   <div class="division-number-row" id="division-number-row"></div>
 
   <!-- Pris-info (redan finns) -->
@@ -48,13 +48,15 @@
       </button>
     </div>
   </div>
+
+  
 </section>
 
 
       <!-- Stora blocket med tre kolumner -->
       <section class="big-block">
  <div class="side-block" id="popular-block">
-  <h2>Populärfält</h2>
+  <!--<h2>Populärfält</h2>-->
   <div id="popular-number-list" class="number-column">
     <!-- nummer fylls av JS -->
   </div>
@@ -62,35 +64,47 @@
 
   
 
- <div class="center-block">
-  <div class="center-block">
-  <h2>
-    Hästar i avdelning
-    <span id="center-division-index">1</span>
-    <span id="center-division-distance"></span>
-  </h2>
+ <div class="center-block" >
+  <div class="center-block" >
+    <!--<h2>
+      Hästar i avdelning
+      <span id="center-division-index">1</span>
+    </h2>-->
 
+    <div id="horse-table-container" class="horse-table-wrapper">
+      <!-- Tabell fylls av overview.js -->
+    </div>
 
-  <!-- 🔹 NYTT: välj visningsmall -->
-  <div class="list-mode-toggle">
-    <button class="btn list-mode-btn" data-mode="simple">Enkel lista</button>
-    <button class="btn list-mode-btn" data-mode="detailed">Detaljerad lista</button>
-  </div>
-
-  <div id="horse-table-container" class="horse-table-wrapper">
-    <!-- Tabell fylls av overview.js -->
+  
+  
   </div>
 </div>
-  </div>
+
 
 <div class="side-block" id="idea-block">
-  <h2>Idéfält</h2>
+  <!--<h2>Idéfält</h2>-->
   <div id="idea-number-list" class="number-column">
    
   </div>
 </div>
 
 </section>
+
+<!-- 🔹 NYTT: filterblocket -->
+<section class="filter-section">
+  <div class="filter-block">
+    <div class="filter-block-inner">
+      <div class="list-mode-toggle">
+    <button class="btn list-mode-btn" data-mode="simple">Enkel lista</button>
+    <button class="btn list-mode-btn" data-mode="detailed">Detaljerad lista</button>
+    <button class="btn list-mode-btn" data-mode="icons">Ikoner</button>
+  </div>
+
+  <!-- Förklaring av alla ikoner (visas bara i ikon-läge) -->
+  <div class="icon-legend hidden" id="icon-legend"></div>
+  </div>
+</section>
+
 <section class="coupon-section">
   <div class="coupon-section-header">
     <h2>Kuponger</h2>
@@ -100,12 +114,13 @@
         <button class="btn small danger" id="btn-clear-idea">Rensa Idéfält</button>
         <button class="btn small" id="btn-save-idea-coupon">Spara Min kupong</button>
       </div>
-
-      <!-- Egen knapp: vanliga kuponger -->
+         <!-- Egen knapp: vanliga kuponger -->
       <div class="coupon-new-actions">
         <button class="btn small" id="btn-add-coupon">Ny kupong</button>
+        <button class="btn small" id="btn-open-split">Split kupong</button>
+        <button class="btn small" id="btn-open-reverse">Omvänd kupong</button>
       </div>
-    </div>
+
   </div>
 
   <!-- Panel för att skapa kupong -->
@@ -124,6 +139,162 @@
       <button class="btn" id="btn-cancel-coupon">Avbryt</button>
     </div>
   </div>
+
+  <!-- Panel för att skapa kupong -->
+  <div id="coupon-add-panel" class="coupon-add-panel" hidden>
+    ...
+  </div>
+
+  <!-- 🔹 NYTT: panel för Split kupong -->
+  <div id="split-panel" class="coupon-add-panel" hidden>
+    <h3>Split kupong</h3>
+
+    <div class="form-row">
+      <label for="split-name">Namn</label>
+      <input id="split-name" type="text" placeholder="Ex. Skrällsystem" />
+    </div>
+
+    <div class="form-row">
+      <label for="split-count">Hur många kuponger</label>
+      <input id="split-count" type="number" min="1" value="2" />
+    </div>
+
+    <div class="form-row">
+      <label for="split-max-price">Max pris per kupong (kr)</label>
+      <input id="split-max-price" type="number" min="1" step="1" value="70" />
+    </div>
+
+    <div class="form-row">
+      <label for="split-spikes">Antal spikar per kupong</label>
+      <input id="split-spikes" type="number" min="0" value="2" />
+    </div>
+
+  
+
+    <div class="form-row">
+  <label for="split-pattern">Fördelning (t.ex. 1x1x1x2x3x3x3x3)</label>
+  <div id="split-pattern-suggestions" class="split-pattern-suggestions"></div>
+
+  
+  <input
+    id="split-pattern"
+    type="text"
+    placeholder="lämna tomt för auto"
+  />
+</div>
+
+
+
+<!-- Antal superskrällar (hästar < 5% V85) per kupong -->
+<div class="form-row">
+  <label for="split-supers">Antal superskrällar per kupong</label>
+  <input
+    id="split-supers"
+    type="number"
+    min="0"
+    step="1"
+    value="0"
+  />
+</div>
+
+<div class="form-row">
+  <label class="form-label" for="split-use-popular">
+    Bygg system från kuponger (populärfält)
+  </label>
+  <label class="toggle">
+    <input type="checkbox" id="split-use-popular" checked>
+    <span>På / Av</span>
+  </label>
+</div>
+
+    <p class="hint">
+      Systemet väljer ut spikar från de mest spelade hästarna i dina befintliga kuponger
+      och bygger <em>N</em> nya kuponger runt dem.
+    </p>
+
+      <div class="coupon-add-actions">
+      <div id="split-pattern-suggestions" class="split-pattern-suggestions"></div>
+      <button class="btn primary" id="btn-split-do">Skapa split-kuponger</button>
+      <button class="btn" id="btn-split-cancel">Avbryt</button>
+    </div>
+  </div>
+
+  
+
+  <!-- Panel för Omvänd kupong -->
+  <div id="reverse-panel" class="coupon-add-panel reverse-panel" hidden>
+
+
+    <div class="form-row">
+      <label for="reverse-name">Rubrik</label>
+      <input id="reverse-name" type="text" />
+    </div>
+
+<div class="form-row">
+  <label for="reverse-price-slider">Pris (kr)</label>
+
+  <!-- Slider med fasta lägen -->
+  <input
+    id="reverse-price-slider"
+    type="range"
+    min="0"
+    max="8"
+    step="1"
+    value="0"
+  />
+
+  <!-- Text under slidern som visar valt läge (1 kr, 25 kr, ... , Egen) -->
+  <div class="slider-value" id="reverse-price-display">1 kr</div>
+
+  <!-- Själva prisfältet som JS använder.
+       Det fylls automatiskt av slidern, och blir bara editerbart vid "Egen". -->
+  <input
+    id="reverse-price"
+    type="number"
+    min="1"
+    step="1"
+    style="margin-top: 4px; width: 100%;"
+  />
+</div>
+
+<div class="form-row">
+  <label for="reverse-spikes">Antal spik</label>
+  <input
+    id="reverse-spikes"
+    type="range"
+    min="0"
+    max="8"
+    step="1"
+    value="0"
+  />
+  <div class="slider-value" id="reverse-spikes-display">0</div>
+</div>
+
+<div class="form-row">
+  <label for="reverse-supers">Antal superskrällar</label>
+  <input
+    id="reverse-supers"
+    type="range"
+    min="0"
+    max="40"
+    step="1"
+    value="0"
+  />
+  <div class="slider-value" id="reverse-supers-display">0</div>
+</div>
+
+
+    <div class="coupon-add-actions">
+      <button class="btn primary" id="btn-create-reverse">Skapa Omvänd kupong</button>
+      <button class="btn" id="btn-cancel-reverse">Avbryt</button>
+    </div>
+  </div>
+
+
+
+  <!-- Lista med sparade kuponger -->
+  <div id="coupon-list" class="coupon-list">
+
 
   <!-- Lista med sparade kuponger -->
   <div id="coupon-list" class="coupon-list">

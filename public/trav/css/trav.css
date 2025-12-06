@@ -359,6 +359,13 @@ textarea:focus {
   background: #1f2937;
 }
 
+/* 🔹 Favorit i loppet – rad i hästtabellen */
+.horse-table tbody tr.horse-row-favourite {
+    background: #4f3800;
+    color: #ffffff;
+   
+}
+
 .horse-table tbody tr.scratched {
     opacity: 0.55;
     text-decoration: line-through;
@@ -378,35 +385,129 @@ textarea:focus {
 }
 
 
+
+
 /* Mobilanpassning */
 
+@media (max-width: 900px) {
+  /* ... din befintliga mobil-CSS ... */
+
+  /* Ingen horisontell scroll i mittenblocket på mobil */
+  .horse-table-wrapper {
+    overflow-x: hidden;
+  }
+
+  /* I detalj-läge på mobil döljer vi tabellhuvud + extra kolumner.
+     All extra-info visas i .horse-extra istället. */
+  .horse-table.mobile-detailed thead {
+    display: none;
+  }
+
+  .horse-table.mobile-detailed th:nth-child(n + 2),
+  .horse-table.mobile-detailed td:nth-child(n + 2) {
+    display: none;
+  }
+
+  /* Raden blir "vikbar" */
+  .horse-table tr.mobile-collapsible-row {
+    cursor: pointer;
+  }
+
+  .horse-extra {
+    display: none;
+    margin-top: 4px;
+    font-size: 0.75rem;
+    color: #9ca3af;
+  }
+
+  .horse-extra-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 4px;
+  }
+
+  /* När raden är expanderad visar vi extra-info */
+  .horse-table tr.mobile-collapsible-row.expanded .horse-extra {
+    display: block;
+  }
+}
+
+/* 🔹 Mobil-layout för total + pris + rubrik */
+@media (max-width: 900px) {
+
+  /* Gör headern staplad i stället för i rad */
+  .division-header {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px 10px;
+  }
+
+  /* Avdelningsrutorna centrerade och får ta hela bredden */
+  .division-number-row {
+    justify-content: center;
+     gap: 4px;
+  }
+
+
+
+  /* Pris på egen rad under rutorna */
+  .price-info {
+    margin-top: 6px;
+    text-align: center;
+  }
+
+  /* Stake-panel (V85) lite närmare priset */
+  .stake-panel {
+    margin-top: 4px;
+  }
+
+  /* Göm "Hästar i avdelning ..." rubriken på mobil */
+  .center-block h2 {
+    display: none;
+  }
+
+  /* Dra upp hästtabellen lite närmare headern */
+  .horse-table-wrapper {
+    margin-top: 4px;
+  }
+}
 
 
 @media (max-width: 900px) {
-  /* behåll annan mobil-CSS om du har den här */
-
   .big-block {
-    grid-template-columns: 60px minmax(0, 1fr) 60px; /* samma som desktop */
+    grid-template-columns: 60px minmax(0, 1fr) 60px;
   }
 
-   .topbar-center {
+  .topbar-center {
     text-align: left;
   }
+
   .side-block {
     max-width: 60px;
   }
+
+  /* 🔹 Mobil: rubriken "Hästar i avdelning 1 : 2140 meter" */
+  .division-label {
+    font-size: 13px;
+  }
+
+  .center-block h2{
+    font-size: 13px;
+  }
 }
+
 
 /* ---- "Totalen" ovanför slider ---- */
 
 .division-header {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 16px;
-  background: #151a2e;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0px;
+    background: #151a2e;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 .division-header-title {
@@ -417,21 +518,22 @@ textarea:focus {
 .division-number-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 .division-square {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  border: 1px solid #374151;
-  background: #020617;
-  color: #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-  cursor: pointer;
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    border: 1px solid #374151;
+    background: #f2c41b;
+    color: #0b1020;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
 }
 
 .division-square.active {
@@ -487,12 +589,7 @@ textarea:focus {
 }
 /* ---- Totalen: fyrkant + räknare under ---- */
 
-.division-number-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: flex-end;
-}
+
 
 .division-square-wrapper {
   display: flex;
@@ -509,10 +606,12 @@ textarea:focus {
 
 .list-mode-toggle {
   display: flex;
-  justify-content: center; /* tidigare flex-end */
+  justify-content: center;
   gap: 6px;
+  margin-top: 10px;      /* 🔹 ny rad */
   margin-bottom: 6px;
 }
+
 
 
 .center-block h2 {
@@ -621,6 +720,34 @@ textarea:focus {
   margin-bottom: 10px;
 }
 
+
+
+
+/* Mobil-layout för omvänd-kupong-panelen */
+@media (max-width: 900px) {
+    #reverse-panel {
+        position: fixed;
+        top: 72px;
+        left: 8px;
+        right: 8px;
+        width: 242px;
+        max-width: none;
+        margin: 0 auto;
+        z-index: 1500;
+        border: 2px solid #cacaca;
+        background: #051130;
+    }
+}
+
+
+/* När panelen är öppen */
+.reverse-panel.open {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+
 .coupon-builder {
   display: flex;
   flex-direction: column;
@@ -700,11 +827,33 @@ textarea:focus {
     border: 1px solid #1f2937;
     width: 215px;
     box-sizing: border-box;
-}
+} 
 /* "Min kupong" – sparad från Idéfältet */
 .coupon-card.my-coupon-card {
     background: #002d5d;
     border-color: #02a9ea;
+}
+
+/* Split-kuponger (skapade via "Split kupong") */
+.coupon-card.split-coupon-card {
+  border-radius: 10px;
+  padding: 8px 10px;
+  border: 1px solid #ffffff;
+  width: 215px;
+  box-sizing: border-box;
+  background: #42313b;
+}
+
+
+/* Omvänd kupong – annan bakgrundsfärg */
+/* Omvänd kupong – egen färg */
+.coupon-card.reverse-coupon-card {
+  background: #392d00;
+  border-radius: 10px;
+  padding: 8px 10px;
+  border: 1px solid #b38d00;
+  width: 215px;
+  box-sizing: border-box;
 }
 
 
@@ -751,6 +900,17 @@ textarea:focus {
   border-top: 1px solid #111827;
 }
 
+/* Kuponger som går att klicka på i omvänd-läge */
+.coupon-card.selectable {
+  cursor: pointer;
+}
+
+/* Den kupong vi markerat för omvänd kupong */
+.coupon-card.selected-for-reverse {
+  box-shadow: 0 0 0 2px #fbbf24;
+}
+
+
 .btn.small {
   padding: 3px 6px;
   font-size: 0.7rem;
@@ -782,8 +942,8 @@ textarea:focus {
 .num-square.popular-most {
     /* box-shadow: 0 0 0 2px #d35f10; */
     border-color: #000000;
-    background: #EE6352;
-    color: #ffffff;
+    background: #f3ef44;
+    color: #000000;
 }
 
 
@@ -812,7 +972,7 @@ textarea:focus {
     justify-content: center;
     font-size: 10px;
     line-height: 1;
-    color: #facc15;
+    color: #bd5000;
 }
 
 
@@ -839,6 +999,7 @@ textarea:focus {
   display: flex;
   align-items: center;
   gap: 16px;          /* lite större luft mellan grupperna */
+  width: 100%;
 }
 
 /* grupp: Idéfälts-knappar */
@@ -999,4 +1160,192 @@ textarea:focus {
   .coupon-card {
     width: 100%;   /* fyller sin gridkolumn */
   }
+}
+
+
+/* ---- Filterblocket (mellan hästinfo och kuponger) ---- */
+
+.filter-section {
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.filter-block {
+  background: #020617;
+  border-radius: 10px;
+  border: 1px solid #1f2937;
+  padding: 6px 10px;
+}
+
+.filter-block-inner {
+  display: flex;
+  justify-content: center;
+}
+
+/* vi använder befintlig .list-mode-toggle men tweakar lite */
+.list-mode-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;              /* ingen extra margin här nu */
+}
+
+@media (max-width: 900px) {
+  .filter-block {
+    padding: 6px;
+  }
+
+  .list-mode-toggle {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
+
+/* ---- Filter / Ikon-läge ---- */
+
+.icon-legend {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.icon-legend.hidden {
+  display: none;
+}
+
+.icon-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid #374151;
+    background: #074830;
+    cursor: pointer;
+    font-size: 12px;
+    color: burlywood;
+}
+
+
+.icon-legend-item.off {
+  opacity: 0.45;
+}
+
+.icon-legend-item .icon-symbol {
+  font-size: 15px;
+}
+
+/* Ikoner i procent-fältet */
+.horse-icon-bar {
+  margin-left: 4px;
+  display: inline-flex;
+  gap: 2px;
+  vertical-align: middle;
+}
+
+.horse-icon {
+  font-size: 0.8rem;
+}
+
+
+/* --- Kupongsektionen: header + kuponger under --- */
+
+.coupon-section {
+  margin-top: 16px;
+  background: #020617;
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  position: relative;
+}
+
+/* Rad med "Kuponger" + alla knappar */
+.coupon-section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;   /* luft ner till kupongerna */
+}
+
+.coupon-section-header h2 {
+  margin: 0;
+}
+
+/* wrappern för knapparna */
+.coupon-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* kuponglistan ligger alltid under headern */
+.coupon-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 0;
+}
+
+/* När Omvänd kupong-läge är aktivt: markera hela kupongrutan */
+body.reverse-mode-active .coupon-section {
+  box-shadow:
+    0 0 0 2px #fbbf24,          /* gul ram runt sektionen */
+    0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+/* gör kupongkorten tydligt klickbara i omvänd-läge */
+body.reverse-mode-active .coupon-card {
+  cursor: pointer;
+}
+
+/* redan markerad kupong (när man valt en) – behåll gärna denna om du inte redan har den */
+.coupon-card.selected-for-reverse {
+  box-shadow: 0 0 0 2px #fbbf24;
+}
+
+
+/* Omvänd kupong-popup – desktop */
+@media (min-width: 901px) {
+  #reverse-panel {
+    position: absolute;
+    top: 86px;
+    left: 230px;
+    background: #252525;
+    border: 6px solid #ffffff;
+    border-radius: 10px;
+    padding: 16px;
+    z-index: 200;
+  }
+}
+
+
+
+/* Markerar superskräll i kupong-översikten */
+.superskrall-number {
+  border-bottom: 2px solid #fbbf24; /* gul linje under siffran */
+  padding-bottom: 1px;
+}
+
+
+/* Favorit i loppet (högst V%-häst) i kupong-översikten */
+/*.favourite-number {
+    padding: 0 3px;
+    border-radius: 4px;
+    border: 1px solid #fbbf24;
+    background: #fbbf24;
+      color: #000000;
+    box-shadow: 0 0 0 1px #111827;
+}
+
+*/
+
+.slider-value {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: #e5e7eb;
 }
