@@ -225,14 +225,15 @@ textarea:focus {
 
 .division-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;   /* 🔹 stapla allt vertikalt */
+  align-items: stretch;     /* 🔹 full bredd */
+  gap: 8px;
   padding: 12px 16px;
   background: #151a2e;
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
+
 
 .division-info {
   flex: 1;
@@ -518,6 +519,7 @@ textarea:focus {
 .division-number-row {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;  /* 🔹 centrerar rutorna över hela bredden */
   gap: 4px;
 }
 

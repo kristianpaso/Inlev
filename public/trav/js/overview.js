@@ -2925,14 +2925,17 @@ async function createSplitCouponsFromExisting(options) {
     usePopular = true,
   } = options;
 
-  if (!currentGameId || !divisions.length) {
+   if (!currentGameId || !divisions.length) {
     alert('Inget spel öppet att splitta.');
     return;
   }
-  if (!coupons.length) {
+
+  // ✅ Bara om vi använder populärfältet (kuponger) ska vi kräva kuponger
+  if (usePopular && !coupons.length) {
     alert('Det finns inga kuponger att splitta ännu.');
     return;
   }
+
 
    // 1. Plocka fram storfavoriten (högst V%) i varje avdelning
   const favouriteSpikes = [];
