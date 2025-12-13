@@ -796,10 +796,14 @@ function getMainPercentIndex() {
   for (let i = 0; i < headerColumns.length; i++) {
     const up = headerColumns[i].trim().toUpperCase();
     // t.ex. V64%, V65%, V86%, GS75% osv
-    if (/^V\d+%$/.test(up)) return i;
+    // Stöd både V-spel (V75, V86 ...) och GS-spel (GS75)
+    if (/^(V\d+|GS\d+)%$/.test(up)) {
+      return i;
+    }
   }
   return -1;
 }
+
 
 function getTipsCommentIndex() {
   if (!headerColumns || !headerColumns.length) return -1;
@@ -1601,30 +1605,22 @@ function syncNumberPositions() {
 
   if (!leftCol || !rightCol || !rows.length) return;
 
-  let marginTop;
+  // 🔹 På mobil: låt bara CSS styra margin-top
+  if (window.innerWidth <= 901) {
+    leftCol.style.marginTop = '';
+    rightCol.style.marginTop = '';
+  } else {
+    // 🔹 På desktop: använd headerhöjden
+    const headerHeight = headerRow
+      ? headerRow.getBoundingClientRect().height
+      : 0;
 
-if (window.innerWidth <= 900) {
-  // 🔹 MOBIL: justera efter första hästraden relativt vänsterspalten
-  const firstRow = rows[0];
-  const firstRowRect = firstRow.getBoundingClientRect();
-  const leftRect = leftCol.getBoundingClientRect();
+    const offset = 0;
+    const marginTop = headerHeight + offset;
 
-  // Vi vill att toppen på första sifferrutan ska hamna vid toppen av första hästraden
-  marginTop = firstRowRect.top - leftRect.top;
-} else {
-  // 🔹 DESKTOP: behåll ditt gamla "header + offset 51"
-  const headerHeight = headerRow
-    ? headerRow.getBoundingClientRect().height
-    : 0;
-
-  // liten offset så siffer-rutorna hamnar mitt i hästraden
-  const offset = 0;
-  marginTop = headerHeight + offset;
-}
-
-
-  leftCol.style.marginTop = `${marginTop}px`;
-  rightCol.style.marginTop = `${marginTop}px`;
+    leftCol.style.marginTop = `${marginTop}px`;
+    rightCol.style.marginTop = `${marginTop}px`;
+  }
 
   const leftSquares = leftCol.querySelectorAll('.num-square');
   const rightSquares = rightCol.querySelectorAll('.num-square');
@@ -1652,6 +1648,8 @@ if (window.innerWidth <= 900) {
 }
 
 
+
+
 function setupResponsiveSync() {
   let rafId = null;
 
@@ -1670,7 +1668,7 @@ function setupResponsiveSync() {
   window.addEventListener('orientationchange', schedule);
 
   // Mobil-special: när man scrollar (adressfält upp/ner)
-  window.addEventListener(
+ /* window.addEventListener(
     'scroll',
     () => {
       if (window.innerWidth <= 900) {
@@ -1678,7 +1676,7 @@ function setupResponsiveSync() {
       }
     },
     { passive: true }
-  );
+  );*/
 }
 
 //
@@ -1977,18 +1975,44 @@ renderCurrentDivision(); // 🔹 uppdatera populärfältet
     // vi kan bara ha spikar i avdelningar som inte var spik innan
     targetSpikeCount = Math.min(targetSpikeCount, nonSpikeDivs.length);
 
-    // --- 4. Välj vilka avdelningar som ska bli nya spikar (bland icke-spik) ---
-    const shuffledNonSpike = [...nonSpikeDivs];
-    for (let i = shuffledNonSpike.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffledNonSpike[i], shuffledNonSpike[j]] = [
-        shuffledNonSpike[j],
-        shuffledNonSpike[i],
-      ];
-    }
+      // --- 4. Välj vilka avdelningar som ska bli nya spikar (bland icke-spik) ---
+    //       Prioritera avdelningar där favoriten har ≥ 35%
+    const strongCandidates = [];
+    const weakCandidates = [];
+
+    nonSpikeDivs.forEach((divIndex) => {
+      const favNum = getDivisionFavouriteNumber
+        ? getDivisionFavouriteNumber(divIndex)
+        : null;
+      let favPercent = 0;
+      if (favNum != null && typeof getHorsePercent === 'function') {
+        const p = getHorsePercent(divIndex, favNum);
+        if (Number.isFinite(p)) favPercent = p;
+      }
+      if (favPercent >= 35) {
+        strongCandidates.push(divIndex);
+      } else {
+        weakCandidates.push(divIndex);
+      }
+    });
+
+    // slumpa inom respektive grupp
+    const shuffleInPlace = (arr) => {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    };
+
+    shuffleInPlace(strongCandidates);
+    shuffleInPlace(weakCandidates);
+
+    const orderedDivs = strongCandidates.concat(weakCandidates);
     const newSpikeDivs = new Set(
-      shuffledNonSpike.slice(0, targetSpikeCount)
+      orderedDivs.slice(0, targetSpikeCount)
     );
+
 
     // --- 5. Bygg upp strukturen:
     //  - Nya spikar: bara favoriten
@@ -2249,14 +2273,39 @@ function addRandomHorseSomewhere(selections) {
 function removeRandomHorseSomewhere(selections) {
   if (!selections.length) return false;
 
-  const removable = selections.filter((sel) => (sel.horses || []).length > 1);
+  // Vi vill aldrig ta bort själva favoriten i en avdelning
+  const removable = selections.filter((sel) => {
+    const horses = sel.horses || [];
+    if (horses.length <= 1) return false;
+
+    const fav =
+      typeof getDivisionFavouriteNumber === 'function'
+        ? getDivisionFavouriteNumber(sel.divisionIndex)
+        : null;
+
+    // det måste finnas minst en icke-favorit att ta bort
+    return fav == null || horses.some((h) => h !== fav);
+  });
+
   if (!removable.length) return false;
 
   const sel = pickRandom(removable);
-  const idx = Math.floor(Math.random() * sel.horses.length);
-  sel.horses.splice(idx, 1);
+  const fav =
+    typeof getDivisionFavouriteNumber === 'function'
+      ? getDivisionFavouriteNumber(sel.divisionIndex)
+      : null;
+
+  const candidateIdx = sel.horses
+    .map((h, idx) => ({ h, idx }))
+    .filter(({ h }) => fav == null || h !== fav);
+
+  if (!candidateIdx.length) return false;
+
+  const picked = pickRandom(candidateIdx);
+  sel.horses.splice(picked.idx, 1);
   return true;
 }
+
 
 // 🔹 NY: finjustera så att priset på omvänd kupong hamnar nära önskat pris
 //   - går inte över desiredTotal + 10 kr
@@ -2267,6 +2316,7 @@ function tuneReverseSelectionsToPrice(
   radPris,
   tolerance = 10,
   maxIterations = 250
+
 ) {
   if (!Array.isArray(selections) || !selections.length) return;
   if (!radPris || radPris <= 0) return;
@@ -2925,68 +2975,97 @@ async function createSplitCouponsFromExisting(options) {
     usePopular = true,
   } = options;
 
-   if (!currentGameId || !divisions.length) {
+  if (!currentGameId || !divisions.length) {
     alert('Inget spel öppet att splitta.');
     return;
   }
 
-  // ✅ Bara om vi använder populärfältet (kuponger) ska vi kräva kuponger
+  // Om vi bygger från kuponger måste det finnas kuponger
   if (usePopular && !coupons.length) {
     alert('Det finns inga kuponger att splitta ännu.');
     return;
   }
 
-
-   // 1. Plocka fram storfavoriten (högst V%) i varje avdelning
-  const favouriteSpikes = [];
+  // 1. Hitta favorit i varje avdelning + procent + om den är superskräll
+  const favPerDivision = [];
   divisions.forEach((div, idx) => {
-    const divIndex = div.index ?? idx + 1;
-    const favNum = getDivisionFavouriteNumber(divIndex);
-    if (favNum != null) {
-      favouriteSpikes.push({ division: divIndex, number: favNum });
+  const divIndex = Number(div.index ?? (idx + 1));
+    const favNum = getDivisionFavouriteNumber
+      ? getDivisionFavouriteNumber(divIndex)
+      : null;
+    if (favNum == null) return;
+
+    let percent = 0;
+    if (typeof getHorsePercent === 'function') {
+      const p = getHorsePercent(divIndex, favNum);
+      if (Number.isFinite(p)) percent = p;
     }
+
+    const isSuper =
+      typeof isSuperskrall === 'function'
+        ? isSuperskrall(divIndex, favNum)
+        : false;
+
+  favPerDivision.push({
+  division: Number(divIndex),
+  number: favNum,
+  percent,
+  isSuper,
+});
   });
 
-  if (!favouriteSpikes.length) {
+  if (!favPerDivision.length) {
     alert('Hittade inga favoriter att använda som spikar.');
     return;
   }
 
-  // 2. Bygg kandidat-hästar per avdelning (som tidigare)
-  const allHorsesPerDiv = {};
-  const superHorsesPerDiv = {};
-  const normalHorsesPerDiv = {};
+  const neededSpikes = count * spikesPerCoupon;
+
+// Sortera favoriter i prioriteringsordning
+const strong = favPerDivision.filter(
+  (f) => !f.isSuper && f.percent >= 35
+);
+const mid = favPerDivision.filter(
+  (f) => !f.isSuper && f.percent >= 20 && f.percent < 35
+);
+const weak = favPerDivision.filter(
+  (f) => !f.isSuper && f.percent < 20
+);
+const superFavs = favPerDivision.filter((f) => f.isSuper);
+
+const orderedFavs = [
+  ...strong,
+  ...mid,
+  ...weak,
+  ...superFavs, // bara om vi måste
+];
+
+// Bygg en global spikplan: unika avdelningar tills vi når neededSpikes
+const spikePlan = [];
+const usedDivsGlobal = new Set();
+
+for (const f of orderedFavs) {
+  if (spikePlan.length >= neededSpikes) break;
+
+  const d = Number(f.division);
+  if (usedDivsGlobal.has(d)) continue;
+
+  spikePlan.push({ ...f, division: d });
+  usedDivsGlobal.add(d);
+}
+
+if (spikePlan.length < neededSpikes) {
+  alert(
+    'Det finns inte tillräckligt många avdelningar att spika i ' +
+      `(behöver ${neededSpikes}, hittade ${spikePlan.length}). ` +
+      'Minska antal kuponger eller antal spikar per kupong.'
+  );
+  return;
+}
 
 
-  if (usePopular) {
-    // Bygg från befintliga kuponger (populärfältet)
-    coupons.forEach((coupon) => {
-      (coupon.selections || []).forEach((sel) => {
-        const d = sel.divisionIndex;
-        const set = (allHorsesPerDiv[d] ||= new Set());
-        (sel.horses || []).forEach((n) => set.add(n));
-      });
-    });
-  } else {
-    // Bygg direkt från V-listan (alla icke strukna)
-    divisions.forEach((div, idx) => {
-      const divIndex = div.index ?? idx + 1;
-      const set = (allHorsesPerDiv[divIndex] = new Set());
-      (div.horses || []).forEach((h) => {
-        if (h.scratched) return;
-        if (typeof h.number !== 'number') return;
-        set.add(h.number);
-      });
-    });
-  }
-
-  const divisionCount = divisions.length;
-  const basePattern = parseSplitPattern(patternStr, divisionCount);
-
-  const created = [];
-
-  // enkel Fisher–Yates
-  const shuffle = (arr) => {
+  // Hjälpare: slumpa array (Fisher–Yates, in-place)
+  const shuffleInPlace = (arr) => {
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]];
@@ -2994,91 +3073,132 @@ async function createSplitCouponsFromExisting(options) {
     return arr;
   };
 
-  for (let i = 0; i < count; i++) {
-    // Spikar för just denna kupong
-       const start = i * spikesPerCoupon;
-    const slice = favouriteSpikes.slice(
-      start,
-      start + spikesPerCoupon
-    );
+ 
 
-    if (!slice.length) break;
+  // 2. Kandidat-hästar per avdelning
+  const allHorsesPerDiv = {};
 
-    const spikeMap = new Map();
-    slice.forEach(({ division, number }) => {
-      spikeMap.set(division, number);
+  if (usePopular) {
+    // från befintliga kuponger (populärfält)
+    coupons.forEach((coupon) => {
+      (coupon.selections || []).forEach((sel) => {
+        const d = sel.divisionIndex;
+        const set = (allHorsesPerDiv[d] ||= new Set());
+        (sel.horses || []).forEach((n) => set.add(n));
+      });
     });
+  }
 
-    // Mönster för denna kupong (antal hästar per avdelning)
+  // komplettera ALLTID med alla icke-strukna hästar i spelet
+  divisions.forEach((div, idx) => {
+  const divIndex = Number(div.index ?? (idx + 1));
+    const set = (allHorsesPerDiv[divIndex] ||= new Set());
+    (div.horses || [])
+      .filter((h) => !h.scratched && typeof h.number === 'number')
+      .forEach((h) => set.add(h.number));
+  });
+
+  // 3. Tolka mönster: antal hästar i ICKE-spik-avdelningar
+  const divisionCount = divisions.length;
+  const basePattern = parseSplitPattern(patternStr, divisionCount);
+
+  let multiCountsBase = null;
+  if (basePattern) {
+    const ones = basePattern.filter((n) => n === 1).length;
+    if (ones === spikesPerCoupon) {
+      multiCountsBase = basePattern.filter((n) => n > 1);
+    } else {
+      console.warn(
+        'split-pattern: antal 1:or matchar inte antal spikar – ignorerar mönstret',
+        basePattern
+      );
+    }
+  }
+
+  const created = [];
+
+const uniq = new Set(spikePlan.map(s => Number(s.division)));
+if (uniq.size !== spikePlan.length) {
+  console.error('spikePlan dubletter:', spikePlan.map(s => s.division));
+  alert('Internt fel: spikplan fick dubletter. Ladda om och testa igen.');
+  return;
+}
+  
+    for (let i = 0; i < count; i++) {
+  // Spikar för den här kupongen: ta ett segment ur spikePlan
+  const start = i * spikesPerCoupon;
+  const end = start + spikesPerCoupon;
+  const spikesForThis = spikePlan.slice(start, end);
+
+  if (spikesForThis.length < spikesPerCoupon) {
+    console.warn('Fick för få spikar för kupong', i + 1, spikesForThis);
+    continue;
+  }
+
+  const spikeDivSet = new Set(spikesForThis.map((s) => Number(s.division)));
+const LOCKED_SPIKE_DIVS = new Set(spikeDivSet);
+
+    // 5. Ordning för multi-antal (blanda)
     let patternForThis = null;
-    if (basePattern) {
-      patternForThis = basePattern.slice(); // kopia
+    if (multiCountsBase && multiCountsBase.length) {
+      patternForThis = multiCountsBase.slice();
+      shuffleInPlace(patternForThis);
     }
 
     const selections = [];
     let targetSupers = Math.max(0, supersPerCoupon || 0);
+    let multiIdx = 0;
 
-    // 3. Bygg upp alla avdelningar
-    divisions.forEach((div, idx) => {
-      const divIndex = div.index ?? idx + 1;
+    // 6. Bygg upp alla avdelningar
+   divisions.forEach((div, idxDiv) => {
+  const divIndex = Number(div.index ?? (idxDiv + 1));
+  const isSpikeDiv = spikeDivSet.has(divIndex);
 
-            // Är den här avdelningen en spik-avdelning i den här split-kupongen?
-      const isSpikeDiv = slice.some((s) => s.division === divIndex);
-
-
-           // så många hästar vill vi ha här (minst 1)
-      let targetCount = patternForThis
-        ? Math.max(1, patternForThis[idx])
-        : 1;
-
-      // Om den här avdelningen är en spik-avdelning:
-      // exakt 1 häst = spik (storfavoriten, se blocket nedan)
+      let targetCount;
       if (isSpikeDiv) {
-        targetCount = 1;
-      } else if (targetCount === 1) {
-        // Alla andra avdelningar ska ha MINST 2 hästar
-        // så att de inte blir spik av misstag
-        targetCount = 2;
+        targetCount = 1; // spik = exakt 1 häst
+      } else if (patternForThis && multiIdx < patternForThis.length) {
+        targetCount = Math.max(2, patternForThis[multiIdx++]);
+      } else {
+        targetCount = 2; // fallback
       }
 
-
-      // kandidater: antingen från populärfältet eller från V-listan
       let candidateNums = Array.from(allHorsesPerDiv[divIndex] || []);
-      if (!candidateNums.length) {
-        candidateNums = (div.horses || [])
-          .filter((h) => !h.scratched && typeof h.number === 'number')
-          .map((h) => h.number);
-      }
       if (!candidateNums.length) return;
 
       const chosen = new Set();
 
-    
-   // 3.1. Spik: alltid storfavoriten i loppet (högst V%),
-  // även om den inte finns i candidateNums sedan tidigare
-  const fav = getDivisionFavouriteNumber(divIndex);
-  if (fav != null) {
-    chosen.add(fav);
-  }
+      // favoriten alltid med
+      const fav = getDivisionFavouriteNumber
+        ? getDivisionFavouriteNumber(divIndex)
+        : null;
+      if (fav != null) {
+        chosen.add(fav);
+      }
 
+      const nums = candidateNums.slice();
+      shuffleInPlace(nums);
 
-      // 3.2. Fyll upp med slumpade hästar
-      const shuffled = shuffle(candidateNums.slice());
-      for (const num of shuffled) {
+      for (const num of nums) {
         if (chosen.size >= targetCount) break;
         if (chosen.has(num)) continue;
 
-        const isSuper = isSuperskrall(divIndex, num);
+        const isSuper =
+          typeof isSuperskrall === 'function'
+            ? isSuperskrall(divIndex, num)
+            : false;
+
         if (isSuper) {
-          if (targetSupers <= 0) continue; // ta inte fler supers än vi vill ha just nu
+          if (targetSupers <= 0) continue;
           targetSupers--;
         }
+
         chosen.add(num);
       }
 
-      // Om vi fortfarande inte nått targetCount, fyll på utan supers-begränsning
+      // Fyll upp om vi inte nått targetCount
       if (chosen.size < targetCount) {
-        for (const num of shuffled) {
+        for (const num of nums) {
           if (chosen.size >= targetCount) break;
           if (chosen.has(num)) continue;
           chosen.add(num);
@@ -3091,45 +3211,54 @@ async function createSplitCouponsFromExisting(options) {
       });
     });
 
-       // 4. Säkerställ favorit i varje avdelning
+    // 7. Se till att favorit finns med, och att spik-avdelningar är rena favoriter
     ensureFavouriteInEachDivision(selections);
-
-    // 5. Vilka avdelningar SKA vara spik i den här split-kupongen?
-    const spikeDivSet = new Set(slice.map((s) => s.division));
-
-    //    Se till att:
-    //    - i spike-avdelningar: exakt 1 häst och det är favoriten
-    //    - i övriga avdelningar: minst 2 hästar (om det går)
     fixSplitSpikesAfterTuning(selections, spikeDivSet);
 
-    // 6. Justera exakt antal superskrällar (så gott det går)
+    // 8. Justera superskrällar
     enforceSuperskrallCount(selections, spikeDivSet, supersPerCoupon || 0);
 
-    // 7. Justera priset så att det hamnar så nära maxPrice som möjligt
+    // 9. Trimma priset mot maxpris (aldrig över, undvik för billigt)
     const radPris = getEffectiveRadPris();
+    tuneReverseSelectionsToPrice(selections, maxPrice, radPris, 0, 200);
 
-    tuneReverseSelectionsToPrice(
-      selections,
-      maxPrice,
-      radPris,
-      0,    // får aldrig gå över maxPrice
-      200
-    );
+    let info = computeCouponPrice({ selections });
+    let total = info.total;
 
-    // 8. Pris-trimningen kan ha förstört spikmönstret → reparera igen
-    fixSplitSpikesAfterTuning(selections, spikeDivSet);
+    const maxAttempts = 80;
+    const minAcceptable = Math.max(1, maxPrice * 0.7); // t.ex. 70% av målet
+    let attempts = 0;
 
-    // 9. Bygg temporär kupong för pris-raden
-    let tmpCoupon = { selections };
-    let price = computeCouponPrice(tmpCoupon);
+    while (attempts < maxAttempts) {
+      attempts++;
 
+      if (total > maxPrice) {
+        // för dyr → ta bort hästar någonstans
+        if (!removeRandomHorseSomewhere(selections)) break;
+      } else if (total < minAcceptable) {
+        // för billig → försök lägga till häst
+        if (!addRandomHorseSomewhere(selections)) break;
+        info = computeCouponPrice({ selections });
+        if (info.total > maxPrice) {
+          // råkade gå över → ångra sista ändringen genom att bryta
+          break;
+        }
+      } else {
+        // inom intervallet [minAcceptable, maxPrice]
+        break;
+      }
 
+      // reparera spikmönstret efter varje ändring
+      fixSplitSpikesAfterTuning(selections, spikeDivSet);
+      info = computeCouponPrice({ selections });
+      total = info.total;
+    }
 
-    // 7. Spara via API – med source: 'split' så färgen överlever reload
+    // 10. Spara kupong
     const payload = {
       name: `${baseName} ${i + 1}`,
       source: 'split',
-      selections: tmpCoupon.selections,
+      selections,
       splitMeta: {
         maxPrice,
         spikesPerCoupon,
@@ -3140,7 +3269,7 @@ async function createSplitCouponsFromExisting(options) {
     };
 
     const saved = await createCoupon(currentGameId, payload);
-    saved.source = 'split'; // säkerställ på klienten också
+    saved.source = 'split';
     coupons.push(saved);
     created.push(saved);
   }
@@ -3153,6 +3282,8 @@ async function createSplitCouponsFromExisting(options) {
   renderCouponList();
   renderCurrentDivision();
 }
+
+
 
 
 
@@ -3171,7 +3302,7 @@ function updateSplitPatternSuggestions({ spikes, maxPrice, suggestionsBox }) {
 
   const patterns = [];
 
-  function backtrack(pos, last, factors) {
+    function backtrack(pos, last, factors) {
     // vi kan fortfarande ha ett tak, men det är bara för prestanda
     if (patterns.length >= 100) return;
 
@@ -3191,7 +3322,9 @@ function updateSplitPatternSuggestions({ spikes, maxPrice, suggestionsBox }) {
       return;
     }
 
-    for (let n = last; n <= maxHorsesPerDiv; n++) {
+    // 🔹 NYTT: icke-spik-avdelningar ska alltid ha minst 2 hästar
+    const min = Math.max(2, last);
+    for (let n = min; n <= maxHorsesPerDiv; n++) {
       const nextFactors = factors.concat(n);
       const approxRows =
         nextFactors.reduce((p, c) => p * c, 1) * Math.pow(1, spikes);
@@ -3203,6 +3336,7 @@ function updateSplitPatternSuggestions({ spikes, maxPrice, suggestionsBox }) {
   }
 
   backtrack(0, 1, []);
+
 
   if (!patterns.length) {
     suggestionsBox.textContent = 'Inga förslag för vald insats/spikar.';
@@ -3365,10 +3499,22 @@ title.textContent = coupon.name || defaultTitle;
 const nums = byDiv[divIndex];
 
 if (nums && nums.length) {
-  // plocka ut favoritnumret i just den här avdelningen
-  const favNum = getDivisionFavouriteNumber
-    ? getDivisionFavouriteNumber(divIndex)
-    : null;
+  // plocka ut favorit + andrahandsfavorit i just den här avdelningen
+  let favNum = null;
+  let secondFavNum = null;
+
+  if (typeof getDivisionHorsesSortedByPercent === 'function') {
+    const sorted = getDivisionHorsesSortedByPercent(divIndex) || [];
+    if (sorted.length > 0) {
+      favNum = sorted[0].number;
+    }
+    if (sorted.length > 1) {
+      secondFavNum = sorted[1].number;
+    }
+  } else if (typeof getDivisionFavouriteNumber === 'function') {
+    favNum = getDivisionFavouriteNumber(divIndex);
+  }
+
 
   if (nums.length === 1) {
     // Spik – visa nummer + hästnamn
@@ -3378,15 +3524,18 @@ if (nums && nums.length) {
     const spanNum = document.createElement('span');
     spanNum.textContent = String(num);
 
-    // superskräll? (under 6 %)
+     // superskräll?
     if (isSuperskrall(divIndex, num)) {
       spanNum.classList.add('superskrall-number');
     }
 
-    // favorit i loppet?
+    // favorit / andrahandsfavorit i loppet?
     if (favNum != null && favNum === num) {
-      spanNum.classList.add('favourite-number');
+      spanNum.classList.add('favourite-number-coupon');
+    } else if (secondFavNum != null && secondFavNum === num) {
+      spanNum.classList.add('second-favourite-number');
     }
+
 
     tdHorses.appendChild(spanNum);
 
@@ -3395,8 +3544,8 @@ if (nums && nums.length) {
       spanName.textContent = ` ${name}`;
       tdHorses.appendChild(spanName);
     }
-  } else {
-    // Flera hästar – en span per nummer så vi kan markera superskräll & favorit
+    } else {
+    // Flera hästar – en span per nummer så vi kan markera superskräll / favorit / andrahandsfavorit
     nums.forEach((num, index) => {
       const span = document.createElement('span');
       span.textContent = String(num);
@@ -3406,8 +3555,11 @@ if (nums && nums.length) {
       }
 
       if (favNum != null && favNum === num) {
-        span.classList.add('favourite-number');
+        span.classList.add('favourite-number-coupon');
+      } else if (secondFavNum != null && secondFavNum === num) {
+        span.classList.add('second-favourite-number');
       }
+
 
       tdHorses.appendChild(span);
 

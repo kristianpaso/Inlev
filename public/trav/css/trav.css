@@ -715,11 +715,12 @@ textarea:focus {
 }
 
 .coupon-add-panel {
-  border-radius: 8px;
-  background: #020617;
-  padding: 8px 10px 10px;
-  border: 1px solid #1f2937;
-  margin-bottom: 10px;
+    border-radius: 8px;
+    background: #020617;
+    padding: 8px 10px 10px;
+    border: 1px solid #1f2937;
+    margin-bottom: 10px;
+    height: 100%;
 }
 
 
@@ -751,44 +752,48 @@ textarea:focus {
 
 
 .coupon-builder {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 260px;
-  overflow-y: auto;
-  padding-right: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    /* max-height: 600px; */
+    overflow-y: auto;
+    padding-right: 4px;
 }
 
 .coupon-division-row {
-  display: flex;
+ 
   align-items: center;
   gap: 6px;
 }
 
 .coupon-division-label {
-  width: 46px;
-  font-size: 0.8rem;
-  color: #e5e7eb;
+    /* width: 31%; */
+    font-size: 0.8rem;
+    color: #e5e7eb;
+    padding: 13px 0px 10px 0px;
+    font-size: 16px;
 }
 
 .coupon-number-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid #cacaca;
 }
 
 .coupon-number {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  border: 1px solid #374151;
-  background: #020617;
-  color: #e5e7eb;
-  font-size: 0.8rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
+    width: 50px;
+    height: 50px;
+    border-radius: 6px;
+    border: 1px solid #374151;
+    background: #020617;
+    color: #e5e7eb;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
 }
 
 .coupon-number.selected {
@@ -1326,7 +1331,15 @@ body.reverse-mode-active .coupon-card {
 }
 
 
-
+@media (max-width: 901px) {
+.number-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0px;
+   
+    margin-top: -5px;
+}
+}
 /* Markerar superskräll i kupong-översikten */
 .superskrall-number {
   border-bottom: 2px solid #fbbf24; /* gul linje under siffran */
@@ -1342,9 +1355,22 @@ body.reverse-mode-active .coupon-card {
     background: #fbbf24;
       color: #000000;
     box-shadow: 0 0 0 1px #111827;
+}*/
+
+.favourite-number-coupon {
+    padding: 0 3px;
+    border-radius: 4px;
+    border: 1px solid #fbbf24;
+    background: #fbbf24;
+      color: #000000;
+    box-shadow: 0 0 0 1px #111827;
 }
 
-*/
+/* Andrahandsfavorit (näst högst V%) på kuponger */
+.second-favourite-number {
+    color: #ff00dd;
+}
+
 
 .slider-value {
   margin-top: 4px;
