@@ -1337,7 +1337,7 @@ body.reverse-mode-active .coupon-card {
     flex-direction: column;
     gap: 0px;
    
-    margin-top: -5px;
+    margin-top: 32px;
 }
 }
 /* Markerar superskräll i kupong-översikten */
@@ -1377,3 +1377,72 @@ body.reverse-mode-active .coupon-card {
   font-size: 0.8rem;
   color: #e5e7eb;
 }
+
+
+/* Inaktiva kuponger */
+.coupon-card.is-inactive {
+  opacity: 0.35;
+  filter: grayscale(0.4) saturate(0.7);
+}
+
+/* Toggle-knapp nere på kortet */
+.coupon-toggle-active {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid #283250;
+  background: rgba(255,255,255,0.04);
+  color: #e5e7eb;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.coupon-toggle-active:hover {
+  background: rgba(255,255,255,0.07);
+}
+
+/* Inaktiv kupong */
+.coupon-card.inactive {
+  opacity: 0.35;
+  filter: grayscale(0.6);
+}
+
+/* Toggle-knapp nere på kupongen */
+.coupon-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.btn-toggle-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+
+
+/* Inaktiva kuponger */
+.coupon-card.inactive {
+  opacity: 0.35;
+  filter: grayscale(35%);
+}
+
+/* Valfritt: gör toggle-knappen tydligare */
+.btn-toggle-active .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  margin-right: 6px;
+  background: #22c55e; /* grön */
+}
+
+.coupon-card.inactive .btn-toggle-active .dot {
+  background: #ef4444; /* röd */
+}
+

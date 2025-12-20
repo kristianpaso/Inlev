@@ -8,7 +8,7 @@ const API_ROOT =
 const API_GAMES = `${API_ROOT}/games`;
 const API_TRACKS = `${API_ROOT}/tracks`;
 
-
+const API_ATG_LINKS = `${API_GAMES}/atg-links`;
 
 export async function getGames() {
   const res = await fetch(API_GAMES);
@@ -98,7 +98,25 @@ export async function deleteCoupon(gameId, couponId) {
   return res.json();
 }
 
-// ---- BANOR ----
+
+// ✅ Sätt kupong aktiv/inaktiv
+export async function updateCouponActive(gameId, couponId, active) {
+  const res = await fetch(
+    `${API_GAMES}/${encodeURIComponent(gameId)}/coupons/${encodeURIComponent(couponId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: Boolean(active) }),
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(errText || 'Kunde inte uppdatera kupong.');
+  }
+
+  return res.json();
+}
 
 // ---- BANOR ----
 
@@ -152,5 +170,44 @@ export async function deleteTrack(id) {
 
   // 204 No Content – inget att returnera
 }
+
+export async function importAtgCoupon(gameId, url) {
+  const res = await fetch(`${API_GAMES}/${encodeURIComponent(gameId)}/import/atg`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Kunde inte importera ATG-kupong');
+  return data;
+}
+
+export async function getAtgLinks() {
+  const res = await fetch(API_ATG_LINKS);
+  const data = await res.json().catch(() => []);
+  if (!res.ok) throw new Error(data.error || 'Kunde inte hämta ATG-länkar');
+  return data;
+}
+
+export async function saveAtgLink(payload) {
+  const res = await fetch(API_ATG_LINKS, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Kunde inte spara ATG-länk');
+  return data;
+}
+
+export async function deleteAtgLink(linkId) {
+  const res = await fetch(`${API_ATG_LINKS}/${encodeURIComponent(linkId)}`, {
+    method: 'DELETE',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Kunde inte ta bort ATG-länk');
+  return data;
+}
+
 
 

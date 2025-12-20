@@ -13,15 +13,20 @@ const CouponDivisionSchema = new mongoose.Schema(
 // Själva kupongen
 const CouponSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
-  source: { type: String, default: 'manual' }, // t.ex. 'idea' eller 'manual'
-  name: { type: String, default: '' },         // namn på kupongen
+  source: { type: String, default: 'manual' },
+  name: { type: String, default: '' },
   stakeLevel: {
     type: String,
     enum: ['original', '70', '50', '30'],
     default: 'original',
   },
+
+  // ✅ NYTT: aktiv/inaktiv
+  active: { type: Boolean, default: true },
+
   selections: [CouponDivisionSchema],
 });
+
 
 
 

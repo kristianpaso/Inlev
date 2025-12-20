@@ -1,7 +1,10 @@
 // public/trav/js/overview.js
 
+
+
 // var innan: import { getGame } from './api.js';
-import { getGame, createCoupon, deleteCoupon, getTracks } from './api.js';
+import { getGame, createCoupon, deleteCoupon, getTracks, importAtgCoupon, getAtgLinks, saveAtgLink, updateCouponActive } from './api.js';
+
 
 let game = null;
 let currentGameId = null;
@@ -27,6 +30,11 @@ let reverseNameInputEl = null;
 let reversePriceInputEl = null;
 let reverseSpikesInputEl = null;
 let isCreatingReverseCoupon = false; // ⬅ lägg till
+
+
+
+
+
 
 
 // markerade idé-hästar per avdelning (Set med nummer)
@@ -102,9 +110,41 @@ try {
     alert('Kunde inte hämta spelet.');
   }
 
-  // 🔹 Kör om alignment när fönstret ändrar storlek (t.ex. text bryts om)
+  //  Kör om alignment när fönstret ändrar storlek (t.ex. text bryts om)
   setupResponsiveSync();
 });
+
+
+ // Hämta datum från spelet 
+function getGameDateFromMeta() {
+  const el = document.getElementById('ov-meta');
+  const txt = (el?.textContent || '').trim(); // "2025-12-17 • Halmstad"
+  const m = txt.match(/(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+}
+
+ // Byter datum i ATG länken
+function replaceDateInAtgUrl(url, yyyyMmDd) {
+  // byter _YYYY-MM-DD_ i länken
+  return String(url).replace(/_\d{4}-\d{2}-\d{2}_/g, `_${yyyyMmDd}_`);
+}
+
+
+
+function applyGameDateToAtgUrl(url) {
+  const gameDate = getGameDateFromMeta(); // t.ex. "2025-12-17"
+  if (!gameDate) return url;
+
+  let out = String(url);
+
+  // Om länken är sparad som template med {DATE}
+  out = out.replace('{DATE}', gameDate);
+
+  // Om länken redan har _YYYY-MM-DD_ i sig
+  out = replaceDateInAtgUrl(out, gameDate);
+
+  return out;
+}
 
 //
 // ---- Visningsläge (Enkel / Detaljerad) ----
@@ -226,6 +266,12 @@ function saveIdeaSelections() {
 }
 
 //
+
+function getActiveCoupons() {
+  return (coupons || []).filter(c => c.active !== false);
+}
+
+
 // ---- Setup av överblick ----
 //
 
@@ -261,7 +307,10 @@ function setupOverview(game) {
     };
   });
 
-  coupons = game.coupons || [];
+coupons = (game.coupons || []).map(c => ({
+  ...c,
+  active: (c.active !== false) // default TRUE om fältet saknas
+}));
 
 
   const divisionRowEl = document.getElementById('division-number-row');
@@ -749,7 +798,7 @@ function computePopularityForDivision(division) {
   const counts = {};
   const spiked = {};
 
-  coupons.forEach((coupon) => {
+  getActiveCoupons().forEach((coupon) => {
     (coupon.selections || []).forEach((sel) => {
       if (sel.divisionIndex !== divIndex) return;
 
@@ -870,6 +919,43 @@ function getDivisionFavouriteNumber(divisionIndex) {
 function isSuperskrall(divisionIndex, horseNumber) {
   const pct = getHorsePercent(divisionIndex, horseNumber);
   return pct != null && pct < 6;
+}
+
+function chanceSecondFavProbability(favPct, secPct) {
+  const f = Number(favPct || 0);
+  const s = Number(secPct || 0);
+
+  // Säkerhet
+  if (!Number.isFinite(f) || !Number.isFinite(s) || f <= 0 || s <= 0) return 0;
+
+  const gap = Math.abs(f - s);
+
+  // 1) Bas på gap: mindre gap -> högre chans
+  // (ger precis ditt exempel: 45–25 högre än 70–20)
+  let base;
+  if (gap <= 2) base = 0.95;
+  else if (gap <= 5) base = 0.80;
+  else if (gap <= 10) base = 0.55;
+  else if (gap <= 20) base = 0.25;
+  else base = 0.10;
+
+  // 2) Modifiera med favoritens storlek:
+  // Stor favorit (t.ex. 70%) -> lägre chans att ta med 2:a
+  // Mindre favorit (t.ex. 45%) -> högre chans
+  //
+  // Vi skalar mellan ~0.6 (mycket stor fav) och ~1.25 (mindre fav)
+  // 70% -> ~0.60
+  // 45% -> ~0.95
+  // 35% -> ~1.05
+  // 25% -> ~1.20
+  const favFactor = Math.min(1.25, Math.max(0.60, 1.20 - (f / 100)));
+
+  // Slutlig chans
+  let p = base * favFactor;
+
+  // Klipp inom rimliga gränser
+  p = Math.min(0.95, Math.max(0.05, p));
+  return p;
 }
 
 // Se till att favoriten alltid är med i varje avdelning där vi har val
@@ -1261,14 +1347,11 @@ function buildHorseView(division, divIndex, popularity) {
     const count = counts[horse.number] || 0;
 
     // inte spelad på någon kupong → röd
-    if (
-      coupons &&
-      coupons.length > 0 &&
-      !horse.scratched &&
-      count === 0
-    ) {
-      leftSquare.classList.add('not-played');
-    }
+    const activeCoupons = getActiveCoupons();
+if (activeCoupons && activeCoupons.length > 0 && !horse.scratched && count === 0) {
+  leftSquare.classList.add('not-played');
+}
+
 
     if (maxCount > 0 && count === maxCount) {
       leftSquare.classList.add('popular-most');
@@ -1719,6 +1802,24 @@ const reversePriceDisplay = document.getElementById('reverse-price-display');
 const reverseSpikesDisplay = document.getElementById('reverse-spikes-display');
 const reverseSupersDisplay = document.getElementById('reverse-supers-display');
 
+ // ---- chance kupong UI ----
+const btnOpenChance = document.getElementById('btn-open-chance');
+const chancePanel = document.getElementById('chance-panel');
+const chanceNameInput = document.getElementById('chance-name');
+const chanceCountInput = document.getElementById('chance-count');
+const chanceMaxPriceInput = document.getElementById('chance-max-price');
+const chanceLevelInput = document.getElementById('chance-level');
+const chanceLevelDisplay = document.getElementById('chance-level-display');
+const chancePreferUnplayedInput = document.getElementById('chance-prefer-unplayed');
+const btnChanceDo = document.getElementById('btn-chance-do');
+const btnChanceCancel = document.getElementById('btn-chance-cancel');
+const chanceIncludeSecondFavInput = document.getElementById('chance-include-secondfav');
+const chanceSpikesInput = document.getElementById('chance-spikes');
+const chanceSpikesDisplay = document.getElementById('chance-spikes-display');
+
+
+
+
 // Spara globala referenser så vi kan använda dem i openReversePanelForCoupon
 reversePriceSliderEl = reversePriceSlider;
 reversePriceDisplayEl = reversePriceDisplay;
@@ -1733,13 +1834,175 @@ reverseSpikesInputEl = reverseSpikesInput;
 reverseSupersInputEl = reverseSupersInput;
 
 
-  // Spara referenser globalt så renderCouponList()/helpers kan använda dem
-  reversePanelEl = reversePanel;
-  reverseNameInputEl = reverseNameInput;
-  reversePriceInputEl = reversePriceInput;
-  reverseSpikesInputEl = reverseSpikesInput;
-reverseSupersInputEl = reverseSupersInput;
+
+ 
+// --- ATG IMPORT + PRESETS ---
+const btnOpenImportAtg = document.getElementById('btn-open-import-atg');
+const importAtgPanel   = document.getElementById('import-atg-panel');
+const importAtgUrl     = document.getElementById('import-atg-url');
+const btnImportAtgDo   = document.getElementById('btn-import-atg-do');
+const btnImportAtgCancel = document.getElementById('btn-import-atg-cancel');
+
+const importAtgPreset  = document.getElementById('import-atg-preset');
+const importAtgSaveName = document.getElementById('import-atg-save-name');
+const btnImportAtgSave  = document.getElementById('btn-import-atg-save');
+
+function todayYYYYMMDD() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+function applyDateToTemplate(templateUrl) {
+  return String(templateUrl).replace('{DATE}', todayYYYYMMDD());
+}
+
+async function refreshAtgPresetDropdown() {
+  if (!importAtgPreset) return;
+  const links = await getAtgLinks();
+  importAtgPreset.innerHTML = '<option value="">— Välj —</option>';
+  links.forEach(l => {
+    const opt = document.createElement('option');
+    opt.value = l._id;
+    opt.textContent = l.name;
+    opt.dataset.templateUrl = l.templateUrl;
+    importAtgPreset.appendChild(opt);
+  });
+}
+
+if (btnOpenImportAtg && importAtgPanel) {
+  btnOpenImportAtg.addEventListener('click', async () => {
+    // ✅ RÄTT: panelen styrs av hidden-attribut (inte class "hidden")
+    importAtgPanel.hidden = false;
+    if (importAtgUrl) importAtgUrl.value = '';
+
+    // ✅ Ladda presets från DB när panelen öppnas
+    try {
+      await refreshAtgPresetDropdown();
+    } catch (e) {
+      console.error(e);
+      alert('Kunde inte ladda sparade ATG-länkar');
+    }
+  });
+}
+
+if (importAtgPreset && importAtgUrl) {
+  importAtgPreset.addEventListener('change', () => {
+    const opt = importAtgPreset.selectedOptions[0];
+    if (!opt || !opt.dataset.templateUrl) return;
+    importAtgUrl.value = applyGameDateToAtgUrl(opt.dataset.templateUrl);
+
+    if (importAtgSaveName) importAtgSaveName.value = opt.textContent || '';
+  });
+}
+
+if (btnImportAtgSave && importAtgSaveName && importAtgUrl) {
+  btnImportAtgSave.addEventListener('click', async () => {
+    const name = (importAtgSaveName.value || '').trim();
+    const url  = (importAtgUrl.value || '').trim();
+    if (!name) return alert('Skriv ett namn.');
+    if (!url)  return alert('Klistra in en ATG-länk.');
+
+    // Gör om url till templateUrl med {DATE}
+    const templateUrl = url.replace(/_\d{4}-\d{2}-\d{2}_/g, '_{DATE}_');
+    if (!templateUrl.includes('{DATE}')) {
+      return alert('Länken måste innehålla datum i format _YYYY-MM-DD_.');
+    }
+
+    await saveAtgLink({ name, templateUrl });
+    await refreshAtgPresetDropdown();
+    alert('Sparad!');
+  });
+}
+
+if (btnImportAtgCancel && importAtgPanel) {
+  btnImportAtgCancel.addEventListener('click', () => {
+    importAtgPanel.hidden = true;
+  });
+}
+
+if (btnImportAtgDo) {
+  btnImportAtgDo.addEventListener('click', async () => {
+    const rawUrl = (importAtgUrl?.value || '').trim();
+    if (!rawUrl) return alert('Klistra in en ATG-länk.');
+
+    // ✅ Viktigt: tvinga alltid spelets datum i länken
+    const url = applyGameDateToAtgUrl(rawUrl);
+
+    try {
+      const created = await importAtgCoupon(currentGameId, url);
+      if (!created || !created.selections || !created.selections.length) {
+        throw new Error('Importen gav ingen kupong.');
+      }
+      created.source = 'atg';
+      coupons.push(created);
+      renderCouponList();
+      renderCurrentDivision();
+      if (importAtgPanel) importAtgPanel.hidden = true;
+    } catch (e) {
+      console.error(e);
+      alert(e.message || 'Import misslyckades');
+    }
+  });
+}
+
+// --- KListra kupong ---
+const btnOpenPasteCoupon = document.getElementById('btn-open-paste-coupon');
+const pasteCouponPanel = document.getElementById('paste-coupon-panel');
+const pasteCouponText = document.getElementById('paste-coupon-text');
+const btnPasteCouponCreate = document.getElementById('btn-paste-coupon-create');
+const btnPasteCouponCancel = document.getElementById('btn-paste-coupon-cancel');
+
+if (btnOpenPasteCoupon && pasteCouponPanel) {
+  btnOpenPasteCoupon.addEventListener('click', () => {
+    pasteCouponPanel.hidden = false;
+    if (pasteCouponText) pasteCouponText.value = '';
+  });
+}
+
+if (btnPasteCouponCancel && pasteCouponPanel) {
+  btnPasteCouponCancel.addEventListener('click', () => {
+    pasteCouponPanel.hidden = true;
+  });
+}
+
+if (btnPasteCouponCreate) {
+  btnPasteCouponCreate.addEventListener('click', async () => {
+    const raw = (pasteCouponText?.value || '').trim();
+    if (!raw) return alert('Klistra in kupongtext först.');
+
+    let parsed;
+    try {
+      parsed = parsePastedCouponText(raw);
+    } catch (e) {
+      console.error(e);
+      return alert(e.message || 'Kunde inte tolka kupongtexten.');
+    }
+
+    try {
+      const created = await createCoupon(currentGameId, {
+        name: parsed.name,
+        selections: parsed.selections,
+        source: 'paste',
+        stakeLevel: 'original'
+      });
+
+      coupons.push(created);
+      renderCouponList();
+      renderCurrentDivision();
+
+      if (pasteCouponPanel) pasteCouponPanel.hidden = true;
+    } catch (e) {
+      console.error(e);
+      alert(e.message || 'Kunde inte skapa kupongen.');
+    }
+  });
+}
+
+
 // --- Hjälpfunktioner för sliders i omvänd-panelen ---
+
 
 function syncReversePriceFromSlider() {
   if (!reversePriceSlider || !reversePriceInput || !reversePriceDisplay) return;
@@ -1848,6 +2111,78 @@ renderCurrentDivision(); // 🔹 uppdatera populärfältet
       splitPanel.hidden = false;
     });
   }
+  // --- chance ---
+if (chanceLevelInput && chanceLevelDisplay) {
+  const syncChanceLevel = () => {
+    chanceLevelDisplay.textContent = String(chanceLevelInput.value || '1');
+  };
+  chanceLevelInput.addEventListener('input', syncChanceLevel);
+  syncChanceLevel();
+}
+
+if (chanceSpikesInput && chanceSpikesDisplay) {
+  const syncChanceSpikes = () => {
+    chanceSpikesDisplay.textContent = String(chanceSpikesInput.value || '0');
+  };
+  chanceSpikesInput.addEventListener('input', syncChanceSpikes);
+  syncChanceSpikes();
+}
+
+
+
+if (btnOpenChance && chancePanel) {
+  btnOpenChance.addEventListener('click', () => {
+    if (!currentGameId) {
+      alert('Öppna ett spel först innan du skapar Chans kupong.');
+      return;
+    }
+    chanceNameInput.value = 'Chans';
+    chanceCountInput.value = '2';
+    chanceMaxPriceInput.value = '100';
+    chanceLevelInput.value = '4';
+    if (chanceLevelDisplay) chanceLevelDisplay.textContent = '4';
+    if (chancePreferUnplayedInput) chancePreferUnplayedInput.checked = true;
+    if (chanceSpikesInput) chanceSpikesInput.value = '2';
+if (chanceSpikesDisplay) chanceSpikesDisplay.textContent = '2';
+    chancePanel.hidden = false;
+  });
+}
+
+if (btnChanceCancel && chancePanel) {
+  btnChanceCancel.addEventListener('click', () => {
+    chancePanel.hidden = true;
+  });
+}
+
+if (btnChanceDo && chancePanel) {
+  btnChanceDo.addEventListener('click', async () => {
+    const baseName = (chanceNameInput.value || '').trim() || 'Chans';
+    const count = Math.max(1, Number(chanceCountInput.value) || 1);
+    const maxPrice = Math.max(1, Number(chanceMaxPriceInput.value) || 1);
+    const level = Math.max(1, Math.min(5, Number(chanceLevelInput.value) || 1));
+ const preferUnplayed = !!(chancePreferUnplayedInput && chancePreferUnplayedInput.checked);
+const includeSecondFav = !!(chanceIncludeSecondFavInput && chanceIncludeSecondFavInput.checked);
+const spikesWanted = Math.max(0, Number(chanceSpikesInput?.value || 0));
+
+
+try {
+  await createChanceCoupons({
+    baseName,
+    count,
+    maxPrice,
+    level,
+    preferUnplayed,
+    includeSecondFav, 
+    spikesWanted, 
+  });
+
+      chancePanel.hidden = true;
+    } catch (err) {
+      console.error(err);
+      alert(err?.message || 'Kunde inte skapa chans-kuponger.');
+    }
+  });
+}
 
   // --- Omvänd kupong: slå på/av läget ---
  if (btnOpenReverse && reversePanel) {
@@ -2609,7 +2944,8 @@ function buildGlobalSpikeStatsForReverse() {
   const stats = {};
   if (!coupons || !coupons.length) return stats;
 
-  coupons.forEach((coupon) => {
+  getActiveCoupons().forEach((coupon) => {
+
     // Vi vill jämföra mot “vanliga” kuponger, inte split/omvänd
     if (coupon.source === 'split' || coupon.source === 'reverse') return;
 
@@ -2963,6 +3299,343 @@ function fixSplitSpikesAfterTuning(selections, spikeDivSet) {
   });
 }
 
+async function createChanceCoupons({ baseName, count, maxPrice, level, preferUnplayed, includeSecondFav, spikesWanted }) {
+
+
+  if (!currentGameId || !divisions.length) {
+    alert('Inget spel öppet.');
+    return;
+  }
+
+  // 1) Bygg karta: vilka hästar som redan spelats på i befintliga kuponger (per avdelning)
+  const playedMap = {};
+  if (preferUnplayed && Array.isArray(coupons) && coupons.length) {
+    getActiveCoupons().forEach((c) => { 
+
+      (c.selections || []).forEach((sel) => {
+        const d = Number(sel.divisionIndex);
+        const set = (playedMap[d] ||= new Set());
+        (sel.horses || []).forEach((n) => set.add(Number(n)));
+      });
+    });
+  }
+
+  // 2) Chansnivå -> hur många extra hästar vi försöker lägga till per avdelning som start
+  // nivå 1 = försiktig, nivå 5 = aggressiv
+  const extraPerDiv = [0, 1, 2, 3, 4, 5][level] ?? 3;
+
+// Spik-val: välj avdelningar där favoriten är starkast (högst %)
+const wanted = Math.max(0, Math.min(Number(spikesWanted || 0), divisions.length));
+
+function getFavPct(divIndex) {
+  const sorted = getDivisionHorsesSortedByPercent(divIndex) || [];
+  return sorted.length ? Number(sorted[0].pct || 0) : 0;
+}
+
+const divStrength = divisions.map((div, idx) => {
+  const divIndex = Number(div.index ?? (idx + 1));
+  return { divIndex, pct: getFavPct(divIndex) };
+});
+
+// starkast favorit först
+divStrength.sort((a, b) => b.pct - a.pct);
+
+
+
+  // Hjälpare: välj "bästa" skrällkandidat-lista (lägst procent först)
+  function getChanceCandidates(divIndex) {
+  const sortedHighToLow = getDivisionHorsesSortedByPercent(divIndex) || [];
+  const fav = sortedHighToLow[0]?.number ?? null;
+  const favPct = Number(sortedHighToLow[0]?.pct || 0);
+
+  const second = sortedHighToLow[1] || null;
+  const secondNum = second?.number ?? null;
+  const secondPct = Number(second?.pct || 0);
+
+  // Vi definierar “mellan-zon” som: från 6% upp till andrahandsfavoritens procent (ex: 6%..35%)
+  // Om secondPct saknas → använd favPct som tak (men minst 15 så det finns ett intervall)
+  const upper = Math.max(15, secondPct || favPct || 15);
+  const lower = 6;
+
+  // Gör lista i låg->hög ordning (chans = mer lågprocent generellt)
+  const sortedLowToHigh = sortedHighToLow.slice().reverse();
+
+  // Plocka ut nummer, exkludera favorit (favorit läggs alltid separat)
+  let list = sortedLowToHigh
+    .map(h => h.number)
+    .filter(n => n != null && n !== fav);
+
+  // Om preferUnplayed: flytta ospelade först
+  if (preferUnplayed) {
+    const played = playedMap[divIndex] || new Set();
+    list = [
+      ...list.filter(n => !played.has(n)),
+      ...list.filter(n => played.has(n)),
+    ];
+  }
+
+  // Dela upp i grupper baserat på procent:
+  const supers = [];
+  const mid = [];
+  const high = [];
+
+  for (const n of list) {
+    const pct = getHorsePercent(divIndex, n);
+    if (pct == null) {
+      high.push(n);
+      continue;
+    }
+
+    if (pct < lower) supers.push(n);
+    else if (pct >= lower && pct <= upper) mid.push(n);
+    else high.push(n);
+  }
+
+  // Vi vill fortfarande ha “chans” → supers tidigt, men NU har vi en mid-grupp vi kan kvotera in
+  return { fav, secondNum, secondPct, favPct, upper, supers, mid, high };
+}
+
+
+  // 3) Skapa N kuponger
+  const created = [];
+
+  for (let i = 0; i < count; i++) {
+    const selections = [];
+
+// ✅ Slumpa spik-avdelningar per kupong (men viktat mot starka favoriter)
+const topPoolSize = Math.min(divStrength.length, Math.max(wanted * 2, wanted)); 
+const topPool = divStrength.slice(0, topPoolSize).map(x => x.divIndex);
+
+// shuffle topPool så urvalet varierar mellan kuponger
+shuffleInPlace(topPool);
+
+// välj wanted st spikavdelningar från topPool
+const spikeDivSet = new Set(topPool.slice(0, wanted));
+
+
+
+    // 3a) Start: favorit + ett antal skrällar per avd (styrt av level)
+    divisions.forEach((div, idx) => {
+      const divIndex = Number(div.index ?? (idx + 1));
+      const fav = getDivisionFavouriteNumber(divIndex);
+if (fav == null) return;
+
+const chosen = new Set([fav]);
+
+// ✅ Om denna avdelning ska vara spik: lås till endast favoriten
+if (spikeDivSet.has(divIndex)) {
+  selections.push({
+    divisionIndex: divIndex,
+    horses: [fav],
+  });
+  return; // fortsätt nästa avdelning
+}
+
+// (resten är samma som innan – här får du fylla på med second fav + skrällar)
+
+
+// ✅ NYTT: ibland ta med andrahandfavorit (om checkbox är på)
+// - större chans om favoriten är "mindre favorit" (t.ex. 45%)
+// - mindre chans om favoriten är jättestor (t.ex. 70%)
+// - större chans om gapet är litet
+if (includeSecondFav) {
+  const sorted = getDivisionHorsesSortedByPercent(divIndex) || [];
+  const favObj = sorted.length > 0 ? sorted[0] : null;
+  const second = sorted.length > 1 ? sorted[1] : null;
+
+  if (favObj && second && second.number != null) {
+    const favPct = Number(favObj.pct || 0);
+    const secPct = Number(second.pct || 0);
+
+    const p = chanceSecondFavProbability(favPct, secPct);
+
+    // Ta bara med second om vi faktiskt ska fylla fler än 1 häst i avdelningen
+    const shouldFillMore = extraPerDiv > 0;
+    if (shouldFillMore && Math.random() < p) {
+      chosen.add(second.number);
+    }
+  }
+}
+
+
+// plocka skrällar/minst spelade
+const pack = getChanceCandidates(divIndex);
+const { supers, mid, high } = pack;
+
+// Hur många “extra” vill vi ha i denna avdelning?
+// (Du kan också slumpa lite för variation)
+const jitter = (Math.random() < 0.20 ? -1 : 0) + (Math.random() < 0.45 ? 1 : 0);
+const targetSize = Math.max(2, 1 + extraPerDiv + jitter);
+
+// 30% av extra-platserna ska komma från mid-zonen
+const extraSlots = Math.max(0, targetSize - chosen.size);
+const midSlotsTarget = Math.max(0, Math.round(extraSlots * 0.30));
+
+// Hjälpare: blanda listor för att inte få exakt samma kupong
+const shuffled = (arr) => {
+  const a = arr.slice();
+  for (let k = a.length - 1; k > 0; k--) {
+    const j = Math.floor(Math.random() * (k + 1));
+    [a[k], a[j]] = [a[j], a[k]];
+  }
+  return a;
+};
+
+const supersSh = shuffled(supers);
+const midSh = shuffled(mid);
+const highSh = shuffled(high);
+
+// 1) Lägg in “mid” upp till kvoten
+let midAdded = 0;
+for (const n of midSh) {
+  if (chosen.size >= targetSize) break;
+  if (midAdded >= midSlotsTarget) break;
+  chosen.add(n);
+  midAdded++;
+}
+
+// 2) Fyll resten: supers först (chans), sen mid, sen high
+const fillOrder = [...supersSh, ...midSh, ...highSh];
+for (const n of fillOrder) {
+  if (chosen.size >= targetSize) break;
+  chosen.add(n);
+}
+
+// 3) säkerhet: om vi råkar hamna på 1 häst (inte spik-avd) → lägg en till
+if (chosen.size < 2) {
+  const fallback = fillOrder.find(n => !chosen.has(n));
+  if (fallback != null) chosen.add(fallback);
+}
+
+
+
+
+   
+
+      selections.push({
+        divisionIndex: divIndex,
+        horses: Array.from(chosen).sort((a, b) => a - b),
+      });
+    });
+
+    // 3b) Favoriten ska ALLTID vara med (säkerhet)
+    ensureFavouriteInEachDivision(selections);
+
+    // 3c) Pristrim: försök närma maxPrice utan att gå över.
+    // Vi vill fylla på med “chans-hästar” (låga %, gärna unplayed), inte topp-favoriter.
+    const radPris = getEffectiveRadPris();
+    let info = computeCouponPrice({ selections });
+    let total = info.total;
+
+    // Om för dyr: ta bort hästar (men removeRandomHorseSomewhere tar inte bort favoriten i din fil)
+    let guard = 0;
+    while (total > maxPrice && guard < 120) {
+      guard++;
+      if (!removeRandomHorseSomewhere(selections)) break;
+      ensureFavouriteInEachDivision(selections);
+      info = computeCouponPrice({ selections });
+      total = info.total;
+    }
+
+    // Om för billig: lägg till mer chans-hästar där det finns plats
+    // (vi använder egen “addChance” så vi inte fyller med topphästar)
+    function addChanceHorseSomewhere() {
+  // hitta avdelningar där vi kan lägga till en kandidat
+  const divOrder = divisions.slice();
+  shuffleInPlace(divOrder);
+
+  for (const div of divOrder) {
+    const divIndex = Number(div.index ?? 0);
+    if (spikeDivSet.has(divIndex)) continue;
+
+    const sel = selections.find((s) => Number(s.divisionIndex) === divIndex);
+    if (!sel) continue;
+
+    const set = new Set(sel.horses || []);
+
+    const pack = getChanceCandidates(divIndex);
+    const supers = pack?.supers || [];
+    const mid = pack?.mid || [];
+    const high = pack?.high || [];
+
+    // 🔹 Viktigt: vi vill ha “mid-hästar” med ~30% chans när vi fyller på
+    // Viktning: supers 50%, mid 30%, high 20%
+    const roll = Math.random();
+    let pool =
+      roll < 0.50 ? supers :
+      roll < 0.80 ? mid :
+                   high;
+
+    // om poolen är tom → fallback
+    if (!pool.length) pool = [...supers, ...mid, ...high];
+    if (!pool.length) continue;
+
+    // slumpa poolen för variation
+    const shuffledPool = pool.slice();
+    shuffleInPlace(shuffledPool);
+
+    const next = shuffledPool.find((n) => !set.has(n));
+    if (next == null) continue;
+
+    set.add(next);
+    sel.horses = Array.from(set).sort((a, b) => a - b);
+    return true;
+  }
+
+  return false;
+}
+
+
+    guard = 0;
+    const minAcceptable = Math.max(1, maxPrice * 0.85); // chans-kupong ska ligga nära max
+    while (total < minAcceptable && guard < 160) {
+      guard++;
+      const changed = addChanceHorseSomewhere();
+      if (!changed) break;
+
+      ensureFavouriteInEachDivision(selections);
+      info = computeCouponPrice({ selections });
+      total = info.total;
+
+      if (total > maxPrice) {
+        // gick över -> backa genom att ta bort nåt
+        removeRandomHorseSomewhere(selections);
+        ensureFavouriteInEachDivision(selections);
+        info = computeCouponPrice({ selections });
+        total = info.total;
+        break;
+      }
+    }
+
+    // 3d) Spara
+  const payload = {
+  name: ensureUniqueCouponName(`${baseName} ${i + 1}`),
+  stakeLevel: 'original',           // ✅ behövs för backend
+  selections: selections.map(s => ({
+    divisionIndex: Number(s.divisionIndex),
+    horses: (s.horses || []).map(Number),
+  })),
+  source: 'chance',                 // (ok om backend ignorerar extra)
+  // chanceMeta: { ... }             // 🔻 kommentera bort tillfälligt om 500 kvarstår
+};
+
+const saved = await createCoupon(currentGameId, payload);
+
+    saved.source = 'chance';
+    coupons.push(saved);
+    created.push(saved);
+  }
+
+  if (!created.length) {
+    alert('Kunde inte skapa chans-kuponger.');
+    return;
+  }
+
+  renderCouponList();
+  renderCurrentDivision();
+}
+
+
 
 async function createSplitCouponsFromExisting(options) {
   const {
@@ -3075,12 +3748,14 @@ if (spikePlan.length < neededSpikes) {
 
  
 
+
   // 2. Kandidat-hästar per avdelning
   const allHorsesPerDiv = {};
 
   if (usePopular) {
     // från befintliga kuponger (populärfält)
-    coupons.forEach((coupon) => {
+    getActiveCoupons().forEach((coupon) => {
+
       (coupon.selections || []).forEach((sel) => {
         const d = sel.divisionIndex;
         const set = (allHorsesPerDiv[d] ||= new Set());
@@ -3390,6 +4065,11 @@ function renderCouponList() {
     const card = document.createElement('div');
     card.className = 'coupon-card';
 
+if (coupon.active === false) {
+  card.classList.add('inactive');
+}
+
+    
     // markera split-kuponger med extra klass
     if (coupon.source === 'split') {
       card.classList.add('split-coupon-card');
@@ -3606,6 +4286,54 @@ if (nums && nums.length) {
     priceWrap.appendChild(priceSub);
     card.appendChild(priceWrap);
 
+// --- Footer: aktiv/inaktiv toggle ---
+const footer = document.createElement('div');
+footer.className = 'coupon-card-footer';
+
+const btnToggle = document.createElement('button');
+btnToggle.type = 'button';
+btnToggle.className = 'btn tiny btn-toggle-active';
+
+const isActive = (coupon.active !== false);
+card.classList.toggle('inactive', !isActive);
+
+btnToggle.innerHTML = `
+  <span class="dot"></span>
+  <span>${isActive ? 'Aktiv' : 'Inaktiv'}</span>
+`;
+
+btnToggle.addEventListener('click', async (ev) => {
+  ev.preventDefault();
+  ev.stopPropagation(); // viktigt så vi inte triggar reverse-mode klick etc
+
+  const nextActive = !(coupon.active !== false);
+  const ok = window.confirm(
+    nextActive
+      ? 'Är du säker på att du vill AKTIVERA kupongen?'
+      : 'Är du säker på att du vill INAKTIVERA kupongen?'
+  );
+  if (!ok) return;
+
+  try {
+    // ✅ sparar i DB
+    const updated = await updateCouponActive(currentGameId, coupon._id, nextActive);
+console.log('Updated coupon from server:', updated);
+    // ✅ uppdatera lokalt
+    coupon.active = (updated?.active !== false);
+
+    // ✅ rita om (populärfält + not-played mm måste räknas om)
+    renderCouponList();
+    renderCurrentDivision();
+  } catch (err) {
+    console.error(err);
+    alert('Kunde inte uppdatera aktiv/inaktiv.');
+  }
+});
+
+footer.appendChild(btnToggle);
+card.appendChild(footer);
+
+
     // Klick på kupongen i "Omvänd kupong"-läge
     if (reverseMode) {
       card.addEventListener('click', (ev) => {
@@ -3647,6 +4375,58 @@ function countSpikesInCoupon(coupon) {
   return spikes;
 }
 
+function parsePastedCouponText(text) {
+  const clean = String(text || '').replace(/\r/g, '');
+  const lines = clean
+    .split('\n')
+    .map(l => l.trim())
+    .filter(Boolean);
+
+  // GameType: ofta första raden "V64"
+  const gameType = (lines[0] || '').match(/^(V\d{2}|GS75|V75|V86|V85|V64|V65)$/i)?.[1] || '';
+
+  // Datum: första YYYY-MM-DD vi hittar
+  const date = (clean.match(/\b(\d{4}-\d{2}-\d{2})\b/) || [])[1] || '';
+
+  const selections = [];
+
+  for (const line of lines) {
+    // matchar "1: ...."
+    const m = line.match(/^(\d+)\s*:\s*(.+)$/);
+    if (!m) continue;
+
+    const divisionIndex = Number(m[1]);
+    if (!Number.isFinite(divisionIndex) || divisionIndex <= 0) continue;
+
+    let rest = m[2];
+
+    // ta bort reserver i parentes "(6, 4)" osv
+    rest = rest.replace(/\(.*?\)\s*$/, '').trim();
+
+    // plocka alla tal (hästnummer)
+    const nums = Array.from(rest.matchAll(/\b(\d{1,2})\b/g))
+      .map(x => Number(x[1]))
+      .filter(n => Number.isFinite(n) && n > 0);
+
+    const horses = Array.from(new Set(nums)).sort((a, b) => a - b);
+    if (!horses.length) continue;
+
+    selections.push({ divisionIndex, horses });
+  }
+
+  selections.sort((a, b) => a.divisionIndex - b.divisionIndex);
+
+  if (!selections.length) {
+    throw new Error('Kunde inte hitta avdelningar. Format ska vara "1: ...", "2: ..." osv.');
+  }
+
+  const nameParts = [];
+  if (gameType) nameParts.push(gameType.toUpperCase());
+  if (date) nameParts.push(date);
+  nameParts.push('Klistrad');
+
+  return { name: nameParts.join(' '), selections };
+}
 
 
 
@@ -3898,3 +4678,6 @@ function setupSwipeNavigation() {
     { passive: true }
   );
 }
+
+
+
