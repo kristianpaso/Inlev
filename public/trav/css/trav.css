@@ -1446,3 +1446,38 @@ body.reverse-mode-active .coupon-card {
   background: #ef4444; /* röd */
 }
 
+/* ---- Fyll på kupong panel ---- */
+#fill-panel {
+  position: absolute;
+  top: 86px;
+  left: 230px;
+  background: #252525;
+  border: 6px solid #ffffff;
+  border-radius: 10px;
+  padding: 16px;
+  z-index: 200;
+  width: 260px;
+}
+
+@media (max-width: 900px) {
+  #fill-panel {
+    position: fixed;
+    top: 72px;
+    left: 8px;
+    right: 8px;
+    width: 260px;
+    margin: 0 auto;
+    z-index: 1500;
+    border: 2px solid #cacaca;
+    background: #051130;
+  }
+}
+
+/* Markering när “välj kupong” är aktivt */
+body.fill-mode-active .coupon-card {
+  cursor: pointer;
+}
+
+.coupon-card.selected-for-fill {
+  box-shadow: 0 0 0 2px #60a5fa;
+}

@@ -31,7 +31,19 @@ let reversePriceInputEl = null;
 let reverseSpikesInputEl = null;
 let isCreatingReverseCoupon = false; // ⬅ lägg till
 
+// ---- Fyll på kupong-läge ----
+let fillMode = false;
+let selectedFillCoupon = null;
 
+// DOM refs
+let fillPanelEl = null;
+let fillSelectedInfoEl = null;
+let fillPriceEl = null;
+let fillCountEl = null;
+let fillSpikesEl = null;
+let fillSpikesDisplayEl = null;
+let fillProfileEl = null;
+let fillProfileDisplayEl = null;
 
 
 
@@ -920,6 +932,97 @@ function isSuperskrall(divisionIndex, horseNumber) {
   const pct = getHorsePercent(divisionIndex, horseNumber);
   return pct != null && pct < 6;
 }
+
+
+function getFillProfileWeights(step) {
+  const s = Number(step || 1);
+
+  // OBS: nyckeln måste heta "supers" (inte "super")
+  // Steg enligt din spec:
+  // 1: 80% second, 15% mid, 5% super
+  // 2: 80% second, 15% mid, 5% super
+  // 3: 60% second, 30% mid, 10% super
+  // 4: 50% second, 25% mid, 25% super
+  // 5: 30% second, 30% mid, 40% super
+  // 6: 15% second, 20% mid, 65% super
+  // 7: 5% second, 15% mid, 80% super
+  if (s === 1) return { second: 0.80, mid: 0.15, supers: 0.05 };
+  if (s === 2) return { second: 0.80, mid: 0.15, supers: 0.05 };
+  if (s === 3) return { second: 0.60, mid: 0.30, supers: 0.10 };
+  if (s === 4) return { second: 0.50, mid: 0.25, supers: 0.25 };
+  if (s === 5) return { second: 0.30, mid: 0.30, supers: 0.40 };
+  if (s === 6) return { second: 0.15, mid: 0.20, supers: 0.65 };
+  return { second: 0.05, mid: 0.15, supers: 0.80 }; // steg 7
+}
+
+
+function getFillPoolsForDivision(divIndex) {
+  const sorted = getDivisionHorsesSortedByPercent(divIndex) || [];
+  if (!sorted.length) return null;
+
+  const fav = sorted[0]?.number ?? null;
+  const favPct = Number(sorted[0]?.pct || 0);
+
+  const second = sorted[1] || null;
+  const secondNum = second?.number ?? null;
+  const secondPct = Number(second?.pct || 0);
+
+  const lower = 6;
+  const upper = Math.max(15, secondPct || favPct || 15); // “mid” upp till 2:a
+  const allNums = sorted.map(x => x.number).filter(n => n != null);
+
+  const supers = [];
+  const mid = [];
+  const rest = [];
+
+  for (const n of allNums) {
+    if (n === fav) continue;
+
+    const pct = getHorsePercent(divIndex, n);
+    if (pct == null) {
+      rest.push(n);
+      continue;
+    }
+
+    if (pct < lower) supers.push(n);
+    else if (pct >= lower && pct <= upper) mid.push(n);
+    else rest.push(n);
+  }
+
+  return { fav, favPct, secondNum, secondPct, supers, mid, rest };
+}
+
+function pickByWeights({ second, mid, supers }, pools, alreadySet) {
+  const roll = Math.random();
+  let bucket = 'mid';
+
+  if (roll < supers) bucket = 'super';
+  else if (roll < supers + mid) bucket = 'mid';
+  else bucket = 'second';
+
+  // bygg kandidatlista för valt bucket
+  let candidates = [];
+
+  if (bucket === 'second') {
+    if (pools.secondNum != null) candidates = [pools.secondNum];
+    else candidates = pools.mid; // fallback
+  } else if (bucket === 'super') {
+    candidates = pools.supers;
+  } else {
+    candidates = pools.mid;
+  }
+
+  // fallback om tomt
+  if (!candidates.length) candidates = [...pools.supers, ...pools.mid, ...pools.rest];
+  if (!candidates.length) return null;
+
+  // slumpa lite så kuponger inte blir lika
+  const arr = candidates.slice();
+  shuffleInPlace(arr);
+
+  return arr.find(n => !alreadySet.has(n)) ?? null;
+}
+
 
 function chanceSecondFavProbability(favPct, secPct) {
   const f = Number(favPct || 0);
@@ -1817,7 +1920,74 @@ const chanceIncludeSecondFavInput = document.getElementById('chance-include-seco
 const chanceSpikesInput = document.getElementById('chance-spikes');
 const chanceSpikesDisplay = document.getElementById('chance-spikes-display');
 
+// ---- Fill kupong UI ----
+const btnOpenFill = document.getElementById('btn-open-fill');
+const fillPanel = document.getElementById('fill-panel');
+const fillSelectedInfo = document.getElementById('fill-selected-info');
+const fillPrice = document.getElementById('fill-price');
+const fillCount = document.getElementById('fill-count');
+const fillSpikes = document.getElementById('fill-spikes');
+const fillSpikesDisplay = document.getElementById('fill-spikes-display');
+const fillProfile = document.getElementById('fill-profile');
+const fillProfileDisplay = document.getElementById('fill-profile-display');
+const btnFillDo = document.getElementById('btn-fill-do');
+const btnFillCancel = document.getElementById('btn-fill-cancel');
 
+// spara refs globalt
+fillPanelEl = fillPanel;
+fillSelectedInfoEl = fillSelectedInfo;
+fillPriceEl = fillPrice;
+fillCountEl = fillCount;
+fillSpikesEl = fillSpikes;
+fillSpikesDisplayEl = fillSpikesDisplay;
+fillProfileEl = fillProfile;
+fillProfileDisplayEl = fillProfileDisplay;
+
+
+if (fillSpikesEl && fillSpikesDisplayEl) {
+  const sync = () => fillSpikesDisplayEl.textContent = String(fillSpikesEl.value || '0');
+  fillSpikesEl.addEventListener('input', sync);
+  sync();
+}
+
+if (fillProfileEl && fillProfileDisplayEl) {
+  const sync = () => fillProfileDisplayEl.textContent = String(fillProfileEl.value || '1');
+  fillProfileEl.addEventListener('input', sync);
+  sync();
+}
+
+if (btnOpenFill && fillPanelEl) {
+  btnOpenFill.addEventListener('click', () => {
+    if (!currentGameId) return alert('Öppna ett spel först.');
+    if (!coupons.length) return alert('Det finns inga kuponger att fylla på.');
+
+    fillMode = !fillMode;
+    selectedFillCoupon = null;
+
+    if (!fillMode) {
+      document.body.classList.remove('fill-mode-active');
+      fillPanelEl.hidden = true;
+      document.querySelectorAll('.coupon-card.selected-for-fill')
+        .forEach(c => c.classList.remove('selected-for-fill'));
+    } else {
+      document.body.classList.add('fill-mode-active');
+      fillPanelEl.hidden = true; // panel öppnas först när man klickat en kupong
+      if (fillSelectedInfoEl) fillSelectedInfoEl.textContent = 'Välj en kupong i listan…';
+    }
+
+    renderCouponList(); // så korten blir klickbara i fillMode
+  });
+}
+
+if (btnFillCancel && fillPanelEl) {
+  btnFillCancel.addEventListener('click', () => {
+    fillMode = false;
+    selectedFillCoupon = null;
+    document.body.classList.remove('fill-mode-active');
+    fillPanelEl.hidden = true;
+    renderCouponList();
+  });
+}
 
 
 // Spara globala referenser så vi kan använda dem i openReversePanelForCoupon
@@ -2183,6 +2353,37 @@ try {
     }
   });
 }
+
+if (btnFillDo) {
+  btnFillDo.addEventListener('click', async () => {
+    if (!selectedFillCoupon) return alert('Välj först en kupong att fylla på.');
+
+    const targetPrice = Math.max(1, Number(fillPriceEl?.value || 0));
+    const count = Math.max(1, Number(fillCountEl?.value || 1));
+    const spikesWanted = Math.max(0, Number(fillSpikesEl?.value || 0));
+    const step = Math.max(1, Math.min(7, Number(fillProfileEl?.value || 1)));
+
+    try {
+      await createFilledCouponsFromBase({
+        baseCoupon: selectedFillCoupon,
+        targetPrice,
+        count,
+        spikesWanted,
+        step
+      });
+
+      // stäng läget
+      fillMode = false;
+      selectedFillCoupon = null;
+      document.body.classList.remove('fill-mode-active');
+      if (fillPanelEl) fillPanelEl.hidden = true;
+    } catch (e) {
+      console.error(e);
+      alert(e?.message || 'Kunde inte skapa fyllda kuponger.');
+    }
+  });
+}
+
 
   // --- Omvänd kupong: slå på/av läget ---
  if (btnOpenReverse && reversePanel) {
@@ -3298,8 +3499,243 @@ function fixSplitSpikesAfterTuning(selections, spikeDivSet) {
     sel.horses = Array.from(horsesSet).sort((a, b) => a - b);
   });
 }
+async function createFilledCouponsFromBase({ baseCoupon, targetPrice, count, spikesWanted, step }) {
+  if (!currentGameId || !divisions.length) throw new Error('Inget spel öppet.');
+
+  const weights = getFillProfileWeights(step);
+  const created = [];
+
+  // radpris baserat på spelets insats (och ev stakeLevel på baseCoupon)
+  const radPris = getEffectiveRadPrisForCoupon(baseCoupon);
+
+  for (let i = 0; i < count; i++) {
+    // 1) börja från base-coupon selections
+    const selections = (baseCoupon.selections || []).map(sel => ({
+      divisionIndex: Number(sel.divisionIndex),
+      horses: Array.from(sel.horses || []).map(Number),
+    }));
+
+    // 2) se till att alla avdelningar finns representerade
+    divisions.forEach((div, idx) => {
+      const divIndex = Number(div.index ?? (idx + 1));
+      if (!selections.find(s => Number(s.divisionIndex) === divIndex)) {
+        selections.push({ divisionIndex: divIndex, horses: [] });
+      }
+    });
+
+    // 3) Storfavorit alltid med (och “tomma” avdelningar får favoriten)
+    ensureFavouriteInEachDivision(selections);
+
+ const spikeDivSet = pickStrongestFavSpikeDivs(spikesWanted);
+
+// gör spik-avdelningar = exakt favorit,
+// och icke-spik = minst 2 hästar direkt från start
+ensureMinTwoInNonSpike(selections, spikeDivSet, weights);
+
+
+    // 5) Trimma mot targetPrice (försök ligga nära, men aldrig långt under)
+//    - vi accepterar att hamna lite under (tolerance), men INTE 81kr när du vill ha 300kr
+const tolerance = Math.max(5, Math.round(targetPrice * 0.03)); // ca 3% eller minst 5 kr
+const minAcceptable = Math.max(1, targetPrice - tolerance);
+
+const maxIter = 600;
+for (let guard = 0; guard < maxIter; guard++) {
+  const info = computeCouponPrice({ selections, stakeLevel: baseCoupon.stakeLevel || 'original' });
+  const total = info.total;
+
+  // ✅ tillräckligt nära
+  if (total >= minAcceptable && total <= targetPrice) break;
+
+if (total > targetPrice) {
+  if (!removeRandomHorseSomewhereRespectMin(selections, spikeDivSet, 2)) break;
+  ensureMinTwoInNonSpike(selections, spikeDivSet, weights);
+  continue;
+}
+
+
+  // total < minAcceptable -> vi måste upp
+  // 1) försök viktad häst (2:a/mid/super)
+  let changed = addOneWeightedHorse(selections, weights);
+
+  // 2) om viktad inte går → fallback: lägg vilken som helst (men fortfarande inte i spik-avd)
+  if (!changed) {
+    changed = addRandomHorseSomewhere(selections);
+  }
+
+  if (!changed) break;
+
+ensureMinTwoInNonSpike(selections, spikeDivSet, weights);
+
+}
+
+// 🔴 VIKTIGT: Om vi fortfarande är långt under target, spara INTE kupongen
+{
+  const finalInfo = computeCouponPrice({ selections, stakeLevel: baseCoupon.stakeLevel || 'original' });
+  if (finalInfo.total < minAcceptable) {
+    throw new Error(
+      `Kunde inte nå priset ${targetPrice} kr (fastnade på ${formatMoney(finalInfo.total)} kr). ` +
+      `Prova lägre antal spik eller lägre pris.`
+    );
+  }
+}
+
+
+    // 6) Namn + spara
+    const baseName = baseCoupon.name || 'Kupong';
+    const name = ensureUniqueCouponName(`Fylld ${baseName} ${i + 1}`);
+
+    const payload = {
+      name,
+      source: 'fill',
+      stakeLevel: baseCoupon.stakeLevel || 'original',
+      selections: selections.map(s => ({
+        divisionIndex: Number(s.divisionIndex),
+        horses: Array.from(new Set(s.horses || [])).map(Number).sort((a,b) => a-b),
+      })),
+    };
+
+    const saved = await createCoupon(currentGameId, payload);
+    saved.source = 'fill';
+    coupons.push(saved);
+    created.push(saved);
+  }
+
+  renderCouponList();
+  renderCurrentDivision();
+
+  if (!created.length) throw new Error('Inga kuponger skapades.');
+}
+
+function addOneWeightedHorse(selections, weights) {
+  // välj slumpad ordning av avdelningar så kupongerna blir olika
+  const divs = divisions.slice();
+  shuffleInPlace(divs);
+
+  for (const div of divs) {
+    const divIndex = Number(div.index ?? 0);
+
+    const sel = selections.find(s => Number(s.divisionIndex) === divIndex);
+    if (!sel) continue;
+
+    // rör inte spik-avdelning (1 häst)
+    if ((sel.horses || []).length === 1) continue;
+
+    const pools = getFillPoolsForDivision(divIndex);
+    if (!pools) continue;
+
+    const set = new Set(sel.horses || []);
+
+    // favorit ska alltid vara med
+    if (pools.fav != null) set.add(pools.fav);
+
+  let next = pickByWeights(weights, pools, set);
+
+// 🔧 fallback: om viktningen inte hittar något, ta valfri häst som inte redan är med
+if (next == null) {
+  const all = [...(pools.supers || []), ...(pools.mid || []), ...(pools.rest || [])];
+  shuffleInPlace(all);
+  next = all.find(n => !set.has(n)) ?? null;
+}
+
+if (next == null) continue;
+
+set.add(next);
+
+    sel.horses = Array.from(set).sort((a,b) => a-b);
+    return true;
+  }
+
+  return false;
+}
+
+function pickStrongestFavSpikeDivs(spikesWanted) {
+  const wanted = Math.max(0, Math.min(Number(spikesWanted || 0), divisions.length));
+  if (!wanted) return new Set();
+
+  // sortera avdelningar efter favoritens % (starkast först)
+  const divStrength = divisions.map((div, idx) => {
+    const divIndex = Number(div.index ?? (idx + 1));
+    const sorted = getDivisionHorsesSortedByPercent(divIndex) || [];
+    const favPct = sorted.length ? Number(sorted[0].pct || 0) : 0;
+    return { divIndex, favPct };
+  });
+
+  divStrength.sort((a, b) => b.favPct - a.favPct);
+
+  return new Set(divStrength.slice(0, wanted).map(x => x.divIndex));
+}
+
+function ensureMinTwoInNonSpike(selections, spikeDivSet, weights) {
+  const byDiv = new Map(selections.map(s => [Number(s.divisionIndex), s]));
+
+  divisions.forEach((div, idx) => {
+    const divIndex = Number(div.index ?? (idx + 1));
+    const sel = byDiv.get(divIndex);
+    if (!sel) return;
+
+    // spik-avd: exakt 1 (favoriten)
+    if (spikeDivSet.has(divIndex)) {
+      const fav = getDivisionFavouriteNumber(divIndex);
+      sel.horses = fav != null ? [fav] : (sel.horses || []).slice(0, 1);
+      return;
+    }
+
+    // icke-spik: minst 2 (favoriten + en till)
+    sel.horses = Array.from(new Set(sel.horses || [])).map(Number);
+
+    const fav = getDivisionFavouriteNumber(divIndex);
+    if (fav != null && !sel.horses.includes(fav)) sel.horses.push(fav);
+
+    while ((sel.horses || []).length < 2) {
+      // försök lägga viktad häst i just denna avdelning
+      const pools = getFillPoolsForDivision(divIndex);
+      const set = new Set(sel.horses || []);
+      let next = pools ? pickByWeights(weights, pools, set) : null;
+
+      if (next == null) {
+        // fallback: ta valfri (ej redan vald)
+        const sorted = getDivisionHorsesSortedByPercent(divIndex) || [];
+        const cand = sorted.map(x => x.number).find(n => !set.has(n));
+        next = cand ?? null;
+      }
+
+      if (next == null) break;
+      set.add(next);
+      sel.horses = Array.from(set).sort((a,b)=>a-b);
+    }
+
+    sel.horses = (sel.horses || []).sort((a,b)=>a-b);
+  });
+}
+
+function removeRandomHorseSomewhereRespectMin(selections, spikeDivSet, minNonSpike = 2) {
+  const removable = selections.filter(sel => {
+    const divIndex = Number(sel.divisionIndex);
+    const horses = sel.horses || [];
+    if (spikeDivSet.has(divIndex)) return false;        // rör inte spik-avd
+    if (horses.length <= minNonSpike) return false;     // gå aldrig under 2
+    return true;
+  });
+
+  if (!removable.length) return false;
+
+  const sel = removable[Math.floor(Math.random() * removable.length)];
+  const fav = getDivisionFavouriteNumber(Number(sel.divisionIndex));
+  const candidates = (sel.horses || []).filter(h => fav == null || h !== fav);
+  if (!candidates.length) return false;
+
+  const num = candidates[Math.floor(Math.random() * candidates.length)];
+  sel.horses = (sel.horses || []).filter(h => h !== num);
+  return true;
+}
+
+
 
 async function createChanceCoupons({ baseName, count, maxPrice, level, preferUnplayed, includeSecondFav, spikesWanted }) {
+
+
+
+
 
 
   if (!currentGameId || !divisions.length) {
@@ -4358,6 +4794,25 @@ card.appendChild(footer);
       });
     }
 
+    // Klick på kupongen i "Fyll på kupong"-läge
+if (fillMode) {
+  card.classList.add('selectable');
+
+  card.addEventListener('click', (ev) => {
+    const target = ev.target;
+    if (target.closest && target.closest('button')) return; // ignorera knappar
+
+    selectedFillCoupon = coupon;
+
+    document.querySelectorAll('.coupon-card.selected-for-fill')
+      .forEach((c) => c.classList.remove('selected-for-fill'));
+    card.classList.add('selected-for-fill');
+
+    openFillPanelForCoupon(coupon, idx);
+  });
+}
+
+
     listEl.appendChild(card);
   });
 }
@@ -4553,6 +5008,10 @@ function openReversePanelForCoupon(coupon, idx, cardEl) {
  const price = computeCouponPrice(coupon);
 const baseTotal = Math.round(price.total || 0);
 
+
+
+
+
 // Försök hitta närmaste preset till originalpriset
 if (reversePriceSliderEl && reversePriceInputEl) {
   let bestIdx = REVERSE_PRICE_PRESETS.length - 1; // default "egen"
@@ -4679,5 +5138,18 @@ function setupSwipeNavigation() {
   );
 }
 
+function openFillPanelForCoupon(coupon, idx) {
+  if (!fillPanelEl) return;
 
+  const baseName = coupon.name || `Kupong ${idx + 1}`;
+  if (fillSelectedInfoEl) {
+    fillSelectedInfoEl.textContent = `Vald kupong: ${baseName}`;
+  }
+
+  // rimliga defaultvärden
+  if (fillPriceEl && !fillPriceEl.value) fillPriceEl.value = '200';
+  if (fillCountEl && !fillCountEl.value) fillCountEl.value = '5';
+
+  fillPanelEl.hidden = false;
+}
 

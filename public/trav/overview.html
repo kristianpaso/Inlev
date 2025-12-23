@@ -123,9 +123,50 @@
         <button class="btn small" id="btn-open-reverse">Omvänd kupong</button>
         <button class="btn small" id="btn-open-import-atg">Importera ATG</button>
         <button class="btn small" id="btn-open-paste-coupon">Klistra kupong</button>
+        <button class="btn small" id="btn-open-fill">Fyll på kupong</button>
       </div>
 
   </div>
+<!-- Panel för att fyll på kupongen -->
+  <div id="fill-panel" class="coupon-add-panel" hidden>
+  <h3 style="margin-top:0">Fyll på kupong</h3>
+
+  <div class="hint" id="fill-selected-info">Välj en kupong i listan…</div>
+
+  <div class="form-row">
+    <label for="fill-price">Pris (kr)</label>
+    <input id="fill-price" type="number" min="1" step="1" value="200">
+  </div>
+
+  <div class="form-row">
+    <label for="fill-count">Antal kuponger</label>
+    <input id="fill-count" type="number" min="1" max="50" value="5">
+  </div>
+
+  <div class="form-row">
+    <label for="fill-spikes">Antal spik</label>
+    <input id="fill-spikes" type="range" min="0" max="8" value="2">
+    <div class="slider-value"> <span id="fill-spikes-display">2</span> </div>
+  </div>
+
+  <div class="form-row">
+    <label for="fill-profile">Hög procentare → Låg procentare</label>
+    <input id="fill-profile" type="range" min="1" max="7" step="1" value="3">
+    <div class="slider-value">
+      Steg: <span id="fill-profile-display">3</span>
+    </div>
+    <div class="hint">
+      Steg 1: 80/15/5 • Steg 2: 80/15/5 • Steg 3: 60/30/10 • Steg 4: 50/25/25 •
+      Steg 5: 30/30/40 • Steg 6: 15/20/65 • Steg 7: 5/15/80
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button class="btn primary" id="btn-fill-do">Skapa</button>
+    <button class="btn" id="btn-fill-cancel" type="button">Avbryt</button>
+  </div>
+</div>
+
 <!-- Panel för att klistra in kupongtext -->
 <div id="paste-coupon-panel" class="coupon-add-panel" hidden>
   <h3>Klistra kupong</h3>
