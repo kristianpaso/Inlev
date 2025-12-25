@@ -210,4 +210,22 @@ export async function deleteAtgLink(linkId) {
 }
 
 
+export async function fetchWinners(gameId, payload = null) {
+  const res = await fetch(
+    `${API_GAMES}/${encodeURIComponent(gameId)}/results/fetch`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload || {}),
+    }
+  );
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw new Error(t || 'Kunde inte hämta vinnare.');
+  }
+  return res.json();
+}
+
+
 

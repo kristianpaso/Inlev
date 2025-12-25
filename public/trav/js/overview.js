@@ -3,7 +3,7 @@
 
 
 // var innan: import { getGame } from './api.js';
-import { getGame, createCoupon, deleteCoupon, getTracks, importAtgCoupon, getAtgLinks, saveAtgLink, updateCouponActive } from './api.js';
+import { getGame, createCoupon, deleteCoupon, getTracks, importAtgCoupon, getAtgLinks, saveAtgLink, updateCouponActive, fetchWinners } from './api.js';
 
 
 let game = null;
@@ -12,7 +12,85 @@ let allTracks = [];
 let divisions = [];
 let currentIndex = 0;
 let headerColumns = [];
-let divisionSquares = [];
+let divisionSquares = [];//
+// ---- Vinnare-block (syns bara om vinnare finns) ----
+// Visas under hästinformationen och ovanför kupongerna.
+//
+function ensureWinnerSummaryBlock() {
+  let el = document.getElementById('winner-summary');
+  if (el) return el;
+
+  const couponList = document.getElementById('coupon-list');
+  if (!couponList || !couponList.parentElement) return null;
+
+  el = document.createElement('section');
+  el.id = 'winner-summary';
+  el.className = 'winner-summary';
+  el.hidden = true;
+
+  el.innerHTML = `
+    <div class="winner-summary-inner">
+      <div class="winner-summary-title">Vinnare</div>
+      <div id="winner-summary-list" class="winner-summary-list"></div>
+    </div>
+  `;
+
+  // Lägg den precis ovanför kuponglistan
+  couponList.parentElement.insertBefore(el, couponList);
+  return el;
+}
+
+function getHorseLabelForWinner(avdIndex1Based, winnerNum) {
+  // försök hitta i parsed divisions
+  const div = divisions.find((d) => Number(d.index) === Number(avdIndex1Based)) || divisions[avdIndex1Based - 1];
+  const horses = div?.horses || [];
+  const horse = horses.find((h) => Number(h.number) === Number(winnerNum));
+  if (!horse) return String(winnerNum);
+
+  // rawLine brukar börja med "2 Princess Diamond ..."
+  const cols = horse.rawLine ? parseLineColumns(horse.rawLine) : [];
+  const first = (cols && cols.length ? String(cols[0] || '').trim() : '').trim();
+
+  // om första kolumnen redan innehåller numret + namn så visar vi den
+  if (first) return first;
+
+  return String(winnerNum);
+}
+
+function renderWinnerSummary() {
+  const el = ensureWinnerSummaryBlock();
+  if (!el) return;
+
+  const listEl = document.getElementById('winner-summary-list');
+  if (!listEl) return;
+
+  const results = game?.results || {};
+  const keys = Object.keys(results || {}).filter((k) => results[k] != null && String(results[k]).trim() !== '');
+  keys.sort((a, b) => Number(a) - Number(b));
+
+  if (!keys.length) {
+    el.hidden = true;
+    listEl.innerHTML = '';
+    return;
+  }
+
+  el.hidden = false;
+
+  listEl.innerHTML = keys
+    .map((k) => {
+      const avd = Number(k);
+      const winnerNum = Number(results[k]);
+      const label = getHorseLabelForWinner(avd, winnerNum);
+
+      return `
+        <div class="winner-item">
+          <span class="winner-avd">Avd ${avd}</span>
+          <span class="winner-chip">🏆 ${label}</span>
+        </div>
+      `;
+    })
+    .join('');
+}
 let divisionCountEls = [];
 let coupons = [];                 // sparade kuponger för spelet
 let isBuildingCoupon = false;
@@ -247,6 +325,66 @@ function setupIconLegendUI() {
 
 
 
+const btnUpdateWinners = document.getElementById('btn-update-winners');
+
+if (btnUpdateWinners) {
+  btnUpdateWinners.addEventListener('click', async () => {
+    if (!currentGameId) {
+      alert('Hittar inget gameId (currentGameId).');
+      return;
+    }
+
+    const ok = confirm('Hämta vinnare från ATG och uppdatera spelet?');
+    if (!ok) return;
+
+    try {
+      btnUpdateWinners.disabled = true;
+
+     // plocka date + track från meta-raden: "2025-12-23 • Örebro"
+const meta = document.getElementById('ov-meta')?.textContent || '';
+const [datePart, trackPart] = meta.split('•').map(s => s.trim());
+
+const title = document.getElementById('ov-title')?.textContent || '';
+const gameType = title.split(' ')[0];
+
+// slug
+let trackSlug =
+  document.getElementById('track-slug')?.value?.trim() ||
+  trackPart
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '');
+
+
+const payload = {
+  date: datePart,
+  gameType,
+  trackSlug,
+};
+
+const data = await fetchWinners(currentGameId, payload);
+
+      // data: { results: { "1": 2, "2": 12, ... }, resultsUpdatedAt: ... }
+
+      // Spara i din state (du använder "game", inte "currentGame")
+      if (game) game.results = data.results || {};
+
+      // Visa vinnare-blocket direkt
+      renderWinnerSummary?.();
+
+      // Rendera om så markeringar syns direkt (du har dessa i filen)
+      renderCurrentDivision?.();
+      renderCouponList?.();
+
+      alert('Vinnare uppdaterade!');
+    } catch (e) {
+      console.error(e);
+      alert(e.message || 'Kunde inte hämta vinnare.');
+    } finally {
+      btnUpdateWinners.disabled = false;
+    }
+  });
+}
 
 
 //
@@ -374,6 +512,8 @@ coupons = (game.coupons || []).map(c => ({
   renderCurrentDivision();
   computeAndRenderPrice();
   initCouponUI();
+  // Om vinnare redan finns i DB, visa blocket
+  renderWinnerSummary();
   initSaveIdeaCouponButton();
   initClearIdeaButton();
   renderCouponList();
@@ -2905,6 +3045,10 @@ function tuneReverseSelectionsToPrice(
 }
 
 
+
+
+
+
 function initSaveIdeaCouponButton() {
   const btn = document.getElementById('btn-save-idea-coupon');
   if (!btn) return;
@@ -3526,7 +3670,8 @@ async function createFilledCouponsFromBase({ baseCoupon, targetPrice, count, spi
     // 3) Storfavorit alltid med (och “tomma” avdelningar får favoriten)
     ensureFavouriteInEachDivision(selections);
 
- const spikeDivSet = pickStrongestFavSpikeDivs(spikesWanted);
+ const spikeDivSet = pickSpikeDivsForFill(selections, spikesWanted);
+
 
 // gör spik-avdelningar = exakt favorit,
 // och icke-spik = minst 2 hästar direkt från start
@@ -3648,22 +3793,72 @@ set.add(next);
   return false;
 }
 
-function pickStrongestFavSpikeDivs(spikesWanted) {
+function pickSpikeDivsForFill(selections, spikesWanted) {
   const wanted = Math.max(0, Math.min(Number(spikesWanted || 0), divisions.length));
   if (!wanted) return new Set();
 
-  // sortera avdelningar efter favoritens % (starkast först)
-  const divStrength = divisions.map((div, idx) => {
+  // vilka är redan spik i basen? (exakt 1 häst)
+  const alreadySpikes = new Set(
+    (selections || [])
+      .filter(s => (s.horses || []).length === 1)
+      .map(s => Number(s.divisionIndex))
+  );
+
+  // om basen redan har fler spikar än vi vill ha, trimma ner slumpmässigt
+  if (alreadySpikes.size > wanted) {
+    const arr = Array.from(alreadySpikes);
+    shuffleInPlace(arr);
+    return new Set(arr.slice(0, wanted));
+  }
+
+  // annars behöver vi lägga till fler spik-avdelningar
+  const need = wanted - alreadySpikes.size;
+  if (need <= 0) return alreadySpikes;
+
+  // bygg info om alla avdelningar
+  const divInfo = divisions.map((div, idx) => {
     const divIndex = Number(div.index ?? (idx + 1));
+    const sel = (selections || []).find(s => Number(s.divisionIndex) === divIndex);
+    const count = (sel?.horses || []).length;
+
     const sorted = getDivisionHorsesSortedByPercent(divIndex) || [];
     const favPct = sorted.length ? Number(sorted[0].pct || 0) : 0;
-    return { divIndex, favPct };
+
+    return { divIndex, count, favPct };
   });
 
-  divStrength.sort((a, b) => b.favPct - a.favPct);
+  // kandidater (exkludera de som redan är spik)
+  const candidates = divInfo.filter(d => !alreadySpikes.has(d.divIndex));
 
-  return new Set(divStrength.slice(0, wanted).map(x => x.divIndex));
+  // 1) tomma först (det är här din “random på tomma” ska hända)
+  const empty = candidates.filter(d => d.count === 0);
+
+  // 2) om tomma inte räcker, ta även andra (men undvik att förstöra redan val)
+  const nonEmpty = candidates.filter(d => d.count > 0);
+
+  // slumpa ordning inom grupperna så samma tomma inte alltid väljs
+  shuffleInPlace(empty);
+  shuffleInPlace(nonEmpty);
+
+  // (valfritt) om du fortfarande vill att det ska luta mot starka favoriter:
+  // sortera lätt efter favPct men behåll randomness: vi tar topp N efter shuffle
+  empty.sort((a, b) => b.favPct - a.favPct);      // men empty var redan shufflad
+  nonEmpty.sort((a, b) => b.favPct - a.favPct);
+
+  const chosen = [];
+  for (const e of empty) {
+    if (chosen.length >= need) break;
+    chosen.push(e.divIndex);
+  }
+  for (const n of nonEmpty) {
+    if (chosen.length >= need) break;
+    chosen.push(n.divIndex);
+  }
+
+  for (const divIndex of chosen) alreadySpikes.add(divIndex);
+  return alreadySpikes;
 }
+
 
 function ensureMinTwoInNonSpike(selections, spikeDivSet, weights) {
   const byDiv = new Map(selections.map(s => [Number(s.divisionIndex), s]));
@@ -4614,6 +4809,12 @@ title.textContent = coupon.name || defaultTitle;
       const tdHorses = document.createElement('td');
 const nums = byDiv[divIndex];
 
+// --- Vinnare för avdelningen (från game.results) ---
+const winnerRaw = (game?.results?.[String(divIndex)] ?? game?.results?.[divIndex]);
+const winnerNum = (winnerRaw == null || String(winnerRaw).trim() === '') ? null : Number(winnerRaw);
+const hasWinner = Number.isFinite(winnerNum) && winnerNum > 0;
+const hitWinner = !!(hasWinner && Array.isArray(nums) && nums.includes(winnerNum));
+
 if (nums && nums.length) {
   // plocka ut favorit + andrahandsfavorit i just den här avdelningen
   let favNum = null;
@@ -4639,6 +4840,11 @@ if (nums && nums.length) {
 
     const spanNum = document.createElement('span');
     spanNum.textContent = String(num);
+
+    // vinnare?
+    if (hasWinner && hitWinner && winnerNum === num) {
+      spanNum.classList.add('coupon-winner-ring');
+    }
 
      // superskräll?
     if (isSuperskrall(divIndex, num)) {
@@ -4666,6 +4872,16 @@ if (nums && nums.length) {
       const span = document.createElement('span');
       span.textContent = String(num);
 
+
+      // vinnare? (endast grön ring om kupongen har vinnaren)
+      if (hasWinner && hitWinner && winnerNum === num) {
+        span.classList.add('coupon-winner-ring');
+      }
+      // vinnare?
+      if (hasWinner && hitWinner && winnerNum === num) {
+        span.classList.add('coupon-winner-ring');
+      }
+
       if (isSuperskrall(divIndex, num)) {
         span.classList.add('superskrall-number');
       }
@@ -4687,6 +4903,7 @@ if (nums && nums.length) {
 } else {
   tdHorses.textContent = '';
 }
+
 
 
 

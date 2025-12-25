@@ -35,6 +35,13 @@ const TravGameSchema = new mongoose.Schema(
     title: { type: String, required: true },
     date: { type: String, required: true },
     track: { type: String, required: true },
+    trackSlug: { type: String, default: '' }, // ex: "orebro"
+
+results: {
+  type: Object,
+  default: {}, // ex: { "1": 2, "2": 12, ... } => avd -> vinnande startnummer
+},
+resultsUpdatedAt: { type: Date, default: null },
     gameType: { type: String, required: true },
 
     horseText: { type: String, default: '' },

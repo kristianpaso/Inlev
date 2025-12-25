@@ -18,17 +18,7 @@ router.get('/', async (req, res) => {
 // POST /api/trav/tracks – skapa ny bana
 router.post('/', async (req, res) => {
   try {
-    const {
-      name,
-      code,
-      length,
-      width,
-      homeStretch,
-      openStretch,
-      angledGate,
-      lat,
-      lon,
-    } = req.body;
+   const { name, code, slug, length, width, homeStretch, openStretch, angledGate, lat, lon } = req.body;
 
     if (!name || !code) {
       return res
@@ -44,6 +34,7 @@ router.post('/', async (req, res) => {
       homeStretch,
       openStretch,
       angledGate,
+      slug: (slug || '').trim().toLowerCase(),
       lat: lat ?? null,
       lon: lon ?? null,
     });
@@ -62,11 +53,13 @@ router.put('/:id', async (req, res) => {
     const {
       name,
       code,
+      slug,
       length,
       width,
       homeStretch,
       openStretch,
       angledGate,
+      
       lat,
       lon,
     } = req.body;
@@ -75,9 +68,10 @@ router.put('/:id', async (req, res) => {
     if (!track) {
       return res.status(404).send('Banan hittades inte.');
     }
-
+if (slug !== undefined) track.slug = (slug || '').trim().toLowerCase();
     if (name !== undefined) track.name = name.trim();
     if (code !== undefined) track.code = code.trim().toUpperCase();
+    if (slug !== undefined) track.slug = (slug || '').trim().toLowerCase();
     if (length !== undefined) track.length = length;
     if (width !== undefined) track.width = width;
     if (homeStretch !== undefined) track.homeStretch = homeStretch;

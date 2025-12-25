@@ -907,6 +907,15 @@ textarea:focus {
   border-top: 1px solid #111827;
 }
 
+
+/* --- Vinnare på kupongkort: endast grön ring runt vinnaren (om kupongen har den) --- */
+.coupon-card-table .coupon-winner-ring {
+  outline: 2px solid rgba(34, 197, 94, 0.85);
+  border-radius: 999px;
+  padding: 0 6px;
+  display: inline-block;
+}
+
 /* Kuponger som går att klicka på i omvänd-läge */
 .coupon-card.selectable {
   cursor: pointer;
@@ -1480,4 +1489,64 @@ body.fill-mode-active .coupon-card {
 
 .coupon-card.selected-for-fill {
   box-shadow: 0 0 0 2px #60a5fa;
+}
+
+.horse-num.winner {
+  outline: 2px solid #00ff88;
+  box-shadow: 0 0 0 2px rgba(0,255,136,0.25);
+}
+
+.winner-row {
+  background: rgba(0, 255, 136, 0.10) !important;
+}
+
+
+
+/* --- Vinnare-block (under hästinfo, ovanför kuponger) --- */
+.winner-summary {
+  margin: 12px 0 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.05);
+}
+
+.winner-summary-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.winner-summary-title {
+  font-size: 14px;
+  font-weight: 700;
+  opacity: 0.95;
+}
+
+.winner-summary-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.winner-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.12);
+}
+
+.winner-avd {
+  font-weight: 700;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.winner-chip {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }

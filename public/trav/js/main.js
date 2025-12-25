@@ -48,6 +48,16 @@ async function handleSubmitFromForm(gameData, mode, existingGame) {
   rerenderList();
 }
 
+function slugifyTrack(name) {
+  return (name || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // tar bort åäö-accenter
+    .replace(/[^a-z0-9]+/g, '')
+    .trim();
+}
+
+
+
 async function handleDeleteGame(game) {
   try {
     await deleteGame(game._id);
@@ -110,6 +120,7 @@ async function initTrackPanel() {
   code: document.getElementById('track-code').value.trim(),
   length: document.getElementById('track-length').value.trim(),
   width: document.getElementById('track-width').value.trim(),
+  slug: document.getElementById('track-slug').value.trim(),
   homeStretch: document.getElementById('track-homeStretch').value.trim(),
   openStretch: document.getElementById('track-openStretch').value.trim(),
   angledGate: document.getElementById('track-angledGate').value.trim(),
@@ -193,6 +204,7 @@ function renderTrackList() {
         t.length && `Längd: ${t.length}`,
         t.width && `Bredd: ${t.width}`,
         t.homeStretch && `Upplopp: ${t.homeStretch}`,
+         t.slug && `Url: ${t.slug}`,
         t.openStretch && `Open stretch: ${t.openStretch}`,
         t.angledGate && `Vinklad vinge: ${t.angledGate}`,
       ]
@@ -225,6 +237,7 @@ function renderTrackList() {
   document.getElementById('track-homeStretch').value = t.homeStretch || '';
   document.getElementById('track-openStretch').value = t.openStretch || '';
   document.getElementById('track-angledGate').value = t.angledGate || '';
+  document.getElementById('track-slug').value = t.slug || '';
 
   // 🔹 NYTT – fyll i lat/lon i formuläret
   document.getElementById('track-lat').value =
@@ -284,6 +297,20 @@ function renderTrackList() {
     badge.textContent = `${allTracks.length} banor`;
   }
 }
+
+document.getElementById('btn-update-results')?.addEventListener('click', async () => {
+  const ok = confirm('Vill du uppdatera vinnare för alla spel?');
+  if (!ok) return;
+
+  try {
+    await fetch('/api/results/update', { method: 'POST' });
+    alert('Resultat uppdaterade');
+  } catch (err) {
+    console.error(err);
+    alert('Kunde inte uppdatera resultat');
+  }
+});
+
 
 function populateTrackSelect() {
   const select = document.getElementById('game-track');
