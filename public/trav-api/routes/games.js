@@ -138,250 +138,72 @@ router.post('/', async (req, res) => {
 
 
 router.post('/:id/results/fetch', async (req, res) => {
-  let browser = null;
-  let page = null;
-
   try {
     const { id } = req.params;
     const game = await TravGame.findById(id);
     if (!game) return res.status(404).send('Spelet hittades inte.');
 
-    // ---- Hämta date/gameType/trackSlug (DB först, fallback från frontend) ----
-    const bodyDate = String(req.body?.date || '').trim();
-    const bodyGameType = String(req.body?.gameType || '').trim();
-    const bodyTrackSlug = String(req.body?.trackSlug || '').trim();
+   const date = game.date;
+const gameType = String(game.gameType);
+const trackSlug = String(game.trackSlug || '').trim();
+    
+    // Fallback från frontend om spelet saknar fält i DB
+const bodyDate = (req.body?.date || '').trim();
+const bodyGameType = (req.body?.gameType || '').trim();
+const bodyTrackSlug = (req.body?.trackSlug || '').trim();
 
-    const date = String(game.date || bodyDate || '').trim();
-    const gameType = String(game.gameType || bodyGameType || '').trim().toUpperCase();
-    const trackSlug = String(game.trackSlug || bodyTrackSlug || '').trim();
+if ((!game.date && bodyDate) || (!game.gameType && bodyGameType) || (!game.trackSlug && bodyTrackSlug)) {
+  if (!game.date && bodyDate) game.date = bodyDate;
+  if (!game.gameType && bodyGameType) game.gameType = bodyGameType;
+  if (!game.trackSlug && bodyTrackSlug) game.trackSlug = bodyTrackSlug;
+  await game.save(); // sparar tillbaka så du slipper problem nästa gång
+}
+
 
     if (!date || !gameType || !trackSlug) {
-      return res.status(400).json({
-        error: 'Saknar date/gameType/trackSlug. Kan inte hämta resultat från ATG.',
-        debug: { date, gameType, trackSlug },
-      });
+      return res.status(400).send('Saknar date/gameType/trackSlug i spelet.');
     }
 
-    // Antal avdelningar (först från parsedHorseInfo.divisions, annars fallback på spelform)
-    const parsedDivs = Array.isArray(game.parsedHorseInfo?.divisions)
-      ? game.parsedHorseInfo.divisions
-      : [];
+    // antal avdelningar: ta från parsedHorseInfo om du har det, annars default
     const divisionCount =
-      parsedDivs.length ||
-      (gameType === 'V75' ? 7 : gameType === 'V64' ? 6 : 8);
+      (game.parsedHorseInfo && Object.keys(game.parsedHorseInfo).length) ||
+      (gameType.toUpperCase() === 'V86' ? 8 :
+       gameType.toUpperCase() === 'V85' ? 8 :
+       gameType.toUpperCase() === 'V75' ? 7 :
+       gameType.toUpperCase() === 'V64' ? 6 : 8);
 
     const results = {};
 
-    // --- hjälpare: parse winner från statisk HTML ---
-    const extractWinnerFromHtml = (html) => {
+    for (let avd = 1; avd <= divisionCount; avd++) {
+      const url = `https://www.atg.se/spel/${date}/${gameType}/${trackSlug}/avd/${avd}/resultat`;
+
+      const html = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+      }).then(r => r.text());
+
       const $ = cheerio.load(html);
+
+      // 1) hitta första raden där placement == "1"
+      // ATG: data-test-id="horse-placement" innehåller placering
       let winnerNumber = null;
 
       $('tr[data-test-id^="results-table-row"]').each((_, tr) => {
         const placement = $(tr).find('[data-test-id="horse-placement"]').first().text().trim();
         if (placement === '1') {
-          const horseText = $(tr)
-            .find('[startlist-export-id="startlist-cell-horse-split-export"]')
-            .first()
-            .text()
-            .trim();
-          const mm = horseText.match(/^(\d+)/);
-          if (mm) winnerNumber = Number(mm[1]);
+          // hästtext ex: "2 Princess Diamond" => vi tar första numret
+          const horseText = $(tr).find('[startlist-export-id="startlist-cell-horse-split-export"]').first().text().trim();
+          const m = horseText.match(/^(\d+)/);
+          if (m) winnerNumber = Number(m[1]);
           return false; // break
         }
       });
 
-      return Number.isFinite(winnerNumber) ? winnerNumber : null;
-    };
-
-    // --- hjälpare: rendera sidan med Playwright och plocka vinnare ---
-    const extractWinnerWithBrowser = async (url) => {
-      if (!browser) {
-        browser = await chromium.launch({
-          headless: true,
-          args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        });
-        page = await browser.newPage({
-          userAgent:
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        });
-      }
-
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-
-      // Vänta på att React-rendern hinner lägga in tabellraderna
-      await page
-        .waitForSelector('tr[data-test-id^="results-table-row"] [data-test-id="horse-placement"]', {
-          timeout: 20000,
-        })
-        .catch(() => null);
-
-      const winnerNum = await page.evaluate(() => {
-        const rows = Array.from(document.querySelectorAll('tr[data-test-id^="results-table-row"]'));
-        for (const tr of rows) {
-          const placementEl = tr.querySelector('[data-test-id="horse-placement"]');
-          if (placementEl && placementEl.textContent && placementEl.textContent.trim() === '1') {
-            const horseEl = tr.querySelector('[startlist-export-id="startlist-cell-horse-split-export"]');
-            const t = (horseEl?.textContent || '').trim();
-            const m = t.match(/^(\d+)/);
-            if (m) return Number(m[1]);
-          }
-        }
-        return null;
-      });
-
-      return Number.isFinite(winnerNum) ? winnerNum : null;
-    };
-
-    
-    // --- hjälpare: parse alla vinnare från statisk HTML (Tabell-vyn som listar Avd 1..N) ---
-    const extractAllWinnersFromHtml = (html) => {
-      const $ = cheerio.load(html);
-      const map = {};
-      const foundA = [];
-
-      $('tr[data-test-id^="results-table-row"]').each((_, tr) => {
-        const avdText = $(tr).find('[data-test-id="horse-placement"]').first().text().trim();
-        const horseText = $(tr)
-          .find('[startlist-export-id="startlist-cell-horse-split-export"]')
-          .first()
-          .text()
-          .trim();
-
-        const avdNum = Number(avdText);
-        const mm = horseText.match(/^(\d+)/);
-
-        if (Number.isFinite(avdNum) && avdNum > 0 && mm) {
-          const horseNum = Number(mm[1]);
-          if (Number.isFinite(horseNum)) {
-            map[String(avdNum)] = horseNum;
-            foundA.push(avdNum);
-          }
-        }
-      });
-
-      // Heuristik: "tabell"-vyn brukar ha exakt en rad per avdelning (1..divisionCount)
-      const keys = Object.keys(map).map((k) => Number(k)).filter((n) => Number.isFinite(n));
-      if (!keys.length) return null;
-
-      const maxA = Math.max(...keys);
-      const minA = Math.min(...keys);
-
-      // Om vi verkar ha en lista per avdelning (inte placeringar i ett enskilt lopp)
-      if (keys.length >= Math.min(divisionCount, 4) && minA === 1 && maxA <= divisionCount) {
-        return map;
-      }
-
-      return null;
-    };
-
-    // --- hjälpare: rendera sidan med Playwright och plocka ALLA vinnare (en gång) ---
-    const extractAllWinnersWithBrowser = async (url) => {
-      if (!browser) {
-        browser = await chromium.launch({
-          headless: true,
-          args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        });
-        page = await browser.newPage({
-          userAgent:
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        });
-      }
-
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-
-      await page
-        .waitForSelector('tr[data-test-id^="results-table-row"] [data-test-id="horse-placement"]', {
-          timeout: 20000,
-        })
-        .catch(() => null);
-
-      const map = await page.evaluate(() => {
-        const out = {};
-        const rows = Array.from(document.querySelectorAll('tr[data-test-id^="results-table-row"]'));
-        for (const tr of rows) {
-          const avdText = tr.querySelector('[data-test-id="horse-placement"]')?.textContent?.trim() || '';
-          const horseText =
-            tr.querySelector('[startlist-export-id="startlist-cell-horse-split-export"]')?.textContent?.trim() || '';
-
-          const avdNum = Number(avdText);
-          const m = horseText.match(/^(\d+)/);
-          if (Number.isFinite(avdNum) && avdNum > 0 && m) {
-            const horseNum = Number(m[1]);
-            if (Number.isFinite(horseNum)) out[String(avdNum)] = horseNum;
-          }
-        }
-        return out;
-      });
-
-      const keys = Object.keys(map)
-        .map((k) => Number(k))
-        .filter((n) => Number.isFinite(n));
-
-      if (!keys.length) return null;
-
-      const maxA = Math.max(...keys);
-      const minA = Math.min(...keys);
-
-      if (keys.length >= Math.min(divisionCount, 4) && minA === 1 && maxA <= divisionCount) {
-        return map;
-      }
-
-      return null;
-    };
-
-    // 1) Försök hämta alla vinnare från "tabell"-vyn (oftast 1 request räcker)
-    const urlAll = `https://www.atg.se/spel/${date}/${gameType}/${trackSlug}/avd/1/resultat`;
-
-    let allResults = null;
-
-    // Försök med vanlig fetch först
-    const htmlAll = await fetch(urlAll, {
-      headers: { 'User-Agent': 'Mozilla/5.0' },
-    })
-      .then((r) => r.text())
-      .catch(() => '');
-
-    if (htmlAll) {
-      allResults = extractAllWinnersFromHtml(htmlAll);
-    }
-
-    // Om SSR inte innehöll data -> Playwright
-    if (!allResults) {
-      allResults = await extractAllWinnersWithBrowser(urlAll);
-    }
-
-    if (allResults && Object.keys(allResults).length) {
-      Object.assign(results, allResults);
-    } else {
-      // 2) Fallback: per-avdelning (om ATG skulle ändra sida igen)
-      for (let avd = 1; avd <= divisionCount; avd++) {
-        const url = `https://www.atg.se/spel/${date}/${gameType}/${trackSlug}/avd/${avd}/resultat`;
-
-        const html = await fetch(url, {
-          headers: { 'User-Agent': 'Mozilla/5.0' },
-        })
-          .then((r) => r.text())
-          .catch(() => '');
-
-        let winnerNumber = null;
-
-        if (html && html.includes('results-table-row') && html.includes('horse-placement')) {
-          winnerNumber = extractWinnerFromHtml(html);
-        }
-
-        if (!Number.isFinite(winnerNumber)) {
-          winnerNumber = await extractWinnerWithBrowser(url);
-        }
-
-        if (Number.isFinite(winnerNumber)) {
-          results[String(avd)] = winnerNumber;
-        }
+      if (Number.isFinite(winnerNumber)) {
+        results[String(avd)] = winnerNumber;
       }
     }
 
-
-// spara i DB
+    // spara i DB
     game.results = results;
     game.resultsUpdatedAt = new Date();
     await game.save();
@@ -390,14 +212,8 @@ router.post('/:id/results/fetch', async (req, res) => {
   } catch (err) {
     console.error('POST /games/:id/results/fetch error', err);
     res.status(500).send('Serverfel vid hämtning av vinnare.');
-  } finally {
-    try {
-      if (page) await page.close().catch(() => {});
-      if (browser) await browser.close().catch(() => {});
-    } catch (_) {}
   }
 });
-
 
 
 // Uppdatera befintligt spel
@@ -591,7 +407,7 @@ router.post('/:id/import/atg', async (req, res) => {
         let browser = null;
 
     try {
-      browser = await chromium.launch({ headless: true });
+      browser = await chromium.launch({ headless: true, args: ['--no-sandbox','--disable-setuid-sandbox'] });
       const page = await browser.newPage();
 
       // Vänta tills sidan är klar (ATG renderar kvittot med JS)
@@ -739,14 +555,14 @@ game.coupons.push({
         try { await browser.close(); } catch {}
       }
       console.error('POST /games/:id/import/atg error', err);
-      return res.status(500).json({ error: 'Serverfel vid import av ATG-kupong.' });
+      return res.status(500).json({ error: 'Serverfel vid import av ATG-kupong.', details: err?.message || String(err) });
     }
  
   
 
   } catch (err) {
     console.error('POST /games/:id/import/atg error', err);
-    res.status(500).json({ error: 'Serverfel vid import av ATG-kupong.' });
+    res.status(500).json({ error: 'Serverfel vid import av ATG-kupong.', details: err?.message || String(err) });
   }
 });
 
