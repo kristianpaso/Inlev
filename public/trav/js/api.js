@@ -118,6 +118,49 @@ export async function updateCouponActive(gameId, couponId, active) {
   return res.json();
 }
 
+// ✅ Sätt kupongläge: active | waiting | inactive
+export async function updateCouponStatus(gameId, couponId, status) {
+  const allowed = ['active', 'waiting', 'inactive'];
+  const next = allowed.includes(String(status)) ? String(status) : 'waiting';
+
+  const res = await fetch(
+    `${API_GAMES}/${encodeURIComponent(gameId)}/coupons/${encodeURIComponent(couponId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: next }),
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(errText || 'Kunde inte uppdatera kupong.');
+  }
+
+  return res.json();
+}
+
+
+// ✅ Uppdatera kupongens innehåll (namn / val / insatsnivå)
+//    OBS: samma PATCH-endpoint som status/active använder.
+export async function updateCouponContent(gameId, couponId, payload) {
+  const res = await fetch(
+    `${API_GAMES}/${encodeURIComponent(gameId)}/coupons/${encodeURIComponent(couponId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload || {}),
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(errText || 'Kunde inte uppdatera kupongen.');
+  }
+
+  return res.json();
+}
+
 // ---- BANOR ----
 
 export async function getTracks() {
@@ -171,11 +214,11 @@ export async function deleteTrack(id) {
   // 204 No Content – inget att returnera
 }
 
-export async function importAtgCoupon(gameId, url) {
+export async function importAtgCoupon(gameId, url, status = null) {
   const res = await fetch(`${API_GAMES}/${encodeURIComponent(gameId)}/import/atg`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, status }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Kunde inte importera ATG-kupong');

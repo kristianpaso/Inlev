@@ -3,7 +3,7 @@
 
 
 // var innan: import { getGame } from './api.js';
-import { getGame, createCoupon, deleteCoupon, getTracks, importAtgCoupon, getAtgLinks, saveAtgLink, updateCouponActive, fetchWinners } from './api.js';
+import { getGame, createCoupon, deleteCoupon, getTracks, importAtgCoupon, getAtgLinks, saveAtgLink, updateCouponActive, updateCouponStatus,fetchWinners, updateCouponContent } from './api.js';
 
 
 let game = null;
@@ -12,90 +12,17 @@ let allTracks = [];
 let divisions = [];
 let currentIndex = 0;
 let headerColumns = [];
-let divisionSquares = [];//
-// ---- Vinnare-block (syns bara om vinnare finns) ----
-// Visas under hästinformationen och ovanför kupongerna.
-//
-function ensureWinnerSummaryBlock() {
-  let el = document.getElementById('winner-summary');
-  if (el) return el;
-
-  const couponList = document.getElementById('coupon-list');
-  if (!couponList || !couponList.parentElement) return null;
-
-  el = document.createElement('section');
-  el.id = 'winner-summary';
-  el.className = 'winner-summary';
-  el.hidden = true;
-
-  el.innerHTML = `
-    <div class="winner-summary-inner">
-      <div class="winner-summary-title">Vinnare</div>
-      <div id="winner-summary-list" class="winner-summary-list"></div>
-    </div>
-  `;
-
-  // Lägg den precis ovanför kuponglistan
-  couponList.parentElement.insertBefore(el, couponList);
-  return el;
-}
-
-function getHorseLabelForWinner(avdIndex1Based, winnerNum) {
-  // försök hitta i parsed divisions
-  const div = divisions.find((d) => Number(d.index) === Number(avdIndex1Based)) || divisions[avdIndex1Based - 1];
-  const horses = div?.horses || [];
-  const horse = horses.find((h) => Number(h.number) === Number(winnerNum));
-  if (!horse) return String(winnerNum);
-
-  // rawLine brukar börja med "2 Princess Diamond ..."
-  const cols = horse.rawLine ? parseLineColumns(horse.rawLine) : [];
-  const first = (cols && cols.length ? String(cols[0] || '').trim() : '').trim();
-
-  // om första kolumnen redan innehåller numret + namn så visar vi den
-  if (first) return first;
-
-  return String(winnerNum);
-}
-
-function renderWinnerSummary() {
-  const el = ensureWinnerSummaryBlock();
-  if (!el) return;
-
-  const listEl = document.getElementById('winner-summary-list');
-  if (!listEl) return;
-
-  const results = game?.results || {};
-  const keys = Object.keys(results || {}).filter((k) => results[k] != null && String(results[k]).trim() !== '');
-  keys.sort((a, b) => Number(a) - Number(b));
-
-  if (!keys.length) {
-    el.hidden = true;
-    listEl.innerHTML = '';
-    return;
-  }
-
-  el.hidden = false;
-
-  listEl.innerHTML = keys
-    .map((k) => {
-      const avd = Number(k);
-      const winnerNum = Number(results[k]);
-      const label = getHorseLabelForWinner(avd, winnerNum);
-
-      return `
-        <div class="winner-item">
-          <span class="winner-avd">Avd ${avd}</span>
-          <span class="winner-chip">🏆 ${label}</span>
-        </div>
-      `;
-    })
-    .join('');
-}
+let divisionSquares = [];
 let divisionCountEls = [];
 let coupons = [];                 // sparade kuponger för spelet
 let isBuildingCoupon = false;
 let couponSelections = {};        // { divisionIndex: Set([...]) }
 let stakeLevel = 'original'; // 'original' | '70' | '50' | '30'
+
+// ---- Redigera / kopiera kuponger till Idéfältet ("Min kupong") ----
+let editingIdeaCouponId = null;
+let editingIdeaCouponName = '';
+let editingIdeaCouponStatus = null;
 
 // ---- Omvänd kupong-läge ----
 let reverseMode = false;              // om vi är i "Omvänd kupong"-läget
@@ -357,6 +284,8 @@ let trackSlug =
 
 
 const payload = {
+  status: getNewCouponStatus(),
+      status: getNewCouponStatus(),
   date: datePart,
   gameType,
   trackSlug,
@@ -369,12 +298,10 @@ const data = await fetchWinners(currentGameId, payload);
       // Spara i din state (du använder "game", inte "currentGame")
       if (game) game.results = data.results || {};
 
-      // Visa vinnare-blocket direkt
-      renderWinnerSummary?.();
-
       // Rendera om så markeringar syns direkt (du har dessa i filen)
       renderCurrentDivision?.();
       renderCouponList?.();
+      updateWinnerSummaryUI?.();
 
       alert('Vinnare uppdaterade!');
     } catch (e) {
@@ -417,8 +344,168 @@ function saveIdeaSelections() {
 
 //
 
+const COUPON_STATUS = {
+  ACTIVE: 'active',
+  WAITING: 'waiting',
+  INACTIVE: 'inactive'
+};
+
+function normalizeStatus(status, activeFlag) {
+  const v = String(status || '').toLowerCase().trim();
+  if (v === COUPON_STATUS.ACTIVE || v === COUPON_STATUS.WAITING || v === COUPON_STATUS.INACTIVE) return v;
+  // fallback på gamla fältet active
+  return (activeFlag !== false) ? COUPON_STATUS.ACTIVE : COUPON_STATUS.INACTIVE;
+}
+
+function getNewCouponStatus() {
+  const el = document.getElementById('new-coupon-status');
+  const v = String(el?.value || '').toLowerCase().trim();
+  if (v === COUPON_STATUS.ACTIVE || v === COUPON_STATUS.WAITING || v === COUPON_STATUS.INACTIVE) return v;
+  return COUPON_STATUS.WAITING;
+}
+
+function ensureNewCouponStatusPicker() {
+  if (document.getElementById('new-coupon-status')) return;
+
+  const listEl = document.getElementById('coupon-list');
+  if (!listEl || !listEl.parentElement) return;
+
+  const bar = document.createElement('div');
+  bar.id = 'new-coupon-status-bar';
+  bar.className = 'coupon-status-bar';
+
+  const label = document.createElement('div');
+  label.className = 'coupon-status-bar-label';
+  label.textContent = 'Nya kuponger skapas som:';
+
+  const select = document.createElement('select');
+  select.id = 'new-coupon-status';
+  select.className = 'input coupon-status-select';
+  select.innerHTML = `
+    <option value="waiting" selected>Vänteläge</option>
+    <option value="active">Aktiv</option>
+    <option value="inactive">Inaktiv</option>
+  `;
+
+  // spara val per spel
+  const key = `trav_new_coupon_status_${currentGameId || 'global'}`;
+  const saved = localStorage.getItem(key);
+  if (saved) select.value = saved;
+  select.addEventListener('change', () => {
+    localStorage.setItem(key, select.value);
+  });
+
+  bar.appendChild(label);
+  bar.appendChild(select);
+
+  listEl.parentElement.insertBefore(bar, listEl);
+}
+
 function getActiveCoupons() {
-  return (coupons || []).filter(c => c.active !== false);
+  return (coupons || []).filter(c => normalizeStatus(c.status, c.active) === COUPON_STATUS.ACTIVE);
+}
+
+
+// --- Min kupong: redigera/kopiera från sparade kuponger ---
+let _isApplyingIdea = false;
+
+function hasAnyIdeaSelections() {
+  return Object.values(selectedIdeaNumbersByDivIndex || {}).some((set) => set && set.size > 0);
+}
+
+function clearAllIdeaSelections() {
+  Object.keys(selectedIdeaNumbersByDivIndex || {}).forEach((k) => {
+    selectedIdeaNumbersByDivIndex[k] = new Set();
+  });
+}
+
+function applyCouponSelectionsToIdea(coupon) {
+  if (!coupon) return;
+  _isApplyingIdea = true;
+
+  clearAllIdeaSelections();
+
+  // Lägg in val per avdelning
+  (coupon.selections || []).forEach((sel) => {
+    const key = String(sel.divisionIndex ?? '0');
+    const nums = (sel.horses || []).filter((n) => typeof n === 'number');
+    selectedIdeaNumbersByDivIndex[key] = new Set(nums);
+  });
+
+  // Uppdatera räknare
+  divisions.forEach((div, idx) => {
+    const k = getDivisionKey(div);
+    const set = selectedIdeaNumbersByDivIndex[k] || new Set();
+    updateDivisionCount(idx, set.size);
+  });
+
+  saveIdeaSelections();
+  computeAndRenderPrice();
+  renderCurrentDivision();
+
+  _isApplyingIdea = false;
+}
+
+function setIdeaEditingState(couponOrNull) {
+  if (couponOrNull && couponOrNull._id) {
+    editingIdeaCouponId = couponOrNull._id;
+    editingIdeaCouponName = couponOrNull.name || 'Min kupong';
+    editingIdeaCouponStatus = normalizeStatus(couponOrNull.status, couponOrNull.active);
+  } else {
+    editingIdeaCouponId = null;
+    editingIdeaCouponName = '';
+    editingIdeaCouponStatus = null;
+  }
+
+  const btn = document.getElementById('btn-save-idea-coupon');
+  if (btn) {
+    btn.classList.toggle('editing', Boolean(editingIdeaCouponId));
+    btn.textContent = editingIdeaCouponId ? 'Spara Min kupong (redigerar)' : 'Spara Min kupong';
+  }
+}
+
+function nextDraftName() {
+  // Pågående kupong 1,2,3...
+  let maxN = 0;
+  (coupons || []).forEach((c) => {
+    const nm = String(c?.name || '');
+    const m = nm.match(/Pågående kupong\s+(\d+)/i);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (!isNaN(n)) maxN = Math.max(maxN, n);
+    }
+  });
+  return `Pågående kupong ${maxN + 1}`;
+}
+
+async function saveIdeaAsDraftIfNeeded() {
+  if (!currentGameId) return null;
+  if (!hasAnyIdeaSelections()) return null;
+
+  const payload = buildCouponPayloadFromIdea();
+  if (!payload.selections || !payload.selections.length) return null;
+
+  const body = {
+    ...payload,
+    source: 'draft',
+    name: nextDraftName(),
+    status: COUPON_STATUS.WAITING,
+  };
+
+  const up = String(game?.gameType || '').toUpperCase();
+  if (up === 'V85') {
+    body.stakeLevel = stakeLevel;
+  }
+
+  try {
+    const draft = await createCoupon(currentGameId, body);
+    coupons.push(draft);
+    return draft;
+  } catch (err) {
+    console.error(err);
+    // vi vill inte stoppa flödet bara för att draft-save failar
+    return null;
+  }
 }
 
 
@@ -457,10 +544,15 @@ function setupOverview(game) {
     };
   });
 
-coupons = (game.coupons || []).map(c => ({
-  ...c,
-  active: (c.active !== false) // default TRUE om fältet saknas
-}));
+coupons = (game.coupons || []).map(c => {
+  const status = normalizeStatus(c.status, c.active);
+  return {
+    ...c,
+    status,
+    // hålla active i sync för gamla beräkningar
+    active: status === COUPON_STATUS.ACTIVE
+  };
+});
 
 
   const divisionRowEl = document.getElementById('division-number-row');
@@ -512,11 +604,11 @@ coupons = (game.coupons || []).map(c => ({
   renderCurrentDivision();
   computeAndRenderPrice();
   initCouponUI();
-  // Om vinnare redan finns i DB, visa blocket
-  renderWinnerSummary();
   initSaveIdeaCouponButton();
   initClearIdeaButton();
+  ensureNewCouponStatusPicker();
   renderCouponList();
+  updateWinnerSummaryUI?.();
   setupSwipeNavigation(); 
 
 
@@ -1384,16 +1476,42 @@ function buildHorseView(division, divIndex, popularity) {
   }
   const selectedSet = selectedIdeaNumbersByDivIndex[divKey];
 
-  const visibleColumns = getVisibleColumns(headerColumns, listMode);
+  const allColumns = (headerColumns || []).map((name, index) => ({ name, index }));
+  const up = (s) => String(s || '').toUpperCase();
+
+  // Bas: gamla logiken
+  let visibleColumns = getVisibleColumns(headerColumns, listMode);
+  let detailColumns = [];
+
+  // Detaljerad vy: visa en smal tabell och lägg resten i en dropdown under hästen
+  if (listMode === 'detailed') {
+    const horseCol = allColumns.find((c) => up(c.name).startsWith('HÄST'));
+    const mainIdx = getMainPercentIndex(headerColumns);
+    const mainCol = allColumns.find((c) => c.index === mainIdx);
+    const oddsCol = allColumns.find((c) => /V-?ODDS|ODDS/.test(up(c.name)));
+    const valueCol = allColumns.find((c) => /VÄRDE|VINSTPENGAR|UTDELNING|PRIS/.test(up(c.name)));
+
+    const summary = [horseCol, mainCol, oddsCol, valueCol]
+      .filter(Boolean)
+      .filter((c, i, a) => a.findIndex((x) => x.index === c.index) === i)
+      .slice(0, 4);
+
+    const shown = new Set(summary.map((c) => c.index));
+    visibleColumns = summary;
+
+    detailColumns = allColumns.filter((c) => {
+      const u = up(c.name);
+      if (shown.has(c.index)) return false;
+      if (u.startsWith('KUSK')) return false;
+      if (u.startsWith('HÄST')) return false;
+      return true;
+    });
+  }
 
   const table = document.createElement('table');
   table.className = 'horse-table';
 
   const isMobile = window.innerWidth <= 900;
-  const isMobileDetailed = isMobile && listMode === 'detailed';
-  if (isMobileDetailed) {
-    table.classList.add('mobile-detailed');
-  }
 
   // ----- THEAD -----
   const thead = document.createElement('thead');
@@ -1421,6 +1539,7 @@ function buildHorseView(division, divIndex, popularity) {
 
   sortedHorses.forEach((horse) => {
     const tr = document.createElement('tr');
+    tr.classList.add('horse-main-row');
      // 🔹 markera favoritens rad
     if (horse.number === favouriteNumber) {
       tr.classList.add('horse-row-favourite');
@@ -1435,10 +1554,15 @@ function buildHorseView(division, divIndex, popularity) {
       cols = parseLineColumns(horse.rawLine);
     }
 
+    // tipskommentar (kan vara lång text) – används för ikoner + egen tipsrad
+    const tipsCommentRaw = (tipsIndex >= 0 && cols[tipsIndex])
+      ? String(cols[tipsIndex]).replace(/\u00a0/g, ' ').trim()
+      : '';
+
     // vilka ikoner gäller denna häst? (från TIPSKOMMENTAR)
     const iconIds = [];
-    if (tipsIndex >= 0 && cols[tipsIndex]) {
-      const lower = String(cols[tipsIndex]).toLowerCase();
+    if (tipsCommentRaw) {
+      const lower = tipsCommentRaw.toLowerCase();
       ICON_DEFS.forEach((def) => {
         if (lower.includes(def.match)) {
           iconIds.push(def.id);
@@ -1446,15 +1570,15 @@ function buildHorseView(division, divIndex, popularity) {
       });
     }
 
-    // extra-info till mobil-detaljerad vy
+    // extra-info i detaljerat läge (visas som dropdown under hästen)
     let extraData = [];
-    if (isMobileDetailed && horse.rawLine) {
-      extraData = headerColumns
-        .map((name, index) => ({ name, index }))
-        .filter(({ name }) => {
-          const up = name.toUpperCase();
-          if (up.startsWith('HÄST')) return false;
-          if (up.startsWith('KUSK')) return false;
+    if (listMode === 'detailed' && horse.rawLine) {
+      extraData = detailColumns
+        .filter(({ name, index }) => {
+          // Tipskommentar visas i egen rad under hästen (alltid synlig)
+          const u = String(name || '').toUpperCase();
+          if (index === tipsIndex) return false;
+          if (u.includes('TIPS') && u.includes('KOMMENTAR')) return false;
           return true;
         })
         .map(({ name, index }) => ({
@@ -1488,6 +1612,11 @@ function buildHorseView(division, divIndex, popularity) {
           kuskName = cols[kuskIndex];
         }
 
+
+        // spara för detaljer-raden
+        tr._horseTitle = horseText;
+        tr._horseDriver = kuskName;
+
         if (kuskName) {
           td.innerHTML = `
             <div class="horse-name">${escapeHtml(horseText)}</div>
@@ -1499,25 +1628,7 @@ function buildHorseView(division, divIndex, popularity) {
           `;
         }
 
-        // extra-info under raden i mobil-detaljläge
-        if (isMobileDetailed && extraData.length) {
-          const extraDiv = document.createElement('div');
-          extraDiv.className = 'horse-extra';
 
-          extraData.forEach(({ label, value }) => {
-            if (!value) return;
-            const rowDiv = document.createElement('div');
-            rowDiv.className = 'horse-extra-item';
-            rowDiv.innerHTML = `
-              <span>${escapeHtml(label)}:</span>
-              <span>${escapeHtml(value)}</span>
-            `;
-            extraDiv.appendChild(rowDiv);
-          });
-
-          td.appendChild(extraDiv);
-          tr._extraDiv = extraDiv;
-        }
       } else {
         // övriga kolumner
         const cellValue = horse.rawLine ? cols[index] ?? '' : '';
@@ -1553,33 +1664,104 @@ function buildHorseView(division, divIndex, popularity) {
 
     tbody.appendChild(tr);
 
-    // mobil: klick för att fälla ut extra-info
-    if (isMobileDetailed) {
-      tr.classList.add('mobile-collapsible-row');
-      const extraDiv = tr._extraDiv || null;
+    // Tipskommentar – egen rad (alltid synlig)
+    if (tipsCommentRaw) {
+      const tipsTr = document.createElement('tr');
+      tipsTr.className = 'horse-tips-row';
 
-      tr.addEventListener('click', () => {
-        tr.classList.toggle('expanded');
+      const tipsTd = document.createElement('td');
+      tipsTd.colSpan = visibleColumns.length;
+      tipsTd.innerHTML = `
+        <div class="horse-tips-box">
+          <div class="horse-tips-title">Tipskommentar</div>
+          <div class="horse-tips-text">${escapeHtml(tipsCommentRaw)}</div>
+        </div>
+      `;
 
-        // direkt efter klick
-        requestAnimationFrame(syncNumberPositions);
+      tipsTr.appendChild(tipsTd);
+      tbody.appendChild(tipsTr);
+    }
 
-        // efter ev. transition
-        if (extraDiv) {
-          const handler = () => {
-            extraDiv.removeEventListener('transitionend', handler);
-            syncNumberPositions();
-          };
-          extraDiv.addEventListener('transitionend', handler);
+
+    // Bygg en egen rad UNDER hästen för detaljer (spänner över alla kolumner)
+    if (listMode === 'detailed' && extraData && extraData.length && horse.rawLine) {
+      const detailsTr = document.createElement('tr');
+      detailsTr.className = 'horse-details-row';
+      detailsTr.style.display = 'none';
+
+      const detailsTd = document.createElement('td');
+      detailsTd.colSpan = visibleColumns.length;
+
+      const panel = document.createElement('div');
+      panel.className = 'horse-details-panel';
+
+
+      // Grid med kort
+      const grid = document.createElement('div');
+      grid.className = 'horse-details-grid';
+
+      extraData.forEach(({ label, value }) => {
+        const v = String(value || '').replace(/\u00a0/g, ' ').trim();
+        if (!v) return;
+
+        const card = document.createElement('div');
+        card.className = 'horse-extra-card';
+
+        // STATISTIKKOMMENTAR ska ta hel rad
+        if (String(label || '').toUpperCase().includes('STATISTIKKOMMENTAR')) {
+          card.classList.add('wide');
         }
+
+        const lab = document.createElement('div');
+        lab.className = 'horse-extra-label';
+        lab.textContent = label;
+
+        const val = document.createElement('div');
+        val.className = 'horse-extra-value';
+        val.textContent = v;
+
+        card.appendChild(lab);
+        card.appendChild(val);
+        grid.appendChild(card);
+      });
+
+      if (grid.childNodes.length) {
+        panel.appendChild(grid);
+        detailsTd.appendChild(panel);
+        detailsTr.appendChild(detailsTd);
+        tbody.appendChild(detailsTr);
+        tr._detailsRow = detailsTr;
+      }
+    }
+
+    // klick för att fälla ut detaljer-raden (PC + mobil)
+    if (listMode === 'detailed' && tr._detailsRow) {
+      tr.classList.add('horse-row');
+
+      tr.addEventListener('click', (e) => {
+        if (e.target && e.target.closest && e.target.closest('a,button,input,label,select,textarea')) return;
+
+        const wasOpen = tr.classList.contains('expanded');
+
+        // stäng alla
+        tbody.querySelectorAll('tr.horse-row.expanded').forEach((row) => row.classList.remove('expanded'));
+        tbody.querySelectorAll('tr.horse-details-row').forEach((row) => (row.style.display = 'none'));
+
+        if (!wasOpen) {
+          tr.classList.add('expanded');
+          tr._detailsRow.style.display = '';
+        }
+
+        requestAnimationFrame(syncNumberPositions);
       });
     }
+
 
     // ----- vänsterkolumn: populärfält -----
     const leftSquare = createNumberSquare(horse.number);
 
-   // 🔹 favorit = gul markering även i vänsterkolumnen
-    if (horse.number === favouriteNumber) {
+    // favorit = gul markering även i vänsterkolumnen
+    if (typeof favouriteNumber !== 'undefined' && horse.number === favouriteNumber) {
       leftSquare.classList.add('favourite-number');
     }
 
@@ -1587,9 +1769,8 @@ function buildHorseView(division, divIndex, popularity) {
       leftSquare.classList.add('scratched');
     }
 
-    const count = counts[horse.number] || 0;
-
     // inte spelad på någon kupong → röd
+    const count = counts[horse.number] || 0;
     const activeCoupons = getActiveCoupons();
 if (activeCoupons && activeCoupons.length > 0 && !horse.scratched && count === 0) {
   leftSquare.classList.add('not-played');
@@ -1925,25 +2106,21 @@ function syncNumberPositions() {
   if (!table) return;
 
   const headerRow = table.querySelector('thead tr');
-  const rows = table.querySelectorAll('tbody tr');
+  const mainRows = table.querySelectorAll('tbody tr.horse-main-row');
   const leftCol = document.getElementById('popular-number-list');
   const rightCol = document.getElementById('idea-number-list');
 
-  if (!leftCol || !rightCol || !rows.length) return;
+  if (!leftCol || !rightCol || !headerRow || !mainRows.length) return;
 
   // 🔹 På mobil: låt bara CSS styra margin-top
   if (window.innerWidth <= 901) {
     leftCol.style.marginTop = '';
     rightCol.style.marginTop = '';
   } else {
-    // 🔹 På desktop: använd headerhöjden
-    const headerHeight = headerRow
-      ? headerRow.getBoundingClientRect().height
-      : 0;
-
-    const offset = 0;
-    const marginTop = headerHeight + offset;
-
+    // desktop: aligna nummer-raderna med tabellens header
+    const headerRect = headerRow.getBoundingClientRect();
+    const tableRect = table.getBoundingClientRect();
+    const marginTop = Math.max(0, headerRect.bottom - tableRect.top);
     leftCol.style.marginTop = `${marginTop}px`;
     rightCol.style.marginTop = `${marginTop}px`;
   }
@@ -1951,27 +2128,23 @@ function syncNumberPositions() {
   const leftSquares = leftCol.querySelectorAll('.num-square');
   const rightSquares = rightCol.querySelectorAll('.num-square');
 
-  // 1) mät alla raders höjd
-  const rowHeights = Array.from(rows).map((row) =>
-    row.getBoundingClientRect().height
-  );
-  const maxHeight = Math.max(...rowHeights, 40); // minst 40px
+  mainRows.forEach((row, i) => {
+    let h = row.getBoundingClientRect().height;
 
-  // 2) sätt höjd – strukna rader får minst maxHeight
-  rows.forEach((row, i) => {
-    let h = rowHeights[i];
-
-    if (row.classList.contains('scratched') && h < maxHeight) {
-      h = maxHeight;
-      row.style.height = `${maxHeight}px`; // lyft upp struken rad
-    } else {
-      row.style.height = ''; // låt "normala" rader bestämmas av innehållet
+    // Lägg till höjd för tips- och detaljrader som hör till denna häst
+    let sib = row.nextElementSibling;
+    while (sib && (sib.classList.contains('horse-tips-row') || sib.classList.contains('horse-details-row'))) {
+      // hidden detaljrad kan ha 0 höjd, vilket är OK
+      h += sib.getBoundingClientRect().height;
+      sib = sib.nextElementSibling;
     }
 
-    if (leftSquares[i]) leftSquares[i].style.height = `${h}px`;
-    if (rightSquares[i]) rightSquares[i].style.height = `${h}px`;
+    const px = `${Math.max(40, Math.round(h))}px`;
+    if (leftSquares[i]) leftSquares[i].style.height = px;
+    if (rightSquares[i]) rightSquares[i].style.height = px;
   });
 }
+
 
 
 
@@ -2241,7 +2414,7 @@ if (btnImportAtgDo) {
     const url = applyGameDateToAtgUrl(rawUrl);
 
     try {
-      const created = await importAtgCoupon(currentGameId, url);
+      const created = await importAtgCoupon(currentGameId, url, getNewCouponStatus());
       if (!created || !created.selections || !created.selections.length) {
         throw new Error('Importen gav ingen kupong.');
       }
@@ -2249,6 +2422,8 @@ if (btnImportAtgDo) {
       coupons.push(created);
       renderCouponList();
       renderCurrentDivision();
+      // Rensa Min kupong efter sparning
+      try { document.getElementById('btn-clear-idea')?.click(); } catch (e) {}
       if (importAtgPanel) importAtgPanel.hidden = true;
     } catch (e) {
       console.error(e);
@@ -2292,6 +2467,7 @@ if (btnPasteCouponCreate) {
 
     try {
       const created = await createCoupon(currentGameId, {
+        status: getNewCouponStatus(),
         name: parsed.name,
         selections: parsed.selections,
         source: 'paste',
@@ -2391,6 +2567,7 @@ if (splitSpikesInput && splitMaxPriceInput && splitSuggestionsBox) {
   btnSave.onclick = async () => {
     try {
       const payload = buildCouponPayload();
+      payload.status = getNewCouponStatus();
       const newCoupon = await createCoupon(currentGameId, payload);
       coupons.push(newCoupon);
       renderCouponList();
@@ -2767,6 +2944,7 @@ if (btnFillDo) {
     reverseNameInputEl.value = name;
 
     const payload = {
+      status: getNewCouponStatus(),
       name,
       source: 'reverse',
       stakeLevel: base.stakeLevel || 'original',
@@ -3053,49 +3231,76 @@ function initSaveIdeaCouponButton() {
   const btn = document.getElementById('btn-save-idea-coupon');
   if (!btn) return;
 
-  btn.addEventListener('click', async () => {
-    const payload = buildCouponPayloadFromIdea();
+  // sätt korrekt label vid init
+  setIdeaEditingState(null);
 
+  btn.addEventListener('click', async () => {
+    if (!currentGameId) return alert('Öppna ett spel först.');
+
+    const payload = buildCouponPayloadFromIdea();
     if (!payload.selections.length) {
       alert('Du måste välja minst en häst i något lopp för att spara kupongen.');
       return;
     }
 
-    // hur många "Min kupong" finns redan?
+    // default-namn
     const existingIdeaCount = coupons.filter((c) => c.source === 'idea').length;
-    const defaultName = `Min kupong ${existingIdeaCount + 1}`;
+    const defaultName = editingIdeaCouponId
+      ? (editingIdeaCouponName || `Min kupong ${existingIdeaCount + 1}`)
+      : `Min kupong ${existingIdeaCount + 1}`;
 
     const nameInput = prompt('Ange namn på kupongen:', defaultName);
-    if (nameInput === null) {
-      // användaren tryckte Avbryt
-      return;
-    }
+    if (nameInput === null) return;
     const name = nameInput.trim() || defaultName;
 
+    // bygg body
+    const body = {
+      ...payload,
+      source: 'idea',
+      name,
+    };
+
+    const up = String(game?.gameType || '').toUpperCase();
+    if (up === 'V85') {
+      body.stakeLevel = stakeLevel;
+    }
+
     try {
-  // bygg upp body till API:t
-  const body = {
-    ...payload,
-    source: 'idea',
-    name,
-  };
+      if (editingIdeaCouponId) {
+        const ok = window.confirm(
+          `Du redigerar \"${editingIdeaCouponName || 'Min kupong'}\".\n\nOK = Uppdatera befintlig kupong\nAvbryt = Skapa en ny`
+        );
 
-  // Om spelet är V85 – skicka med aktuell insatsnivå
-  const up = String(game?.gameType || '').toUpperCase();
-  if (up === 'V85') {
-    body.stakeLevel = stakeLevel; // samma stakeLevel som totalen använder
-  }
+        if (ok) {
+          // behåll kupongens status om möjligt
+          body.status = editingIdeaCouponStatus || getNewCouponStatus();
 
-  const newCoupon = await createCoupon(currentGameId, body);
+          const updated = await updateCouponContent(currentGameId, editingIdeaCouponId, body);
 
-  coupons.push(newCoupon);
-  renderCouponList();
-  renderCurrentDivision(); // uppdatera populärfältet med nya counts
-} catch (err) {
-  console.error(err);
-  alert('Kunde inte spara kupongen.');
-}
+          const idx = coupons.findIndex((c) => String(c._id) === String(editingIdeaCouponId));
+          if (idx >= 0) coupons[idx] = updated;
 
+          setIdeaEditingState(null);
+          renderCouponList();
+          renderCurrentDivision();
+          // Rensa Min kupong efter sparning
+          try { document.getElementById('btn-clear-idea')?.click(); } catch (e) {}
+          return;
+        }
+
+        // skapa ny istället
+        setIdeaEditingState(null);
+      }
+
+      body.status = getNewCouponStatus();
+      const newCoupon = await createCoupon(currentGameId, body);
+      coupons.push(newCoupon);
+      renderCouponList();
+      renderCurrentDivision();
+    } catch (err) {
+      console.error(err);
+      alert('Kunde inte spara kupongen.');
+    }
   });
 }
 
@@ -3116,6 +3321,8 @@ function initClearIdeaButton() {
       'Vill du rensa alla markeringar i idéfältet för ALLA avdelningar i detta spel?'
     );
     if (!ok) return;
+
+    setIdeaEditingState(null);
 
     // 1) Töm ALLA avdelningars idé-val
     Object.keys(selectedIdeaNumbersByDivIndex).forEach((key) => {
@@ -3730,6 +3937,7 @@ ensureMinTwoInNonSpike(selections, spikeDivSet, weights);
     const name = ensureUniqueCouponName(`Fylld ${baseName} ${i + 1}`);
 
     const payload = {
+      status: getNewCouponStatus(),
       name,
       source: 'fill',
       stakeLevel: baseCoupon.stakeLevel || 'original',
@@ -4240,6 +4448,7 @@ if (chosen.size < 2) {
 
     // 3d) Spara
   const payload = {
+  status: getNewCouponStatus(),
   name: ensureUniqueCouponName(`${baseName} ${i + 1}`),
   stakeLevel: 'original',           // ✅ behövs för backend
   selections: selections.map(s => ({
@@ -4562,6 +4771,7 @@ const LOCKED_SPIKE_DIVS = new Set(spikeDivSet);
 
     // 10. Spara kupong
     const payload = {
+    status: getNewCouponStatus(),
       name: `${baseName} ${i + 1}`,
       source: 'split',
       selections,
@@ -4690,14 +4900,59 @@ function renderCouponList() {
     return;
   }
 
-  coupons.forEach((coupon, idx) => {
+  const groups = {
+    active: [],
+    waiting: [],
+    inactive: [],
+  };
+
+  coupons.forEach((c) => {
+    const st = normalizeStatus(c.status, c.active);
+    if (st === COUPON_STATUS.ACTIVE) groups.active.push(c);
+    else if (st === COUPON_STATUS.WAITING) groups.waiting.push(c);
+    else groups.inactive.push(c);
+  });
+
+  // ordning: aktiva först, vänteläge sen, inaktiva sist
+  const orderedGroups = [
+    { key: 'active', title: 'Aktiva kuponger' },
+    { key: 'waiting', title: 'Vänteläge' },
+    { key: 'inactive', title: 'Inaktiva kuponger' },
+  ];
+
+  let runningIndex = 0;
+
+  orderedGroups.forEach(({ key, title }) => {
+    const arr = groups[key] || [];
+    if (!arr.length) return;
+
+    const header = document.createElement('div');
+    header.className = 'coupon-group-title';
+    header.textContent = title;
+    listEl.appendChild(header);
+
+    const wrap = document.createElement('div');
+    wrap.className = `coupon-group coupon-group-${key}`;
+    listEl.appendChild(wrap);
+
+    arr.forEach((coupon) => {
+      const idx = runningIndex++;
+
     const isIdea = coupon.source === 'idea';
 
     const card = document.createElement('div');
     card.className = 'coupon-card';
 
-if (coupon.active === false) {
+    // Importerade ATG-kuponger får egen stil
+    if (String(coupon.source || '').toLowerCase() === 'atg') {
+      card.classList.add('imported-atg');
+    }
+
+const couponStatus = normalizeStatus(coupon.status, coupon.active);
+if (couponStatus === COUPON_STATUS.INACTIVE) {
   card.classList.add('inactive');
+} else if (couponStatus === COUPON_STATUS.WAITING) {
+  card.classList.add('waiting');
 }
 
     
@@ -4732,26 +4987,15 @@ const title = document.createElement('div');
 title.className = 'coupon-card-title';
 title.textContent = coupon.name || defaultTitle;
 
-
-
-
-
-    const sub = document.createElement('div');
-    sub.className = 'coupon-card-sub';
-    const date = coupon.createdAt ? new Date(coupon.createdAt) : null;
-    sub.textContent = date
-      ? `Skapad: ${date.toLocaleString('sv-SE')}`
-      : '';
-
     const leftHeader = document.createElement('div');
     leftHeader.appendChild(title);
-    if (sub.textContent) {
-      leftHeader.appendChild(sub);
-    }
 
     const btnDelete = document.createElement('button');
     btnDelete.className = 'btn tiny danger';
-    btnDelete.textContent = 'Ta bort';
+    btnDelete.classList.add('icon-btn');
+    btnDelete.title = 'Ta bort';
+    btnDelete.setAttribute('aria-label', 'Ta bort');
+    btnDelete.textContent = '🗑';
 
     btnDelete.addEventListener('click', async () => {
       const ok = window.confirm(
@@ -4770,8 +5014,59 @@ title.textContent = coupon.name || defaultTitle;
       }
     });
 
+    const actions = document.createElement('div');
+    actions.className = 'coupon-card-actions';
+
+    // Redigera (Min kupong) eller Kopiera (övriga kuponger)
+    if (isIdea) {
+      const btnEdit = document.createElement('button');
+      btnEdit.className = 'btn tiny';
+      btnEdit.classList.add('icon-btn');
+        btnEdit.title = 'Redigera';
+        btnEdit.setAttribute('aria-label', 'Redigera');
+        btnEdit.textContent = '✏️';
+      btnEdit.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const draft = await saveIdeaAsDraftIfNeeded();
+        if (draft) {
+          renderCouponList();
+        }
+        applyCouponSelectionsToIdea(coupon);
+        setIdeaEditingState(coupon);
+        // liten hint till användaren
+        try {
+          const ideaBox = document.getElementById('idea-number-list');
+          ideaBox?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch {}
+      });
+      actions.appendChild(btnEdit);
+    } else {
+      const btnCopy = document.createElement('button');
+      btnCopy.className = 'btn tiny';
+      btnCopy.classList.add('icon-btn');
+        btnCopy.title = 'Kopiera';
+        btnCopy.setAttribute('aria-label', 'Kopiera');
+        btnCopy.textContent = '📋';
+      btnCopy.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const draft = await saveIdeaAsDraftIfNeeded();
+        if (draft) {
+          renderCouponList();
+        }
+        setIdeaEditingState(null);
+        applyCouponSelectionsToIdea(coupon);
+        try {
+          const ideaBox = document.getElementById('idea-number-list');
+          ideaBox?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch {}
+      });
+      actions.appendChild(btnCopy);
+    }
+
+    actions.appendChild(btnDelete);
+
     header.appendChild(leftHeader);
-    header.appendChild(btnDelete);
+    header.appendChild(actions);
     card.appendChild(header);
 
     // Bygg tabell: Avd / Hästar
@@ -4803,17 +5098,18 @@ title.textContent = coupon.name || defaultTitle;
 
     allDivIndices.forEach((divIndex) => {
       const tr = document.createElement('tr');
+    tr.classList.add('horse-main-row');
       const tdAvd = document.createElement('td');
       tdAvd.textContent = String(divIndex);
 
       const tdHorses = document.createElement('td');
 const nums = byDiv[divIndex];
 
-// --- Vinnare för avdelningen (från game.results) ---
-const winnerRaw = (game?.results?.[String(divIndex)] ?? game?.results?.[divIndex]);
-const winnerNum = (winnerRaw == null || String(winnerRaw).trim() === '') ? null : Number(winnerRaw);
-const hasWinner = Number.isFinite(winnerNum) && winnerNum > 0;
-const hitWinner = !!(hasWinner && Array.isArray(nums) && nums.includes(winnerNum));
+const winnerNum = (game && game.results)
+  ? Number(game.results[String(divIndex)] ?? game.results[divIndex])
+  : NaN;
+const hasWinnerOnCoupon = Number.isFinite(winnerNum) && winnerNum > 0 && Array.isArray(nums) && nums.includes(winnerNum);
+
 
 if (nums && nums.length) {
   // plocka ut favorit + andrahandsfavorit i just den här avdelningen
@@ -4841,9 +5137,8 @@ if (nums && nums.length) {
     const spanNum = document.createElement('span');
     spanNum.textContent = String(num);
 
-    // vinnare?
-    if (hasWinner && hitWinner && winnerNum === num) {
-      spanNum.classList.add('coupon-winner-ring');
+    if (hasWinnerOnCoupon && winnerNum === num) {
+      spanNum.classList.add('winner-on-coupon');
     }
 
      // superskräll?
@@ -4872,14 +5167,8 @@ if (nums && nums.length) {
       const span = document.createElement('span');
       span.textContent = String(num);
 
-
-      // vinnare? (endast grön ring om kupongen har vinnaren)
-      if (hasWinner && hitWinner && winnerNum === num) {
-        span.classList.add('coupon-winner-ring');
-      }
-      // vinnare?
-      if (hasWinner && hitWinner && winnerNum === num) {
-        span.classList.add('coupon-winner-ring');
+      if (hasWinnerOnCoupon && winnerNum === num) {
+        span.classList.add('winner-on-coupon');
       }
 
       if (isSuperskrall(divIndex, num)) {
@@ -4903,7 +5192,6 @@ if (nums && nums.length) {
 } else {
   tdHorses.textContent = '';
 }
-
 
 
 
@@ -4937,54 +5225,103 @@ if (nums && nums.length) {
 
       priceWrap.appendChild(main);
     priceWrap.appendChild(priceSub);
+
+    // Skapad-datum (endast datum + tid) längst ner till vänster
+    const createdAtRaw = coupon.createdAt || coupon.created_at || coupon.created || coupon.updatedAt || coupon.updated_at || null;
+    const date = createdAtRaw ? new Date(createdAtRaw) : null;
+    const hasValidDate = !!(date && !Number.isNaN(date.getTime()));
+    if (hasValidDate) {
+      const created = document.createElement('div');
+      created.className = 'coupon-created-at';
+      created.textContent = date.toLocaleString('sv-SE', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      priceWrap.appendChild(created);
+    }
+
     card.appendChild(priceWrap);
 
-// --- Footer: aktiv/inaktiv toggle ---
+// --- Footer: kupongläge (Aktiv / Vänteläge / Inaktiv) ---
 const footer = document.createElement('div');
 footer.className = 'coupon-card-footer';
 
-const btnToggle = document.createElement('button');
-btnToggle.type = 'button';
-btnToggle.className = 'btn tiny btn-toggle-active';
+const stateWrap = document.createElement('div');
+stateWrap.className = 'coupon-state-switch';
 
-const isActive = (coupon.active !== false);
-card.classList.toggle('inactive', !isActive);
+const makeBtn = (state, label) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'btn tiny coupon-state-btn';
+  b.dataset.state = state;
+  b.textContent = label;
+  return b;
+};
 
-btnToggle.innerHTML = `
-  <span class="dot"></span>
-  <span>${isActive ? 'Aktiv' : 'Inaktiv'}</span>
-`;
+const btnA = makeBtn(COUPON_STATUS.ACTIVE, '+');
+const btnW = makeBtn(COUPON_STATUS.WAITING, '?');
+const btnI = makeBtn(COUPON_STATUS.INACTIVE, '−');
 
-btnToggle.addEventListener('click', async (ev) => {
-  ev.preventDefault();
-  ev.stopPropagation(); // viktigt så vi inte triggar reverse-mode klick etc
+stateWrap.appendChild(btnA);
+stateWrap.appendChild(btnW);
+stateWrap.appendChild(btnI);
 
-  const nextActive = !(coupon.active !== false);
-  const ok = window.confirm(
-    nextActive
-      ? 'Är du säker på att du vill AKTIVERA kupongen?'
-      : 'Är du säker på att du vill INAKTIVERA kupongen?'
-  );
-  if (!ok) return;
+const applyStateUI = () => {
+  const st = normalizeStatus(coupon.status, coupon.active);
+  btnA.classList.toggle('on', st === COUPON_STATUS.ACTIVE);
+  btnW.classList.toggle('on', st === COUPON_STATUS.WAITING);
+  btnI.classList.toggle('on', st === COUPON_STATUS.INACTIVE);
+
+  card.classList.toggle('inactive', st === COUPON_STATUS.INACTIVE);
+  card.classList.toggle('waiting', st === COUPON_STATUS.WAITING);
+};
+
+applyStateUI();
+
+async function setCouponState(next) {
+  const current = normalizeStatus(coupon.status, coupon.active);
+  if (next === current) return;
 
   try {
-    // ✅ sparar i DB
-    const updated = await updateCouponActive(currentGameId, coupon._id, nextActive);
-console.log('Updated coupon from server:', updated);
-    // ✅ uppdatera lokalt
-    coupon.active = (updated?.active !== false);
+    const updated = await updateCouponStatus(currentGameId, coupon._id, next);
+    coupon.status = normalizeStatus(updated?.status, updated?.active);
+    coupon.active = coupon.status === COUPON_STATUS.ACTIVE;
 
-    // ✅ rita om (populärfält + not-played mm måste räknas om)
     renderCouponList();
     renderCurrentDivision();
   } catch (err) {
     console.error(err);
-    alert('Kunde inte uppdatera aktiv/inaktiv.');
+    alert('Kunde inte uppdatera kupongläge.');
   }
+}
+
+[btnA, btnW, btnI].forEach((b) => {
+  b.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    setCouponState(b.dataset.state);
+  });
 });
 
-footer.appendChild(btnToggle);
+footer.appendChild(stateWrap);
 card.appendChild(footer);
+
+// Klick på kupongen i normalläge: Vänteläge -> Aktiv
+if (!reverseMode && !fillMode) {
+  card.addEventListener('click', (ev) => {
+    const target = ev.target;
+    if (target.closest && target.closest('button')) return;
+
+    const st = normalizeStatus(coupon.status, coupon.active);
+    if (st === COUPON_STATUS.WAITING) {
+      setCouponState(COUPON_STATUS.ACTIVE);
+    }
+  });
+}
+
 
 
     // Klick på kupongen i "Omvänd kupong"-läge
@@ -5030,7 +5367,8 @@ if (fillMode) {
 }
 
 
-    listEl.appendChild(card);
+    wrap.appendChild(card);
+    });
   });
 }
 
@@ -5370,3 +5708,89 @@ function openFillPanelForCoupon(coupon, idx) {
   fillPanelEl.hidden = false;
 }
 
+
+
+// =====================
+// 🏆 Vinnare-block (ovanför kupongerna)
+// =====================
+function ensureWinnerSummarySection() {
+  let section = document.getElementById('winner-summary');
+  if (section) return section;
+
+  // skapa sektion dynamiskt (så vi inte är beroende av overview.html)
+  section = document.createElement('section');
+  section.id = 'winner-summary';
+  section.className = 'winner-summary';
+  section.hidden = true;
+
+  const inner = document.createElement('div');
+  inner.className = 'winner-summary-inner';
+
+  const title = document.createElement('div');
+  title.className = 'winner-summary-title';
+  title.textContent = 'Vinnare';
+
+  const list = document.createElement('div');
+  list.id = 'winner-summary-list';
+  list.className = 'winner-summary-list';
+
+  inner.appendChild(title);
+  inner.appendChild(list);
+  section.appendChild(inner);
+
+  const bigBlock = document.querySelector('.big-block');
+  const couponList = document.getElementById('coupon-list');
+  if (bigBlock && bigBlock.parentElement) {
+    // lägg direkt efter hästinfo-blocket
+    bigBlock.insertAdjacentElement('afterend', section);
+  } else if (couponList && couponList.parentElement) {
+    couponList.parentElement.insertBefore(section, couponList);
+  } else {
+    document.body.appendChild(section);
+  }
+
+  return section;
+}
+
+function updateWinnerSummaryUI() {
+  const section = ensureWinnerSummarySection();
+  const list = document.getElementById('winner-summary-list');
+  if (!list) return;
+
+  const results = (game && game.results) ? game.results : null;
+  const keys = results ? Object.keys(results) : [];
+  const hasAny = keys.some((k) => Number(results[k]) > 0);
+
+  if (!hasAny) {
+    section.hidden = true;
+    list.innerHTML = '';
+    return;
+  }
+
+  // sortera avdelningar 1..N
+  const avds = keys
+    .map((k) => Number(k))
+    .filter((n) => Number.isFinite(n))
+    .sort((a, b) => a - b);
+
+  list.innerHTML = '';
+
+  avds.forEach((avd) => {
+    const winnerNum = Number(results[String(avd)]);
+    if (!Number.isFinite(winnerNum) || winnerNum <= 0) return;
+
+    let horseName = '';
+    const div = divisions[avd - 1];
+    if (div && Array.isArray(div.horses)) {
+      const found = div.horses.find((h) => Number(h.number) === winnerNum);
+      if (found) horseName = found.name || '';
+    }
+
+    const chip = document.createElement('div');
+    chip.className = 'winner-chip';
+    chip.textContent = `Avd ${avd}  🏆  ${winnerNum}${horseName ? ' ' + horseName : ''}`;
+    list.appendChild(chip);
+  });
+
+  section.hidden = list.children.length === 0;
+}

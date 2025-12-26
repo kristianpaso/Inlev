@@ -907,15 +907,6 @@ textarea:focus {
   border-top: 1px solid #111827;
 }
 
-
-/* --- Vinnare på kupongkort: endast grön ring runt vinnaren (om kupongen har den) --- */
-.coupon-card-table .coupon-winner-ring {
-  outline: 2px solid rgba(34, 197, 94, 0.85);
-  border-radius: 999px;
-  padding: 0 6px;
-  display: inline-block;
-}
-
 /* Kuponger som går att klicka på i omvänd-läge */
 .coupon-card.selectable {
   cursor: pointer;
@@ -948,9 +939,21 @@ textarea:focus {
   align-items: center;
 }
 
-/* Fast bredd på "Ta bort"-knappen i kupong-headern */
-.coupon-card-header .btn.tiny {
+/* Kupong-header actions */
+.coupon-card-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Fast bredd på "Ta bort" (bara den röda) */
+.coupon-card-actions .btn.tiny.danger {
   width: 51px;
+}
+
+/* Visa att man redigerar en kupong */
+#btn-save-idea-coupon.editing {
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.25);
 }
 
 
@@ -1501,52 +1504,270 @@ body.fill-mode-active .coupon-card {
 }
 
 
-
-/* --- Vinnare-block (under hästinfo, ovanför kuponger) --- */
-.winner-summary {
-  margin: 12px 0 10px;
+/* --- Kupongstatus: grupper + skaparläge --- */
+.coupon-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.16);
-  background: rgba(255,255,255,0.05);
+  margin: 10px 0 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+}
+
+.coupon-status-bar-label {
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.coupon-status-select {
+  max-width: 180px;
+}
+
+.coupon-list {
+  display: block;
+}
+
+.coupon-group-title {
+  margin: 14px 0 8px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  opacity: 0.95;
+}
+
+.coupon-group {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.coupon-group .coupon-card {
+  width: 100%;
+}
+
+/* Vänteläge: lätt toning, men inte lika "död" som inaktiv */
+.coupon-card.waiting {
+  opacity: 0.92;
+}
+
+/* Inaktiv: mer tonad */
+.coupon-card.inactive {
+  opacity: 0.55;
+  filter: grayscale(0.25);
+}
+
+.coupon-state-switch {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.coupon-state-btn {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.06);
+}
+
+.coupon-state-btn.on {
+  border-color: rgba(0, 255, 136, 0.55);
+  background: rgba(0, 255, 136, 0.12);
+}
+
+.coupon-state-btn.on[data-state="active"] {
+  border-color: #00ff88;
+  background: #00ff88;
+  color: #06110b;
+  padding: 2px 8px;
+}
+
+.coupon-state-btn.on[data-state="waiting"] {
+  border-color: rgba(255, 200, 0, 0.65);
+  background: rgba(255, 200, 0, 0.14);
+  color: #fff7d1;
+}
+
+.coupon-state-btn.on[data-state="inactive"] {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(255,255,255,0.92);
+}
+
+
+/* Responsiv kuponggrid */
+@media (max-width: 1400px) {
+  .coupon-group { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 1100px) {
+  .coupon-group { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 820px) {
+  .coupon-group { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  /* Mobil: 2 kuponger per rad */
+  .coupon-group { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+  /* Kompaktare kort så två per rad funkar bättre */
+  .coupon-card { padding: 10px; }
+  .coupon-card-title { font-size: 14px; }
+  .coupon-card-sub { font-size: 11px; }
+
+  .coupon-card-table th,
+  .coupon-card-table td { font-size: 12px; padding: 6px 6px; }
+
+  .coupon-price-main { font-size: 12px; }
+  .coupon-price-sub { font-size: 11px; }
+  .coupon-card, .coupon-card.imported-atg { width: 100%; }
+}
+
+
+/* =======================
+   Kupong UI – importerade + kompakt mobil
+   ======================= */
+
+/* Importerade ATG-kuponger */
+.coupon-card.imported-atg {
+  background: #0d2b39;
+  border-radius: 10px;
+  padding: 8px 10px;
+  border: 1px solid #4088a9;
+  width: 215px;
+  box-sizing: border-box;
+}
+
+/* Ikonknappar i kupongheader */
+.coupon-card-actions .icon-btn {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* Status: runda cirklar (+, ?, -) */
+.coupon-state-btn.coupon-state-dot {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 14px;
+}
+
+/* Vald status */
+.coupon-state-btn.coupon-state-dot.on[data-state="active"] {
+  background: #00ff88;
+  border-color: #00ff88;
+  color: #06110b;
+}
+.coupon-state-btn.coupon-state-dot.on[data-state="waiting"] {
+  background: rgba(255, 200, 0, 0.18);
+  border-color: rgba(255, 200, 0, 0.70);
+  color: #fff7d1;
+}
+.coupon-state-btn.coupon-state-dot.on[data-state="inactive"] {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: rgba(255,255,255,0.92);
+}
+
+/* Smalare Avd-kolumn */
+.coupon-card-table th:first-child,
+.coupon-card-table td:first-child {
+  width: 34px;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+/* Skapad-rad under pris */
+.coupon-created-at {
+  margin-top: 4px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.70);
+}
+
+/* Mindre sidopadding på mobil så kuponger får mer bredd */
+@media (max-width: 520px) {
+  .page { padding: 10px; }
+  .panel { padding: 12px; }
+}
+
+/* =======================
+   Vinnare-block
+   ======================= */
+.winner-summary {
+  margin: 10px 0 14px;
 }
 
 .winner-summary-inner {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  border-radius: 14px;
+  padding: 12px;
 }
 
 .winner-summary-title {
-  font-size: 14px;
-  font-weight: 700;
-  opacity: 0.95;
+  font-weight: 800;
+  margin-bottom: 8px;
 }
 
 .winner-summary-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 12px;
+  gap: 10px;
 }
 
-.winner-item {
+.winner-chip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
   border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.18);
-  background: rgba(0,0,0,0.12);
+  background: rgba(0,0,0,0.18);
+  font-size: 12px;
 }
 
-.winner-avd {
-  font-weight: 700;
-  font-size: 12px;
-  opacity: 0.85;
+
+/* Vinnare på kupong: grön ring runt vinnarnumret (endast om kupongen har vinnaren) */
+.coupon-card-table .winner-on-coupon {
+  outline: 2px solid #00ff88;
+  border-radius: 999px;
+  padding: 0 4px;
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.18);
 }
 
-.winner-chip {
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
+
+@media (max-width: 520px) {
+  .coupon-card-table th, .coupon-card-table td {
+    font-size: 12px;
+    padding: 3px 0px;
+  }
+
+  /* Behåll lite luft runt nummer så vinnar-ringen syns fint */
+  .coupon-card-table .horse-number {
+    padding: 0 4px;
+    line-height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Vinnar-ring även på mobil */
+  .coupon-card-table .horse-number.winner-hit {
+    border-width: 2px;
+    border-radius: 999px;
+  }
 }
+

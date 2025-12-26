@@ -21,7 +21,10 @@ const CouponSchema = new mongoose.Schema({
     default: 'original',
   },
 
-  // ✅ NYTT: aktiv/inaktiv
+  // ✅ NYTT: kupongläge (active | waiting | inactive)
+  status: { type: String, enum: ['active', 'waiting', 'inactive'], default: 'waiting' },
+
+  // Backwards compat: gamla fältet active finns kvar
   active: { type: Boolean, default: true },
 
   selections: [CouponDivisionSchema],
