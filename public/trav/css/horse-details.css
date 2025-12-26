@@ -116,11 +116,11 @@ tr.horse-details-row td,
     display: block;
     width: 100%;
   }
-  .horse-tips-text {
+  .horse-tips-text { 
   display: block;
         width: 92%;
         line-height: 1.25;
         font-size: 13px;
     
-  }
+  } 
 }
