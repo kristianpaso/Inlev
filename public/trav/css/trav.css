@@ -349,7 +349,7 @@ textarea:focus {
 .horse-table th:first-child,
 .horse-table td:first-child {
   text-align: left;
-  width: 32px;
+  width: auto;
 }
 
 .horse-table tbody tr:nth-child(even) {
@@ -550,7 +550,7 @@ textarea:focus {
     display: flex;
     flex-direction: column;
     gap: 0px;
-    margin-top: 0; /* JS sätter exakt samma som tabellhuvudet */
+    margin-top: 37px; /* JS sätter exakt samma som tabellhuvudet */
 }
 
 .num-square {
@@ -690,6 +690,55 @@ textarea:focus {
 .horse-name,
 .horse-driver {
     text-align: left;
+}
+
+/* ---- Detaljpanel: rubrik med hästnamn + ikoner ---- */
+.horse-details-header {
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #1f2937;
+}
+
+.horse-details-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.horse-details-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.horse-details-driver {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+
+/* Häst + kusk på samma rad (gör listan smalare) */
+.horse-cell {
+  white-space: normal !important; /* override tabellens nowrap */
+}
+
+/* Kusk i egen spalt */
+.kusk-cell {
+  white-space: normal !important;
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.horse-name-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.horse-driver-inline {
+  opacity: 0.85;
 }
 
 
@@ -1769,5 +1818,21 @@ body.fill-mode-active .coupon-card {
     border-width: 2px;
     border-radius: 999px;
   }
+}
+
+
+
+/* ---- Jackpot kupong ---- */
+#jackpot-panel .help {
+  margin: 6px 0 12px 0;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.coupon-jackpot-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
 }
 

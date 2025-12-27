@@ -121,6 +121,7 @@
         <button class="btn small" id="btn-add-coupon">Ny kupong</button>
       
         <button class="btn small" id="btn-open-chance">Chans kupong</button>
+        <button class="btn small" id="btn-open-jackpot">Jackpot kupong</button>
         <button class="btn small" id="btn-open-split">Split kupong</button>
         <button class="btn small" id="btn-open-reverse">Omvänd kupong</button>
         <button class="btn small" id="btn-open-import-atg">Importera ATG</button>
@@ -317,7 +318,8 @@
     <input id="chance-name" type="text" placeholder="Ex. Chans" />
   </div>
 
-  <div class="form-row">
+  
+<div class="form-row">
     <label for="chance-count">Hur många chans-kuponger</label>
     <input id="chance-count" type="number" min="1" value="2" />
   </div>
@@ -372,6 +374,44 @@
     <button class="btn" id="btn-chance-cancel">Avbryt</button>
   </div>
 </div>
+
+
+  <!-- Panel för Jackpot kupong -->
+  <div id="jackpot-panel" class="coupon-add-panel" hidden>
+  <div class="coupon-add-title">Jackpot kupong</div>
+  <div class="coupon-add-grid">
+    <label class="coupon-add-field">
+      <span>Namn</span>
+      <input id="jackpot-name" type="text" value="Jackpot" />
+    </label>
+
+    <label class="coupon-add-field">
+      <span>Antal kuponger</span>
+      <input id="jackpot-count" type="number" min="1" value="1" />
+    </label>
+
+    <label class="coupon-add-field">
+      <span>Maxpris (kr)</span>
+      <input id="jackpot-max-price" type="number" min="1" value="200" />
+    </label>
+
+    <label class="coupon-add-field">
+      <span>Antal spik (0 = auto)</span>
+      <input id="jackpot-spikes" type="number" min="0" max="8" value="0" />
+    </label>
+
+    <div class="coupon-add-hint">
+      Jackpot-kupong försöker välja mer “unika” hästar (lågt V%) och kompletterar med några extra streck tills maxpriset nås.
+      Skapade kuponger hamnar i <b>Vänteläge</b>.
+    </div>
+  </div>
+
+  <div class="coupon-add-actions">
+    <button class="btn small" id="btn-jackpot-do">Skapa jackpot kupong</button>
+    <button class="btn small secondary" id="btn-jackpot-cancel">Avbryt</button>
+  </div>
+</div>
+
 
 
   <!-- Panel för Omvänd kupong -->

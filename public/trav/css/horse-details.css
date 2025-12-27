@@ -1,89 +1,94 @@
-/* ===== Horse details dropdown (cards) ===== */
+/* Horse details (expandable row) */
 
-tr.horse-details-row td,
-.horse-extra {
-  white-space: normal !important; /* override table nowrap */
-  max-width: 100%;
+.horse-details-row td {
+  padding: 0;
+  border: 0;
 }
 
 .horse-details-panel {
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
   background: rgba(13, 43, 57, 0.55);
   border-bottom: 4px solid rgb(109 109 109);
 }
 
-/* Tips row (no title text) */
-.horse-tips-box {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  padding: 3px 7px;
-  box-sizing: border-box;
-}
-.horse-tips-title { display: none !important; }
-
-/* Grid container */
 .horse-details-grid {
   width: 100%;
   max-width: 100%;
   display: grid;
   gap: 6px;
   align-content: start;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  padding: 6px;
+  box-sizing: border-box;
 }
 
-/* Card */
 .horse-extra-card {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px 12px;
   box-sizing: border-box;
   min-height: 56px;
-  min-width: 0; /* critical for multi-column on small screens */
+  min-width: 0; /* allow text to wrap inside grid */
 }
 
-.horse-extra-label {
-  display: block;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  opacity: 0.85;
-  margin-bottom: 4px;
-}
-
-.horse-extra-value {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-/* Full-width card */
 .horse-extra-card.wide {
   grid-column: 1 / -1;
 }
 
-/* ===== Mobile: 3 columns, smaller cards so everything fits ===== */
-@media (max-width: 520px) {
-    .horse-details-grid {
-        grid-template-columns: repeat(3, minmax(83px, 1fr)) !important;
-        gap: 4px;
-    }
+.horse-extra-label {
+  font-size: 11px;
+  opacity: 0.9;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
 
-.horse-details-panel {
-    width: 89%;
-     }
+.horse-extra-value {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Tips row shown directly under the horse row */
+.horse-tips-row td {
+  padding: 0;
+  border: 0;
+}
+
+.horse-tips-box {
+  background: rgb(31 33 39);
+  border-bottom: 2px solid rgb(77 77 77);
+  /* border-radius: 8px; */
+  padding: 6px 10px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.horse-tips-text {
+  display: block;
+  width: 100%;
+  font-size: 14px;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 520px) {
+  .horse-details-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    padding: 6px;
+  }
+
   .horse-extra-card {
     border-radius: 8px;
     padding: 6px 7px;
     min-height: 44px;
   }
-
- 
 
   .horse-extra-label {
     font-size: 10px;
@@ -92,35 +97,18 @@ tr.horse-details-row td,
 
   .horse-extra-value {
     font-size: 12px;
+    line-height: 1.25;
   }
 
-  /* Keep Statistikkommentar as full row (wide) */
   .horse-extra-card.wide {
     grid-column: 1 / -1;
   }
-}
 
-
-/* ✅ Tipskommentar: radbryt + ingen klippning */
-.horse-tips-box,
-.horse-tips-text {
-  white-space: normal !important;
-  overflow: visible !important;
-  text-overflow: initial !important;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-@media (max-width: 520px) {
   .horse-tips-box {
-    display: block;
-    width: 100%;
+    padding: 5px 8px;
   }
-  .horse-tips-text { 
-  display: block;
-        width: 92%;
-        line-height: 1.25;
-        font-size: 13px;
-    
-  } 
+
+  .horse-tips-text {
+    font-size: 13px;
+  }
 }
