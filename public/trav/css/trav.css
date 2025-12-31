@@ -326,6 +326,9 @@ textarea:focus {
 .horse-table-wrapper {
   margin-top: 8px;
   overflow-x: auto;
+  /* max-width: 460px; */
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .horse-table {
@@ -349,22 +352,21 @@ textarea:focus {
 .horse-table th:first-child,
 .horse-table td:first-child {
   text-align: left;
-  width: auto;
+  width: 32px;
 }
 
 .horse-table tbody tr:nth-child(even) {
-  background: #0b1120;
+  background: #044744;
 }
 
 .horse-table tbody tr:hover {
-  background: #1f2937;
+  background: #055f5b;
 }
 
 /* 🔹 Favorit i loppet – rad i hästtabellen */
 .horse-table tbody tr.horse-row-favourite {
-    background: #4f3800;
+    background: #951400;
     color: #ffffff;
-   
 }
 
 .horse-table tbody tr.scratched {
@@ -550,11 +552,12 @@ textarea:focus {
     display: flex;
     flex-direction: column;
     gap: 0px;
-    margin-top: 37px; /* JS sätter exakt samma som tabellhuvudet */
+    margin-top: 0; /* JS sätter exakt samma som tabellhuvudet */
 }
 
 .num-square {
     min-height: 40px;           /* grundhöjd om JS inte hunnit räkna */
+    box-sizing: border-box;     /* viktigt: annars adderar border extra höjd och sista raderna driftar */
     border-radius: 6px;
     border: 1px solid #374151;
     background: #020617;
@@ -587,7 +590,10 @@ textarea:focus {
 }
 
 .horse-table tbody tr {
+
     min-height: 71px; /* samma nivå som du gillar på rutorna */
+    background: #044744;
+    color: #ffffff;
 }
 /* ---- Totalen: fyrkant + räknare under ---- */
 
@@ -681,6 +687,52 @@ textarea:focus {
     line-height: 1.2;
 }
 
+/* Hästnamn + ikoner på samma rad */
+.horse-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.horse-icon-bar-name {
+  flex: 0 0 auto;
+  margin-left: 8px;
+}
+
+/* Liten indikator i listan när stallsnack/intervju finns */
+.horse-snack-indicator {
+  flex: 0 0 auto;
+  margin-left: 8px;
+  font-size: 0.9rem;
+  opacity: 0.85;
+  line-height: 1;
+  user-select: none;
+}
+.horse-snack-indicator:hover {
+  opacity: 1;
+}
+
+/* Header i detaljpanelen */
+.horse-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px 0;
+  box-sizing: border-box;
+}
+
+.horse-details-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+.horse-icon-bar-details {
+  flex: 0 0 auto;
+}
+
 .horse-driver {
     font-size: 0.7rem;
     color: #9ca3af;
@@ -690,55 +742,6 @@ textarea:focus {
 .horse-name,
 .horse-driver {
     text-align: left;
-}
-
-/* ---- Detaljpanel: rubrik med hästnamn + ikoner ---- */
-.horse-details-header {
-  padding: 8px 10px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid #1f2937;
-}
-
-.horse-details-title-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.horse-details-title {
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.horse-details-driver {
-  font-size: 0.8rem;
-  color: #9ca3af;
-  margin-top: 2px;
-}
-
-
-/* Häst + kusk på samma rad (gör listan smalare) */
-.horse-cell {
-  white-space: normal !important; /* override tabellens nowrap */
-}
-
-/* Kusk i egen spalt */
-.kusk-cell {
-  white-space: normal !important;
-  font-size: 0.85rem;
-  color: #9ca3af;
-}
-
-.horse-name-line {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.horse-driver-inline {
-  opacity: 0.85;
 }
 
 
@@ -910,6 +913,16 @@ textarea:focus {
   border: 1px solid #b38d00;
   width: 215px;
   box-sizing: border-box;
+}
+
+/* Jackpot-kuponger */
+.coupon-card.jackpot-coupon-card {
+  background: #240d2c;
+}
+
+/* Fyllda kuponger ("Fyll på") */
+.coupon-card.filled-coupon-card {
+  background: #391022;
 }
 
 
@@ -1836,3 +1849,50 @@ body.fill-mode-active .coupon-card {
   color: rgba(255, 255, 255, 0.75);
 }
 
+
+
+
+/* -----------------------------
+   STALLSNACK - snabböverblick
+------------------------------ */
+.stallsnack-list{
+  list-style: none;
+  margin: 0;
+  padding-left: 0;
+}
+.stallsnack-list li{
+  margin: 0 0 6px 0;
+}
+
+.stallsnack-summary{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin: 6px 0 10px;
+  padding: 6px 8px;
+  border-radius: 0;
+  font-size: 12px;
+  line-height: 1;
+}
+.stallsnack-summary.positive{ background: rgba(20, 120, 60, 0.25); }
+.stallsnack-summary.negative{ background: rgba(160, 25, 25, 0.25); }
+.stallsnack-summary.neutral{ background: rgba(255,255,255,0.06); }
+
+.stallsnack-tag{
+  padding: 4px 6px;
+  border-radius: 0;
+  background: rgba(0,0,0,0.22);
+  color: #fff;
+  white-space: nowrap;
+}
+
+.stallsnack-source{
+  text-align: right;
+  font-size: 11px;
+  margin-top: 6px;
+}
+.stallsnack-source a{
+  color:#fff;
+  opacity:0.9;
+  text-decoration: underline;
+}

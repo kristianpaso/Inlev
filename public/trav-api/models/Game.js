@@ -54,6 +54,12 @@ resultsUpdatedAt: { type: Date, default: null },
       default: {},
     },
 
+    // ✅ NYTT: Stallsnack/Intervju per avdelning och häst (hämtas via knapp från ATG)
+    stallsnack: {
+      type: Object,
+      default: {},
+    },
+
     coupons: {
       type: [CouponSchema],
       default: [],

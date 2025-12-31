@@ -270,5 +270,29 @@ export async function fetchWinners(gameId, payload = null) {
   return res.json();
 }
 
+// Hämta stallsnack/intervju från ATG och låt servern parsa + matcha mot avdelning/hästar.
+// Servern sparar resultatet på spelet och returnerar en map som UI kan använda direkt.
+// Endpoint: POST /api/trav/games/:id/stallsnack/fetch  { url }
+export async function fetchStallsnack(gameId, url) {
+  if (!gameId) throw new Error('Saknar gameId för stallsnack.');
+  if (!url) throw new Error('Saknar URL för stallsnack.');
+
+  const res = await fetch(
+    `${API_GAMES}/${encodeURIComponent(gameId)}/stallsnack/fetch`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    }
+  );
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw new Error(t || 'Kunde inte hämta stallsnack.');
+  }
+
+  return res.json();
+}
+
 
 

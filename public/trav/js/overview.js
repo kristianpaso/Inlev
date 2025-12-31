@@ -3,88 +3,11 @@
 
 
 // var innan: import { getGame } from './api.js';
-import { getGame, createCoupon, deleteCoupon, getTracks, importAtgCoupon, getAtgLinks, saveAtgLink, updateCouponActive, updateCouponStatus,fetchWinners, updateCouponContent } from './api.js';
+import { getGame, createCoupon, deleteCoupon, getTracks, importAtgCoupon, getAtgLinks, saveAtgLink, updateCouponActive, updateCouponStatus, fetchWinners, fetchStallsnack, updateCouponContent } from './api.js';
 
 
 let game = null;
 let currentGameId = null;
-
-// ---- Jackpot: robust klickhantering ----
-// Vissa delar av UI renderas om och vissa wrappers stoppar bubbling.
-// Därför lyssnar vi på document i CAPTURE-läget, så klick alltid fångas.
-let __jackpotDelegationInstalled = false;
-
-function getJackpotEls() {
-  return {
-    panel: document.getElementById('jackpot-panel'),
-    nameInput: document.getElementById('jackpot-name'),
-    countInput: document.getElementById('jackpot-count'),
-    maxPriceInput: document.getElementById('jackpot-max-price'),
-    spikesInput: document.getElementById('jackpot-spikes'),
-  };
-}
-
-function installJackpotDelegation() {
-  if (__jackpotDelegationInstalled) return;
-  __jackpotDelegationInstalled = true;
-
-  // OBS: kör i capture-läge och normalisera target (textnoder saknar .closest)
-  document.addEventListener('click', async (e) => {
-    const t = (e.target && e.target.nodeType === 3) ? e.target.parentElement : e.target;
-    const openBtn = t?.closest?.('#btn-open-jackpot');
-    const cancelBtn = t?.closest?.('#btn-jackpot-cancel');
-    const doBtn = t?.closest?.('#btn-jackpot-do');
-
-    if (!openBtn && !cancelBtn && !doBtn) return;
-
-    // stoppa ev. submit/navigation
-    e.preventDefault();
-
-    const { panel, nameInput, countInput, maxPriceInput, spikesInput } = getJackpotEls();
-    if (!panel) return;
-
-    if (openBtn) {
-      if (!currentGameId) {
-        alert('Öppna ett spel först innan du skapar Jackpot kupong.');
-        return;
-      }
-      if (nameInput) nameInput.value = 'Jackpot';
-      if (countInput) countInput.value = '1';
-      if (maxPriceInput) maxPriceInput.value = '200';
-      if (spikesInput) spikesInput.value = '0';
-      panel.hidden = false;
-      return;
-    }
-
-    if (cancelBtn) {
-      panel.hidden = true;
-      return;
-    }
-
-    if (doBtn) {
-      const baseName = (nameInput?.value || '').trim() || 'Jackpot';
-      const count = Math.max(1, Number(countInput?.value) || 1);
-      const maxPrice = Math.max(1, Number(maxPriceInput?.value) || 1);
-      const spikesWanted = Math.max(0, Number(spikesInput?.value) || 0);
-
-      // skydda mot dubbelklick
-      doBtn.disabled = true;
-      try {
-        await createJackpotCoupons({ baseName, count, maxPrice, spikesWanted });
-        panel.hidden = true;
-      } catch (err) {
-        console.error(err);
-        alert('Kunde inte skapa jackpot kupong.');
-      } finally {
-        doBtn.disabled = false;
-      }
-    }
-  }, true); // 👈 capture!
-}
-
-// installera direkt (så vi inte missar pga tidiga return/errors i init)
-installJackpotDelegation();
-
 let allTracks = [];  
 let divisions = [];
 let currentIndex = 0;
@@ -134,8 +57,66 @@ let fillProfileDisplayEl = null;
 // markerade idé-hästar per avdelning (Set med nummer)
 let selectedIdeaNumbersByDivIndex = {};
 
+// Ladda om spelet från API och rendera om vyerna (utan att duplicera event listeners)
+async function refreshGame() {
+  if (!currentGameId) return;
+  const fresh = await getGame(currentGameId);
+  if (!fresh) return;
+
+  game = fresh;
+  window.game = game;
+
+  // Håll coupons i samma format som setupOverview
+  coupons = (game.coupons || []).map(c => {
+    const status = normalizeStatus(c.status, c.active);
+    return {
+      ...c,
+      status,
+      active: status === COUPON_STATUS.ACTIVE
+    };
+  });
+
+  try { renderCouponList(); } catch (_) {}
+  try { renderCurrentDivision(); } catch (_) {}
+}
+
 // visningsläge: "simple", "detailed" eller "icons"
 let listMode = 'simple';
+
+// ---- Status-rad (används bl.a. av Stallsnack-knappen) ----
+// Tidigare patchar refererade till setStatus(), men funktionen saknades.
+// Den här implementationen är "fail-safe":
+//  - Om ingen status-yta finns skapas en liten text bredvid knappen.
+//  - Om knappen inte finns loggas texten till console.
+function setStatus(message) {
+  try {
+    let el = document.getElementById('ov-status');
+
+    // Skapa status-element bredvid Stallsnack-knappen om den saknas
+    if (!el) {
+      const btn = document.getElementById('btn-fetch-stallsnack');
+      if (btn && btn.parentElement) {
+        el = document.createElement('span');
+        el.id = 'ov-status';
+        el.style.marginLeft = '10px';
+        el.style.fontSize = '12px';
+        el.style.opacity = '0.85';
+        el.style.color = '#cbd5e1';
+        el.style.whiteSpace = 'nowrap';
+        btn.parentElement.appendChild(el);
+      }
+    }
+
+    if (el) {
+      el.textContent = message || '';
+    } else {
+      // Fallback: ingen lämplig plats i DOM
+      console.log('[status]', message);
+    }
+  } catch (e) {
+    console.log('[status]', message);
+  }
+}
 
 // 🔹 Ikon-definitioner (tolkas från TIPSKOMMENTAR)
 const ICON_DEFS = [
@@ -175,7 +156,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const backBtn = document.getElementById('btn-back');
   backBtn.addEventListener('click', () => {
     window.location.href = 'index.html';
-  }, true);
+  });
 
   initListModeFromStorage();
   setupListModeUI();
@@ -283,7 +264,7 @@ function setupListModeUI() {
       setLegendVisibleFromMode();
       setupIconLegendUI();
     });
-  }, true);
+  });
 
   setLegendVisibleFromMode();
   setupIconLegendUI();
@@ -386,6 +367,59 @@ const data = await fetchWinners(currentGameId, payload);
       alert(e.message || 'Kunde inte hämta vinnare.');
     } finally {
       btnUpdateWinners.disabled = false;
+    }
+  });
+}
+
+
+// ---------------------------------------------------------------------------
+// Stallsnack / intervjuer (via knapp)
+// ---------------------------------------------------------------------------
+
+let btnFetchStallsnack = document.getElementById('btn-fetch-stallsnack');
+
+  if (!btnFetchStallsnack) {
+    const host = document.querySelector('.coupon-idea-actions') || document.querySelector('.header-actions') || document.body;
+    btnFetchStallsnack = document.createElement('button');
+    btnFetchStallsnack.className = 'btn small';
+    btnFetchStallsnack.id = 'btn-fetch-stallsnack';
+    btnFetchStallsnack.textContent = 'Hämta stallsnack';
+    host.appendChild(btnFetchStallsnack);
+  }
+
+if (btnFetchStallsnack) {
+  btnFetchStallsnack.addEventListener('click', async () => {
+    if (!currentGameId) {
+      alert('Hittar inget gameId (currentGameId).');
+      return;
+    }
+
+    // Förifyll senaste url
+    const lastUrl =
+      (game && game.stallsnack && game.stallsnack.url) ||
+      localStorage.getItem('trav_last_stallsnack_url') ||
+      'https://www.atg.se/V85/tips/251229-stallsnack-v85-skive';
+
+    const url = prompt('Klistra in ATG-länk till Stallsnack/Intervju:', lastUrl);
+    if (!url) return;
+
+    localStorage.setItem('trav_last_stallsnack_url', url);
+
+    try {
+      btnFetchStallsnack.disabled = true;
+      setStatus('Hämtar stallsnack från ATG…');
+
+      const data = await fetchStallsnack(currentGameId, url);
+      if (data?.game) game = data.game;
+
+      setStatus('Stallsnack hämtat och sparat ✅');
+      renderCurrentDivision?.();
+    } catch (e) {
+      console.error(e);
+      alert(e?.message || 'Kunde inte hämta stallsnack.');
+      setStatus('Kunde inte hämta stallsnack ❌');
+    } finally {
+      btnFetchStallsnack.disabled = false;
     }
   });
 }
@@ -608,16 +642,17 @@ function setupOverview(game) {
   const header = parsed.header || '';
   headerColumns = parseHeaderColumns(header);
 
-  // Gör alla divisions-index till siffror och sätt fallback (1,2,3...)
+  // Gör alla divisions-index till 1-baserade siffror (1,2,3...)
+  // Viktigt: vissa parser-flöden kan ge index "0" för första avdelningen.
+  // Det förstör logik som matchar kupong-selections (som alltid är 1-baserade).
   divisions = (parsed.divisions || []).map((d, idx) => {
-    const indexNum =
-      d.index != null && d.index !== ''
-        ? Number(d.index)
-        : idx + 1;
+    const raw = d?.index;
+    const n = Number(raw);
+    const indexNum = Number.isFinite(n) && n >= 1 ? n : (idx + 1);
 
     return {
       ...d,
-      index: indexNum
+      index: indexNum,
     };
   });
 
@@ -1083,6 +1118,62 @@ function getHorseName(divisionIndex, horseNumber) {
   return extractHorseNameFromRawLine(horse.rawLine || '');
 }
 
+function getStallsnackForHorse(divisionIndex, horseNumber) {
+  const divKey = String(divisionIndex);
+  const horseKey = String(horseNumber);
+  return (
+    game?.stallsnack?.divisions?.[divKey]?.horses?.[horseKey] || null
+  );
+}
+
+
+
+function buildStallsnackQuickSummaryTrav(text) {
+  const t = String(text || '').toLowerCase();
+
+  const posWords = [
+    'bra', 'bättre', 'fin', 'stark', 'form', 'topp', 'kapacitet', 'lätt', 'vass',
+    'uppåt', 'spännande', 'tipsetta', 'segerraktuell', 'jättefavorit', 'favorit',
+    'gillar', 'passande', 'perfekt', 'känns'
+  ];
+  const negWords = [
+    'dålig', 'sämre', 'svårt', 'galopp', 'strul', 'problem', 'skada', 'sjuk',
+    'orolig', 'minus', 'paus', 'inte riktigt', 'risk', 'tungt', 'stumnar'
+  ];
+
+  let score = 0;
+  for (const w of posWords) if (t.includes(w)) score += 1;
+  for (const w of negWords) if (t.includes(w)) score -= 1;
+
+  const tone = score >= 2 ? 'positive' : score <= -2 ? 'negative' : 'neutral';
+
+  const tags = [];
+  const add = (tag, cond) => { if (cond && !tags.includes(tag)) tags.push(tag); };
+
+  // Ton-tag först
+  add(tone === 'positive' ? 'Plus' : tone === 'negative' ? 'Minus' : 'Neutral', true);
+
+  // Trav-taggar
+  add('Formplus', /\bform\b|uppåt|bättre|fin|känns/.test(t));
+  add('Formminus', /inte riktigt|sämre|svag|dålig form|tappat|paus/.test(t));
+  add('Segerläge', /vinst|seger|segerraktuell|favorit|jättefavorit|tipsetta/.test(t));
+  add('Platsläge', /plats|platsbud|platschans|platsarbud/.test(t));
+  add('Spetsläge', /spets|ledning|snabb ut|öppna|tar ledningen/.test(t));
+  add('Rygglopp', /rygg|rygglopp|smyg|invändig resa|spara till slut/.test(t));
+  add('Galopprisk', /galopp|travosäker|risk|felsteg|osäker/.test(t));
+  add('Utrustningsplus', /barfota|bike|jänkar|amerikansk|sulky|skor/.test(t));
+  add('Distansplus', /\b3140\b|stayer|lång distans|gillar distansen|distans/.test(t));
+  add('Kort distans', /\b1640\b|sprinter|kort distans/.test(t));
+
+  // Begränsa så det blir lätt att läsa snabbt
+  const out = [];
+  for (const tag of tags) {
+    out.push(tag);
+    if (out.length >= 5) break; // max 5 inkl ton
+  }
+
+  return { tone, tags: out };
+}
 function getDivisionDistance(division) {
   if (!division || !division.horses || !division.horses.length) return null;
 
@@ -1371,7 +1462,7 @@ function chanceSecondFavProbability(favPct, secPct) {
 }
 
 // Se till att favoriten alltid är med i varje avdelning där vi har val
-function ensureFavouriteInEachDivision(selections) {
+function ensureFavouriteInEachDivision(selections, lockedSpikeDivSet) {
   if (!Array.isArray(selections)) return;
 
   const byDiv = new Map(
@@ -1382,6 +1473,9 @@ function ensureFavouriteInEachDivision(selections) {
     const idx = div.index ?? 0;
     const sel = byDiv.get(idx);
     if (!sel) return;
+
+    // Om avdelningen är en "låst" spik i fyllda kuponger får vi inte lägga till fler hästar
+    if (lockedSpikeDivSet && lockedSpikeDivSet.has(idx)) return;
 
     const fav = getDivisionFavouriteNumber(idx);
     if (fav == null) return;
@@ -1560,25 +1654,21 @@ function buildHorseView(division, divIndex, popularity) {
   let visibleColumns = getVisibleColumns(headerColumns, listMode);
   let detailColumns = [];
 
+  const isOddsCol = (c) => /(P-?ODDS|V-?ODDS|\bODDS\b)/i.test(String(c?.name || ''));
+
   // Detaljerad vy: visa en smal tabell och lägg resten i en dropdown under hästen
   if (listMode === 'detailed') {
     const horseCol = allColumns.find((c) => up(c.name).startsWith('HÄST'));
     const mainIdx = getMainPercentIndex(headerColumns);
     const mainCol = allColumns.find((c) => c.index === mainIdx);
-    const pOddsCol = allColumns.find((c) => /P-?ODDS/.test(up(c.name)));
-    const vOddsCol = allColumns.find((c) => /V-?ODDS/.test(up(c.name)));
+    // ODDS (P-ODDS / V-ODDS) ska ligga i detaljpanelen för smalare rader
+    const oddsCol = allColumns.find((c) => isOddsCol(c));
     const valueCol = allColumns.find((c) => /VÄRDE|VINSTPENGAR|UTDELNING|PRIS/.test(up(c.name)));
 
-    // Smal tabell i detaljerat läge:
-    // - Hästnamn + kusk (kusk ligger under hästnamnet) | huvudprocent (V85% / V64% / ...)
-    // - V-ODDS och P-ODDS flyttas till detaljpanelen för att göra raden smalare
+    // Smal rad: Häst + huvud-% (t.ex. V85%). Övrigt (inkl odds) i detaljpanelen.
     const summary = [horseCol, mainCol]
       .filter(Boolean)
-      .filter((c) => !pOddsCol || c.index !== pOddsCol.index)
-      .filter((c) => !vOddsCol || c.index !== vOddsCol.index)
-      .filter(Boolean)
-      .filter((c, i, a) => a.findIndex((x) => x.index === c.index) === i)
-      .slice(0, 2);
+      .filter((c, i, a) => a.findIndex((x) => x.index === c.index) === i);
 
     const shown = new Set(summary.map((c) => c.index));
     visibleColumns = summary;
@@ -1592,9 +1682,26 @@ function buildHorseView(division, divIndex, popularity) {
     });
   }
 
+  // 🔹 För alla lägen: visa aldrig ODDS-kolumnen i själva listan.
+  // Den ska istället ligga i detaljpanelen (som du kan klicka fram på varje rad).
+  visibleColumns = (visibleColumns || []).filter((c) => !isOddsCol(c));
+
+  // Om vi inte är i detailed-läge, bygg detailColumns här så att detaljpanelen ändå kan visas.
+  if (!detailColumns.length) {
+    const shown = new Set((visibleColumns || []).map((c) => c.index));
+    detailColumns = allColumns.filter((c) => {
+      const u = up(c.name);
+      if (shown.has(c.index)) return false;
+      if (u.startsWith('KUSK')) return false;
+      if (u.startsWith('HÄST')) return false;
+      return true;
+    });
+  }
+
   const table = document.createElement('table');
-  table.className = 'horse-table';
+  
   table.id = 'horse-table';
+  table.className = 'horse-table';
 
   const isMobile = window.innerWidth <= 900;
 
@@ -1650,9 +1757,9 @@ function buildHorseView(division, divIndex, popularity) {
       });
     }
 
-    // extra-info i detaljerat läge (visas som dropdown under hästen)
+    // Extra-info (visas i detaljpanelen under hästen – i ALLA lägen)
     let extraData = [];
-    if (listMode === 'detailed' && horse.rawLine) {
+    if (horse.rawLine) {
       extraData = detailColumns.map(({ name, index }) => ({
         label: name,
         value: cols[index] ?? '',
@@ -1665,14 +1772,28 @@ function buildHorseView(division, divIndex, popularity) {
       const upper = name.toUpperCase();
 
       if (!horse.rawLine) {
-        // struken häst utan rawLine → bara “Struken” i HÄST-kolumnen
+        // Struken häst utan rawLine: bygg samma "två-raders" höjd som övriga hästar
+        // så strukna inte blir lägre än resten (och siffrorna i sidokolumnerna linjerar).
         if (upper.startsWith('HÄST')) {
-          td.textContent = 'Struken';
+          const nameRow = document.createElement('div');
+          nameRow.className = 'horse-name-row';
+
+          const nameEl = document.createElement('div');
+          nameEl.className = 'horse-name';
+          nameEl.textContent = 'Struken';
+          nameRow.appendChild(nameEl);
+          td.appendChild(nameRow);
+
+          // tom "kusk-rad" för att matcha höjden
+          const driverEl = document.createElement('div');
+          driverEl.className = 'horse-driver';
+          driverEl.innerHTML = '&nbsp;';
+          td.appendChild(driverEl);
         } else {
           td.textContent = '';
         }
       } else if (upper.startsWith('HÄST')) {
-        // HÄST (endast hästnamn här). KUSK visas i egen kolumn.
+        // HÄST + kusk under
         let horseText = cols[index] ?? '';
         const m = horseText.match(/^(\d+)\s+(.*)$/);
         if (m) {
@@ -1689,52 +1810,54 @@ function buildHorseView(division, divIndex, popularity) {
         tr._horseTitle = horseText;
         tr._horseDriver = kuskName;
 
-        // Gör HÄST-cellen lite flexiblare (tillåt radbrytning)
-        td.classList.add('horse-cell');
+        // Bygg DOM så vi kan lägga ikoner till höger om hästnamnet
+        const nameRow = document.createElement('div');
+        nameRow.className = 'horse-name-row';
 
-        // Rad 1: hästnamn + ikoner (ikoner till höger om hästnamnet)
-        const nameLine = document.createElement('div');
-        nameLine.className = 'horse-name-line';
+        const nameEl = document.createElement('div');
+        nameEl.className = 'horse-name';
+        nameEl.textContent = horseText;
+        nameRow.appendChild(nameEl);
 
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'horse-name';
-        nameSpan.textContent = horseText;
-        nameLine.appendChild(nameSpan);
+	        // ✅ Stallsnack/intervju-indikator (liten ikon på hästraden)
+	        try {
+	          const snack = getStallsnackForHorse(divIndex + 1, horse.number);
+	          const arr = (snack && (snack.sentences || snack.lines)) || [];
+	          if (Array.isArray(arr) && arr.length) {
+	            const snackSpan = document.createElement('span');
+	            snackSpan.className = 'horse-snack-indicator';
+	            snackSpan.title = 'Stallsnack / intervju finns';
+	            snackSpan.textContent = '💬';
+	            nameRow.appendChild(snackSpan);
+	          }
+	        } catch (e) {
+	          // tyst
+	        }
 
-        // Ikoner baserat på tipskommentar (om det finns)
-        const iconBar = document.createElement('span');
-        iconBar.className = 'horse-icon-bar';
-
-        iconIds.forEach((id) => {
-          if (!iconVisibility[id]) return;
-          const def = ICON_DEFS.find((d) => d.id === id);
-          if (!def) return;
-          const span = document.createElement('span');
-          span.className = 'horse-icon';
-          span.textContent = def.emoji;
-          iconBar.appendChild(span);
-        });
-
-        // Lägg bara till iconBar om det finns ikoner (för att hålla listan ren)
-        if (iconBar.childNodes.length) {
-          nameLine.appendChild(iconBar);
+        // Ikoner (från tipskommentar) – visas till höger om hästnamnet
+        if (iconIds && iconIds.length) {
+          const iconBar = document.createElement('span');
+          iconBar.className = 'horse-icon-bar horse-icon-bar-name';
+          iconIds.forEach((id) => {
+            if (!iconVisibility[id]) return;
+            const def = ICON_DEFS.find((d) => d.id === id);
+            if (!def) return;
+            const span = document.createElement('span');
+            span.className = 'horse-icon';
+            span.textContent = def.emoji;
+            iconBar.appendChild(span);
+          });
+          if (iconBar.childNodes.length) nameRow.appendChild(iconBar);
         }
 
-        td.appendChild(nameLine);
+        td.appendChild(nameRow);
 
-        // Rad 2: kusk under hästnamnet
         if (kuskName) {
-          const driverDiv = document.createElement('div');
-          driverDiv.className = 'horse-driver';
-          driverDiv.textContent = kuskName;
-          td.appendChild(driverDiv);
+          const driverEl = document.createElement('div');
+          driverEl.className = 'horse-driver';
+          driverEl.textContent = kuskName;
+          td.appendChild(driverEl);
         }
-
-      } else if (upper.startsWith('KUSK')) {
-        // KUSK i egen spalt
-        td.classList.add('kusk-cell');
-        const driverVal = cols[index] ?? '';
-        td.textContent = driverVal;
 
 
       } else {
@@ -1773,22 +1896,26 @@ function buildHorseView(division, divIndex, popularity) {
     tbody.appendChild(tr);
 
 
-    // Tipskommentar-rad (visas alltid under hästen)
+    // Tipskommentar-rad (visas under hästen)
     const tipsEntry = extraData.find(d => String(d?.label || '').toUpperCase().includes('TIPSKOMMENTAR'));
     const tipsText = (tipsEntry && String(tipsEntry.value || '').trim()) || '';
-    if (tipsText) {
+    // För strukna (utan tips) skapar vi ändå en tom tipsrad för att rad-höjden ska matcha övriga.
+    if (tipsText || (horse && horse.scratched)) {
       const tipsTr = document.createElement('tr');
       tipsTr.className = 'horse-tips-row';
+      if (!tipsText) tipsTr.classList.add('is-empty');
 
       const tipsTd = document.createElement('td');
       tipsTd.colSpan = visibleColumns.length;
 
       const tipsBox = document.createElement('div');
       tipsBox.className = 'horse-tips-box';
+      if (!tipsText) tipsBox.classList.add('is-empty');
 
       const tipsTextEl = document.createElement('div');
       tipsTextEl.className = 'horse-tips-text';
-      tipsTextEl.textContent = tipsText;
+      tipsTextEl.textContent = tipsText || '';
+      if (!tipsText) tipsTextEl.innerHTML = '&nbsp;';
 
       tipsBox.appendChild(tipsTextEl);
       tipsTd.appendChild(tipsBox);
@@ -1800,7 +1927,25 @@ function buildHorseView(division, divIndex, popularity) {
 
 
     // Bygg en egen rad UNDER hästen för detaljer (spänner över alla kolumner)
-    if (listMode === 'detailed' && extraData && extraData.length && horse.rawLine) {
+    const snack = getStallsnackForHorse(divIndex + 1, horse.number);
+    const snackSourceUrl = game?.stallsnack?.url ? String(game.stallsnack.url) : '';
+    const snackLinesRaw = Array.isArray(snack?.sentences) ? snack.sentences : [];
+    const cleanStallsnackLine = (t) =>
+      String(t || '')
+        .replace(/\u00A0/g, ' ')
+        .replace(/^\s*[-–•·.]+\s*/g, '')
+        .trim();
+    const isNoiseSnackLine = (t) => {
+      const s = String(t || '').trim();
+      if (!s) return false;
+      if (/\buppsnack\b/i.test(s)) return false;
+      if (/nan:nan/i.test(s)) return false;
+      if (/^\d{1,2}\s+\d{1,2}:\d{2}(?::\d{2})?\s*\/\s*/.test(s)) return false;
+      return true;
+    };
+    const snackLines = snackLinesRaw.map(cleanStallsnackLine).filter(isNoiseSnackLine);
+
+    if (horse.rawLine && ((extraData && extraData.length) || snackLines.length)) {
       const detailsTr = document.createElement('tr');
       detailsTr.className = 'horse-details-row';
       detailsTr.style.display = 'none';
@@ -1811,46 +1956,7 @@ function buildHorseView(division, divIndex, popularity) {
       const panel = document.createElement('div');
       panel.className = 'horse-details-panel';
 
-      // Header i detaljpanelen: Hästnamn + ikoner (till höger)
-      // (kusk visas redan under hästnamnet i listan, men panelen får en tydlig rubrik)
-      if (tr._horseTitle) {
-        const header = document.createElement('div');
-        header.className = 'horse-details-header';
-
-        const titleRow = document.createElement('div');
-        titleRow.className = 'horse-details-title-row';
-
-        const title = document.createElement('div');
-        title.className = 'horse-details-title';
-        title.textContent = tr._horseTitle;
-        titleRow.appendChild(title);
-
-        const iconBar2 = document.createElement('span');
-        iconBar2.className = 'horse-icon-bar';
-        iconIds.forEach((id) => {
-          if (!iconVisibility[id]) return;
-          const def = ICON_DEFS.find((d) => d.id === id);
-          if (!def) return;
-          const span = document.createElement('span');
-          span.className = 'horse-icon';
-          span.textContent = def.emoji;
-          iconBar2.appendChild(span);
-        });
-        if (iconBar2.childNodes.length) {
-          titleRow.appendChild(iconBar2);
-        }
-
-        header.appendChild(titleRow);
-
-        if (tr._horseDriver) {
-          const d = document.createElement('div');
-          d.className = 'horse-details-driver';
-          d.textContent = tr._horseDriver;
-          header.appendChild(d);
-        }
-
-        panel.appendChild(header);
-      }
+      // (Header i detaljpanelen borttagen enligt ny design)
 
       // Grid med kort
       const grid = document.createElement('div');
@@ -1879,6 +1985,85 @@ function buildHorseView(division, divIndex, popularity) {
         grid.appendChild(card);
       });
 
+      // Stallsnack / intervjuer (meningar) - ska alltid ligga överst i detaljpanelen.
+      // Om det saknas data visar vi en liten text istället för att "försvinna".
+      {
+        const card = document.createElement('div');
+        card.className = 'horse-extra-card wide';
+        card.classList.add('horse-extra-stallsnack');
+
+        const lab = document.createElement('div');
+        lab.className = 'horse-extra-label';
+        lab.textContent = 'Stallsnack / intervju';
+
+        const val = document.createElement('div');
+        val.className = 'horse-extra-value';
+
+        if (snackLines.length) {
+          // Snabböverblick (trav-taggar) ovanför texten
+          const summary = buildStallsnackQuickSummaryTrav(snackLines.join(' '));
+          if (summary && summary.tags && summary.tags.length) {
+            const sum = document.createElement('div');
+            sum.className = `stallsnack-summary ${summary.tone || 'neutral'}`;
+            summary.tags.forEach((tag) => {
+              const b = document.createElement('span');
+              b.className = 'stallsnack-tag';
+              b.textContent = tag;
+              sum.appendChild(b);
+            });
+            val.appendChild(sum);
+          }
+
+          const ul = document.createElement('ul');
+          ul.className = 'stallsnack-list';
+
+          const foldSnack = (val) => String(val || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9åäöéèüøæ]+/gi, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+          const seenSnack = new Set();
+          const deduped = [];
+          snackLines.forEach((s) => {
+            const t = String(s || '').trim();
+            const key = foldSnack(t);
+            if (!key || seenSnack.has(key)) return;
+            seenSnack.add(key);
+            deduped.push(t);
+          });
+
+          deduped.forEach((t) => {
+            const li = document.createElement('li');
+            li.textContent = t;
+            ul.appendChild(li);
+          });
+
+          val.appendChild(ul);
+        } else {
+          const empty = document.createElement('div');
+          empty.className = 'stallsnack-empty';
+          empty.textContent = 'Inget stallsnack hittades för den här hästen.';
+          val.appendChild(empty);
+        }
+
+        if (snackSourceUrl) {
+          const src = document.createElement('div');
+          src.className = 'stallsnack-source';
+          const a = document.createElement('a');
+          a.href = snackSourceUrl;
+          a.target = '_blank';
+          a.rel = 'noreferrer';
+          a.textContent = 'Källa: ATG';
+          src.appendChild(a);
+          val.appendChild(src);
+        }
+
+        card.appendChild(lab);
+        card.appendChild(val);
+        grid.insertBefore(card, grid.firstChild);
+      }
+
       if (grid.childNodes.length) {
         panel.appendChild(grid);
         detailsTd.appendChild(panel);
@@ -1889,7 +2074,7 @@ function buildHorseView(division, divIndex, popularity) {
     }
 
     // klick för att fälla ut detaljer-raden (PC + mobil)
-    if (listMode === 'detailed' && tr._detailsRow) {
+    if (tr._detailsRow) {
       tr.classList.add('horse-row');
 
       tr.addEventListener('click', (e) => {
@@ -1912,9 +2097,28 @@ function buildHorseView(division, divIndex, popularity) {
 
     // antal kuponger där hästen är med (aktiva kuponger)
     const count = counts[horse.number] || 0;
+    // Skapa sidoblock (vänster/höger) för denna häst
+    const leftSquare = document.createElement('div');
+    leftSquare.className = 'num-square left-square';
+    leftSquare.dataset.horseNumber = String(horse.number ?? '');
+    const leftNum = document.createElement('span');
+    leftNum.className = 'num';
+    leftNum.textContent = String(horse.number ?? '');
+    leftSquare.appendChild(leftNum);
+
+        const rightSquare = document.createElement('div');
+        // "Min kupong" (högerkolumnen) ska ha samma blå markering som tidigare.
+        // CSS:en stylar .num-square.clickable.selected, så vi måste ha "clickable" här.
+        rightSquare.className = 'num-square right-square clickable';
+    rightSquare.dataset.horseNumber = String(horse.number ?? '');
+    const rightNum = document.createElement('span');
+    rightNum.className = 'num';
+    rightNum.textContent = String(horse.number ?? '');
+    rightSquare.appendChild(rightNum);
+
 
     // ----- vänsterkolumn: populärfält -----
-    const leftSquare = createNumberSquare(horse.number);
+    
     leftSquare.classList.add('left-square');
 
     // favorit = gul markering även i vänsterkolumnen
@@ -1976,7 +2180,7 @@ if (activeCoupons && activeCoupons.length > 0 && !horse.scratched && count === 0
     popularList.appendChild(leftSquare);
 
     // ----- högerkolumn: Idéfält -----
-    const rightSquare = createNumberSquare(horse.number, { clickable: true });
+    
     rightSquare.classList.add('right-square');
 
     if (horse.scratched) {
@@ -2263,8 +2467,27 @@ function syncNumberPositions() {
   if (!table) return;
 
   const horseRows = table.querySelectorAll('tbody tr.horse-row');
-  const leftSquares = document.querySelectorAll('.left-square');
-  const rightSquares = document.querySelectorAll('.right-square');
+  let leftSquares = document.querySelectorAll('.left-square');
+  let rightSquares = document.querySelectorAll('.right-square');
+
+  // 🔹 Justera sidokolumnernas top-offset så siffrorna linjerar med tabellens första hästrad
+  try {
+    const thead = table.querySelector('thead');
+    const headH = thead && window.getComputedStyle(thead).display !== 'none'
+      ? Math.round(thead.getBoundingClientRect().height)
+      : 0;
+
+    const popularList = document.getElementById('popular-number-list');
+    const ideaList = document.getElementById('idea-number-list');
+    if (popularList) popularList.style.marginTop = headH ? `${headH}px` : '0px';
+    if (ideaList) ideaList.style.marginTop = headH ? `${headH}px` : '0px';
+  } catch (e) {
+    // tyst
+  }
+
+  // Fallback om klasserna saknas (äldre render)
+  if (!leftSquares.length) leftSquares = document.querySelectorAll('#popular-number-list .num-square');
+  if (!rightSquares.length) rightSquares = document.querySelectorAll('#idea-number-list .num-square');
 
   const n = Math.min(horseRows.length, leftSquares.length, rightSquares.length);
 
@@ -2286,7 +2509,9 @@ function syncNumberPositions() {
       if (dh > 0) height += dh;
     }
 
-    const px = `${Math.max(0, height)}px`;
+    // Runda för att undvika att små decimaler ger "drift" längst ned
+    const hPx = Math.max(0, Math.round(height));
+    const px = `${hPx}px`;
     leftSquares[i].style.height = px;
     rightSquares[i].style.height = px;
   }
@@ -2800,7 +3025,42 @@ if (btnChanceCancel && chancePanel) {
 
 
 // ---- Jackpot panel toggles ----
-// (Klickhantering installeras globalt via installJackpotDelegation ovan.)
+if (btnOpenJackpot && jackpotPanel) {
+  btnOpenJackpot.onclick = () => {
+    if (!currentGameId) {
+      alert('Öppna ett spel först innan du skapar Jackpot kupong.');
+      return;
+    }
+    if (jackpotNameInput) jackpotNameInput.value = 'Jackpot';
+    if (jackpotCountInput) jackpotCountInput.value = '1';
+    if (jackpotMaxPriceInput) jackpotMaxPriceInput.value = '200';
+    if (jackpotSpikesInput) jackpotSpikesInput.value = '0';
+    jackpotPanel.hidden = false;
+  };
+}
+
+if (btnJackpotCancel && jackpotPanel) {
+  btnJackpotCancel.onclick = () => {
+    jackpotPanel.hidden = true;
+  };
+}
+
+if (btnJackpotDo) {
+  btnJackpotDo.onclick = async () => {
+    const baseName = (jackpotNameInput?.value || '').trim() || 'Jackpot';
+    const count = Math.max(1, Number(jackpotCountInput?.value) || 1);
+    const maxPrice = Math.max(1, Number(jackpotMaxPriceInput?.value) || 1);
+    const spikesWanted = Math.max(0, Number(jackpotSpikesInput?.value) || 0);
+
+    try {
+      await createJackpotCoupons({ baseName, count, maxPrice, spikesWanted });
+      jackpotPanel.hidden = true;
+    } catch (e) {
+      console.error(e);
+      alert('Kunde inte skapa jackpot kupong.');
+    }
+  };
+}
 
 if (btnChanceDo && chancePanel) {
   btnChanceDo.addEventListener('click', async () => {
@@ -3220,8 +3480,10 @@ function pickRandom(arr) {
 }
 
 // Lägg till en slumpad häst i någon avdelning som fortfarande har kandidater kvar
-function addRandomHorseSomewhere(selections) {
+function addRandomHorseSomewhere(selections, opts = {}) {
   if (!divisions.length) return false;
+
+  const blockedDivSet = opts.blockedDivSet instanceof Set ? opts.blockedDivSet : null;
 
   // Bygg lookup: divisionIndex -> selection
   const selByIndex = {};
@@ -3232,6 +3494,7 @@ function addRandomHorseSomewhere(selections) {
   // Lista möjliga avdelningar där det finns fler hästar att lägga till
   const candidateDivisions = divisions.filter((division) => {
     const divIndex = division.index ?? 0;
+    if (blockedDivSet && blockedDivSet.has(Number(divIndex))) return false;
     const sel = selByIndex[divIndex];
     const already = new Set(sel?.horses || []);
     const allHorses = (division.horses || []).filter((h) => !h.scratched);
@@ -4017,6 +4280,33 @@ async function createFilledCouponsFromBase({ baseCoupon, targetPrice, count, spi
   const weights = getFillProfileWeights(step);
   const created = [];
 
+  // 🔒 "Fyll på" ska ALDRIG byta ut hästar som redan finns i bas-kupongen.
+  // Vi låser därför basens val per avdelning och låter bara algoritmen lägga till
+  // (och vid behov trimma bort) hästar som INTE fanns i originalet.
+  const lockedByDiv = new Map();
+  const baseSpikeDivs = [];
+  (baseCoupon?.selections || []).forEach((sel) => {
+    const d = Number(sel.divisionIndex);
+    const arr = Array.from(new Set((sel.horses || []).map(Number))).filter((n) => Number.isFinite(n));
+    lockedByDiv.set(d, new Set(arr));
+    if (arr.length === 1) baseSpikeDivs.push(d);
+  });
+
+  // välj vilka av basens spikar som ska FORTSÄTTA vara spik.
+  // - Om du väljer lika många spik som originalet → behåll exakt dessa spikar.
+  // - Om du väljer färre spik → slumpa vilka bas-spikar som får "låsa" (övriga kan fyllas på).
+  // - Om du väljer fler spik än basen → vi kan inte skapa nya spikar utan att ta bort hästar,
+  //   så vi behåller alla bas-spikar och fortsätter fylla på övriga.
+  const wantedSpikes = Math.max(0, Math.min(Number(spikesWanted || 0), divisions.length));
+  const spikeDivSet = new Set();
+  if (baseSpikeDivs.length) {
+    const pool = baseSpikeDivs.slice();
+    shuffleInPlace(pool);
+    const keep = wantedSpikes >= baseSpikeDivs.length ? baseSpikeDivs.length : wantedSpikes;
+    pool.slice(0, keep).forEach((d) => spikeDivSet.add(d));
+    if (wantedSpikes >= baseSpikeDivs.length) baseSpikeDivs.forEach((d) => spikeDivSet.add(d));
+  }
+
   // radpris baserat på spelets insats (och ev stakeLevel på baseCoupon)
   const radPris = getEffectiveRadPrisForCoupon(baseCoupon);
 
@@ -4035,15 +4325,14 @@ async function createFilledCouponsFromBase({ baseCoupon, targetPrice, count, spi
       }
     });
 
-    // 3) Storfavorit alltid med (och “tomma” avdelningar får favoriten)
-    ensureFavouriteInEachDivision(selections);
+    // 3) Storfavorit får gärna vara med – men ALDRIG om den skulle "bryta" en låst spik
+    // (Annars kan en bas-spik råka bli 2 hästar och sedan ersättas med fav.)
+    ensureFavouriteInEachDivision(selections, spikeDivSet);
 
- const spikeDivSet = pickSpikeDivsForFill(selections, spikesWanted);
-
-
-// gör spik-avdelningar = exakt favorit,
-// och icke-spik = minst 2 hästar direkt från start
-ensureMinTwoInNonSpike(selections, spikeDivSet, weights);
+    // 4) Startläge:
+    // - spik-avdelningar: behåll exakt basens spikhäst (inte favorit)
+    // - övriga: minst 2 hästar (favoriten + en till), men utan att ta bort basens hästar
+    ensureMinTwoInNonSpike(selections, spikeDivSet, weights, lockedByDiv);
 
 
     // 5) Trimma mot targetPrice (försök ligga nära, men aldrig långt under)
@@ -4059,9 +4348,9 @@ for (let guard = 0; guard < maxIter; guard++) {
   // ✅ tillräckligt nära
   if (total >= minAcceptable && total <= targetPrice) break;
 
-if (total > targetPrice) {
-  if (!removeRandomHorseSomewhereRespectMin(selections, spikeDivSet, 2)) break;
-  ensureMinTwoInNonSpike(selections, spikeDivSet, weights);
+	if (total > targetPrice) {
+	  if (!removeRandomHorseSomewhereRespectMin(selections, spikeDivSet, 2, lockedByDiv)) break;
+	  ensureMinTwoInNonSpike(selections, spikeDivSet, weights, lockedByDiv);
   continue;
 }
 
@@ -4072,12 +4361,12 @@ if (total > targetPrice) {
 
   // 2) om viktad inte går → fallback: lägg vilken som helst (men fortfarande inte i spik-avd)
   if (!changed) {
-    changed = addRandomHorseSomewhere(selections);
+    changed = addRandomHorseSomewhere(selections, { blockedDivSet: spikeDivSet });
   }
 
   if (!changed) break;
 
-ensureMinTwoInNonSpike(selections, spikeDivSet, weights);
+	ensureMinTwoInNonSpike(selections, spikeDivSet, weights, lockedByDiv);
 
 }
 
@@ -4119,6 +4408,9 @@ ensureMinTwoInNonSpike(selections, spikeDivSet, weights);
 
   if (!created.length) throw new Error('Inga kuponger skapades.');
 }
+
+// Välj vilka spikar som ska "låsa" i fyllda kuponger.
+// OBS: gamla funktionen används inte längre för fyll-läget.
 
 function addOneWeightedHorse(selections, weights) {
   // välj slumpad ordning av avdelningar så kupongerna blir olika
@@ -4229,7 +4521,7 @@ function pickSpikeDivsForFill(selections, spikesWanted) {
 }
 
 
-function ensureMinTwoInNonSpike(selections, spikeDivSet, weights) {
+function ensureMinTwoInNonSpike(selections, spikeDivSet, weights, lockedByDiv) {
   const byDiv = new Map(selections.map(s => [Number(s.divisionIndex), s]));
 
   divisions.forEach((div, idx) => {
@@ -4237,15 +4529,30 @@ function ensureMinTwoInNonSpike(selections, spikeDivSet, weights) {
     const sel = byDiv.get(divIndex);
     if (!sel) return;
 
-    // spik-avd: exakt 1 (favoriten)
+    const locked = lockedByDiv && lockedByDiv.get(divIndex) ? lockedByDiv.get(divIndex) : null;
+
+    // spik-avd: exakt 1
+    // I "Fyll på" är spikar alltid baserade på en bas-spik (låst). Vi behåller därför
+    // exakt basens spikhäst, och lägger inte till/byter.
     if (spikeDivSet.has(divIndex)) {
-      const fav = getDivisionFavouriteNumber(divIndex);
-      sel.horses = fav != null ? [fav] : (sel.horses || []).slice(0, 1);
+      if (locked && locked.size === 1) {
+        sel.horses = Array.from(locked).map(Number);
+      } else {
+        // fallback: behåll första hästen om något blivit fel
+        const uniq = Array.from(new Set(sel.horses || [])).map(Number).filter(Number.isFinite);
+        sel.horses = uniq.length ? [uniq[0]] : [];
+      }
       return;
     }
 
     // icke-spik: minst 2 (favoriten + en till)
-    sel.horses = Array.from(new Set(sel.horses || [])).map(Number);
+    // (men utan att ta bort basens hästar)
+    sel.horses = Array.from(new Set(sel.horses || [])).map(Number).filter(Number.isFinite);
+    if (locked && locked.size) {
+      locked.forEach((n) => {
+        if (!sel.horses.includes(n)) sel.horses.push(n);
+      });
+    }
 
     const fav = getDivisionFavouriteNumber(divIndex);
     if (fav != null && !sel.horses.includes(fav)) sel.horses.push(fav);
@@ -4272,20 +4579,34 @@ function ensureMinTwoInNonSpike(selections, spikeDivSet, weights) {
   });
 }
 
-function removeRandomHorseSomewhereRespectMin(selections, spikeDivSet, minNonSpike = 2) {
+function removeRandomHorseSomewhereRespectMin(selections, spikeDivSet, minNonSpike = 2, lockedByDiv) {
   const removable = selections.filter(sel => {
     const divIndex = Number(sel.divisionIndex);
     const horses = sel.horses || [];
     if (spikeDivSet.has(divIndex)) return false;        // rör inte spik-avd
     if (horses.length <= minNonSpike) return false;     // gå aldrig under 2
+    // rör inte enbart låsta hästar
+    const locked = lockedByDiv && lockedByDiv.get(divIndex) ? lockedByDiv.get(divIndex) : null;
+    if (locked && locked.size) {
+      const canRemove = horses.some((h) => !locked.has(Number(h)));
+      if (!canRemove) return false;
+    }
     return true;
   });
 
   if (!removable.length) return false;
 
   const sel = removable[Math.floor(Math.random() * removable.length)];
-  const fav = getDivisionFavouriteNumber(Number(sel.divisionIndex));
-  const candidates = (sel.horses || []).filter(h => fav == null || h !== fav);
+  const divIndex = Number(sel.divisionIndex);
+  const fav = getDivisionFavouriteNumber(divIndex);
+  const locked = lockedByDiv && lockedByDiv.get(divIndex) ? lockedByDiv.get(divIndex) : null;
+  const candidates = (sel.horses || []).filter((h) => {
+    const num = Number(h);
+    if (!Number.isFinite(num)) return false;
+    if (fav != null && num === fav) return false;
+    if (locked && locked.has(num)) return false;
+    return true;
+  });
   if (!candidates.length) return false;
 
   const num = candidates[Math.floor(Math.random() * candidates.length)];
@@ -4398,6 +4719,8 @@ divStrength.sort((a, b) => b.pct - a.pct);
 
   // 3) Skapa N kuponger
   const created = [];
+
+  const seenSignatures = new Set();
 
   for (let i = 0; i < count; i++) {
     const selections = [];
@@ -4681,7 +5004,8 @@ function getJackpotHorseStats(horse) {
   };
 }
 
-function buildJackpotSelections({ maxPrice, spikesWanted }) {
+function buildJackpotSelections({ maxPrice, spikesWanted, rng }) {
+  rng = (typeof rng === "function") ? rng : Math.random;
   if (!divisions || !divisions.length) return [];
 
   const isV85 = String(game?.gameType || '').toUpperCase() === 'V85';
@@ -4702,35 +5026,103 @@ function buildJackpotSelections({ maxPrice, spikesWanted }) {
       c._backupScore = (c.implied * 0.8) + ((1 - c.pop) * 0.2);
     });
 
+    // Välj “primary” lite slumpmässigt bland toppkandidater för att jackpot-kuponger inte blir identiska
     const inBand = candidates.filter((c) => c.pop >= 0.05 && c.pop <= 0.35);
-    const primary = (inBand.length ? inBand : candidates)
+    const primaryPool = (inBand.length ? inBand : candidates)
       .slice()
-      .sort((a, b) => (b._baseScore || 0) - (a._baseScore || 0))[0];
+      .sort((a, b) => (b._baseScore || 0) - (a._baseScore || 0));
 
-    const backups = candidates
+    const pickWeightedIndex = (arr, wFn) => {
+      if (!arr.length) return -1;
+      let sum = 0;
+      const ws = arr.map((x) => {
+        const w = Math.max(0, Number(wFn(x)) || 0);
+        sum += w;
+        return w;
+      });
+      if (sum <= 0) return Math.floor(rng() * arr.length);
+      let r = rng() * sum;
+      for (let i = 0; i < ws.length; i++) {
+        r -= ws[i];
+        if (r <= 0) return i;
+      }
+      return ws.length - 1;
+    };
+
+    const topN = Math.min(3, primaryPool.length);
+    const top = primaryPool.slice(0, topN);
+    const primaryIdx = pickWeightedIndex(top, (c) => (c._baseScore || 0.000001));
+    const primary = primaryIdx >= 0 ? top[primaryIdx] : primaryPool[0];
+
+    // Backups: behåll kvalitet men variera ordningen lite (slumpa om toppdelen)
+    let backups = candidates
       .slice()
       .sort((a, b) => (b._backupScore || 0) - (a._backupScore || 0))
       .filter((c) => c.number !== primary?.number);
+
+    const shuffleTop = Math.min(10, backups.length);
+    if (shuffleTop > 1) {
+      const head = backups.slice(0, shuffleTop);
+      for (let i = head.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        const tmp = head[i]; head[i] = head[j]; head[j] = tmp;
+      }
+      backups = head.concat(backups.slice(shuffleTop));
+    }
 
     return { divIndex, primary, backups };
   });
 
   const autoSpikes = spikesWanted > 0 ? spikesWanted : 2;
 
-  const spikeDivs = new Set(
-    divCandidates
-      .slice()
-      .sort((a, b) => {
-        const ao = a.primary?.odds || 999;
-        const bo = b.primary?.odds || 999;
-        const ap = a.primary?.pop || 0;
-        const bp = b.primary?.pop || 0;
-        if (ao !== bo) return ao - bo;
-        return bp - ap;
-      })
-      .slice(0, Math.min(autoSpikes, divCandidates.length))
-      .map((x) => x.divIndex)
-  );
+  // Välj spik-avdelningar med lite variation så flera jackpot-kuponger inte blir identiska
+  const rankedForSpikes = divCandidates
+    .slice()
+    .sort((a, b) => {
+      const ao = a.primary?.odds || 999;
+      const bo = b.primary?.odds || 999;
+      const ap = a.primary?.pop || 0;
+      const bp = b.primary?.pop || 0;
+      if (ao !== bo) return ao - bo;
+      return bp - ap;
+    });
+
+  const spikeDivs = new Set();
+  const wantSpikes = Math.min(autoSpikes, divCandidates.length);
+
+  // välj från en liten topp-pool (t.ex. wantSpikes + 3) för att få variation men ändå “rimliga” spikar
+  const poolSize = Math.min(divCandidates.length, wantSpikes + 3);
+  const spikePool = rankedForSpikes.slice(0, poolSize);
+
+  const pickIdx = (arr) => {
+    if (!arr.length) return -1;
+    const weights = arr.map((d) => {
+      const odds = Number(d.primary?.odds || 999);
+      const pop = Number(d.primary?.pop || 0);
+      // lite vikt mot låg odds + hög spelprocent
+      return (1 / Math.max(1, odds)) * 0.7 + pop * 0.3 + 0.000001;
+    });
+    const sum = weights.reduce((a, b) => a + b, 0);
+    let r = rng() * sum;
+    for (let i = 0; i < weights.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return i;
+    }
+    return weights.length - 1;
+  };
+
+  while (spikeDivs.size < wantSpikes && spikePool.length) {
+    const i = pickIdx(spikePool);
+    if (i < 0) break;
+    const chosen = spikePool.splice(i, 1)[0];
+    if (chosen?.divIndex != null) spikeDivs.add(chosen.divIndex);
+  }
+
+  // fallback: fyll upp om poolen blev tom av någon anledning
+  for (const d of rankedForSpikes) {
+    if (spikeDivs.size >= wantSpikes) break;
+    spikeDivs.add(d.divIndex);
+  }
 
   const selectionsMap = new Map();
   divCandidates.forEach((d) => {
@@ -4793,7 +5185,7 @@ function buildJackpotSelections({ maxPrice, spikesWanted }) {
 
       if (newTotal > maxPrice) continue;
 
-      const score = cand._backupScore || 0;
+      const score = (cand._backupScore || 0) + (rng() * 1e-6);
       if (!best || score > best.score) {
         best = { divIndex, number: cand.number, score, newTotal, nextPointer: p + 1 };
       }
@@ -4814,10 +5206,33 @@ async function createJackpotCoupons({ baseName, count, maxPrice, spikesWanted })
     return;
   }
 
+  // Unikhet per "Skapa X jackpot-kuponger"-körning
+  const seenSignatures = new Set();
+
   const created = [];
 
   for (let i = 0; i < count; i++) {
-    const selections = buildJackpotSelections({ maxPrice, spikesWanted });
+    // Försök generera unika jackpot-kuponger när man skapar flera samtidigt
+    let selections = null;
+    let sig = '';
+    for (let tries = 0; tries < 12; tries++) {
+      const candidate = buildJackpotSelections({ maxPrice, spikesWanted, rng: Math.random });
+      const signature = (candidate || [])
+        .slice()
+        .sort((a, b) => Number(a.divisionIndex) - Number(b.divisionIndex))
+        .map((s) => `${Number(s.divisionIndex)}:${(s.horses || []).slice().map(Number).sort((a,b)=>a-b).join(',')}`)
+        .join('|');
+
+      if (!seenSignatures.has(signature)) {
+        selections = candidate;
+        sig = signature;
+        break;
+      }
+      // annars prova igen
+      selections = candidate;
+      sig = signature;
+    }
+    if (sig) seenSignatures.add(sig);
 
     const payload = {
       status: COUPON_STATUS.WAITING,
@@ -5330,6 +5745,16 @@ if (couponStatus === COUPON_STATUS.INACTIVE) {
     // markera split-kuponger med extra klass
     if (coupon.source === 'split') {
       card.classList.add('split-coupon-card');
+    }
+
+    // Jackpot-kuponger – egen bakgrund
+    if (coupon.source === 'jackpot') {
+      card.classList.add('jackpot-coupon-card');
+    }
+
+    // Fyllda kuponger ("Fyll på") – egen bakgrund
+    if (coupon.source === 'fill') {
+      card.classList.add('filled-coupon-card');
     }
 
     // framtida omvända kuponger

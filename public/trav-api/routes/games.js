@@ -357,6 +357,365 @@ for (let avd = 1; avd <= divisionCount; avd++) {
 });
 
 
+// ---------------------------------------------------------------------------
+// Stallsnack / intervjuer
+// ---------------------------------------------------------------------------
+
+function normalizeAtgText(s) {
+  return String(s || '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/[’‘‛´`]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Rensa bort suffix som * och (DK)/(NO) osv. för robust matchning
+function cleanupHorseNameForMatch(name) {
+  return String(name || '')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// "Fold" text så att ö/ä/å/é osv matchar, och även ø/æ (DK/NO)
+function foldForLooseMatch(s) {
+  return normalizeAtgText(s)
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    // Tecken som inte NFKD bryter ner (främst nordiska)
+    .replace(/[øØ]/g, 'o')
+    .replace(/[æÆ]/g, 'ae')
+    .replace(/[åÅ]/g, 'a')
+    .replace(/[œŒ]/g, 'oe')
+    .replace(/[ß]/g, 'ss')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+
+function escapeRegExp(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function splitIntoSentences(text) {
+  let cleaned = String(text || '').replace(/\r/g, '').trim();
+  if (!cleaned) return [];
+
+  // ATG-stallsnack är ofta "bullet-rader" per häst, t.ex:
+  // – 9 Laureen B.R. ... Här kan det finnas flera meningar (med punkt i hästnamn).
+  // Om vi splittrar på punkt riskerar vi att tappa resten av texten.
+  //
+  // Lösning: splitta i första hand per rad/bullet, och slå ihop fortsättningsrader.
+
+  // Om bullets råkar ligga på samma rad: skapa radbrytning före ny bullet.
+  cleaned = cleaned
+    .replace(/([^\n])\s*([–-]\s*\d+\s+)/g, '$1\n$2')
+    .replace(/([^\n])\s*(•\s*\d+\s+)/g, '$1\n$2');
+
+  const rawLines = cleaned.split(/\n+/g).map((s) => s.trim()).filter(Boolean);
+
+  const entries = [];
+  let current = '';
+
+  // Ny post om raden ser ut att börja med "bullet + nummer" eller bara "nummer".
+  const isStart = (line) => /^\s*(?:[–-]|•)?\s*\d+\s+/.test(line);
+
+  for (const line of rawLines) {
+    if (isStart(line)) {
+      if (current) entries.push(current.trim());
+      current = line;
+    } else if (current) {
+      current += ' ' + line;
+    } else {
+      current = line;
+    }
+  }
+  if (current) entries.push(current.trim());
+
+  return entries;
+}
+
+
+
+function extractLeadingHorseNumber(entry) {
+  const m = String(entry || '').match(/^\s*(?:[–-]|•)?\s*(\d{1,2})\s+/);
+  return m ? String(m[1]) : '';
+}
+function extractHorseNameFromRawLine(rawLine) {
+  const line = String(rawLine || '').trim();
+  if (!line) return '';
+  const firstCol = line.split('\t')[0] || '';
+  // Förväntat: "1 Hankypanky Slander" men kan också vara t.ex.:
+  //  - "3 Gingerbel Brofont* (IT)"
+  //  - "1 Kollund Møbler* (DK)"
+  // Vi vill matcha mot texten i stallsnack-artikeln som ofta saknar landkod/asterisk.
+  let name = firstCol.replace(/^\s*\d+\s+/, '').trim();
+  // Ta bort asterisker som ATG använder i hästlistor.
+  name = name.replace(/\*/g, '').trim();
+  // Ta bort trailing landkod i parentes om den ser ut som (DK)/(IT)/(NO)/(SE)...
+  name = name.replace(/\s*\(([A-ZÅÄÖ]{2,3})\)\s*$/i, '').trim();
+  // Normalisera whitespace
+  name = name.replace(/\s{2,}/g, ' ').trim();
+  return name;
+}
+
+function sliceDivisionText(fullText, gameType, divisionCount) {
+  const markers = [];
+  for (let i = 1; i <= divisionCount; i++) {
+		// ATG-texter kan ha rubriker som t.ex.
+		//  - "V85 - 1:" (med kolon)
+		//  - "V85-1" (utan kolon)
+		// För att undvika att råka matcha "(V85-1/...)" inne i hästtexter
+		// försöker vi bara matcha i början av en rad.
+		const re = new RegExp(`(^|\\n)\\s*${escapeRegExp(gameType)}\\s*[-–]\\s*${i}\\b\\s*:?`, 'im');
+		const m = fullText.search(re);
+		markers.push({ i, idx: m });
+  }
+
+  const found = markers.filter((m) => m.idx >= 0).sort((a, b) => a.idx - b.idx);
+  const sections = {};
+  if (!found.length) {
+    // Inga rubriker hittades – returnera allt som "0" för fallback.
+    sections['0'] = fullText;
+    return sections;
+  }
+
+  for (let k = 0; k < found.length; k++) {
+    const start = found[k].idx;
+    const end = k + 1 < found.length ? found[k + 1].idx : fullText.length;
+    sections[String(found[k].i)] = fullText.slice(start, end);
+  }
+  return sections;
+}
+
+// Hämta stallsnack/intervju och spara på spelet
+router.post('/:id/stallsnack/fetch', async (req, res) => {
+  const { id } = req.params;
+  const url = String(req.body?.url || req.query?.url || '').trim();
+
+  if (!url) {
+    return res.status(400).send('url krävs');
+  }
+  if (!/^https:\/\/www\.atg\.se\//i.test(url)) {
+    return res.status(400).send('Endast https://www.atg.se/… stöds');
+  }
+
+  let browser;
+  let page;
+  try {
+    const game = await TravGame.findById(id);
+    if (!game) return res.status(404).send('Spelet hittades inte.');
+
+    const divisionCount = (game.parsedHorseInfo?.divisions || []).length || 8;
+    const gameType = game.gameType || 'V85';
+
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    });
+    page = await browser.newPage();
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForSelector('[data-test-id="game-tip-article"]', { timeout: 30000 });
+
+    const rawText = await page.$eval('[data-test-id="game-tip-article"]', (el) => el.innerText || '');
+    const rawHtml = await page.$eval('[data-test-id="game-tip-article"]', (el) => el.innerHTML || '');
+
+    // Normalisera och segmentera per avdelning
+    const normalizedText = String(rawText || '').replace(/\u00A0/g, ' ');
+    const divisionTexts = sliceDivisionText(normalizedText, gameType, divisionCount);
+
+	    // --- Viktigt: ATG-texter saknar ofta tydliga "V85-1:"-rubriker.
+	    // Då hamnar hela artikeln i samma textblock och startnummer (t.ex. "1")
+	    // kolliderar mellan avdelningar (1 i V85-1, 1 i V85-7, osv).
+	    // Lösning: bucketa rader utifrån "(V85-<avd>...)" som står efter hästnamnet.
+	    const allEntries = splitIntoSentences(normalizedText);
+	    const divisionEntryBuckets = {};
+	    for (let i = 1; i <= divisionCount; i++) divisionEntryBuckets[i] = [];
+	    const divTagRe = new RegExp(`\\b${escapeRegExp(gameType)}\\s*[-–]\\s*(\\d{1,2})\\b`, 'gi');
+	    for (const entry of allEntries) {
+	      const seen = new Set();
+	      let m;
+	      while ((m = divTagRe.exec(entry)) !== null) {
+	        const d = parseInt(m[1], 10);
+	        if (d >= 1 && d <= divisionCount && !seen.has(d)) {
+	          divisionEntryBuckets[d].push(String(entry).trim());
+	          seen.add(d);
+	        }
+	      }
+	      divTagRe.lastIndex = 0;
+	    }
+	    const sliceHasPerDivision = Object.keys(divisionTexts).some(k => String(k) !== '0');
+	    const useEntryBuckets = (!sliceHasPerDivision && Object.values(divisionEntryBuckets).some(arr => (arr || []).length > 0));
+
+    // Skapa mapping per avdelning och hästnummer
+    const stallsnack = {
+      url,
+      fetchedAt: new Date().toISOString(),
+      gameType,
+      divisions: {},
+    };
+
+    for (let i = 1; i <= divisionCount; i++) {
+      const division = game.parsedHorseInfo?.divisions?.[i - 1];
+      const horses = division?.horses || [];
+	      let divText = '';
+	      let sentences = [];
+	      if (useEntryBuckets) {
+	        // Ny logik: hämta bara hästtexter som faktiskt innehåller "V85-i".
+	        const entries = divisionEntryBuckets[i] || [];
+	        divText = entries.join('\n');
+	        sentences = entries;
+	      } else {
+	        divText = divisionTexts[String(i)] || divisionTexts['0'] || '';
+	        sentences = splitIntoSentences(divText);
+	      }
+	      const divTextFold = foldForLooseMatch(divText);
+      const divObj = { rawText: divText, horses: {} };
+
+      // Indexera meningar per hästnummer – och behåll även "fortsättningsrader"
+      // som inte börjar med ett nytt startnummer (vanligt när texten radbryts
+      // eller när vi splittrar på meningsslut).
+      const sentencesByNumber = {};
+      let lastLead = null;
+      for (const s of sentences) {
+        const raw = String(s || '').trim();
+        if (!raw) continue;
+
+        const lead = extractLeadingHorseNumber(raw);
+        if (lead) {
+          lastLead = lead;
+          if (!sentencesByNumber[lead]) sentencesByNumber[lead] = [];
+          sentencesByNumber[lead].push(raw);
+          continue;
+        }
+
+        // Ingen ny ledande siffra – tolka som fortsättning på föregående häst.
+        if (lastLead) {
+          if (!sentencesByNumber[lastLead]) sentencesByNumber[lastLead] = [];
+          sentencesByNumber[lastLead].push(raw);
+        }
+      }
+
+      for (const h of horses) {
+        const number = String(h.number ?? '').trim();
+        if (!number) continue;
+        const name = extractHorseNameFromRawLine(h.rawLine);
+        const nameClean = cleanupHorseNameForMatch(name);
+        const nameFold = foldForLooseMatch(nameClean);
+        if (!nameFold) continue;
+
+        // OBS: vi matchar mot foldad text (a-z0-9 + mellanslag).
+        // Viktigt: escapea backslashes i template-strängar (\b och \s+) annars blir det backspace/vanliga bokstäver.
+        const hits = [];
+
+        // 1) Direktmatch: om vi har entries som börjar med samma startnummer som hästen.
+        const direct = sentencesByNumber[number];
+        if (direct && direct.length) {
+          // Dedup + cap
+          const seen = new Set();
+          for (const s of direct) {
+            const key = foldForLooseMatch(s);
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            hits.push(s.trim());
+            if (hits.length >= 10) break;
+          }
+        } else {
+          // 2) Fallback: matcha "NUMMER NAMN" men bara om matchen sker tidigt i entryn,
+          // så vi inte råkar ta en annan hästs text som bara nämner hästen längre ner.
+          const pat = new RegExp(`\\b${escapeRegExp(number)}\\s+${escapeRegExp(nameFold)}\\b`, 'i');
+
+          const seen = new Set();
+          for (const s of sentences) {
+            const raw = String(s || '').trim();
+            if (!raw) continue;
+
+            // Om entryn börjar med ett annat nummer – skip (minskar felmatchningar kraftigt).
+            const lead = extractLeadingHorseNumber(raw);
+            if (lead && lead !== number) continue;
+
+            const head = raw.slice(0, 220); // tidig del av entryn
+            const headFold = foldForLooseMatch(head);
+            if (!headFold) continue;
+            if (!pat.test(headFold)) continue;
+
+            const key = foldForLooseMatch(raw);
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            hits.push(raw);
+            if (hits.length >= 10) break;
+          }
+        }
+if (hits.length) {
+          divObj.horses[number] = {
+            name,
+            sentences: hits.slice(0, 10),
+          };
+        }
+      }
+
+      // Bara spara avdelningen om någon häst fick träff
+      if (Object.keys(divObj.horses).length) {
+        stallsnack.divisions[String(i)] = divObj;
+      }
+    }
+
+    // Fallback: om vi inte hittade rubriker, försök matcha mot hela texten via HTML (b-taggar)
+    // Detta gör att vi ändå kan få träffar även om ATG ändrar rubrikerna.
+    if (!Object.keys(stallsnack.divisions).length) {
+      const $ = cheerio.load(`<div>${rawHtml}</div>`);
+      const allText = normalizeAtgText($('div').text());
+      const allSentences = splitIntoSentences(allText);
+      const divisions = game.parsedHorseInfo?.divisions || [];
+      for (let i = 1; i <= divisions.length; i++) {
+        const division = divisions[i - 1];
+        for (const h of division?.horses || []) {
+          const number = String(h.number ?? '').trim();
+          const name = extractHorseNameFromRawLine(h.rawLine);
+          const nameClean = cleanupHorseNameForMatch(name);
+          const nameFold = foldForLooseMatch(nameClean);
+          if (!number || !nameFold) continue;
+          const re = new RegExp(`\\b${escapeRegExp(number)}\\s+${escapeRegExp(nameFold)}\\b`, 'i');
+          const hits = [];
+          const seenHits = new Set();
+          for (const s of allSentences) {
+            const sFold = foldForLooseMatch(s);
+            if (!sFold) continue;
+            if (re.test(sFold)) {
+              if (seenHits.has(sFold)) continue;
+              seenHits.add(sFold);
+              hits.push(s.trim());
+              if (hits.length >= 10) break;
+            }
+          }
+          if (hits.length) {
+            stallsnack.divisions[String(i)] ??= { rawText: allText, horses: {} };
+            stallsnack.divisions[String(i)].horses[number] = { name, sentences: hits };
+          }
+        }
+      }
+    }
+
+    game.stallsnack = stallsnack;
+    await game.save();
+
+    res.json({ stallsnack });
+  } catch (err) {
+    console.error('POST /games/:id/stallsnack/fetch error', err);
+    res.status(500).send('Serverfel vid hämtning av stallsnack/intervju.');
+  } finally {
+    try {
+      if (page) await page.close().catch(() => {});
+      if (browser) await browser.close().catch(() => {});
+    } catch (_) {}
+  }
+});
+
+
 // Uppdatera befintligt spel
 router.put('/:id', async (req, res) => {
   try {
