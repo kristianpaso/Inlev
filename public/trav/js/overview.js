@@ -3,12 +3,70 @@
 
 
 // var innan: import { getGame } from './api.js';
+
+import { initRaceSim } from './race-sim.js';
 import { getGame, createCoupon, deleteCoupon, getTracks, importAtgCoupon, getAtgLinks, saveAtgLink, updateCouponActive, updateCouponStatus, fetchWinners, fetchStallsnack, updateCouponContent } from './api.js';
 
 
 let game = null;
 let currentGameId = null;
 let allTracks = [];  
+let currentTrackMatch = null;  
+let manualWinners = {};  // { '1': 3, '2': 11, ... } manuella vinnare per avdelning
+
+// ------------------
+// Manuella vinnare (fallback om backend/Netlify strular)
+// ------------------
+function storageKeyManualWinners(gameId) {
+  return `trav_manual_winners_${String(gameId || '').trim()}`;
+}
+function loadManualWinners(gameId) {
+  try {
+    const key = storageKeyManualWinners(gameId);
+    const raw = localStorage.getItem(key);
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    return obj && typeof obj === 'object' ? obj : {};
+  } catch (e) {
+    return {};
+  }
+}
+function saveManualWinners(gameId, map) {
+  try {
+    const key = storageKeyManualWinners(gameId);
+    localStorage.setItem(key, JSON.stringify(map || {}));
+  } catch (e) {}
+}
+function setManualWinner(avdIndex, horseNum) {
+  const a = String(Number(avdIndex));
+  const n = Number(horseNum);
+  if (!Number.isFinite(Number(a)) || Number(a) <= 0) return;
+  if (!Number.isFinite(n) || n <= 0) {
+    // clear
+    delete manualWinners[a];
+  } else {
+    manualWinners[a] = n;
+  }
+  saveManualWinners(currentGameId, manualWinners);
+  // uppdatera UI direkt
+  try { updateWinnerSummaryUI(); } catch (e) {}
+  try { renderCouponList(); } catch (e) {}
+  try { renderDivisionTable && renderDivisionTable(); } catch (e) {}
+}
+function getWinnerNumber(avdIndex) {
+  const a = String(Number(avdIndex));
+  const m = manualWinners && manualWinners[a];
+  if (Number.isFinite(Number(m)) && Number(m) > 0) return Number(m);
+  if (game && game.results) {
+    const r = game.results[a] ?? game.results[Number(a)];
+    const n = Number(r);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return NaN;
+}
+
+
+
 let divisions = [];
 let currentIndex = 0;
 let headerColumns = [];
@@ -176,10 +234,59 @@ try {
     allTracks = Array.isArray(tracks) ? tracks : [];
     currentGameId = game._id;
 
+    // 🔹 Ladda manuella vinnare (fallback)
+    manualWinners = loadManualWinners(currentGameId);
+
+
     loadIdeaSelections(currentGameId);
     setupOverview(game);
     renderTrackInfo();            // 🔹 visa banblocket
-      initStakePanel();   
+      initStakePanel();
+      ensureManualWinnerButton();
+
+    // Simulering (ovalbana)
+    initRaceSim({
+      getDivision: () => divisions[currentIndex],
+      getDivisions: () => divisions,
+      getHeaderColumns: () => headerColumns,
+      getTrack: () => currentTrackMatch,
+      getGame: () => game,
+      setCurrentIndex: (i) => { currentIndex = i; },
+      getStakeLevel: () => stakeLevel,
+      createCouponFromSim: async (simCoupon) => {
+        try {
+          if (!currentGameId) throw new Error('Inget spel öppet.');
+
+          const isV85 = String(game?.gameType || '').toUpperCase() === 'V85';
+
+          const selections = (simCoupon?.selections || []).map((s) => ({
+            divisionIndex: Number(s.divisionIndex),
+            horses: (typeof normalizeHorseNumberList === 'function')
+              ? normalizeHorseNumberList(s.horses)
+              : Array.from(new Set((s.horses || []).map(Number))).filter((n) => Number.isFinite(n)).sort((a,b)=>a-b),
+          }));
+
+          const payload = {
+            status: (typeof getNewCouponStatus === 'function') ? getNewCouponStatus() : 'Preliminär',
+            name: String(simCoupon?.name || 'Sim Kupong'),
+            source: 'sim',
+            stakeLevel: isV85 ? (simCoupon?.stakeLevel || stakeLevel || 'original') : 'original',
+            selections,
+          };
+
+          const saved = await createCoupon(currentGameId, payload);
+          saved.source = 'sim';
+          coupons.push(saved);
+
+          try { renderCouponList(); } catch {}
+          if (typeof showToast === 'function') showToast('Sim-kupong skapad!', 'success');
+        } catch (e) {
+          console.error(e);
+          alert(e?.message || 'Kunde inte skapa Sim Kupong.');
+        }
+      },
+      rerenderDivision: () => {}
+    });   
   } catch (err) {
     console.error(err);
     alert('Kunde inte hämta spelet.');
@@ -370,6 +477,29 @@ const data = await fetchWinners(currentGameId, payload);
     }
   });
 }
+
+// --- Vinnarprognos (lokal modell baserad på odds/statistik/tipskommentar) ---
+const btnOpenPredictions = document.getElementById('btn-open-predictions');
+const predictPanel = document.getElementById('predict-panel');
+const btnPredictRefresh = document.getElementById('btn-predict-refresh');
+const btnPredictClose = document.getElementById('btn-predict-close');
+const predictOutput = document.getElementById('predict-output');
+
+function openPredictionsPanel() {
+  if (!predictPanel) return;
+  predictPanel.hidden = false;
+  // Bygg alltid om när man öppnar så man ser senaste hästdata
+  renderWinnerPredictions();
+}
+
+function closePredictionsPanel() {
+  if (!predictPanel) return;
+  predictPanel.hidden = true;
+}
+
+btnOpenPredictions?.addEventListener('click', openPredictionsPanel);
+btnPredictRefresh?.addEventListener('click', renderWinnerPredictions);
+btnPredictClose?.addEventListener('click', closePredictionsPanel);
 
 
 // ---------------------------------------------------------------------------
@@ -836,6 +966,10 @@ function renderTrackInfo() {
 
   section.style.display = '';
 
+currentTrackMatch = match || null;
+
+
+
 if (!match) {
   const p = document.createElement('p');
   p.className = 'track-info-text';
@@ -904,6 +1038,48 @@ function getWeatherSymbol(code) {
 
   return { icon: '❓', label: 'Okänt väder' };
 }
+
+// ------------------
+// Resa: beräkna avstånd hemmabana -> aktuell bana
+// ------------------
+function normalizeTrackKey(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+function findTrackByNameOrCode(value) {
+  const key = normalizeTrackKey(value);
+  if (!key) return null;
+  return (allTracks || []).find((t) => {
+    const nameKey = normalizeTrackKey(t?.name);
+    const codeKey = normalizeTrackKey(t?.code);
+    const slugKey = normalizeTrackKey(t?.slug);
+    return key === nameKey || key === codeKey || key === slugKey;
+  }) || null;
+}
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+function computeTravelDistanceKm(homeTrackValue) {
+  if (!currentTrackMatch || !Number.isFinite(Number(currentTrackMatch.lat)) || !Number.isFinite(Number(currentTrackMatch.lon))) return null;
+  const home = findTrackByNameOrCode(homeTrackValue);
+  if (!home || !Number.isFinite(Number(home.lat)) || !Number.isFinite(Number(home.lon))) return null;
+  const km = haversineKm(Number(home.lat), Number(home.lon), Number(currentTrackMatch.lat), Number(currentTrackMatch.lon));
+  return Number.isFinite(km) ? km : null;
+}
+
+
 
 async function renderTrackWeather(track) {
   const box = document.getElementById('track-weather-box');
@@ -1098,6 +1274,42 @@ function extractHorseNameFromRawLine(rawLine) {
   const m = first.match(/^(\d+)\s+(.*)$/);
   if (m) return m[2];
   return first;
+}
+
+function extractHorseNumberFromRawLine(rawLine) {
+  if (!rawLine) return null;
+  const m = String(rawLine).trim().match(/^\s*(\d{1,2})\s+/);
+  return m ? m[1] : null;
+}
+
+
+
+
+// Normalisera hästnummer (förhindrar t.ex. "1" + 1 => [1,1])
+function normalizeHorseNumber(value) {
+  if (value == null) return null;
+  if (typeof value === 'number') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  const s = String(value).trim();
+  if (!s) return null;
+  // Om värdet är typ "11 Knud* (DK)" eller "11"
+  const m = s.match(/^(\d{1,2})\b/);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) ? n : null;
+}
+
+function normalizeHorseNumberList(list) {
+  const arr = Array.isArray(list) ? list : (list == null ? [] : [list]);
+  const nums = [];
+  for (const v of arr) {
+    const n = normalizeHorseNumber(v);
+    if (Number.isFinite(n)) nums.push(n);
+  }
+  // Dedupe EFTER konvertering till Number
+  return Array.from(new Set(nums)).sort((a, b) => a - b);
 }
 
 function findDivisionByIndex(divisionIndex) {
@@ -1301,30 +1513,103 @@ function getHorsePercent(divisionIndex, horseNumber) {
   return pct;
 }
 
+
 // Sortera alla hästar i en avdelning efter procent (högst först)
-function getDivisionHorsesSortedByPercent(divisionIndex) {
-  const division = findDivisionByIndex(divisionIndex);
-  if (!division || !division.horses) return [];
+function resolveDivisionForPercentSort(divIndex) {
+  const n = Number(divIndex);
 
-  const mainIdx = getMainPercentIndex();
-  if (mainIdx === -1) return [];
+  // 1-baserat index (avd-nummer) – vanligast i UI
+  if (Number.isFinite(n) && n >= 1) {
+    const found = findDivisionByIndex(n);
+    if (found) return found;
+  }
 
-  return division.horses
-    .filter((h) => h && !h.scratched && h.rawLine)
-    .map((h) => {
-      const cols = parseLineColumns(h.rawLine || '');
-      const val = cols[mainIdx] || '';
-      const m = String(val).match(/(\d+(?:[.,]\d+)?)/);
-      const pct = m ? parseFloat(m[1].replace(',', '.')) || 0 : 0;
-      return { number: h.number, pct };
-    })
-    .sort((a, b) => b.pct - a.pct); // högst först
+  // 0-baserat index (array-index) – används internt i en del logik
+  if (Number.isFinite(n) && n >= 0 && Number.isInteger(n) && divisions[n]) {
+    return divisions[n];
+  }
+
+  return null;
+}
+
+
+// Sortera alla hästar i en avdelning efter procent (högst först)
+// Sortera alla hästar i en avdelning efter procent (högst först)
+// OBS: divIndex kan vara både 1-baserat (avd-nummer) och 0-baserat (array-index).
+function getDivisionHorsesSortedByPercent(divIndex) {
+  const division = resolveDivisionForPercentSort(divIndex);
+  const horses = division?.horses || [];
+  if (!Array.isArray(horses) || horses.length === 0) return [];
+
+  const parsed = horses.map(horse => {
+    const rawLine = horse?.rawLine || '';
+
+    // Viktigt: favoriten ska baseras på högst V85%.
+    const pctRaw =
+      horse?.v85Percent ?? horse?.v85Pct ?? horse?.v85 ?? horse?.percent ?? horse?.['V85%'] ?? horse?.['V85'] ?? '';
+
+    let pct = null;
+    if (typeof pctRaw === 'number') {
+      pct = pctRaw;
+    } else {
+      const p = parseFloat(String(pctRaw).replace('%', '').replace(',', '.'));
+      pct = Number.isFinite(p) ? p : null;
+    }
+
+    // Fallback: om procent saknas i objektet – plocka från rawLine med rätt kolumnindex
+    if (pct == null) {
+      const mainIdx = getMainPercentIndex();
+      if (mainIdx !== -1) {
+        const cols = parseLineColumns(rawLine || '');
+        const val = cols[mainIdx] || '';
+        const m = String(val).match(/(\d+(?:[.,]\d+)?)/);
+        if (m) {
+          const p2 = parseFloat(m[1].replace(',', '.'));
+          if (Number.isFinite(p2)) pct = p2;
+        }
+      }
+    }
+
+    if (pct == null) pct = 0;
+
+    const vOddsRaw = horse?.vOdds ?? horse?.v_odds ?? horse?.vOddsStr ?? horse?.vOddsValue ?? '';
+    const vOdds = (typeof vOddsRaw === 'number')
+      ? vOddsRaw
+      : (() => {
+          const v = parseFloat(String(vOddsRaw).replace(',', '.'));
+          return Number.isFinite(v) ? v : null;
+        })();
+
+    const numberStr =
+      (horse?.number != null ? String(horse.number) : '') ||
+      extractHorseNumberFromRawLine(rawLine) ||
+      '';
+
+    const number = (() => {
+      const n2 = parseInt(String(numberStr).match(/\d+/)?.[0] || '', 10);
+      return Number.isFinite(n2) ? n2 : numberStr;
+    })();
+
+    const numForSort = Number.isFinite(Number(number)) ? Number(number) : 999;
+
+    const name = horse?.name || extractHorseNameFromRawLine(rawLine) || '';
+
+    return { horse, pct, number, name, vOdds, rawLine, _num: numForSort };
+  });
+
+  parsed.sort((a, b) =>
+    (b.pct - a.pct) ||
+    ((a.vOdds ?? 999) - (b.vOdds ?? 999)) ||
+    (a._num - b._num)
+  );
+
+  return parsed;
 }
 
 // Favoriten i en avdelning (högst procent)
 function getDivisionFavouriteNumber(divisionIndex) {
   const sorted = getDivisionHorsesSortedByPercent(divisionIndex);
-  return sorted.length ? sorted[0].number : null;
+  return sorted.length ? Number(sorted[0].number) : null;
 }
 
 // Superskräll = under 6% spelad
@@ -1733,7 +2018,7 @@ function buildHorseView(division, divIndex, popularity) {
     const tr = document.createElement('tr');
     tr.classList.add('horse-row');
      // 🔹 markera favoritens rad
-    if (horse.number === favouriteNumber) {
+    if (Number(horse.number) === Number(favouriteNumber)) {
       tr.classList.add('horse-row-favourite');
     }
 
@@ -1765,6 +2050,15 @@ function buildHorseView(division, divIndex, popularity) {
         value: cols[index] ?? '',
       }));
     }
+// 🔹 Resa (hemmabana -> aktuell bana)
+const allColsForTravel = [].concat(visibleColumns || [], detailColumns || []);
+const homeCol = allColsForTravel.find((c) => /HEMMA\s*BANA|HEMMABANA|HEMBANA|HOME\s*TRACK|HOMETRACK/i.test(String(c?.name || '')));
+const homeVal = homeCol ? (cols[homeCol.index] ?? '') : '';
+const km = computeTravelDistanceKm(homeVal);
+if (km != null) {
+  const rounded = Math.round(km);
+  extraData.push({ label: 'Resa till bana', value: `${rounded} km` });
+}
 
     // ----- cellerna -----
     visibleColumns.forEach(({ name, index }) => {
@@ -2122,7 +2416,7 @@ function buildHorseView(division, divIndex, popularity) {
     leftSquare.classList.add('left-square');
 
     // favorit = gul markering även i vänsterkolumnen
-    if (typeof favouriteNumber !== 'undefined' && horse.number === favouriteNumber) {
+    if (Number.isFinite(Number(favouriteNumber)) && Number(horse.number) === Number(favouriteNumber)) {
       leftSquare.classList.add('favourite-number');
     }
 
@@ -2601,6 +2895,16 @@ const chanceLevelDisplay = document.getElementById('chance-level-display');
 const chancePreferUnplayedInput = document.getElementById('chance-prefer-unplayed');
 const btnChanceDo = document.getElementById('btn-chance-do');
 const btnChanceCancel = document.getElementById('btn-chance-cancel');
+
+// Bästa raden UI
+const btnOpenBestRow = document.getElementById('btn-open-best-row');
+const bestRowPanel = document.getElementById('best-row-panel');
+const btnCloseBestRow = document.getElementById('btn-close-best-row');
+const btnGenerateBestRows = document.getElementById('btn-generate-best-rows');
+const bestRowMaxPriceInput = document.getElementById('best-row-max-price');
+const bestRowMaxPerDivisionInput = document.getElementById('best-row-max-per-division');
+const bestRowSkrallLevelInput = document.getElementById('best-row-skrall-level');
+const bestRowSkrallLevelDisplay = document.getElementById('best-row-skrall-level-display');
 const chanceIncludeSecondFavInput = document.getElementById('chance-include-secondfav');
 const chanceSpikesInput = document.getElementById('chance-spikes');
 const chanceSpikesDisplay = document.getElementById('chance-spikes-display');
@@ -3022,6 +3326,56 @@ if (btnChanceCancel && chancePanel) {
     chancePanel.hidden = true;
   });
 }
+
+// ---- Bästa raden panel toggles ----
+if (btnOpenBestRow && bestRowPanel) {
+  btnOpenBestRow.onclick = () => {
+    if (!currentGameId) {
+      alert('Öppna ett spel först innan du räknar ut bästa raden.');
+      return;
+    }
+    // Default-värden
+    const radPris = getEffectiveRadPris();
+    if (bestRowMaxPriceInput && (!bestRowMaxPriceInput.value || Number(bestRowMaxPriceInput.value) <= 0)) {
+      bestRowMaxPriceInput.value = String(Math.round(200));
+    }
+    bestRowPanel.hidden = false;
+  };
+}
+
+if (btnCloseBestRow && bestRowPanel) {
+  btnCloseBestRow.onclick = () => {
+    bestRowPanel.hidden = true;
+  };
+}
+
+if (btnGenerateBestRows) {
+  btnGenerateBestRows.onclick = () => {
+    const maxPrice = Number(bestRowMaxPriceInput?.value || 200);
+    const maxPerDiv = Number(bestRowMaxPerDivisionInput?.value || 6);
+    const suggestions = computeBestRows({ maxPriceKr: maxPrice, count: 5, maxPerDivision: maxPerDiv });
+    renderBestRowSuggestions(suggestions);
+  };
+}
+
+const bestRowResultsEl = document.getElementById("best-row-results");
+if (bestRowResultsEl) {
+  bestRowResultsEl.addEventListener("click", async (ev) => {
+    const btn = ev.target?.closest?.(".btn-create-best-row");
+    if (!btn) return;
+    try {
+      const ksAttr = btn.getAttribute("data-ks") || "";
+      const ks = ksAttr ? JSON.parse(decodeURIComponent(ksAttr)) : null;
+      const idx = Number(btn.getAttribute("data-idx") || 0);
+      await handleCreateBestRowCoupon(ks, idx);
+    } catch (e) {
+      console.error("Bad best-row payload", e);
+      showToast("Kunde inte skapa kupong", "error");
+    }
+  });
+}
+
+
 
 
 // ---- Jackpot panel toggles ----
@@ -4310,6 +4664,20 @@ async function createFilledCouponsFromBase({ baseCoupon, targetPrice, count, spi
   // radpris baserat på spelets insats (och ev stakeLevel på baseCoupon)
   const radPris = getEffectiveRadPrisForCoupon(baseCoupon);
 
+  // Om bas-kupongen redan är dyrare än målpriset kan vi inte "fylla på" till ett lägre pris
+  // (vi låser basens val för att inte byta ut dem). I så fall ska vi INTE skapa felaktiga kuponger.
+  const baseInfoCheck = computeCouponPrice({
+    selections: (baseCoupon?.selections || []),
+    stakeLevel: baseCoupon?.stakeLevel || 'original',
+  });
+  if (baseInfoCheck?.total > targetPrice) {
+    throw new Error(
+      `Bas-kupongen kostar ${formatMoney(baseInfoCheck.total)} kr vilket är över ditt mål (${targetPrice} kr). ` +
+      `Höj priset eller välj en billigare kupong att fylla på.`
+    );
+  }
+
+
   for (let i = 0; i < count; i++) {
     // 1) börja från base-coupon selections
     const selections = (baseCoupon.selections || []).map(sel => ({
@@ -4373,6 +4741,14 @@ for (let guard = 0; guard < maxIter; guard++) {
 // 🔴 VIKTIGT: Om vi fortfarande är långt under target, spara INTE kupongen
 {
   const finalInfo = computeCouponPrice({ selections, stakeLevel: baseCoupon.stakeLevel || 'original' });
+
+  if (finalInfo.total > targetPrice) {
+    throw new Error(
+      `Kunde inte skapa en kupong inom ${targetPrice} kr (fastnade på ${formatMoney(finalInfo.total)} kr). ` +
+      `Höj priset eller välj en mindre bas-kupong.`
+    );
+  }
+
   if (finalInfo.total < minAcceptable) {
     throw new Error(
       `Kunde inte nå priset ${targetPrice} kr (fastnade på ${formatMoney(finalInfo.total)} kr). ` +
@@ -4393,7 +4769,7 @@ for (let guard = 0; guard < maxIter; guard++) {
       stakeLevel: baseCoupon.stakeLevel || 'original',
       selections: selections.map(s => ({
         divisionIndex: Number(s.divisionIndex),
-        horses: Array.from(new Set(s.horses || [])).map(Number).sort((a,b) => a-b),
+        horses: normalizeHorseNumberList(s.horses),
       })),
     };
 
@@ -4539,7 +4915,7 @@ function ensureMinTwoInNonSpike(selections, spikeDivSet, weights, lockedByDiv) {
         sel.horses = Array.from(locked).map(Number);
       } else {
         // fallback: behåll första hästen om något blivit fel
-        const uniq = Array.from(new Set(sel.horses || [])).map(Number).filter(Number.isFinite);
+        const uniq = normalizeHorseNumberList(sel.horses);
         sel.horses = uniq.length ? [uniq[0]] : [];
       }
       return;
@@ -4547,7 +4923,7 @@ function ensureMinTwoInNonSpike(selections, spikeDivSet, weights, lockedByDiv) {
 
     // icke-spik: minst 2 (favoriten + en till)
     // (men utan att ta bort basens hästar)
-    sel.horses = Array.from(new Set(sel.horses || [])).map(Number).filter(Number.isFinite);
+    sel.horses = normalizeHorseNumberList(sel.horses);
     if (locked && locked.size) {
       locked.forEach((n) => {
         if (!sel.horses.includes(n)) sel.horses.push(n);
@@ -5198,6 +5574,318 @@ function buildJackpotSelections({ maxPrice, spikesWanted, rng }) {
   }
 
   return currentSelectionsArray();
+}
+
+
+
+// ===============================
+// BÄSTA RADEN (5 förslag)
+// Mål: lägre pris, fler hästar, färre spikar (med rimlig chans)
+// ===============================
+
+function getTopHorsesInDivisionByPercent(divisionIndex, count) {
+  const sorted = getDivisionHorsesSortedByPercent(divisionIndex);
+  const picked = sorted.slice(0, Math.max(1, count)).map((x) => {
+    const horse = x.horse || {};
+    const rawLine = horse.rawLine || "";
+    const name = extractHorseNameFromRawLine(rawLine) || (horse.name || "");
+    return { number: horse.number, name, pct: x.pct || 0, rawLine };
+  });
+  return picked;
+}
+
+function buildBestRowBudgets(maxRows, count) {
+  const maxR = Math.max(1, Math.floor(Number(maxRows) || 1));
+  const n = Math.max(1, Math.floor(Number(count) || 5));
+  if (n === 1) return [maxR];
+
+  // Vi vill ligga "nära maxpriset" (t.ex. 500 -> 500, 475, 450, 425, 400)
+  const step = Math.max(1, Math.round(maxR * 0.05)); // 5%
+  const budgets = [];
+  for (let i = 0; i < n; i++) budgets.push(Math.max(1, maxR - i * step));
+
+  // Säkerställ unika och sortera fallande
+  const uniq = [...new Set(budgets)].sort((a, b) => b - a);
+
+  // Fyll på om det blev för få unika (små maxR)
+  let probe = uniq[uniq.length - 1];
+  while (uniq.length < n && probe > 1) {
+    probe = Math.max(1, probe - 1);
+    if (!uniq.includes(probe)) uniq.push(probe);
+  }
+
+  return uniq.slice(0, n);
+}
+
+function computeBestRows({ maxPriceKr = 200, count = 5, maxPerDivision = 6, skrallLevel = 60 } = {}) {
+  const baseStake = 1; // 1 kr / rad
+  const s = Math.min(100, Math.max(0, Number(skrallLevel) || 0)) / 100;
+
+  const maxRows = Math.max(1, Math.floor((Number(maxPriceKr) || 0) / baseStake));
+  const budgets = buildBestRowBudgets(maxRows, count);
+
+  const divCount = Array.isArray(divisions) ? divisions.length : 0;
+  if (!divCount) return [];
+
+  // Hjälpare
+  const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+  const safeProb = p => clamp(Number(p) || 0, 0, 0.99);
+
+  // Precompute per avdelning: ranking + coverage för k=1..K
+  const divInfo = [];
+  for (let di = 0; di < divCount; di++) {
+    const sorted = getDivisionHorsesSortedByPercent(di);
+    const K = Math.max(1, Math.min(Number(maxPerDivision) || 6, sorted.length || 1));
+
+    // odds-prob (normaliserad) om vi har vOdds
+    const oddsInv = sorted.map(x => (x.vOdds && x.vOdds > 0 ? 1 / x.vOdds : 0));
+    const oddsSum = oddsInv.reduce((a, b) => a + b, 0) || 1;
+    const oddsProb = oddsInv.map(v => v / oddsSum);
+
+    const horses = sorted.map((x, idx) => {
+      const v85 = clamp((x.pct || 0) / 100, 0, 1);
+      const winProb = safeProb(0.7 * v85 + 0.3 * oddsProb[idx]); // enkel mix
+      const skrallScore = (1 - v85) * Math.sqrt(winProb);        // skräll men med chans
+      const combined = (1 - s) * winProb + s * skrallScore;
+
+      return {
+        number: x.number || extractHorseNumberFromRawLine(x.rawLine) || '',
+        name: x.name || extractHorseNameFromRawLine(x.rawLine) || '',
+        v85,
+        winProb,
+        combined
+      };
+    });
+
+    // Sortera efter combined (skrällnivå styr), tie-breaker: winProb
+    const ranked = horses.slice().sort((a, b) => (b.combined - a.combined) || (b.winProb - a.winProb) || String(a.number).localeCompare(String(b.number)));
+
+    // "Upptäck skrällpotential": om stor favorit -> lägre potential
+    const fav = horses.slice().sort((a, b) => b.winProb - a.winProb)[0];
+    const upsetPotential = clamp(1 - (fav?.v85 ?? 0), 0, 1);
+
+    // selectionsByK / coverageByK
+    const selectionsByK = { 0: [] };
+    const coverageByK = { 0: 0 };
+    for (let k = 1; k <= K; k++) {
+      const picks = ranked.slice(0, k);
+      selectionsByK[k] = picks;
+      coverageByK[k] = safeProb(picks.reduce((acc, h) => acc + h.winProb, 0));
+    }
+
+    divInfo.push({ K, ranked, selectionsByK, coverageByK, upsetPotential });
+  }
+
+  // Greedy optimering av radCounts så vi hamnar nära budgetRows (<=)
+  function optimizeCountsForBudget(budgetRows, seed) {
+    const rand = (() => {
+      // tiny deterministic-ish rng
+      let x = (seed * 2654435761) >>> 0;
+      return () => {
+        x ^= x << 13; x >>>= 0;
+        x ^= x >> 17; x >>>= 0;
+        x ^= x << 5;  x >>>= 0;
+        return (x >>> 0) / 4294967296;
+      };
+    })();
+
+    const counts = new Array(divCount).fill(1);
+    let rows = 1;
+
+    // För hög skrällnivå: undvik spikar mer aggressivt
+    const wCov   = (1 - s) * 2.2 + s * 1.2;
+    const wHors  = (1 - s) * 0.25 + s * 0.55;
+    const wSpike = (1 - s) * 0.15 + s * 0.90;
+    const wUpset = (1 - s) * 0.10 + s * 0.70;
+
+    while (true) {
+      let best = null;
+
+      for (let di = 0; di < divCount; di++) {
+        const info = divInfo[di];
+        const curK = counts[di];
+        if (!info || curK >= info.K) continue;
+
+        const newK = curK + 1;
+        const newRows = (rows / curK) * newK;
+        if (newRows > budgetRows + 1e-9) continue;
+
+        const oldCov = info.coverageByK[curK] ?? 0;
+        const newCov = info.coverageByK[newK] ?? oldCov;
+        const dCov = Math.max(0, newCov - oldCov);
+
+        const dHorses = 1;
+        const dSpikes = (curK === 1 ? -1 : 0);
+
+        const gain =
+          wCov * dCov +
+          wHors * dHorses +
+          wSpike * (-dSpikes) +           // ta bort spik = bra
+          wUpset * info.upsetPotential;
+
+        const costFactor = newRows / rows; // 1.xx
+        const score = gain / costFactor + rand() * 1e-6;
+
+        if (!best || score > best.score) {
+          best = { di, score, newRows };
+        }
+      }
+
+      if (!best) break;
+      const curK = counts[best.di];
+      counts[best.di] = curK + 1;
+      rows = best.newRows;
+    }
+
+    return { counts, rows };
+  }
+
+  // Skapa förslag
+  const suggestions = [];
+  const seen = new Set();
+
+  for (let i = 0; i < budgets.length; i++) {
+    const budgetRows = budgets[i];
+
+    // lite olika seed för variation
+    const { counts, rows } = optimizeCountsForBudget(budgetRows, 1337 + i * 101);
+
+    const picksByDivision = {};
+    let horsesTotal = 0;
+    let spikes = 0;
+    let chanceEst = 1;
+    let skrallAccum = 0;
+
+    for (let di = 0; di < divCount; di++) {
+      const k = counts[di] || 1;
+      horsesTotal += k;
+      if (k === 1) spikes++;
+
+      const info = divInfo[di];
+      const picks = info?.selectionsByK[k] || [];
+      picksByDivision[di] = picks.map(h => ({ number: h.number, name: h.name }));
+
+      chanceEst *= (info?.coverageByK[k] ?? 0);
+
+      // skräll-index: låg V85 på valda hästar => högre index
+      const avgV85 = picks.length ? picks.reduce((a, h) => a + (h.v85 || 0), 0) / picks.length : 0;
+      skrallAccum += (1 - avgV85);
+    }
+
+    const priceKr = rows * baseStake;
+    const formula = counts.join('x');
+
+    const skrallIndex = (skrallAccum / divCount) * 100;
+
+    const key = formula + '|' + Math.round(priceKr);
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    suggestions.push({
+      formula,
+      rows: Math.round(rows),
+      horsesTotal,
+      spikes,
+      chanceEst: Math.max(0, Math.min(1, chanceEst)),
+      skrallIndex,
+      priceKr,
+      ks: { radCounts: counts, picksByDivision, meta: { maxPriceKr, skrallLevel: Math.round(s * 100) } }
+    });
+  }
+
+  // Sortera: närmast maxPriceKr först, sedan fler hästar, sedan färre spikar
+  const target = Number(maxPriceKr) || 0;
+  suggestions.sort((a, b) => {
+    const da = Math.abs(target - a.priceKr);
+    const db = Math.abs(target - b.priceKr);
+    if (da !== db) return da - db;
+    if (b.horsesTotal !== a.horsesTotal) return b.horsesTotal - a.horsesTotal;
+    if (a.spikes !== b.spikes) return a.spikes - b.spikes;
+    return b.chanceEst - a.chanceEst;
+  });
+
+  return suggestions.slice(0, count);
+}
+
+function renderBestRowSuggestions(suggestions, maxPriceKr) {
+  const wrap = document.getElementById('best-row-suggestions');
+  if (!wrap) return;
+
+  if (!Array.isArray(suggestions) || suggestions.length === 0) {
+    wrap.innerHTML = `<div class="muted">Inga förslag hittades (kontrollera att hästlistor är importerade).</div>`;
+    return;
+  }
+
+  const fmtKr = v => (Number(v) || 0).toFixed(2).replace('.', ',');
+
+  wrap.innerHTML = suggestions.map((s, idx) => {
+    const ksEnc = encodeURIComponent(JSON.stringify(s.ks || {}));
+
+    const details = Object.keys(s.ks?.picksByDivision || {})
+      .map(k => Number(k))
+      .sort((a, b) => a - b)
+      .map(di => {
+        const picks = s.ks.picksByDivision[di] || [];
+        const label = picks.length ? picks.map(p => `${p.number} ${p.name}`.trim()).join(', ') : '-';
+        return `<div class="small"><strong>Avd ${di + 1}:</strong> ${escapeHtml(label)}</div>`;
+      }).join('');
+
+    return `
+      <div class="best-row-card">
+        <div class="best-row-head">
+          <div><strong>#${idx + 1} Rad:</strong> ${escapeHtml(s.formula)}</div>
+          <div class="best-row-price">${fmtKr(s.priceKr)}</div>
+        </div>
+
+        <div class="best-row-meta small">
+          Rader: ${s.rows} &nbsp;|&nbsp;
+          Hästar: ${s.horsesTotal} &nbsp;|&nbsp;
+          Spikar: ${s.spikes} &nbsp;|&nbsp;
+          Chans (est): ${(s.chanceEst * 100).toFixed(2)}% &nbsp;|&nbsp;
+          Skrällnivå (index): ${Math.round(s.skrallIndex)}%
+        </div>
+
+        <details class="best-row-details">
+          <summary>Visa valda hästar</summary>
+          <div class="best-row-details-body">${details}</div>
+        </details>
+
+        <button class="btn small btn-create-best-row" data-idx="${idx}" data-ks="${ksEnc}">Skapa kupong</button>
+      </div>
+    `;
+  }).join('');
+}
+
+async function handleCreateBestRowCoupon(ks, idx) {
+  if (!currentGameId) return;
+  if (!Array.isArray(ks) || !ks.length) return;
+
+  const D = (divisions || []).length;
+  const selectionsByDivision = {};
+  for (let i = 1; i <= D; i++) {
+    const picks = getTopHorsesInDivisionByPercent(i, ks[i - 1]);
+    selectionsByDivision[i] = picks.map((p) => p.number).filter((n) => n !== undefined && n !== null);
+  }
+
+  const radPris = getEffectiveRadPris();
+  const rows = ks.reduce((p, k) => p * k, 1);
+  const price = rows * radPris;
+  const spikes = ks.filter((k) => k === 1).length;
+
+  const payload = {
+    name: `Bästa raden #${(idx || 0) + 1}`,
+    selectionsByDivision,
+    notes: `Auto: Bästa raden. Rad: ${ks.join("x")} | Rader: ${rows} | Pris: ${formatMoney(price)} | Spikar: ${spikes}`
+  };
+
+  try {
+    await createCoupon(currentGameId, payload);
+    await loadGame(currentGameId);
+    showToast("Kupong skapad!", "success");
+  } catch (e) {
+    console.error("Failed to create best-row coupon", e);
+    showToast("Kunde inte skapa kupong", "error");
+  }
 }
 
 async function createJackpotCoupons({ baseName, count, maxPrice, spikesWanted }) {
@@ -5900,9 +6588,7 @@ title.textContent = coupon.name || defaultTitle;
       const tdHorses = document.createElement('td');
 const nums = byDiv[divIndex];
 
-const winnerNum = (game && game.results)
-  ? Number(game.results[String(divIndex)] ?? game.results[divIndex])
-  : NaN;
+const winnerNum = getWinnerNumber(divIndex);
 const hasWinnerOnCoupon = Number.isFinite(winnerNum) && winnerNum > 0 && Array.isArray(nums) && nums.includes(winnerNum);
 
 
@@ -6505,6 +7191,51 @@ function openFillPanelForCoupon(coupon, idx) {
 
 
 
+
+// =====================
+// Manuell vinnare-knapp i topp-raden (så du alltid hittar den)
+// =====================
+function ensureManualWinnerButton() {
+  try {
+    const host = document.querySelector('.coupon-idea-actions');
+    if (!host) return;
+
+    if (document.getElementById('btn-winner-manual')) return;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'btn-winner-manual';
+    btn.className = 'btn small';
+    btn.textContent = 'Vinnare manuellt';
+    btn.addEventListener('click', () => {
+      const section = ensureWinnerSummarySection();
+      section.hidden = false;
+
+      const ed = document.getElementById('winner-edit');
+      if (ed) {
+        const isHidden = ed.hasAttribute('hidden');
+        if (isHidden) {
+          ed.removeAttribute('hidden');
+          try { renderWinnerEditor(); } catch {}
+        } else {
+          ed.setAttribute('hidden', '');
+        }
+      }
+
+      try { section.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch {}
+    });
+
+    // lägg efter "Uppdatera vinnare" om den finns, annars sist
+    const after = document.getElementById('btn-update-winners');
+    if (after && after.parentElement === host) {
+      after.insertAdjacentElement('afterend', btn);
+    } else {
+      host.appendChild(btn);
+    }
+  } catch (e) {
+    // ignore
+  }
+}
 // =====================
 // 🏆 Vinnare-block (ovanför kupongerna)
 // =====================
@@ -6516,21 +7247,49 @@ function ensureWinnerSummarySection() {
   section = document.createElement('section');
   section.id = 'winner-summary';
   section.className = 'winner-summary';
-  section.hidden = true;
+  section.hidden = false;
 
   const inner = document.createElement('div');
   inner.className = 'winner-summary-inner';
 
-  const title = document.createElement('div');
-  title.className = 'winner-summary-title';
-  title.textContent = 'Vinnare';
+  const titleRow = document.createElement('div');
+titleRow.className = 'winner-summary-title-row';
 
-  const list = document.createElement('div');
-  list.id = 'winner-summary-list';
-  list.className = 'winner-summary-list';
+const title = document.createElement('div');
+title.className = 'winner-summary-title';
+title.textContent = 'Vinnare';
 
-  inner.appendChild(title);
-  inner.appendChild(list);
+const editBtn = document.createElement('button');
+editBtn.type = 'button';
+editBtn.className = 'winner-edit-toggle';
+editBtn.textContent = 'Ändra';
+editBtn.addEventListener('click', () => {
+  const ed = document.getElementById('winner-edit');
+  if (!ed) return;
+  const isHidden = ed.hasAttribute('hidden');
+  if (isHidden) {
+    ed.removeAttribute('hidden');
+    try { renderWinnerEditor(); } catch(e) {}
+  } else {
+    ed.setAttribute('hidden','');
+  }
+});
+
+titleRow.appendChild(title);
+titleRow.appendChild(editBtn);
+
+const list = document.createElement('div');
+list.id = 'winner-summary-list';
+list.className = 'winner-summary-list';
+
+const edit = document.createElement('div');
+edit.id = 'winner-edit';
+edit.className = 'winner-edit';
+edit.setAttribute('hidden','');
+
+inner.appendChild(titleRow);
+inner.appendChild(list);
+inner.appendChild(edit);
   section.appendChild(inner);
 
   const bigBlock = document.querySelector('.big-block');
@@ -6547,18 +7306,110 @@ function ensureWinnerSummarySection() {
   return section;
 }
 
+function renderWinnerEditor() {
+  const wrap = document.getElementById('winner-edit');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+
+  if (!divisions || !divisions.length) {
+    const p = document.createElement('div');
+    p.className = 'winner-edit-empty';
+    p.textContent = 'Inget lopp laddat ännu.';
+    wrap.appendChild(p);
+    return;
+  }
+
+  divisions.forEach((div) => {
+    const avd = Number(div.index);
+    if (!Number.isFinite(avd) || avd <= 0) return;
+
+    const row = document.createElement('div');
+    row.className = 'winner-edit-row';
+
+    const lab = document.createElement('div');
+    lab.className = 'winner-edit-label';
+    lab.textContent = `Avd ${avd}`;
+
+    const sel = document.createElement('select');
+    sel.className = 'winner-edit-select';
+
+    const opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = '—';
+    sel.appendChild(opt0);
+
+    const horses = Array.isArray(div.horses) ? div.horses : [];
+    const nums = horses
+      .map((h) => Number(h.number))
+      .filter((n) => Number.isFinite(n) && n > 0)
+      .sort((a, b) => a - b);
+
+    nums.forEach((n) => {
+      const o = document.createElement('option');
+      o.value = String(n);
+      const nm = (horses.find((h) => Number(h.number) === n)?.name) || '';
+      o.textContent = nm ? `${n} ${nm}` : String(n);
+      sel.appendChild(o);
+    });
+
+    const cur = manualWinners && manualWinners[String(avd)] ? Number(manualWinners[String(avd)]) : NaN;
+    if (Number.isFinite(cur) && cur > 0) sel.value = String(cur);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'winner-edit-save';
+    btn.textContent = 'Spara';
+    btn.addEventListener('click', () => {
+      const v = sel.value;
+      setManualWinner(avd, v ? Number(v) : NaN);
+    });
+
+    const clr = document.createElement('button');
+    clr.type = 'button';
+    clr.className = 'winner-edit-clear';
+    clr.textContent = 'Rensa';
+    clr.addEventListener('click', () => {
+      sel.value = '';
+      setManualWinner(avd, NaN);
+    });
+
+    row.appendChild(lab);
+    row.appendChild(sel);
+    row.appendChild(btn);
+    row.appendChild(clr);
+    wrap.appendChild(row);
+  });
+
+  const hint = document.createElement('div');
+  hint.className = 'winner-edit-hint';
+  hint.textContent = 'Tips: Manuella vinnare sparas i webbläsaren (localStorage) för just detta spel.';
+  wrap.appendChild(hint);
+}
+
 function updateWinnerSummaryUI() {
   const section = ensureWinnerSummarySection();
   const list = document.getElementById('winner-summary-list');
   if (!list) return;
 
-  const results = (game && game.results) ? game.results : null;
-  const keys = results ? Object.keys(results) : [];
-  const hasAny = keys.some((k) => Number(results[k]) > 0);
+  // kombinera backend-vinnare med manuella vinnare (manuell vinner över backend)
+const results = (game && game.results) ? game.results : null;
+const combined = {};
+if (results && typeof results === 'object') {
+  Object.keys(results).forEach((k) => { combined[String(k)] = Number(results[k]); });
+}
+if (manualWinners && typeof manualWinners === 'object') {
+  Object.keys(manualWinners).forEach((k) => { combined[String(k)] = Number(manualWinners[k]); });
+}
+const keys = Object.keys(combined);
+const hasAny = keys.some((k) => Number(combined[k]) > 0);
 
   if (!hasAny) {
-    section.hidden = true;
+    section.hidden = false;
     list.innerHTML = '';
+    const empty = document.createElement('div');
+    empty.className = 'winner-empty';
+    empty.textContent = 'Inga vinnare hämtade ännu. Du kan lägga in manuellt.';
+    list.appendChild(empty);
     return;
   }
 
@@ -6570,12 +7421,13 @@ function updateWinnerSummaryUI() {
 
   list.innerHTML = '';
 
-  avds.forEach((avd) => {
-    const winnerNum = Number(results[String(avd)]);
+  
+avds.forEach((avd) => {
+    const winnerNum = getWinnerNumber(avd);
     if (!Number.isFinite(winnerNum) || winnerNum <= 0) return;
 
     let horseName = '';
-    const div = divisions[avd - 1];
+    const div = findDivisionByIndex(avd);
     if (div && Array.isArray(div.horses)) {
       const found = div.horses.find((h) => Number(h.number) === winnerNum);
       if (found) horseName = found.name || '';
@@ -6589,3 +7441,347 @@ function updateWinnerSummaryUI() {
 
   section.hidden = list.children.length === 0;
 }
+
+// ------------------
+// Vinnarprognos
+// ------------------
+
+function renderWinnerPredictions() {
+  if (!predictOutput) return;
+
+  if (!Array.isArray(divisions) || divisions.length === 0) {
+    predictOutput.innerHTML = '<div class="predict-empty">Ingen speldata laddad.</div>';
+    return;
+  }
+
+  // Försök hitta centrala kolumner från headern (finns när man klistrat in hästtabellen)
+  const col = buildHeaderIndexMap(headerColumns || []);
+
+  const rows = [];
+  for (const div of divisions) {
+    if (!div || !Array.isArray(div.horses) || div.horses.length === 0) continue;
+
+    const preds = predictDivisionWinners(div, col);
+    rows.push(renderPredictionDivision(div, preds));
+  }
+
+  if (rows.length === 0) {
+    predictOutput.innerHTML = '<div class="predict-empty">Inga avdelningar med hästar hittades.</div>';
+    return;
+  }
+
+  predictOutput.innerHTML = rows.join('');
+}
+
+function renderPredictionDivision(div, preds) {
+  const avdLabel = `Avd ${div.index}`;
+  if (!preds || preds.length === 0) {
+    return `
+      <div class="predict-division">
+        <div class="predict-division-header">${escapeHtml(avdLabel)}</div>
+        <div class="predict-empty">Kunde inte räkna ut prognos (saknar data).</div>
+      </div>
+    `;
+  }
+
+  const top = preds[0];
+  const top3 = preds.slice(0, 3);
+
+  const reasons = top.reasons && top.reasons.length
+    ? top.reasons.map((r) => `<span class="predict-pill">${escapeHtml(r)}</span>`).join('')
+    : '';
+
+  const top3Html = top3
+    .map((p, i) => {
+      const pct = Math.round(p.prob * 100);
+      return `<div>${i + 1}) <strong>${escapeHtml(p.label)}</strong> <span class="predict-prob">${pct}%</span></div>`;
+    })
+    .join('');
+
+  const topPct = Math.round(top.prob * 100);
+
+  return `
+    <div class="predict-division">
+      <div class="predict-division-header">${escapeHtml(avdLabel)}</div>
+      <div class="predict-winner">
+        <div class="predict-winner-name">${escapeHtml(top.label)}</div>
+        <div class="predict-winner-sub">Prognos: <strong>${topPct}%</strong></div>
+        ${reasons ? `<div class="predict-reasons">${reasons}</div>` : ''}
+      </div>
+      <div class="predict-top3">${top3Html}</div>
+    </div>
+  `;
+}
+
+function predictDivisionWinners(div, colIndex) {
+  const horses = div.horses || [];
+
+  // filtrera bort strukna om de förekommer i texten
+  const usable = horses.filter((h) => {
+    const t = String(h.tipComment || h.statsComment || h.rawLine || '').toLowerCase();
+    return !t.includes('struken');
+  });
+  if (usable.length === 0) return [];
+
+  // För scaling inom avdelningen
+  const points = usable
+    .map((h) => getNumericFromHorse(h, colIndex, ['poäng', 'poang', 'poäng']))
+    .filter((n) => Number.isFinite(n));
+  const maxPoints = points.length ? Math.max(...points) : null;
+  const minPoints = points.length ? Math.min(...points) : null;
+
+  const maxSp = Math.max(usable.length, ...usable.map((h) => Number(h.number) || 0));
+
+  const scored = usable.map((horse) => {
+    const feat = extractHorseFeaturesForPrediction(horse, colIndex);
+
+    // normaliserade komponenter (0..1)
+    const market = Number.isFinite(feat.impliedProb) ? clamp(feat.impliedProb, 0, 1) : 0;
+    const pop = Number.isFinite(feat.vPct) ? clamp(feat.vPct / 100, 0, 1) : 0;
+    const win = Number.isFinite(feat.winPct) ? clamp(feat.winPct / 100, 0, 1) : 0;
+    const place = Number.isFinite(feat.placePct) ? clamp(feat.placePct / 100, 0, 1) : 0;
+    const sp = Number.isFinite(feat.spår) ? feat.spår : null;
+    const pos = sp ? clamp((maxSp - sp + 1) / maxSp, 0, 1) : 0.5;
+
+    let pointsScaled = 0;
+    if (Number.isFinite(feat.points) && Number.isFinite(maxPoints) && Number.isFinite(minPoints) && maxPoints !== minPoints) {
+      pointsScaled = clamp((feat.points - minPoints) / (maxPoints - minPoints), 0, 1);
+    } else if (Number.isFinite(feat.points) && Number.isFinite(maxPoints) && maxPoints > 0) {
+      pointsScaled = clamp(feat.points / maxPoints, 0, 1);
+    }
+
+    const tip = clamp((feat.tipScore + 2) / 4, 0, 1); // tipScore i [-2..2]
+    const trend = Number.isFinite(feat.trend) ? clamp(feat.trend / 5 + 0.5, 0, 1) : 0.5;
+
+    // viktning (enkelt, men stabilt)
+    const w_market = 3.0;
+    const w_pop = 1.4;
+    const w_win = 0.8;
+    const w_place = 0.4;
+    const w_points = 0.6;
+    const w_pos = 0.4;
+    const w_tip = 0.7;
+    const w_trend = 0.2;
+
+    const score =
+      w_market * market +
+      w_pop * Math.sqrt(pop) +
+      w_win * win +
+      w_place * place +
+      w_points * pointsScaled +
+      w_pos * pos +
+      w_tip * tip +
+      w_trend * trend;
+
+    const reasons = buildPredictionReasons(feat);
+
+    return {
+      horse,
+      label: feat.label,
+      score,
+      reasons,
+    };
+  });
+
+  // softmax till sannolikheter
+  const probs = softmax(scored.map((s) => s.score));
+  scored.forEach((s, i) => (s.prob = probs[i]));
+
+  scored.sort((a, b) => b.prob - a.prob);
+  return scored;
+}
+
+function extractHorseFeaturesForPrediction(horse, colIndex) {
+  // label
+  const name = horse.name || '';
+  const driver = horse.driver || '';
+  const num = Number(horse.number) || NaN;
+  const label = `${Number.isFinite(num) ? num + ' ' : ''}${name}${driver ? ' – ' + driver : ''}`.trim();
+
+  // odds/percent
+  const vPct = getNumericFromHorse(horse, colIndex, ['v85%', 'v%', 'v86%', 'v75%', 'v64%']);
+  const vOdds = getNumericFromHorse(horse, colIndex, ['v-odds', 'v odds', 'vodds']);
+  const pOdds = getNumericFromHorse(horse, colIndex, ['p-odds', 'p odds', 'podds']);
+
+  const impliedProb = Number.isFinite(vOdds) && vOdds > 0
+    ? 1 / vOdds
+    : (Number.isFinite(pOdds) && pOdds > 0 ? 1 / pOdds : NaN);
+
+  const winPct = getNumericFromHorse(horse, colIndex, ['seger%', 'seger %', 'segerprocent']);
+  const placePct = getNumericFromHorse(horse, colIndex, ['plats%', 'plats %', 'platsprocent']);
+  const points = getNumericFromHorse(horse, colIndex, ['poäng', 'poang', 'poäng ']);
+  const trend = getNumericFromHorse(horse, colIndex, ['trend%', 'trend %', 'trend']);
+
+  // spår
+  let spår = NaN;
+  const distSp = getTextFromHorse(horse, colIndex, ['distans & spår', 'distans', 'spår']);
+  if (distSp) {
+    const m = String(distSp).match(/:\s*(\d+)/);
+    if (m) spår = Number(m[1]);
+  }
+
+  // tips/stats comment score
+  const tipText = String(horse.tipComment || getTextFromHorse(horse, colIndex, ['tipskommentar']) || '');
+  const statsText = String(horse.statsComment || getTextFromHorse(horse, colIndex, ['statistikkommentar']) || '');
+  const combined = `${tipText} ${statsText}`.trim();
+  const tipScore = scoreTipText(combined);
+
+  return {
+    label,
+    vPct,
+    vOdds,
+    impliedProb,
+    winPct,
+    placePct,
+    points,
+    trend,
+    spår,
+    tipScore,
+    tipText,
+    statsText,
+  };
+}
+
+function buildPredictionReasons(feat) {
+  const reasons = [];
+
+  if (Number.isFinite(feat.vPct)) reasons.push(`V% ${fmtPct(feat.vPct)}`);
+  if (Number.isFinite(feat.vOdds)) reasons.push(`V-odds ${fmtNum(feat.vOdds)}`);
+  if (Number.isFinite(feat.winPct)) reasons.push(`Seger% ${fmtPct(feat.winPct)}`);
+  if (Number.isFinite(feat.placePct)) reasons.push(`Plats% ${fmtPct(feat.placePct)}`);
+  if (Number.isFinite(feat.spår)) reasons.push(`Spår ${feat.spår}`);
+  if (feat.tipScore >= 1.3) reasons.push('Positiv tipstext');
+  if (feat.tipScore <= -1.3) reasons.push('Negativ tipstext');
+
+  return reasons.slice(0, 6);
+}
+
+function scoreTipText(txt) {
+  const t = String(txt || '').toLowerCase();
+  if (!t) return 0;
+
+  let s = 0;
+
+  // positiva
+  const pos = [
+    'tipsetta',
+    'bra chans',
+    'trolig',
+    'segerbud',
+    'spetsbud',
+    'tippas kunna nå ledning',
+    'snabb ut',
+    'startsnabb',
+    'leder runt om',
+    'vann väldigt enkelt',
+    'högkapabel',
+    'toppform',
+    'stark',
+    'bör räknas',
+    'givet',
+    'intressant',
+    'utmanar',
+  ];
+  const neg = [
+    'galopp',
+    'osäker',
+    'bortlottad',
+    'svårt läge',
+    'tufft',
+    'vinner sällan',
+    'behöver loppet',
+    'inte som bäst',
+    'inte helt borta',
+    'bara om',
+    'plats i första hand',
+    'svårt',
+    'nja',
+  ];
+
+  for (const p of pos) {
+    if (t.includes(p)) s += 0.35;
+  }
+  for (const n of neg) {
+    if (t.includes(n)) s -= 0.35;
+  }
+
+  // mild clamps
+  return clamp(s, -2, 2);
+}
+
+function buildHeaderIndexMap(cols) {
+  const map = {};
+  for (let i = 0; i < cols.length; i++) {
+    const raw = String(cols[i] || '');
+    const key = normalizeHeaderLabel(raw);
+    if (key && map[key] === undefined) map[key] = i;
+  }
+  return map;
+}
+
+function normalizeHeaderLabel(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/\u00e5/g, 'a')
+    .replace(/\u00e4/g, 'a')
+    .replace(/\u00f6/g, 'o')
+    .trim();
+}
+
+function getTextFromHorse(horse, colIndex, keys) {
+  const line = horse.rawLine;
+  if (!line || !Array.isArray(headerColumns) || headerColumns.length === 0) return '';
+  const cols = parseLineColumns(line, headerColumns.length);
+  for (const k of keys) {
+    const idx = colIndex[normalizeHeaderLabel(k)];
+    if (idx !== undefined && idx >= 0 && idx < cols.length) {
+      const v = cols[idx];
+      if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+    }
+  }
+  return '';
+}
+
+function getNumericFromHorse(horse, colIndex, keys) {
+  const txt = getTextFromHorse(horse, colIndex, keys);
+  if (!txt) return NaN;
+  return parseLooseNumber(txt);
+}
+
+function parseLooseNumber(v) {
+  const s = String(v || '')
+    .replace(/\s+/g, '')
+    .replace(/,/g, '.')
+    .replace(/%/g, '')
+    .trim();
+
+  // om det finns bokstav (M/K) i rekord etc, försök hämta första numret
+  const m = s.match(/-?\d+(?:\.\d+)?/);
+  if (!m) return NaN;
+  return Number(m[0]);
+}
+
+function softmax(arr) {
+  if (!arr || arr.length === 0) return [];
+  const max = Math.max(...arr);
+  const exps = arr.map((x) => Math.exp(x - max));
+  const sum = exps.reduce((a, b) => a + b, 0) || 1;
+  return exps.map((e) => e / sum);
+}
+
+function clamp(n, a, b) {
+  return Math.max(a, Math.min(b, n));
+}
+
+function fmtPct(n) {
+  if (!Number.isFinite(n)) return '-';
+  return `${Math.round(n)}%`;
+}
+
+function fmtNum(n) {
+  if (!Number.isFinite(n)) return '-';
+  const x = Math.round(n * 100) / 100;
+  return String(x).replace(/\./g, ',');
+}
+

@@ -548,8 +548,6 @@ router.post('/:id/stallsnack/fetch', async (req, res) => {
 	      }
 	      divTagRe.lastIndex = 0;
 	    }
-	    const sliceHasPerDivision = Object.keys(divisionTexts).some(k => String(k) !== '0');
-	    const useEntryBuckets = (!sliceHasPerDivision && Object.values(divisionEntryBuckets).some(arr => (arr || []).length > 0));
 
     // Skapa mapping per avdelning och hästnummer
     const stallsnack = {
@@ -562,18 +560,20 @@ router.post('/:id/stallsnack/fetch', async (req, res) => {
     for (let i = 1; i <= divisionCount; i++) {
       const division = game.parsedHorseInfo?.divisions?.[i - 1];
       const horses = division?.horses || [];
-	      let divText = '';
-	      let sentences = [];
-	      if (useEntryBuckets) {
-	        // Ny logik: hämta bara hästtexter som faktiskt innehåller "V85-i".
-	        const entries = divisionEntryBuckets[i] || [];
-	        divText = entries.join('\n');
-	        sentences = entries;
-	      } else {
-	        divText = divisionTexts[String(i)] || divisionTexts['0'] || '';
-	        sentences = splitIntoSentences(divText);
-	      }
-	      const divTextFold = foldForLooseMatch(divText);
+      let divText = '';
+      let sentences = [];
+
+      // Använd bucket-entries per avdelning när de finns (minskar nummerkrockar), annars fall tillbaka på sliceDivisionText
+      const entries = (divisionEntryBuckets[i] || []).filter(Boolean);
+      if (entries.length) {
+        divText = entries.join('\n');
+        sentences = entries;
+      } else {
+        divText = divisionTexts[String(i)] || divisionTexts['0'] || '';
+        sentences = splitIntoSentences(divText);
+      }
+
+      const divTextFold = foldForLooseMatch(divText);
       const divObj = { rawText: divText, horses: {} };
 
       // Indexera meningar per hästnummer – och behåll även "fortsättningsrader"

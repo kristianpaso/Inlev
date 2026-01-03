@@ -1422,27 +1422,32 @@ body.reverse-mode-active .coupon-card {
 
 
 /* Favorit i loppet (högst V%-häst) i kupong-översikten */
-/*.favourite-number {
-    padding: 0 3px;
-    border-radius: 4px;
-    border: 1px solid #fbbf24;
-    background: #fbbf24;
-      color: #000000;
-    box-shadow: 0 0 0 1px #111827;
-}*/
+
+
+.favourite-number {
+  padding: 0 3px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.35);
+  background: #e11d48; /* röd */
+  color: #ffffff;
+  box-shadow: 0 0 0 1px #111827;
+  font-weight: 800;
+}
 
 .favourite-number-coupon {
-    padding: 0 3px;
-    border-radius: 4px;
-    border: 1px solid #fbbf24;
-    background: #fbbf24;
-      color: #000000;
-    box-shadow: 0 0 0 1px #111827;
+  padding: 0 3px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.35);
+  background: #e11d48; /* röd */
+  color: #ffffff;
+  box-shadow: 0 0 0 1px #111827;
+  font-weight: 800;
 }
 
 /* Andrahandsfavorit (näst högst V%) på kuponger */
 .second-favourite-number {
-    color: #ff00dd;
+  color: #c084fc; /* lila */
+  font-weight: 800;
 }
 
 
@@ -1895,4 +1900,297 @@ body.fill-mode-active .coupon-card {
   color:#fff;
   opacity:0.9;
   text-decoration: underline;
+}
+
+
+/* ===============================
+   Bästa raden (förslag)
+   =============================== */
+.coupon-suggestions .best-row-suggestion{
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: rgba(0,0,0,0.14);
+}
+.best-row-metrics{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  font-size: 12px;
+  opacity: 0.92;
+  margin-top: 6px;
+}
+.best-row-actions{
+  display:flex;
+  gap:8px;
+  margin-top: 10px;
+}
+.best-row-details{
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.best-row-details summary{
+  cursor:pointer;
+}
+
+
+/* ===========================
+   Simulering modal (ovalbana)
+   =========================== */
+.sim-overlay{
+  position:fixed;
+  inset:0;
+  background: rgba(0,0,0,.55);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index: 9999;
+  padding: 16px;
+}
+.sim-overlay[hidden]{ display:none !important; }
+
+.sim-modal{
+  width: min(1200px, 100%);
+  max-height: min(780px, 100%);
+  background: rgba(10,14,25,.96);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 18px;
+  box-shadow: 0 18px 60px rgba(0,0,0,.55);
+  overflow: hidden; /* inga scrollbars */
+  display:flex;
+  flex-direction:column;
+}
+.sim-header{
+  padding: 14px 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.sim-title{ font-size: 18px; font-weight: 900; }
+.sim-subtitle{ font-size: 12px; opacity:.8; margin-top:2px; }
+.sim-close{
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color:#fff;
+  cursor:pointer;
+}
+.sim-close:hover{ background: rgba(255,255,255,.10); }
+
+.sim-body{
+  display:grid;
+  grid-template-columns: 420px 1fr;
+  gap: 14px;
+  padding: 14px;
+  min-height: 0;
+  flex: 1;
+}
+@media (max-width: 980px){
+  .sim-body{ grid-template-columns: 1fr; }
+}
+
+.sim-left, .sim-right{ min-height:0; overflow:hidden; }
+.sim-inputs{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.sim-field span{ display:block; font-size: 12px; opacity:.8; margin-bottom:6px; }
+.sim-field input{
+  width:100%;
+  padding: 10px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.05);
+  color:#fff;
+  outline:none;
+}
+.sim-actions{ display:flex; gap: 10px; margin-top: 10px; }
+.sim-tabs{ display:flex; gap: 8px; margin-top: 12px; }
+.sim-tab{
+  flex: 1;
+  padding: 10px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.05);
+  color:#fff;
+  cursor:pointer;
+  font-weight: 800;
+}
+.sim-tab.active{ background: rgba(255,255,255,.12); }
+
+.sim-section-title{ font-weight: 900; font-size: 13px; opacity:.9; margin-top: 4px; }
+.sim-top3 .row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding: 9px 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  background: rgba(255,255,255,.03);
+  margin-top: 8px;
+}
+.sim-top3 .left{ display:flex; align-items:center; gap: 8px; min-width: 0; }
+.sim-pill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width: 30px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.10);
+  font-weight: 900;
+  font-size: 12px;
+}
+.sim-log{
+  white-space: pre-wrap;
+  padding: 10px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  max-height: 130px;
+  overflow: hidden; /* ingen scroll */
+  display: -webkit-box;
+  -webkit-line-clamp: 7;
+  -webkit-box-orient: vertical;
+}
+
+.sim-history-wrap{ margin-top: 10px; }
+.sim-history-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.sim-history{ display:flex; flex-wrap:wrap; gap:6px; }
+.sim-win-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  font-weight:900;
+  font-size: 12px;
+}
+.sim-history-meta{ margin-top:6px; opacity:.75; font-size:12px; }
+
+/* Alla avdelningar – kompakt grid (ingen scroll) */
+.sim-all-results{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+.sim-all-card{
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  background: rgba(255,255,255,.03);
+  padding: 10px 10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+}
+.sim-all-left{ min-width: 0; }
+.sim-all-title{ font-weight: 900; }
+.sim-all-sub{ font-size: 12px; opacity:.8; margin-top:2px; }
+.sim-all-right{ display:flex; align-items:center; gap: 8px; }
+.sim-all-win{
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  font-weight: 900;
+  font-size: 12px;
+}
+.sim-footnote{
+  padding: 10px 14px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  font-size: 12px;
+  opacity: .75;
+}
+
+/* Canvas */
+.sim-canvas-wrap{
+  width:100%;
+  height:100%;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: radial-gradient(ellipse at center, rgba(255,255,255,.06), rgba(255,255,255,.02));
+  overflow:hidden;
+}
+#sim-canvas{
+  width:100%;
+  height:100%;
+  display:block;
+}
+
+/* ta bort scrollbars om någon ändå blir */
+.sim-modal, .sim-modal * { scrollbar-width: none; }
+.sim-modal::-webkit-scrollbar, .sim-modal *::-webkit-scrollbar { display:none; }
+
+/* Manuella vinnare */
+.winner-summary-title-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.winner-edit-toggle{
+  border:1px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.06);
+  color:#fff;
+  border-radius:10px;
+  padding:6px 10px;
+  font-size:12px;
+  cursor:pointer;
+}
+.winner-edit{
+  margin-top:10px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:10px;
+  border-radius:12px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);
+}
+.winner-edit-row{
+  display:grid;
+  grid-template-columns:72px 1fr auto auto;
+  gap:8px;
+  align-items:center;
+}
+.winner-edit-label{
+  font-size:12px;
+  opacity:.9;
+}
+.winner-edit-select{
+  width:100%;
+  border-radius:10px;
+  padding:7px 10px;
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(0,0,0,.25);
+  color:#fff;
+}
+.winner-edit-save,
+.winner-edit-clear{
+  border:1px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.06);
+  color:#fff;
+  border-radius:10px;
+  padding:6px 10px;
+  font-size:12px;
+  cursor:pointer;
+}
+.winner-edit-hint{
+  opacity:.7;
+  font-size:11px;
+  margin-top:2px;
 }
