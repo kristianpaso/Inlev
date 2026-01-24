@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b1a2e"/>
+      <stop offset="0.45" stop-color="#143a52"/>
+      <stop offset="1" stop-color="#08101d"/>
+    </linearGradient>
+    <linearGradient id="mist" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="rgba(255,255,255,0.00)"/>
+      <stop offset="0.55" stop-color="rgba(255,255,255,0.08)"/>
+      <stop offset="1" stop-color="rgba(255,255,255,0.14)"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+
+  <!-- sky -->
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+
+  <!-- stars -->
+  <g opacity="0.55">
+    <circle cx="160" cy="120" r="2" fill="#e8f4ff"/>
+    <circle cx="420" cy="90" r="1.5" fill="#e8f4ff"/>
+    <circle cx="760" cy="160" r="2" fill="#e8f4ff"/>
+    <circle cx="1100" cy="110" r="1.6" fill="#e8f4ff"/>
+    <circle cx="1460" cy="150" r="2.2" fill="#e8f4ff"/>
+    <circle cx="1760" cy="90" r="1.4" fill="#e8f4ff"/>
+    <circle cx="980" cy="70" r="1.2" fill="#e8f4ff"/>
+    <circle cx="1320" cy="60" r="1.1" fill="#e8f4ff"/>
+    <circle cx="300" cy="220" r="1.1" fill="#e8f4ff"/>
+    <circle cx="1680" cy="240" r="1.2" fill="#e8f4ff"/>
+  </g>
+
+  <!-- distant mountains -->
+  <path d="M0 640 L240 520 L420 600 L640 470 L820 560 L980 500 L1180 600 L1400 480 L1580 580 L1760 520 L1920 610 L1920 1080 L0 1080 Z"
+        fill="#0b2a3a" opacity="0.85"/>
+  <path d="M0 700 L220 610 L420 690 L610 600 L820 720 L990 620 L1210 740 L1420 610 L1620 710 L1820 640 L1920 690 L1920 1080 L0 1080 Z"
+        fill="#082232" opacity="0.9"/>
+
+  <!-- forest silhouette -->
+  <g fill="#061a22" opacity="0.95">
+    <path d="M0 840 C140 770 220 770 340 840 C460 910 560 910 700 840 C820 770 930 770 1060 840 C1190 910 1310 910 1460 840 C1610 770 1740 770 1920 850 L1920 1080 L0 1080 Z"/>
+    <path d="M120 870 l30-90 30 90h-18l18 60h-60l18-60z" opacity="0.7"/>
+    <path d="M320 900 l34-110 34 110h-20l20 70h-68l20-70z" opacity="0.65"/>
+    <path d="M1580 900 l34-110 34 110h-20l20 70h-68l20-70z" opacity="0.65"/>
+    <path d="M1760 880 l30-90 30 90h-18l18 60h-60l18-60z" opacity="0.7"/>
+  </g>
+
+  <!-- ruins glow (subtle) -->
+  <g opacity="0.55" filter="url(#soft)">
+    <circle cx="520" cy="720" r="120" fill="#36d1a8" opacity="0.15"/>
+    <circle cx="1440" cy="700" r="140" fill="#caa35b" opacity="0.12"/>
+  </g>
+
+  <!-- mist -->
+  <rect y="520" width="1920" height="560" fill="url(#mist)"/>
+</svg>

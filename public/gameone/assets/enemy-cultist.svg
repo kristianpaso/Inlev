@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="0 0 360 360">
+  <defs>
+    <linearGradient id="cloth" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b2533e"/>
+      <stop offset="1" stop-color="#6b2d22"/>
+    </linearGradient>
+    <linearGradient id="jacket" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d3a55"/>
+      <stop offset="1" stop-color="#24223a"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <!-- body -->
+    <path d="M120 150 q60-60 120 0 q22 22 12 60 l-18 116 q-3 20-22 20h-64q-19 0-22-20l-18-116q-10-38 12-60z" fill="url(#jacket)"/>
+    <!-- scarf -->
+    <path d="M130 188 q50-30 100 0 q-18 22-50 26 q-32-4-50-26z" fill="url(#cloth)"/>
+    <!-- head -->
+    <circle cx="180" cy="140" r="44" fill="#f0d0b8"/>
+    <!-- mask (friendly, not scary) -->
+    <path d="M145 132 q35-30 70 0 q-10 30-35 34 q-25-4-35-34z" fill="#f3f2ee"/>
+    <circle cx="165" cy="140" r="5" fill="#1a2a3a"/>
+    <circle cx="195" cy="140" r="5" fill="#1a2a3a"/>
+    <path d="M168 156 q12 10 24 0" stroke="#c6b6a8" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <!-- dagger -->
+    <path d="M252 250 l18 6 -54 138 -18-6z" fill="#2a3a48"/>
+    <rect x="242" y="246" width="30" height="16" rx="6" fill="#caa35b"/>
+  </g>
+</svg>

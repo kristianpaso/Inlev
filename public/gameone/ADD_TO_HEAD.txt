@@ -1,0 +1,2 @@
+<!-- ADD THIS LINE AFTER style.css -->
+<link rel="stylesheet" href="./layout-hotfix.css" />

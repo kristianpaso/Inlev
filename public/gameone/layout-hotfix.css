@@ -1,0 +1,134 @@
+
+/* Layout hotfix: place fighters + HP bars inside centered battle box and move castbar under it */
+
+:root{
+  --battle-w: min(1060px, 72vw);
+  --battle-h: min(520px, 58vh);
+  --battle-y: calc(10px + 64px + 34px); /* approx below topbar */
+}
+
+/* Optional (set to 1 to debug the battle box) */
+:root{ --battle-debug: 0; }
+
+.panel-center::before{
+  content:"";
+  position: fixed;
+  left: 50%;
+  top: calc(var(--battle-y) + var(--battle-h)/2);
+  width: var(--battle-w);
+  height: var(--battle-h);
+  transform: translate(-50%, -50%);
+  border-radius: 18px;
+  background: rgba(0,0,0, calc(0.12 * var(--battle-debug)));
+  border: 2px solid rgba(40,120,255, calc(0.9 * var(--battle-debug)));
+  pointer-events: none;
+  z-index: 11;
+}
+
+/* Fighters inside the box */
+.fighter{
+  position: fixed !important;
+  top: calc(var(--battle-y) + 12px);
+  bottom: auto !important;
+  height: calc(var(--battle-h) - 20px);
+  width: min(520px, 40vw);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  z-index: 25;
+}
+.fighter.player{
+  left: calc(50% - var(--battle-w)/2 + 34px) !important;
+}
+.fighter.enemy{
+  right: calc(50% - var(--battle-w)/2 + 34px) !important;
+  left: auto !important;
+}
+.fighter img{
+  max-height: 100%;
+  width: auto;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  filter: drop-shadow(0 18px 30px rgba(0,0,0,.55));
+}
+
+/* HP bars above each fighter, inside the same box */
+.hud-bars{
+  position: fixed !important;
+  left: calc(50% - var(--battle-w)/2 + 26px) !important;
+  top: calc(var(--battle-y) + 10px) !important;
+  width: 290px !important;
+  z-index: 90;
+}
+.arena-header{
+  position: fixed !important;
+  right: calc(50% - var(--battle-w)/2 + 26px) !important;
+  left: auto !important;
+  top: calc(var(--battle-y) + 10px) !important;
+  width: 320px !important;
+  transform: none !important;
+  z-index: 90;
+  border-radius: 14px;
+}
+.arena-header .hpframe.player{ display:none !important; }
+
+/* Center battle text within box top */
+.battletext{
+  top: calc(var(--battle-y) + 10px) !important;
+  z-index: 95;
+}
+
+/* Move word/cast bar to directly under the box */
+.spellpreview{
+  position: fixed !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  top: calc(var(--battle-y) + var(--battle-h) + 12px) !important;
+  bottom: auto !important;
+  width: min(980px, 92vw) !important;
+  z-index: 95;
+}
+.castbar{
+  position: fixed !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  top: calc(var(--battle-y) + var(--battle-h) + 124px) !important;
+  bottom: auto !important;
+  width: min(980px, 92vw) !important;
+  z-index: 96;
+}
+
+/* Keep side panels as overlays */
+.panel-left{
+  left: 18px !important;
+  bottom: 18px !important;
+  z-index: 120;
+}
+.panel-right{
+  right: 18px !important;
+  top: calc(10px + 64px + 26px) !important;
+  z-index: 120;
+}
+
+/* Rewards modal stays centered */
+.panel-rewards{ z-index: 200; }
+
+@media (max-width: 980px){
+  :root{ --battle-w: min(980px, 92vw); --battle-h: min(460px, 52vh); --battle-y: calc(10px + 64px + 26px); }
+  .fighter{ width: 44vw; }
+  .hud-bars{ width: 240px !important; }
+  .arena-header{ width: min(360px, 46vw) !important; }
+  .spellpreview{ top: calc(var(--battle-y) + var(--battle-h) + 10px) !important; }
+  .castbar{ top: calc(var(--battle-y) + var(--battle-h) + 112px) !important; }
+}
+@media (max-width: 760px){
+  :root{ --battle-h: min(420px, 48vh); }
+  .spellpreview{ display:none !important; }
+  .castbar{ top: calc(var(--battle-y) + var(--battle-h) + 12px) !important; }
+}

@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mythic Explorer – Word Spells</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="wrap">
+
+    <header class="topbar">
+      <div class="top-icons left">
+        <button class="iconbtn" id="btn-new" title="Ny expedition"><img class="ico" src="./assets/ico-compass.svg" alt=""/></button>
+        <button class="iconbtn" id="btn-inventory" title="Ryggsäck"><img class="ico" src="./assets/ico-bag.svg" alt=""/></button>
+        <button class="iconbtn" id="btn-equip" title="Utrustning"><img class="ico" src="./assets/ico-gear.svg" alt=""/></button>
+      </div>
+
+      <div class="top-center">
+        <div class="game-title">MYTHIC EXPLORER</div>
+        <div class="top-stat"><span>Level:</span> <b id="ui-level">1</b></div>
+        <div class="top-stat"><span>XP:</span> <b id="ui-xp">0</b><span class="muted">/</span><b id="ui-xpmax">100</b></div>
+        <div class="top-stat"><span>Time:</span> <b id="ui-time">0:00</b></div>
+      </div>
+
+      
+      <div class="top-icons right">
+        <button class="topbtn" id="btn-save" type="button">Spara</button>
+        <button class="topbtn" id="btn-load" type="button">Ladda</button>
+        <button class="topbtn primary" id="btn-modes" type="button">Modes</button>
+        <button class="iconbtn" id="btn-help" title="Hjälp">?</button>
+      </div>
+
+      <div class="mode-meta" id="ui-mode-meta">Mode: –</div>
+</header>
+
+    <main class="layout">
+
+      <!-- LEFT (Inventory / Stats / Saved Words) -->
+<section class="panel panel-left">
+  <div class="panel-title">Inventory</div>
+  <div class="panel-pad">
+    <div class="inv-subtitle">Utrustning</div>
+    <div id="ui-eq-left" class="inv-list"></div>
+    <div class="divider"></div>
+    <div class="inv-subtitle">Ryggsäck</div>
+    <div id="ui-inv-left" class="inv-grid"></div>
+
+    <!-- Keep these buttons in DOM for existing bindings -->
+    <button class="hidden" id="btn-inventory2" type="button">Inventory</button>
+    <button class="hidden" id="btn-save2" type="button">Save Game</button>
+    <button class="inv-open" id="btn-open-inventory" type="button">Öppna inventory</button>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="panel-title">Stats</div>
+  <div class="statblock">
+    <div class="statline hp"><div class="label">HP:</div><div class="value"><span id="ui-hp">85</span> / <span id="ui-hpmax">85</span></div></div>
+    <div class="bar hp"><div id="ui-hpbar" class="fill"></div></div>
+
+    <div class="statline mana"><div class="label">Mana:</div><div class="value"><span id="ui-mana">8</span> / <span id="ui-manamax">8</span></div></div>
+    <div class="bar mana"><div id="ui-manabar" class="fill"></div></div>
+
+    <div class="smallstats">
+      <div><span>Attack:</span> <b id="ui-atk">10</b></div>
+      <div><span>Defense:</span> <b id="ui-def">5</b></div>
+      <div><span>Crit:</span> <b id="ui-crit">7%</b></div>
+      <div><span>Loot Bonus:</span> <b id="ui-loot">+0%</b></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="panel-title">Sparade ord</div>
+  <div class="panel-pad">
+    <div class="words" id="ui-words"></div>
+    <div class="words-hint">Du kan bara spara <b>3</b> ord.</div>
+  </div>
+</section>
+
+      <!-- CENTER ARENA -->
+      <section class="panel panel-center">
+<div class="hud-bars">
+          <div class="hudline">
+            <div class="hudtag">HP:</div>
+            <div class="hudval"><span id="ui-hp-hud">85</span>/<span id="ui-hpmax-hud">85</span></div>
+            <div class="hudmeter hp"><div id="ui-hpbar-hud" class="fill"></div></div>
+          </div>
+          <div class="hudline">
+            <div class="hudtag">MP:</div>
+            <div class="hudval"><span id="ui-mana-hud">8</span>/<span id="ui-manamax-hud">8</span></div>
+            <div class="hudmeter mp"><div id="ui-manabar-hud" class="fill"></div></div>
+          </div>
+        </div>
+
+        <div class="arena-header">
+          <div class="hpframe player">
+            <div class="hptext"><b>HP:</b> <span id="ui-hpcenter">85</span>/<span id="ui-hpmaxcenter">85</span></div>
+            <div class="bar big"><div id="ui-hpbarcenter" class="fill"></div></div>
+          </div>
+
+          <div class="hpframe enemy">
+            <div class="enemy-name">
+              <b id="ui-enemy-name">Goblin Warrior</b>
+              <span class="muted">• Resist:</span> <b id="ui-enemy-resist">Fire</b>
+            </div>
+            <div class="hptext"><span id="ui-ehp">70</span>/<span id="ui-ehpmax">70</span></div>
+            <div class="bar big enemy"><div id="ui-ehpbar" class="fill"></div></div>
+          </div>
+        </div>
+
+        <div class="arena">
+          <div class="torch left"></div>
+          <div class="torch right"></div>
+
+          <div class="fighter player" id="playerBox">
+            <img id="playerSprite" src="./assets/player_f_0.png" alt="Player">
+            <div class="float-layer" id="float-player"></div>
+          </div>
+
+          <div class="fighter enemy" id="enemyBox">
+            <img id="enemySprite" src="./assets/enemy-mosskuggan.png" alt="Enemy">
+            <div class="float-layer" id="float-enemy"></div>
+          </div>
+
+          <div class="battletext" id="ui-battletext">Skriv ett ord och kasta en besvärjelse!</div>
+        </div>
+
+        <div class="castbar">
+          <div class="castlabel">Cast Words:</div>
+          <input id="ui-input" placeholder="t.ex. BOLL eller BOLL GIFT SKÖLD" autocomplete="off" />
+          <button class="attackbtn" id="btn-attack">Attack!</button>
+        </div>
+
+        <div class="spellpreview" id="ui-spellpreview" aria-label="Spell preview">
+          <div class="spcard" data-role="0">
+            <div class="sp-top">
+              <div class="sp-role">Attack</div>
+              <div class="sp-badges">
+                <span class="badge" id="pv-elem-0">—</span>
+                <span class="badge dim" id="pv-dmg-0">DMG —</span>
+              </div>
+            </div>
+            <div class="sp-word" id="pv-word-0">Skriv ett ord…</div>
+            <div class="sp-sub" id="pv-sub-0">Element och skada visas här.</div>
+            <button class="sp-save" id="btn-saveword-0" type="button">Spara som Attack-ord</button>
+          </div>
+
+          <div class="spcard" data-role="1">
+            <div class="sp-top">
+              <div class="sp-role">DoT</div>
+              <div class="sp-badges">
+                <span class="badge" id="pv-elem-1">—</span>
+                <span class="badge dim" id="pv-dmg-1">DOT —</span>
+              </div>
+            </div>
+            <div class="sp-word" id="pv-word-1">Låses upp på Level 2</div>
+            <div class="sp-sub" id="pv-sub-1">Ex: Gift / Bränn / Frost.</div>
+            <button class="sp-save" id="btn-saveword-1" type="button">Spara som DoT-ord</button>
+          </div>
+
+          <div class="spcard" data-role="2">
+            <div class="sp-top">
+              <div class="sp-role">Buff</div>
+              <div class="sp-badges">
+                <span class="badge" id="pv-elem-2">—</span>
+                <span class="badge dim" id="pv-dmg-2">BUFF —</span>
+              </div>
+            </div>
+            <div class="sp-word" id="pv-word-2">Låses upp på Level 4</div>
+            <div class="sp-sub" id="pv-sub-2">Ex: Sköld / Regen / Rarity.</div>
+            <button class="sp-save" id="btn-saveword-2" type="button">Spara som Buff-ord</button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- RIGHT PANEL -->
+      <section class="panel panel-right">
+  <div class="side-block">
+    <div class="side-title">Välj Spelläge</div>
+    <button class="mode-tile side" id="btn-side-adventure" type="button">
+      <div class="mt-title">Äventyr</div>
+      <div class="mt-desc">10 rum • Boss var 5:e</div>
+      <div class="mt-meta"><span>Rekord:</span> <b id="best-adventure-side">–</b></div>
+    </button>
+    <button class="mode-tile side" id="btn-side-arena" type="button">
+      <div class="mt-title">Arena</div>
+      <div class="mt-desc">Vågor • Streak</div>
+      <div class="mt-meta"><span>Rekord:</span> <b id="best-arena-side">–</b></div>
+    </button>
+    <button class="mode-tile side" id="btn-side-training" type="button">
+      <div class="mt-title">Träningspass</div>
+      <div class="mt-desc">DPS test • Öva ord</div>
+      <div class="mt-meta"><span>Bästa DPS:</span> <b id="best-training-side">–</b></div>
+    </button>
+  </div>
+
+  <div class="side-block journal-block">
+    <div class="side-title">Journal</div>
+    <div class="rightbox" id="ui-rightbox">
+  <div class="journal-scene" id="ui-journal-scene">
+    Du vandrar längs en dimmig stig… något rör sig i ruinerna.
+  </div>
+
+  <div class="journal-sub">
+    <span class="pill">Nu</span>
+    <span id="ui-journal-now">Skriv ett ord och tryck Attack.</span>
+  </div>
+
+  <div class="journal-log" id="ui-journal-log" aria-live="polite"></div>
+  <div class="combatlog">
+    <div class="combatlog-title">Combat Log</div>
+    <div class="combatlog-list" id="ui-combatlog" aria-live="polite"></div>
+  </div>
+
+
+  <div class="journal-tip">
+    <b>Tips:</b> På <b>Level 2</b> kan du kasta <b>2 ord</b> (Attack + DoT). På <b>Level 4</b> kan du kasta <b>3 ord</b> (Attack + DoT + Buff).
+    <div class="muted" style="margin-top:6px">Du kan <b>chansa</b> genom att skriva nya ord. Hittar du något bra kan du <b>spara</b> det i dina sparade ord.</div>
+  </div>
+</div>
+
+  </div>
+</section>
+
+      <!-- BOTTOM LEFT: EQUIPMENT -->
+      <section class="panel panel-equip">
+        <div class="panel-title">Equipment</div>
+        <div class="equiplist" id="ui-equiplist"></div>
+      </section>
+
+      <!-- BOTTOM CENTER: DISCOVERY -->
+      <section class="panel panel-discovery">
+        <div class="panel-title">Discovery Trail</div>
+        <div class="discover-bar">
+          <div class="discover-fill" id="ui-discover"></div>
+          <div class="discover-glow" id="ui-discover-glow"></div>
+        </div>
+        <div class="discover-text muted">Chansa på nya ord för att fylla mätaren. Full mätare = bättre belöningar.</div>
+      </section>
+
+      <!-- BOTTOM RIGHT: REWARDS -->
+      <section class="panel panel-rewards">
+        <div class="panel-title">Treasure</div>
+        <div class="rewardslist" id="ui-rewards">
+          <div class="muted">Vinn en strid för att få belöningar.</div>
+        </div>
+      </section>
+    </main>
+
+    <!-- INVENTORY MODAL -->
+    <div class="modal hidden" id="modal">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div class="modal-title" id="modal-title">Inventory</div>
+          <button class="iconbtn" id="modal-close" title="Stäng">✕</button>
+        </div>
+        <div class="modal-body" id="modal-body"></div>
+      </div>
+    </div>
+
+    <!-- WORD REPLACE MODAL -->
+    <div class="modal hidden" id="wordmodal">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div class="modal-title">New Word Scroll</div>
+          <button class="iconbtn" id="wordmodal-close" title="Stäng">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="newword">
+            <div class="scroll">📜</div>
+            <div>
+              <div class="newword-name" id="ui-newword-name">BOLL</div>
+              <div class="muted" id="ui-newword-desc">Element: Fire • Power: 12</div>
+            </div>
+          </div>
+          <div class="muted" style="margin:10px 0 8px">Byt ut ett sparat ord:</div>
+          <div class="replacegrid" id="ui-replacegrid"></div>
+          <div class="modal-actions">
+            <button class="btn" id="btn-skipword">Skippa</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- Rewards modal (shown after a win) -->
+  <div id="panelRewards" class="panel panel-rewards hidden panel-rewards-modal"></div>
+
+  <script src="./game.js"></script>
+
+  <!-- Mode Select Screen -->
+  <div class="mode-screen" id="ui-mode-screen" aria-hidden="true">
+    <div class="mode-card">
+      <div class="mode-title">Välj spelläge</div>
+      <div class="mode-sub">Mythic Explorer • skriv ord • upptäck builds</div>
+
+      <div class="mode-grid">
+        <button class="mode-tile" id="btn-mode-adventure" type="button">
+          <div class="mt-title">Äventyr</div>
+          <div class="mt-desc">10 rum • Boss var 5:e • loot & uppgraderingar</div>
+          <div class="mt-meta"><span>Rekord:</span> <b id="best-adventure">–</b></div>
+        </button>
+
+        <button class="mode-tile" id="btn-mode-arena" type="button">
+          <div class="mt-title">Arena</div>
+          <div class="mt-desc">Oändliga vågor • streak • snabb belöning</div>
+          <div class="mt-meta"><span>Rekord:</span> <b id="best-arena">–</b></div>
+        </button>
+
+        <button class="mode-tile" id="btn-mode-training" type="button">
+          <div class="mt-title">Träningspass</div>
+          <div class="mt-desc">Testa ord • DPS/DoT-lab • ingen stress</div>
+          <div class="mt-meta"><span>Bästa DPS:</span> <b id="best-training">–</b></div>
+        </button>
+      </div>
+
+      <div class="mode-footer">
+        <div class="muted">Tips: Äventyr ger mest loot. Arena är för streak. Träning visar vad dina ord gör.</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Level Up Screen -->
+  <div class="levelup-screen" id="ui-levelup-screen" aria-hidden="true">
+    <div class="levelup-card">
+      <div class="levelup-title">Level Up!</div>
+      <div class="levelup-sub" id="ui-levelup-sub">Välj en uppgradering.</div>
+      <div class="levelup-grid" id="ui-levelup-choices"></div>
+      <div class="levelup-footer muted">Tips: olika val passar olika builds (element/DoT/buffs).</div>
+    </div>
+  </div>
+
+</body>
+</html>

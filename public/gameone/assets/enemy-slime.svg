@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="0 0 360 360">
+  <defs>
+    <radialGradient id="orb" cx="50%" cy="40%" r="60%">
+      <stop offset="0" stop-color="#e9fbff" stop-opacity="0.95"/>
+      <stop offset="0.55" stop-color="#7fe2ff" stop-opacity="0.65"/>
+      <stop offset="1" stop-color="#2b8db7" stop-opacity="0.25"/>
+    </radialGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g filter="url(#glow)">
+    <ellipse cx="180" cy="210" rx="86" ry="76" fill="url(#orb)"/>
+    <circle cx="158" cy="196" r="7" fill="#0a2434" opacity="0.8"/>
+    <circle cx="202" cy="196" r="7" fill="#0a2434" opacity="0.8"/>
+    <path d="M160 226 q20 18 40 0" stroke="#0a2434" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.55"/>
+    <!-- mist ribbons -->
+    <path d="M98 250 q50-30 92-10 q42 20 84-8" fill="none" stroke="#b8f1ff" stroke-width="12" stroke-linecap="round" opacity="0.35"/>
+    <path d="M110 274 q42-18 78-6 q44 16 86-14" fill="none" stroke="#b8f1ff" stroke-width="10" stroke-linecap="round" opacity="0.25"/>
+  </g>
+</svg>
