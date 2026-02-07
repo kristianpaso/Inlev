@@ -16,6 +16,7 @@
       <div class="topbar-actions">
         <button id="btn-new-game" class="btn primary">Skapa spel</button>
        <button id="btn-toggle-track-panel" class="btn">Skapa bana</button>
+        <button id="btn-new-analysis" class="btn">Skapa analys</button>
       </div>
     </header>
 
@@ -151,6 +152,16 @@ HÄST	KUSK	V85%	TREND%	DISTANS & SPÅR	STARTER I ÅR	VAGN	V-ODDS
   </div>
 </section>
 
+<section class="panel" id="analysis-panel" hidden>
+  <div class="panel-header">
+    <h2>Analyserade lopp</h2>
+    <span class="badge" id="analysis-count">0 analyser</span>
+  </div>
+
+  <div id="analysis-list" class="analysis-list"></div>
+</section>
+
+
       <!-- Höger: lista med spel -->
       <section class="panel panel-list">
         <div class="panel-header">
@@ -160,10 +171,73 @@ HÄST	KUSK	V85%	TREND%	DISTANS & SPÅR	STARTER I ÅR	VAGN	V-ODDS
         <div id="game-list-empty" class="empty-state">
           Inga spel skapade ännu. Klicka på <strong>Skapa spel</strong> för att lägga till ditt första spel.
         </div>
-        <ul id="game-list" class="game-list"></ul>
+
+        <div id="games-split" class="games-split" hidden>
+          <div class="games-section">
+            <div class="games-section-header">
+              <h3 class="games-section-title">Aktiva spel</h3>
+              <span class="count-pill" id="count-active">0</span>
+            </div>
+            <div id="games-active" class="games-grid"></div>
+          </div>
+
+          <div class="games-section" style="margin-top:14px;">
+            <div class="games-section-header">
+              <h3 class="games-section-title">Avslutade spel</h3>
+              <div class="games-section-actions">
+                <span class="count-pill muted" id="count-archived">0</span>
+                <button class="btn small" id="btn-toggle-archived" type="button">Dölj</button>
+              </div>
+            </div>
+            <div id="games-archived" class="games-grid archived"></div>
+          </div>
+        </div>
+
       </section>
     </main>
   </div>
+
+  
+<div class="modal-overlay" id="analysis-modal" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <div style="font-weight:800;font-size:16px;">Skapa analys</div>
+        <div style="opacity:.7;font-size:12px;">Simuleringen kan använda analyser för att bli mer ban-rättvis</div>
+      </div>
+      <button class="btn small" id="analysis-modal-close" type="button">✕</button>
+    </div>
+
+    <div class="modal-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <input class="input" id="a-name" placeholder="Namn (t.ex. Romme – 2640 Volt – Fangio)">
+      <input class="input" id="a-date" type="date">
+
+      <input class="input" id="a-track" placeholder="Bana (t.ex. Romme)">
+      <input class="input" id="a-trackType" placeholder="Typ av bana (t.ex. Lätt bana)">
+
+      <input class="input" id="a-group" placeholder="Grupp/Klass (t.ex. STL Klass III → STL Klass II)">
+      <select class="input" id="a-start">
+        <option value="">Starttyp…</option>
+        <option value="voltstart">Voltstart</option>
+        <option value="autostart">Autostart</option>
+      </select>
+
+      <input class="input" id="a-distance" placeholder="Distans (m) (t.ex. 2640)">
+      <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;">
+        <button class="btn small" id="btn-paste-analysis" type="button">Klistra in analys</button>
+        <button class="btn small" id="btn-clear-analysis" type="button">Rensa</button>
+      </div>
+
+      <textarea class="input" id="a-comment" placeholder="Kommentar/analys (simuleringen läser nyckelord här)"
+        style="grid-column:1 / -1;min-height:180px;"></textarea>
+
+      <div style="grid-column:1 / -1;display:flex;justify-content:flex-end;gap:8px;">
+        <button class="btn primary" id="btn-save-analysis" type="button">Spara</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 
   <script type="module" src="./js/main.js"></script>
 </body>

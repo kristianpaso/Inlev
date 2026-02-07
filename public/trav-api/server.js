@@ -6,6 +6,7 @@ require('./db'); // koppla till MongoDB
 
 const gamesRouter = require('./routes/games');
 const tracksRouter = require('./routes/tracks'); // 🔹 NY
+const analysesRouter = require('./routes/analyses'); // 🔹 NY // 🔹 NY
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/trav/games', gamesRouter);
 app.use('/api/trav/tracks', tracksRouter); // 🔹 NY
+app.use('/api/trav/analyses', analysesRouter); // 🔹 NY // 🔹 NY
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

@@ -1,0 +1,7 @@
+:root{ --dock-h: 270px; }
+/* Ensure arena has room above the dock so fighters remain visible */
+.wrap, .wrap * { box-sizing: border-box; }
+.arena, #arena, .arena-wrap { padding-bottom: var(--dock-h); }
+
+
+.hpframe .status-row{ margin-top: 8px; }

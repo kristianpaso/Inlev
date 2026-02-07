@@ -15,6 +15,30 @@ const TrackSchema = new mongoose.Schema(
     openStretch: { type: String, default: '' },
     angledGate: { type: String, default: '' },
 
+    // Extra info + kommentarer/analys (för simuleringen + kunskapsbank)
+    infoText: { type: String, default: '' },
+    comments: {
+      type: [
+        {
+          id: { type: String, default: '' },
+          text: { type: String, default: '' },
+        },
+      ],
+      default: [],
+    },
+    raceAnalyses: {
+      type: [
+        {
+          id: { type: String, default: '' },
+          name: { type: String, default: '' },
+          date: { type: String, default: '' }, // YYYY-MM-DD
+          trackType: { type: String, default: '' },
+          comment: { type: String, default: '' },
+        },
+      ],
+      default: [],
+    },
+
     lat: { type: Number, default: null },
     lon: { type: Number, default: null },
   },

@@ -1,0 +1,176 @@
+/* Mobile overrides (keeps desktop unchanged) */
+
+@media (max-width: 760px){
+  /* Make main view fit one screen */
+  html, body{ height: 100%; }
+  body{ overflow: hidden; }
+  .wrap{ width: 100vw; margin: 0 auto; padding: 8px; }
+
+  /* Compact topbar */
+  .topbar{ padding: 6px 8px; gap: 8px; }
+  .iconbtn{ width: 38px; height: 38px; border-radius: 12px; }
+  .topbtn{ padding: 8px 10px; font-size: 12px; border-radius: 12px; }
+  .game-title{ font-size: 18px; letter-spacing: .06em; line-height: 1.05; }
+  .top-center .top-stat:nth-child(n+3){ display:none; } /* hide XP/Time on mobile */
+  .mode-meta{ display:none; }
+
+  /* Single-column layout; center is the only visible panel by default */
+  .layout{ display:block; margin-top: 8px; }
+  .panel-center{ width: 100%; }
+  /* Turn side panels into slide-up drawers (hidden by default) */
+  .panel-left,
+  .panel-right{
+    position: fixed !important;
+    left: 10px !important;
+    right: 10px !important;
+    bottom: 10px !important;
+    top: auto !important;
+    width: auto !important;
+    max-height: 70vh !important;
+    overflow: auto !important;
+    transform: translateY(110%);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform .22s ease, opacity .22s ease;
+    z-index: 5000;
+  }
+  body.drawer-left-open .panel-left,
+  body.drawer-right-open .panel-right{
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Drawer backdrop (inserted by mobile-ui.js) */
+  .drawer-overlay{
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease;
+    z-index: 4900;
+  }
+  body.drawer-left-open .drawer-overlay,
+  body.drawer-right-open .drawer-overlay{
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Center panel occupies the screen (minus topbar) */
+  .panel-center{
+    height: calc(100vh - 86px);
+    overflow: hidden;
+  }
+
+  /* Hide the old fixed HUD bars on mobile; we'll position frames inside arena instead */
+  .hud-bars{ display:none !important; }
+
+  /* Arena: less zoom + reserve space for dock so fighters never sit under it */
+  .arena{
+    height: 100%;
+    padding-top: 44px;        /* space for banner text */
+    padding-bottom: 300px;    /* space for dock (2 rows + input) */
+    background-size: cover;   /* keep it nice, but not overly zoomed */
+    background-position: center top;
+    background-repeat: no-repeat;
+  }
+
+  /* Lift the fighters area upward (they were hiding behind the dock) */
+  .fighters{
+    transform: translateY(-12vh);
+  }
+  .fighter{ min-height: 200px; }
+
+  .sprite{
+    width: 150px;
+    height: 150px;
+  }
+
+  /* HP frames inside the arena: enemy above, player below */
+  .arena-header{
+    position: absolute;
+    left: 0; right: 0; top: 0; bottom: 0;
+    z-index: 60;
+    pointer-events: none;
+  }
+  .arena-header .hpframe{
+    pointer-events: none;
+    max-width: 78vw;
+    padding: 8px 10px;
+    border-radius: 14px;
+  }
+  .arena-header .hpframe.enemy{
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 92px;               /* sits above enemy */
+  }
+  .arena-header .hpframe.player{
+    display: block !important;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 310px;           /* sits under player, above dock */
+  }
+  .hptext{ font-size: 12px; }
+  .enemy-name{ font-size: 12px; }
+
+  /* Attack dock: show ALL attacks (2 rows) + compact cards */
+  .attack-dock{
+    left: 10px !important;
+    right: 10px !important;
+    bottom: 10px !important;
+    width: auto !important;
+    transform: none !important;
+    padding: 8px 10px 10px !important;
+    border-radius: 16px !important;
+  }
+
+  /* Different builds have different wrappers; cover them all */
+  .attack-row,
+  .attack-grid,
+  .attackbar-row,
+  .attackbar{
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin-bottom: 8px !important;
+    overflow: visible !important;
+  }
+
+  .attack-btn{
+    min-height: 40px !important;
+    padding: 7px 7px !important;
+    border-radius: 14px !important;
+  }
+  .attack-btn .meta,
+  .attack-btn .small,
+  .attack-btn .desc,
+  .attack-btn .hint{ display:none !important; }
+  .attack-btn .ab-elem{ width: 24px !important; height: 24px !important; }
+  .attack-btn .ab-name{ font-size: 12px !important; }
+  .metric{ padding: 4px 6px !important; }
+  .metric b{ font-size: 12px !important; }
+
+  /* Input row: keep it visible and compact */
+  .castbar{ display:block !important; position: fixed; left: 10px; right: 10px; bottom: 66px; z-index: 1200; }
+  #ui-input{ height: 40px; font-size: 14px; }
+  .attackbtn{ height: 40px; font-size: 14px; }
+
+  /* Ensure the dock doesn't cover the castbar */
+  .attack-dock{ padding-bottom: 48px !important; }
+  /* Rewards modal must never be treated as a drawer */
+  #panelRewards.panel-rewards-modal{
+    position: fixed !important;
+    left: 50% !important;
+    top: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: translate(-50%, -50%) !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    max-height: 82vh !important;
+    z-index: 9999 !important;
+  }
+

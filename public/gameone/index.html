@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Mythic Explorer – Word Spells</title>
   <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./blocks/fight-block.css" />
+    <link rel="stylesheet" href="./blocks/attack-block.css" />
+  <link rel="stylesheet" href="./mobile.css" />
 </head>
 <body>
   <div class="wrap">
@@ -36,46 +39,44 @@
 
     <main class="layout">
 
-      <!-- LEFT (Inventory / Stats / Saved Words) -->
-<section class="panel panel-left">
-  <div class="panel-title">Inventory</div>
-  <div class="panel-pad">
-    <div class="inv-subtitle">Utrustning</div>
-    <div id="ui-eq-left" class="inv-list"></div>
-    <div class="divider"></div>
-    <div class="inv-subtitle">Ryggsäck</div>
-    <div id="ui-inv-left" class="inv-grid"></div>
-
-    <!-- Keep these buttons in DOM for existing bindings -->
-    <button class="hidden" id="btn-inventory2" type="button">Inventory</button>
-    <button class="hidden" id="btn-save2" type="button">Save Game</button>
-    <button class="inv-open" id="btn-open-inventory" type="button">Öppna inventory</button>
-  </div>
-
-  <div class="divider"></div>
-
-  <div class="panel-title">Stats</div>
-  <div class="statblock">
-    <div class="statline hp"><div class="label">HP:</div><div class="value"><span id="ui-hp">85</span> / <span id="ui-hpmax">85</span></div></div>
-    <div class="bar hp"><div id="ui-hpbar" class="fill"></div></div>
-
-    <div class="statline mana"><div class="label">Mana:</div><div class="value"><span id="ui-mana">8</span> / <span id="ui-manamax">8</span></div></div>
-    <div class="bar mana"><div id="ui-manabar" class="fill"></div></div>
-
-    <div class="smallstats">
-      <div><span>Attack:</span> <b id="ui-atk">10</b></div>
-      <div><span>Defense:</span> <b id="ui-def">5</b></div>
-      <div><span>Crit:</span> <b id="ui-crit">7%</b></div>
-      <div><span>Loot Bonus:</span> <b id="ui-loot">+0%</b></div>
+      <!-- LEFT (Saved Words) -->
+      <section class="panel panel-left">
+  <div class="leftblock">
+    <div class="blocktitle">Inventory <span class="muted">(<span id="ui-left-invcount">0</span>)</span></div>
+    <div id="ui-left-equip" class="left-equip"></div>
+    <div class="left-actions">
+      <button class="btn small" id="btn-inventory2" type="button">Öppna ryggsäck</button>
+      <button class="btn small ghost" id="btn-save2" type="button">Spara</button>
     </div>
   </div>
 
-  <div class="divider"></div>
+  <div class="leftblock">
+    <div class="blocktitle">Stats</div>
+    <div class="basestats" id="ui-basestats">
+      <div class="bsline"><span>Life</span><b id="ui-base-life">85</b></div>
+      <div class="bsline"><span>Mana</span><b id="ui-base-mana">8</b></div>
+      <div class="bsline"><span>Energy</span><b id="ui-base-energy">0</b></div>
+      <div class="bsline"><span>Attack</span><b id="ui-atk">10</b></div>
+      <div class="bsline"><span>Defense</span><b id="ui-def">5</b></div>
+      <div class="bsline"><span>Crit</span><b id="ui-crit">7%</b></div>
+      <div class="bsline"><span>Life regen</span><b id="ui-base-regen">0</b></div>
+      <div class="bsline"><span>Shield</span><b id="ui-base-shield">0</b></div>
+      <div class="bsline"><span>Loot Bonus</span><b id="ui-loot">+0%</b></div>
+    </div>
+  </div>
 
-  <div class="panel-title">Sparade ord</div>
-  <div class="panel-pad">
+  <div class="leftblock">
+    <div class="blocktitle">Sparade ord</div>
     <div class="words" id="ui-words"></div>
     <div class="words-hint">Du kan bara spara <b>3</b> ord.</div>
+    <div class="savefrominput">
+      <div class="muted" style="margin-bottom:6px">Spara från input:</div>
+      <div class="savebtns">
+        <button class="btn small" id="btn-saveword-0" type="button">Attack</button>
+        <button class="btn small" id="btn-saveword-1" type="button">DoT</button>
+        <button class="btn small" id="btn-saveword-2" type="button">Buff</button>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -133,46 +134,7 @@
           <button class="attackbtn" id="btn-attack">Attack!</button>
         </div>
 
-        <div class="spellpreview" id="ui-spellpreview" aria-label="Spell preview">
-          <div class="spcard" data-role="0">
-            <div class="sp-top">
-              <div class="sp-role">Attack</div>
-              <div class="sp-badges">
-                <span class="badge" id="pv-elem-0">—</span>
-                <span class="badge dim" id="pv-dmg-0">DMG —</span>
-              </div>
-            </div>
-            <div class="sp-word" id="pv-word-0">Skriv ett ord…</div>
-            <div class="sp-sub" id="pv-sub-0">Element och skada visas här.</div>
-            <button class="sp-save" id="btn-saveword-0" type="button">Spara som Attack-ord</button>
-          </div>
-
-          <div class="spcard" data-role="1">
-            <div class="sp-top">
-              <div class="sp-role">DoT</div>
-              <div class="sp-badges">
-                <span class="badge" id="pv-elem-1">—</span>
-                <span class="badge dim" id="pv-dmg-1">DOT —</span>
-              </div>
-            </div>
-            <div class="sp-word" id="pv-word-1">Låses upp på Level 2</div>
-            <div class="sp-sub" id="pv-sub-1">Ex: Gift / Bränn / Frost.</div>
-            <button class="sp-save" id="btn-saveword-1" type="button">Spara som DoT-ord</button>
-          </div>
-
-          <div class="spcard" data-role="2">
-            <div class="sp-top">
-              <div class="sp-role">Buff</div>
-              <div class="sp-badges">
-                <span class="badge" id="pv-elem-2">—</span>
-                <span class="badge dim" id="pv-dmg-2">BUFF —</span>
-              </div>
-            </div>
-            <div class="sp-word" id="pv-word-2">Låses upp på Level 4</div>
-            <div class="sp-sub" id="pv-sub-2">Ex: Sköld / Regen / Rarity.</div>
-            <button class="sp-save" id="btn-saveword-2" type="button">Spara som Buff-ord</button>
-          </div>
-        </div>
+        <!-- Spell preview removed (save buttons moved to left panel) -->
 
       </section>
 
@@ -291,7 +253,10 @@
   <!-- Rewards modal (shown after a win) -->
   <div id="panelRewards" class="panel panel-rewards hidden panel-rewards-modal"></div>
 
+  <script src="./blocks/fight-block.js"></script>
+  <script src="./blocks/attack-block.js"></script>
   <script src="./game.js"></script>
+  <script src="./mobile-ui.js"></script>
 
   <!-- Mode Select Screen -->
   <div class="mode-screen" id="ui-mode-screen" aria-hidden="true">

@@ -82,7 +82,7 @@ body {
 
 .btn.primary {
   background: #3b82f6;
-  color: #ffffff;
+  color: #1a1a1a;
 }
 
 .btn:hover {
@@ -141,59 +141,131 @@ textarea:focus {
   color: #9ca3af;
 }
 
+/* ---- Spel-lista (index) ---- */
 .game-list {
   list-style: none;
   padding: 0;
   margin: 12px 0 0;
 }
 
-.game-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: #0f172a;
-  border: 1px solid #1f2937;
-  margin-bottom: 8px;
+/* Nya sektioner: Aktiva / Avslutade */
+.games-split { margin-top: 10px; }
+.games-section-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  margin: 6px 0 10px;
+}
+.games-section-title{
+  font-size: 14px;
+  margin:0;
+  opacity:.95;
+  letter-spacing: .2px;
+}
+.games-section-actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
 }
 
-.game-main {
-  flex: 1;
+.count-pill{
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+}
+.count-pill.muted{ opacity:.7; }
+
+.games-grid{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
 }
 
-.game-title {
+/* Kort */
+.game-card{
+  position:relative;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap: 12px;
+  padding: 12px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.14);
+  overflow:hidden;
+
+  /* Default om okänd typ */
+  --typeColor: #334155;
+
+  /* HELA bakgrunden = färgen, med mörk overlay för läsbarhet */
+  background: linear-gradient(0deg, rgba(0,0,0,.55), rgba(0,0,0,.55)), var(--typeColor);
+  box-shadow: 0 10px 30px rgba(0,0,0,.18);
+  transition: transform .12s ease, border-color .12s ease;
+}
+
+.game-card:hover{
+  border-color: rgba(255,255,255,.22);
+  transform: translateY(-1px);
+}
+
+/* Dina färger */
+.game-card[data-type="V85"]{ --typeColor:#004f9f; }
+.game-card[data-type="V64"]{ --typeColor:#ed6c15; }
+.game-card[data-type="V65"]{ --typeColor:#c00a26; }
+.game-card[data-type="V86"]{ --typeColor:#802c7e; }
+.game-card[data-type="GS75"]{ --typeColor:#15614e; }
+
+.games-grid.archived .game-card{
+  opacity: .82;
+}
+
+.game-main { flex: 1; min-width: 0; }
+
+.game-title{
   font-size: 1rem;
-  margin: 0 0 4px;
+  margin: 0 0 6px;
 }
 
-.game-meta {
+.game-meta{
   font-size: 0.8rem;
-  color: #9ca3af;
+  color: rgba(255,255,255,.80);
 }
-
-.game-meta span + span::before {
+.game-meta span + span::before{
   content: " • ";
   margin: 0 4px;
+  opacity:.8;
 }
 
-.game-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.type-badge{
+  display:inline-flex;
+  align-items:center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  background: rgba(255,255,255,.14);
+  color:#fff;
+  border: 1px solid rgba(255,255,255,.20);
 }
 
-.game-actions .btn {
-  font-size: 0.8rem;
+.game-actions{
+  display:flex;
+  flex-direction:column;
+  gap: 6px;
+}
+
+.game-actions .btn{
+  font-size: .8rem;
   padding: 6px 10px;
 }
 
-.game-actions .btn.danger {
+.game-actions .btn.danger{
   background: #dc2626;
   color: #fff;
 }
-
 @media (max-width: 800px) {
   .layout {
     grid-template-columns: 1fr;
@@ -365,8 +437,8 @@ textarea:focus {
 
 /* 🔹 Favorit i loppet – rad i hästtabellen */
 .horse-table tbody tr.horse-row-favourite {
-    background: #951400;
-    color: #ffffff;
+    background: rgba(255, 216, 74, .95);
+    color: #1a1a1a;
 }
 
 .horse-table tbody tr.scratched {
@@ -543,7 +615,7 @@ textarea:focus {
 .division-square.active {
   background: #3b82f6;
   border-color: #60a5fa;
-  color: #ffffff;
+  color: #1a1a1a;
 }
 
 /* ---- Nummerkolumner i vänster/högerblock ---- */
@@ -586,14 +658,14 @@ textarea:focus {
 .num-square.clickable.selected {
     background: #02A9EA;
     border-color: #0b1020;
-    color: #ffffff;
+    color: #1a1a1a;
 }
 
 .horse-table tbody tr {
 
     min-height: 71px; /* samma nivå som du gillar på rutorna */
     background: #044744;
-    color: #ffffff;
+    color: #1a1a1a;
 }
 /* ---- Totalen: fyrkant + räknare under ---- */
 
@@ -718,7 +790,7 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   padding: 8px 10px 0;
   box-sizing: border-box;
 }
@@ -851,7 +923,7 @@ textarea:focus {
 .coupon-number.selected {
   background: #3b82f6;
   border-color: #60a5fa;
-  color: #ffffff;
+  color: #1a1a1a;
 }
 
 .coupon-add-actions {
@@ -885,6 +957,7 @@ textarea:focus {
     padding: 8px 10px;
     border: 1px solid #1f2937;
     width: 215px;
+    position: relative;
     box-sizing: border-box;
 } 
 /* "Min kupong" – sparad från Idéfältet */
@@ -1063,7 +1136,7 @@ textarea:focus {
 .num-square.not-played {
     background: #F21B3F;
     border-color: #0b1020;
-    color: #ffffff;
+    color: #1a1a1a;
     /* opacity: 0.9; */
 }
 
@@ -1422,32 +1495,27 @@ body.reverse-mode-active .coupon-card {
 
 
 /* Favorit i loppet (högst V%-häst) i kupong-översikten */
-
-
-.favourite-number {
-  padding: 0 3px;
-  border-radius: 4px;
-  border: 1px solid rgba(255,255,255,0.35);
-  background: #e11d48; /* röd */
-  color: #ffffff;
-  box-shadow: 0 0 0 1px #111827;
-  font-weight: 800;
-}
+/*.favourite-number {
+    padding: 0 3px;
+    border-radius: 4px;
+    border: 1px solid #fbbf24;
+    background: #fbbf24;
+      color: #000000;
+    box-shadow: 0 0 0 1px #111827;
+}*/
 
 .favourite-number-coupon {
-  padding: 0 3px;
-  border-radius: 4px;
-  border: 1px solid rgba(255,255,255,0.35);
-  background: #e11d48; /* röd */
-  color: #ffffff;
-  box-shadow: 0 0 0 1px #111827;
-  font-weight: 800;
+    padding: 0 3px;
+    border-radius: 4px;
+    border: 1px solid #fbbf24;
+    background: #fbbf24;
+      color: #000000;
+    box-shadow: 0 0 0 1px #111827;
 }
 
 /* Andrahandsfavorit (näst högst V%) på kuponger */
 .second-favourite-number {
-  color: #c084fc; /* lila */
-  font-weight: 800;
+    color: #ff00dd;
 }
 
 
@@ -1526,41 +1594,95 @@ body.reverse-mode-active .coupon-card {
 }
 
 /* ---- Fyll på kupong panel ---- */
+
 #fill-panel {
-  position: absolute;
+  position: fixed;
   top: 86px;
-  left: 230px;
+  left: 12px;
+  width: 320px;
+  max-width: min(360px, calc(100vw - 24px));
+  height: auto;
+  max-height: calc(100vh - 140px);
+  overflow: auto;
   background: #252525;
   border: 6px solid #ffffff;
   border-radius: 10px;
   padding: 16px;
-  z-index: 200;
-  width: 260px;
+  z-index: 2000;
 }
 
+/* Mobil: dela vyn 50/50 – kuponger uppe, formulär nere */
 @media (max-width: 900px) {
   #fill-panel {
     position: fixed;
-    top: 72px;
-    left: 8px;
-    right: 8px;
-    width: 260px;
-    margin: 0 auto;
-    z-index: 1500;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    width: 100%;
+    max-width: 100%;
+    height: 50vh;
+    max-height: 50vh;
+    padding: 14px;
+    border-radius: 18px 18px 0 0;
     border: 2px solid #cacaca;
     background: #051130;
+    z-index: 2000;
+  }
+
+  body.fill-mode-active {
+    padding-bottom: 52vh;
   }
 }
 
 /* Markering när “välj kupong” är aktivt */
-body.fill-mode-active .coupon-card {
+body.fill-mode-active .coupon-card.selectable {
   cursor: pointer;
+}
+
+@keyframes pulseBorder {
+  0% { opacity: 0.35; }
+  50% { opacity: 1; }
+  100% { opacity: 0.35; }
+}
+
+body.fill-mode-active .coupon-card.selectable::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 12px;
+  border: 2px solid rgba(96,165,250,0.85);
+  animation: pulseBorder 1.1s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .coupon-card.selected-for-fill {
   box-shadow: 0 0 0 2px #60a5fa;
 }
 
+.coupon-card.selected-for-fill::after {
+  animation: none;
+  border-color: rgba(0,255,160,0.95);
+}
+
+/* Flytande knapp för att lämna "Fyll på"-läge */
+#fill-exit-floating {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2500;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(17,24,39,0.92);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+}
+#fill-exit-floating:hover { filter: brightness(1.05); }
+
+/* Gör HTML-attributet hidden robust */
+[hidden] { display: none !important; }
 .horse-num.winner {
   outline: 2px solid #00ff88;
   box-shadow: 0 0 0 2px rgba(0,255,136,0.25);
@@ -1674,7 +1796,7 @@ body.fill-mode-active .coupon-card {
 }
 @media (max-width: 520px) {
   /* Mobil: 2 kuponger per rad */
-  .coupon-group { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .coupon-group { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 
   /* Kompaktare kort så två per rad funkar bättre */
   .coupon-card { padding: 10px; }
@@ -1792,7 +1914,7 @@ body.fill-mode-active .coupon-card {
 .winner-summary-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .winner-chip {
@@ -1949,8 +2071,6 @@ body.fill-mode-active .coupon-card {
   z-index: 9999;
   padding: 16px;
 }
-.sim-overlay[hidden]{ display:none !important; }
-
 .sim-modal{
   width: min(1200px, 100%);
   max-height: min(780px, 100%);
@@ -1983,6 +2103,7 @@ body.fill-mode-active .coupon-card {
 .sim-close:hover{ background: rgba(255,255,255,.10); }
 
 .sim-body{
+
   display:grid;
   grid-template-columns: 420px 1fr;
   gap: 14px;
@@ -1991,14 +2112,15 @@ body.fill-mode-active .coupon-card {
   flex: 1;
 }
 @media (max-width: 980px){
-  .sim-body{ grid-template-columns: 1fr; }
+  .sim-body{
+ grid-template-columns: 1fr; }
 }
 
 .sim-left, .sim-right{ min-height:0; overflow:hidden; }
 .sim-inputs{
   display:grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 8px;
 }
 .sim-field span{ display:block; font-size: 12px; opacity:.8; margin-bottom:6px; }
 .sim-field input{
@@ -2010,7 +2132,7 @@ body.fill-mode-active .coupon-card {
   color:#fff;
   outline:none;
 }
-.sim-actions{ display:flex; gap: 10px; margin-top: 10px; }
+.sim-actions{ display:flex; gap: 8px; margin-top: 10px; }
 .sim-tabs{ display:flex; gap: 8px; margin-top: 12px; }
 .sim-tab{
   flex: 1;
@@ -2084,7 +2206,7 @@ body.fill-mode-active .coupon-card {
 .sim-all-results{
   display:grid;
   grid-template-columns: 1fr;
-  gap: 10px;
+  gap: 8px;
   margin-top: 8px;
 }
 .sim-all-card{
@@ -2095,7 +2217,7 @@ body.fill-mode-active .coupon-card {
   display:flex;
   align-items:center;
   justify-content:space-between;
-  gap: 10px;
+  gap: 8px;
 }
 .sim-all-left{ min-width: 0; }
 .sim-all-title{ font-weight: 900; }
@@ -2135,62 +2257,510 @@ body.fill-mode-active .coupon-card {
 .sim-modal, .sim-modal * { scrollbar-width: none; }
 .sim-modal::-webkit-scrollbar, .sim-modal *::-webkit-scrollbar { display:none; }
 
-/* Manuella vinnare */
-.winner-summary-title-row{
+
+/* -------- Analys (index.html) -------- */
+.analysis-list{ display:flex; flex-direction:column; gap:10px; }
+.analysis-card{
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:14px;
+  padding:12px;
+  background: rgba(255,255,255,.03);
+}
+.analysis-top{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+.analysis-title{ font-weight:800; }
+.analysis-actions{ display:flex; gap:8px; }
+.analysis-meta{ margin-top:6px; opacity:.85; font-size:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.analysis-tag{
+  display:inline-flex; gap:6px; align-items:center;
+  padding:3px 10px; border-radius:999px;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.06);
+  font-size:12px;
+}
+.analysis-group,.analysis-date{ opacity:.8; }
+.analysis-snippet{ margin-top:8px; font-size:12px; opacity:.78; }
+
+
+/* Modal overlay (Skapa analys / Kombinera kuponger etc) */
+
+.modal-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 9999;
+}
+.modal{
+  width: min(1100px, 96vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: rgba(12, 17, 24, .92);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.55);
+}
+.modal-header{
   display:flex;
   align-items:center;
   justify-content:space-between;
-  gap:10px;
+  gap:12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
 }
-.winner-edit-toggle{
-  border:1px solid rgba(255,255,255,.18);
-  background:rgba(255,255,255,.06);
-  color:#fff;
-  border-radius:10px;
-  padding:6px 10px;
-  font-size:12px;
-  cursor:pointer;
+.modal-body{
+  padding: 14px 16px 18px;
 }
-.winner-edit{
-  margin-top:10px;
+
+/* =====================
+   Kupongmeny (sidemeny)
+   Desktop: vertikal vänster
+   Mobil: hopfällbar drawer
+   ===================== */
+
+.coupon-layout {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.coupon-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.coupon-menu-toggle {
+  display: none;
+}
+
+.coupon-sidemenu {
+  flex: 0 0 255px;
+  width: 255px;
+  position: sticky;
+  top: 12px;
+  background: #081f2b;
+  border: 1px solid rgba(153, 88, 183, 0.35);
+  border-radius: 12px;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.coupon-sidemenu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.coupon-sidemenu-title {
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+.coupon-menu-close {
+  display: none;
+}
+
+.coupon-sidemenu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.coupon-sidemenu .coupon-idea-actions,
+.coupon-sidemenu .coupon-new-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.coupon-sidemenu .btn.small {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.coupon-sidemenu-backdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .coupon-layout {
+    display: block;
+  }
+
+  .coupon-menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .coupon-menu-close {
+    display: inline-flex;
+  }
+
+  .coupon-sidemenu {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 285px;
+    max-width: 85vw;
+    z-index: 4000;
+    transform: translateX(-110%);
+    transition: transform 180ms ease;
+    border-radius: 0 14px 14px 0;
+  }
+
+  body.coupon-menu-open .coupon-sidemenu {
+    transform: translateX(0);
+  }
+
+  .coupon-sidemenu-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 3990;
+    display: none;
+  }
+
+  body.coupon-menu-open .coupon-sidemenu-backdrop {
+    display: block;
+  }
+}
+
+/* =====================
+   Inklistrade kuponger
+   ===================== */
+
+.coupon-card.pasted-coupon-card {
+  background: #0c2836;
+  border-radius: 10px;
+  padding: 8px 10px;
+  border: 1px solid #9958b7;
+  width: 215px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* =====================
+   Inte spelad kupong-läge
+   ===================== */
+
+body.notplayed-mode-active .coupon-card.selectable {
+  outline: 1px solid rgba(153, 88, 183, 0.6);
+  cursor: pointer;
+}
+
+body.notplayed-mode-active .coupon-card.selected-for-notplayed {
+  outline: 2px solid #9958b7;
+  box-shadow: 0 0 0 3px rgba(153, 88, 183, 0.25);
+}
+
+.notplayed-exit-floating {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 5000;
+  border: 1px solid rgba(153, 88, 183, 0.6);
+  background: rgba(12, 40, 54, 0.95);
+}
+
+
+/* ===========================
+   Sim TV-layout (bild 2-look)
+   =========================== */
+.sim-tv-modal{
+  width: min(1200px, 96vw);
+  height: min(760px, 92vh);
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sim-tv-topbar{
   display:flex;
-  flex-direction:column;
-  gap:8px;
-  padding:10px;
-  border-radius:12px;
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.08);
-}
-.winner-edit-row{
-  display:grid;
-  grid-template-columns:72px 1fr auto auto;
-  gap:8px;
   align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(18,22,30,.92);
+  border-bottom: 1px solid rgba(255,255,255,.08);
 }
-.winner-edit-label{
-  font-size:12px;
-  opacity:.9;
+.sim-tv-title{ font-size: 18px; font-weight: 900; }
+.sim-tv-subtitle{ font-size: 12px; opacity: .8; margin-top: 2px; }
+.sim-div-tabs{
+  display:flex;
+  gap: 8px;
+  flex: 1;
+  justify-content: center;
+  flex-wrap: wrap;
 }
-.winner-edit-select{
-  width:100%;
-  border-radius:10px;
-  padding:7px 10px;
-  border:1px solid rgba(255,255,255,.14);
-  background:rgba(0,0,0,.25);
-  color:#fff;
+.sim-div-tab{
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.85);
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
 }
-.winner-edit-save,
-.winner-edit-clear{
-  border:1px solid rgba(255,255,255,.18);
-  background:rgba(255,255,255,.06);
-  color:#fff;
-  border-radius:10px;
-  padding:6px 10px;
-  font-size:12px;
-  cursor:pointer;
+.sim-div-tab.active{
+  background: rgba(90,140,255,.25);
+  border-color: rgba(90,140,255,.45);
 }
-.winner-edit-hint{
-  opacity:.7;
-  font-size:11px;
-  margin-top:2px;
+.sim-tv-body{
+  position: relative;
+  flex: 1;
+  background: rgba(8,10,14,.9);
+  display: flex;
+  flex-direction: column;
 }
+
+.sim-tv-one{
+  flex: 1;
+  min-height: 0;
+}
+
+.sim-tv-stage{
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.sim-minimap-row{
+  flex: 0 0 auto;
+  margin-bottom: 2px;
+}
+
+.sim-tv-canvas-wrap{
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.sim-tv-canvas-wrap #sim-canvas{
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.sim-tv-all{
+  padding: 14px;
+}
+.sim-all-header{
+  display:flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.sim-all-title{ font-weight: 900; }
+.sim-all-hint{ opacity: .75; font-size: 12px; }
+
+.sim-tv-bottom{
+  display: grid;
+  grid-template-columns: 1.15fr 1.7fr 0.8fr;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  background: rgba(18,22,30,.92);
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+
+.sim-controls{ display:flex; gap: 8px; flex-wrap: wrap; align-items:center; }
+.sim-bottom-caption{ font-weight: 900; opacity: .9; margin-bottom: 6px; }
+.sim-log-compact{
+  max-height: 88px;
+  overflow: auto;
+  margin-top: 8px;
+  border-radius: 12px;
+  background: rgba(0,0,0,.25);
+  border: 1px solid rgba(255,255,255,.08);
+  padding: 10px;
+  font-size: 12px;
+}
+
+.sim-stats-mini{
+  display:flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sim-stat-row{
+  display:flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.08);
+}
+.sim-stat-row .k{ opacity: .75; font-size: 12px; }
+.sim-stat-row .v{ font-weight: 900; }
+
+.sim-footnote-compact{
+  margin-top: 10px;
+  opacity: .7;
+  font-size: 12px;
+}
+
+.sim-settings-drawer{
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: min(380px, 92vw);
+  max-height: calc(100% - 24px);
+  overflow: auto;
+  border-radius: 16px;
+  background: rgba(0,0,0,.38);
+  border: 1px solid rgba(255,255,255,.16);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 18px 45px rgba(0,0,0,.55);
+  z-index: 10;
+}
+.sim-settings-inner{ padding: 12px; }
+.sim-inputs-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+
+/* Side-cam i mitten */
+.sim-sidecam{
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%,-50%);
+  width: min(620px, 90%);
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(0,0,0,.35);
+  border: 1px solid rgba(255,255,255,.16);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 18px 45px rgba(0,0,0,.55);
+  z-index: 8;
+}
+.sim-sidecam-head{
+  display:flex;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.sim-sidecam-label{
+  font-weight: 900;
+  letter-spacing: .2px;
+  opacity: .92;
+}
+#sim-sidecam-canvas{
+  width: 100%;
+  height: 220px;
+  display: block;
+  border-radius: 12px;
+}
+
+/* Winner overlay */
+.sim-winner{
+  position:absolute;
+  left: 50%;
+  top: 40%;
+  transform: translate(-50%,-50%);
+  text-align:center;
+  pointer-events:none;
+  z-index: 9;
+}
+.sim-winner-banner{
+  display:inline-block;
+  padding: 10px 18px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.92);
+  color: rgba(10,12,16,.95);
+  font-weight: 900;
+  letter-spacing: .6px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.55);
+}
+.sim-winner-card{
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: rgba(0,0,0,.35);
+  border: 1px solid rgba(255,255,255,.14);
+  backdrop-filter: blur(6px);
+}
+.sim-winner-num{ font-size: 36px; font-weight: 900; }
+.sim-winner-name{ opacity: .85; font-weight: 800; }
+
+@media (max-width: 900px){
+  .sim-tv-bottom{
+    grid-template-columns: 1fr;
+  }
+  .sim-inputs-grid{
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* Mini-karta (ovanför TV-vyn) */
+.sim-minimap{
+  position: relative;
+  width: min(860px, 100%);
+  height: 220px;
+  margin: 0 auto;
+  border-radius: 14px;
+  background: rgba(0,0,0,.22);
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: 0 16px 40px rgba(0,0,0,.45);
+  backdrop-filter: blur(6px);
+  overflow: hidden;
+  pointer-events: none;
+}
+.sim-minimap-label{
+  position: absolute;
+  left: 10px;
+  top: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  opacity: .85;
+  letter-spacing: .2px;
+  z-index: 2;
+}
+#sim-mini-canvas{
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@media (max-width: 900px){
+  .sim-minimap{
+    height: 180px;
+  }
+}
+
+
+.sim-pos-label{ font-size:12px; font-weight:800; opacity:.85; margin-bottom:6px; }
+.sim-pos-5to1{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.sim-pos-chip .n{ font-weight:900; }
+
+.sim-pos-chip{ display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.10); }
+.sim-pos-chip .n{ font-weight:900; }
+.sim-pos-chip .name{ opacity:.85; font-weight:700; font-size:12px; max-width:160px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* ===== Sim embed (under hästinfo) ===== */
+.sim-overlay.sim-embed{
+  position: relative;
+  inset: auto;
+  background: transparent;
+  padding: 0;
+  z-index: 1;
+  width: 100%;
+  display: block;
+}
+.sim-embed-host{ margin-top: 14px; }
+.sim-embed-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin: 8px 0; }
+.sim-embed-head h2{ margin:0; font-size: 18px; }
+.sim-overlay.sim-embed[hidden]{ display:none !important; }
+.sim-overlay.sim-embed .sim-modal{ width: 100%; max-height: none; }
+.sim-overlay.sim-embed .sim-tv-modal{ height: min(860px, 92vh); }
+
+/* (tidigare extra override för minimap borttagen) */

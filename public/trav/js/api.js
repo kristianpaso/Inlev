@@ -7,6 +7,7 @@ const API_ROOT =
 
 const API_GAMES = `${API_ROOT}/games`;
 const API_TRACKS = `${API_ROOT}/tracks`;
+const API_ANALYSES = `${API_ROOT}/analyses`;
 
 const API_ATG_LINKS = `${API_GAMES}/atg-links`;
 
@@ -296,3 +297,45 @@ export async function fetchStallsnack(gameId, url) {
 
 
 
+
+// ------------------ Analyses ------------------
+export async function getAnalyses() {
+  const res = await fetch(API_ANALYSES);
+  if (!res.ok) throw new Error('Kunde inte hämta analyser');
+  return res.json();
+}
+
+export async function createAnalysis(data) {
+  const res = await fetch(API_ANALYSES, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(errText || 'Kunde inte skapa analys');
+  }
+  return res.json();
+}
+
+export async function updateAnalysis(id, data) {
+  const res = await fetch(`${API_ANALYSES}/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(errText || 'Kunde inte uppdatera analys');
+  }
+  return res.json();
+}
+
+export async function deleteAnalysis(id) {
+  const res = await fetch(`${API_ANALYSES}/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(errText || 'Kunde inte ta bort analys');
+  }
+  return res.json();
+}

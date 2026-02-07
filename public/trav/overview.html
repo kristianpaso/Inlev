@@ -57,41 +57,29 @@
 
       <!-- Stora blocket med tre kolumner -->
       <section class="big-block">
- <div class="side-block" id="popular-block">
-  <!--<h2>Populärfält</h2>-->
-  <div id="popular-number-list" class="number-column">
-    <!-- nummer fylls av JS -->
-  </div>
-</div>
+        <div class="side-block" id="popular-block">
+          <!--<h2>Populärfält</h2>-->
+          <div id="popular-number-list" class="number-column">
+            <!-- nummer fylls av JS -->
+          </div>
+        </div>
 
-  
+        <div class="center-block">
+          <!--<h2>
+            Hästar i avdelning
+            <span id="center-division-index">1</span>
+          </h2>-->
 
- <div class="center-block" >
-  <div class="center-block" >
-    <!--<h2>
-      Hästar i avdelning
-      <span id="center-division-index">1</span>
-    </h2>-->
+          <div id="horse-table-container" class="horse-table-wrapper">
+            <!-- Tabell fylls av overview.js -->
+          </div>
+        </div>
 
-    <div id="horse-table-container" class="horse-table-wrapper">
-      <!-- Tabell fylls av overview.js -->
-    </div>
-
-  
-  
-  </div>
-</div>
-
-
-<div class="side-block" id="idea-block">
-  <!--<h2>Idéfält</h2>-->
-  <div id="idea-number-list" class="number-column">
-   
-  </div>
-</div>
-
-</section>
-
+        <div class="side-block" id="idea-block">
+          <!--<h2>Idéfält</h2>-->
+          <div id="idea-number-list" class="number-column"></div>
+        </div>
+      </section>
 <!-- 🔹 NYTT: filterblocket -->
 <section class="filter-section">
   <div class="filter-block">
@@ -110,7 +98,18 @@
 <section class="coupon-section">
   <div class="coupon-section-header">
     <h2>Kuponger</h2>
-    <div class="coupon-header-actions">
+    <button class="btn small coupon-menu-toggle" id="btn-coupon-menu-toggle" type="button">Meny</button>
+  </div>
+
+  <div class="coupon-layout">
+    <div class="coupon-sidemenu-backdrop" id="coupon-sidemenu-backdrop" hidden></div>
+    <aside class="coupon-sidemenu" id="coupon-sidemenu">
+      <div class="coupon-sidemenu-header">
+        <div class="coupon-sidemenu-title">Kupongmeny</div>
+        <button class="btn small coupon-menu-close" id="btn-coupon-menu-close" type="button">✕</button>
+      </div>
+      <div class="coupon-sidemenu-actions">
+        
              <!-- Grupp: Idéfälts-kontroller -->
       <div class="coupon-idea-actions">
         <button class="btn small danger" id="btn-clear-idea">Rensa Idéfält</button>
@@ -131,12 +130,17 @@
         <button class="btn small" id="btn-open-import-atg">Importera ATG</button>
         <button class="btn small" id="btn-open-paste-coupon">Klistra kupong</button>
         <button class="btn small" id="btn-open-fill">Fyll på kupong</button>
+        <button class="btn small" id="btn-open-notplayed" type="button">Inte spelad kupong</button>
       
-        <button class="btn small" id="btn-simulate-division" type="button">🎥 Simulera</button>
+        <button class="btn small" id="btn-combine-coupons">Kombinera kuponger</button>
+<button class="btn small" id="btn-simulate-division" type="button">🎥 Simulera</button>
         <button class="btn small" id="btn-simulate-all" type="button">📊 Simulera alla</button>
-</div>
 
-  </div>
+      </div>
+    </aside>
+
+    <div class="coupon-main">
+
 <!-- Panel för att fyll på kupongen -->
   <div id="fill-panel" class="coupon-add-panel" hidden>
   <h3 style="margin-top:0">Fyll på kupong</h3>
@@ -518,17 +522,127 @@
       <button class="btn" id="btn-cancel-reverse">Avbryt</button>
     </div>
   </div>
+    <div class="sim-embed-host" id="sim-embed-host">
+      <div class="sim-embed-head">
+        <h2>Simulering</h2>
+        <button class="btn small" id="btn-sim-embed-toggle" type="button">Dölj simulering</button>
+      </div>
+
+      <div id="sim-overlay" class="sim-overlay sim-embed">
+        <div class="sim-modal sim-tv-modal" role="region" aria-label="Simulering">
+          <div class="sim-tv-topbar">
+            <div class="sim-tv-topbar-left">
+              <div id="sim-title" class="sim-tv-title">Simulering</div>
+              <div id="sim-subtitle" class="sim-tv-subtitle"></div>
+            </div>
+
+            <div id="sim-div-tabs" class="sim-div-tabs" role="tablist" aria-label="Avdelningar"></div>
+
+            <div class="sim-tv-topbar-right">
+              <button class="btn small" id="btn-sim-settings-toggle" type="button" aria-label="Inställningar">Inställningar</button>
+            </div>
+          </div>
+
+          <div class="sim-tv-body">
+            <div id="sim-one-wrap" class="sim-tv-one">
+              <div class="sim-tv-stage">
+                <div class="sim-minimap-row">
+                  <div class="sim-minimap" id="sim-minimap">
+                    <div class="sim-minimap-label">Karta</div>
+                    <canvas id="sim-mini-canvas"></canvas>
+                  </div>
+                </div>
+
+                <div class="sim-tv-canvas-wrap">
+                  <canvas id="sim-canvas"></canvas>
+
+                  <div id="sim-winner" class="sim-winner" hidden>
+                    <div class="sim-winner-banner" id="sim-winner-banner">VINNARE HÄST</div>
+                    <div class="sim-winner-card">
+                      <div class="sim-winner-num" id="sim-winner-num">#</div>
+                      <div class="sim-winner-name" id="sim-winner-name">-</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="sim-all-wrap" class="sim-tv-all" hidden>
+              <div class="sim-all-header">
+                <div class="sim-all-title">Alla avdelningar</div>
+                <div class="sim-all-hint">Tryck “▶ Kör” för att simulera.</div>
+              </div>
+              <div id="sim-all-results" class="sim-all-results"></div>
+            </div>
+
+            <div id="sim-settings" class="sim-settings-drawer" hidden>
+              <div class="sim-settings-inner">
+                <div class="sim-settings-title">Inställningar</div>
+
+                <div class="sim-inputs-grid">
+                  <label class="sim-field"><span>Seed</span><input id="sim-seed" type="number" placeholder="Auto"></label>
+                  <label class="sim-field"><span>Iterationer</span><input id="sim-iters" type="number" value="300" min="10" step="10"></label>
+                  <label class="sim-field"><span>Vind (m/s)</span><input id="sim-wind" type="number" value="2" step="0.1"></label>
+                  <label class="sim-field"><span>Temp (°C)</span><input id="sim-temp" type="number" value="12" step="0.1"></label>
+                  <label class="sim-field"><span>Snö (cm)</span><input id="sim-snow" type="number" value="0" step="0.1"></label>
+                  <label class="sim-field"><span>Målpris (kr)</span><input id="sim-target-price" type="number" value="350" step="1"></label>
+                </div>
+
+                <div class="sim-history-wrap">
+                  <div class="sim-history-title">Vinnarlogg</div>
+                  <div id="sim-history" class="sim-history"></div>
+                  <div id="sim-history-meta" class="sim-history-meta"></div>
+                  <button class="btn small" id="btn-sim-clear-history" type="button">Rensa logg</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sim-tv-bottom">
+            <div class="sim-bottom-left">
+              <div class="sim-bottom-caption">Topp 3</div>
+              <div id="sim-top3" class="sim-top3"></div>
+            </div>
+
+            <div class="sim-bottom-center">
+              <div class="sim-bottom-caption">Plats 5 -> 1</div>
+              <div id="sim-pos-5to1" class="sim-pos-5to1"></div>
+
+              <div class="sim-controls" style="margin-top:8px;">
+                <button class="btn small" id="btn-sim-run" type="button">Kör</button>
+                <button class="btn small" id="btn-sim-replay" type="button" disabled>Replay</button>
+                <button class="btn small" id="btn-sim-coupon" type="button">Sim Kupong</button>
+              </div>
+              <div id="sim-log" class="sim-log"></div>
+            </div>
+
+            <div class="sim-bottom-right">
+              <div class="sim-stake-row">
+                <div class="sim-stake-label">Insats:</div>
+                <div id="sim-stake" class="sim-stake-value">-</div>
+              </div>
+              <div class="sim-win-row">
+                <div class="sim-win-label">Vinst:</div>
+                <div id="sim-win" class="sim-win-value">-</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
 
 
 
-  <!-- Lista med sparade kuponger -->
-  <div id="coupon-list" class="coupon-list">
 
 
   <!-- Lista med sparade kuponger -->
   <div id="coupon-list" class="coupon-list">
     <!-- Kupong-kort skapas i overview.js -->
   </div>
+
+    </div> <!-- /coupon-main -->
+  </div> <!-- /coupon-layout -->
 </section>
 <!-- Baninformation -->
 <section id="track-info-section" class="track-info-section">
@@ -545,103 +659,10 @@
     </main>
   </div>
 
+  <!-- Loaded as classic script (not module) to avoid "Unexpected token 'export'" in some environments -->
+  <script src="./js/race-sim.js?v=20260120-fix1"></script>
   <script type="module" src="./js/overview.js"></script>
-
-  <!-- Simulering modal -->
-  <div id="sim-overlay" class="sim-overlay" hidden>
-    <div class="sim-modal" role="dialog" aria-modal="true" aria-labelledby="sim-title">
-      <div class="sim-header">
-        <div class="sim-header-left">
-          <div id="sim-title" class="sim-title">Simulering</div>
-          <div id="sim-subtitle" class="sim-subtitle"></div>
-        </div>
-        <button class="sim-close" id="btn-sim-close" type="button" aria-label="Stäng">✕</button>
-      </div>
-
-      <div class="sim-body">
-        <div class="sim-left">
-          <div class="sim-settings-bar">
-            <div class="sim-settings-hint">Inställningar är valfria</div>
-            <button class="btn small" id="btn-sim-settings-toggle" type="button">Visa inställningar</button>
-          </div>
-
-          <div id="sim-settings" class="sim-inputs" hidden>
-            <label class="sim-field">
-              <span>StartId (seed)</span>
-              <input id="sim-seed" type="number" step="1" placeholder="Auto">
-            </label>
-            <label class="sim-field">
-              <span>Sim kupong pris (kr)</span>
-              <input id="sim-target-price" type="number" step="1" value="350" min="1">
-            </label>
-            <label class="sim-field">
-              <span>Körningar/avd</span>
-              <input id="sim-iters" type="number" step="1" value="40" min="10" max="200">
-            </label>
-            <label class="sim-field">
-              <span>Starttid</span>
-              <input id="sim-starttime" type="time" value="16:10">
-            </label>
-            <label class="sim-field">
-              <span>Temp (°C)</span>
-              <input id="sim-temp" type="number" step="0.1" value="-1">
-            </label>
-            <label class="sim-field">
-              <span>Vind (m/s)</span>
-              <input id="sim-wind" type="number" step="0.1" value="6">
-            </label>
-            <label class="sim-field">
-              <span>Snö (cm)</span>
-              <input id="sim-snow" type="number" step="0.1" value="1.7">
-            </label>
-          </div>
-
-          <div class="sim-actions">
-            <button class="btn" id="btn-sim-run" type="button">Kör simulering</button>
-            <button class="btn" id="btn-sim-replay" type="button" disabled>Spela upp igen</button>
-            <button class="btn" id="btn-sim-coupon" type="button">Sim Kupong</button>
-          </div>
-
-          <div class="sim-tabs">
-            <button class="sim-tab active" id="btn-sim-tab-one" type="button">Denna avd</button>
-            <button class="sim-tab" id="btn-sim-tab-all" type="button">Alla avd</button>
-          </div>
-
-          <div id="sim-one-wrap">
-            <div class="sim-section-title">Topp 3 – sannolikhet</div>
-            <div id="sim-top3" class="sim-top3"></div>
-
-            <div class="sim-section-title" style="margin-top:10px;">Scenario (exempel)</div>
-            <pre id="sim-log" class="sim-log"></pre>
-
-            <div class="sim-history-wrap">
-              <div class="sim-history-head">
-                <div style="font-weight:800;">Vinnare-logg</div>
-                <button class="btn small" id="btn-sim-clear-history" type="button">Rensa</button>
-              </div>
-              <div id="sim-history" class="sim-history"></div>
-              <div id="sim-history-meta" class="sim-history-meta"></div>
-            </div>
-          </div>
-
-          <div id="sim-all-wrap" hidden>
-            <div class="sim-section-title">Alla avdelningar</div>
-            <div id="sim-all-results" class="sim-all-results"></div>
-          </div>
-        </div>
-
-        <div class="sim-right">
-          <div class="sim-canvas-wrap">
-            <canvas id="sim-canvas"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <div class="sim-footnote">
-        * Simuleringen är en förenklad modell (spår, positioner, tempo, väder, slump) och ska ses som stöd – inte facit.
-      </div>
-    </div>
-  </div>
+  <script type="module" src="./js/ui-coupon-combine.js?v=20260109-combine1"></script>
 
 </body>
 </html>

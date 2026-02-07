@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
 // POST /api/trav/tracks – skapa ny bana
 router.post('/', async (req, res) => {
   try {
-   const { name, code, slug, length, width, homeStretch, openStretch, angledGate, lat, lon } = req.body;
+   const { name, code, slug, length, width, homeStretch, openStretch, angledGate, lat, lon, infoText, comments, raceAnalyses } = req.body;
 
     if (!name || !code) {
       return res
@@ -35,6 +35,9 @@ router.post('/', async (req, res) => {
       openStretch,
       angledGate,
       slug: (slug || '').trim().toLowerCase(),
+      infoText: (infoText || ''),
+      comments: Array.isArray(comments) ? comments : [],
+      raceAnalyses: Array.isArray(raceAnalyses) ? raceAnalyses : [],
       lat: lat ?? null,
       lon: lon ?? null,
     });
@@ -59,6 +62,9 @@ router.put('/:id', async (req, res) => {
       homeStretch,
       openStretch,
       angledGate,
+      infoText,
+      comments,
+      raceAnalyses,
       
       lat,
       lon,
@@ -77,6 +83,9 @@ if (slug !== undefined) track.slug = (slug || '').trim().toLowerCase();
     if (homeStretch !== undefined) track.homeStretch = homeStretch;
     if (openStretch !== undefined) track.openStretch = openStretch;
     if (angledGate !== undefined) track.angledGate = angledGate;
+    if (infoText !== undefined) track.infoText = infoText || '';
+    if (comments !== undefined) track.comments = Array.isArray(comments) ? comments : [];
+    if (raceAnalyses !== undefined) track.raceAnalyses = Array.isArray(raceAnalyses) ? raceAnalyses : [];
     if (lat !== undefined) track.lat = lat ?? null;
     if (lon !== undefined) track.lon = lon ?? null;
 

@@ -15,13 +15,12 @@
     xpmax: $("#ui-xpmax"),
     time: $("#ui-time"),
 
-    hp: $("#ui-hp"),
-    hpmax: $("#ui-hpmax"),
-    mana: $("#ui-mana"),
-    manamax: $("#ui-manamax"),
-
-    hpbar: $("#ui-hpbar"),
-    manabar: $("#ui-manabar"),
+    // Left-panel base stats
+    baseLife: $("#ui-base-life"),
+    baseMana: $("#ui-base-mana"),
+    baseEnergy: $("#ui-base-energy"),
+    baseRegen: $("#ui-base-regen"),
+    baseShield: $("#ui-base-shield"),
     hpHud: $("#ui-hp-hud"),
     hpmaxHud: $("#ui-hpmax-hud"),
     manaHud: $("#ui-mana-hud"),
@@ -74,6 +73,8 @@
     btnInv: $("#btn-inventory"),
     btnInv2: $("#btn-inventory2"),
     btnSave2: $("#btn-save2"),
+    leftEquip: $("#ui-left-equip"),
+    leftInvCount: $("#ui-left-invcount"),
     btnEquip: $("#btn-equip"),
 
     modal: $("#modal"),
@@ -94,23 +95,8 @@
     journalLog: $("#ui-journal-log"),
     combatLog: $("#ui-combatlog"),
 
-    spellPreview: $("#ui-spellpreview"),
-    pvWord0: $("#pv-word-0"),
-    pvElem0: $("#pv-elem-0"),
-    pvDmg0: $("#pv-dmg-0"),
-    pvSub0: $("#pv-sub-0"),
     pvSave0: $("#btn-saveword-0"),
-
-    pvWord1: $("#pv-word-1"),
-    pvElem1: $("#pv-elem-1"),
-    pvDmg1: $("#pv-dmg-1"),
-    pvSub1: $("#pv-sub-1"),
     pvSave1: $("#btn-saveword-1"),
-
-    pvWord2: $("#pv-word-2"),
-    pvElem2: $("#pv-elem-2"),
-    pvDmg2: $("#pv-dmg-2"),
-    pvSub2: $("#pv-sub-2"),
     pvSave2: $("#btn-saveword-2"),
     bestTraining: $("#best-training"),
     bestArena: $("#best-arena"),
@@ -126,7 +112,101 @@
     levelupChoices: $("#ui-levelup-choices"),
   };
 
-  const STORAGE = "gameone_wordbattle_v1";
+  
+  // === Status/Intent UI helpers (injected to avoid HTML changes) ===
+  const _statusUi = { inited:false, pRow:null, eRow:null, intentEl:null };
+
+  function ensureStatusUi(){
+    if(_statusUi.inited) return;
+    _statusUi.inited = true;
+    try{
+      const pFrame = document.querySelector(".hpframe.player");
+      const eFrame = document.querySelector(".hpframe.enemy");
+      if(pFrame && !pFrame.querySelector("#ui-status-player")){
+        const row = document.createElement("div");
+        row.id = "ui-status-player";
+        row.className = "status-row";
+        pFrame.appendChild(row);
+        _statusUi.pRow = row;
+      } else {
+        _statusUi.pRow = document.querySelector("#ui-status-player");
+      }
+      if(eFrame && !eFrame.querySelector("#ui-status-enemy")){
+        const row = document.createElement("div");
+        row.id = "ui-status-enemy";
+        row.className = "status-row";
+        eFrame.appendChild(row);
+        _statusUi.eRow = row;
+      } else {
+        _statusUi.eRow = document.querySelector("#ui-status-enemy");
+      }
+      // Enemy intent badge near name
+      if(eFrame){
+        const nameEl = eFrame.querySelector(".enemy-name");
+        if(nameEl && !nameEl.querySelector("#ui-enemy-intent")){
+          const sp = document.createElement("span");
+          sp.id = "ui-enemy-intent";
+          sp.className = "enemy-intent";
+          sp.style.marginLeft = "10px";
+          sp.style.fontWeight = "800";
+          sp.style.opacity = "0.9";
+          nameEl.appendChild(sp);
+          _statusUi.intentEl = sp;
+        } else {
+          _statusUi.intentEl = document.querySelector("#ui-enemy-intent");
+        }
+      }
+    }catch(e){}
+  }
+
+  function setStatusRow(el, chips){
+    if(!el) return;
+    el.innerHTML = chips.map(c=>{
+      const cls = "status-chip " + (c.type||"");
+      return `<span class="${cls}">${escapeHtml(c.icon||"")} ${escapeHtml(c.text||"")}</span>`;
+    }).join("");
+  }
+
+  function renderStatusUi(){
+    ensureStatusUi();
+    const p = state.player;
+    const e = state.enemy;
+    const pChips = [];
+    const eChips = [];
+
+    // Player buffs
+    if(p.buff){
+      const icon = ({shield:"🛡️", regen:"💚", rarity:"🍀", crit:"🎯", resist:"🧿", leech:"🩸"})[p.buff.kind] || "✨";
+      pChips.push({ type:"buff", icon, text:`${p.buff.kind.toUpperCase()} ${p.buff.turns||0}t` });
+    }
+    if(p.shield>0){
+      pChips.push({ type:"buff", icon:"🛡️", text:`SHIELD ${Math.round(p.shield)}` });
+    }
+    if(p.dot){
+      pChips.push({ type:"debuff", icon:p.dot.icon||"☠️", text:`${p.dot.name||"Poison"} ${p.dot.perTurn}×${p.dot.turns}` });
+    }
+
+    // Enemy debuffs
+    if(e.dot){
+      eChips.push({ type:"debuff", icon:e.dot.icon||"☠️", text:`${e.dot.name} ${e.dot.perTurn}×${e.dot.turns}` });
+    }
+    if(e.guard>0){
+      eChips.push({ type:"buff", icon:"🛡️", text:`GUARD` });
+    }
+
+    setStatusRow(_statusUi.pRow, pChips);
+    setStatusRow(_statusUi.eRow, eChips);
+
+    // Intent
+    if(_statusUi.intentEl){
+      if(e.intent){
+        _statusUi.intentEl.textContent = `${e.intent.icon} ${e.intent.label}`;
+      } else {
+        _statusUi.intentEl.textContent = "";
+      }
+    }
+  }
+const STORAGE = "gameone_wordbattle_v1";
 
   // helpers
   const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
@@ -151,6 +231,7 @@
     return h >>> 0;
   }
 
+  
   function showModeScreen(){
     const best = loadBests();
     if(ui.bestAdventure) ui.bestAdventure.textContent = best.adventure ?? "–";
@@ -217,9 +298,11 @@
     state.deferredRewards = null;
     if(mode === MODES.TRAINING){
       state.enemy = makeTrainingDummy();
+      rollEnemyIntent();
       journalNow(`Träning: skriv ord och se skada. DPS fönster 30 sek.`);
     } else {
       state.enemy = makeModeEnemy();
+      rollEnemyIntent();
     }
     hideModeScreen();
     renderAll();
@@ -264,6 +347,7 @@
     { name:"Rarity", icon:"🍀", kind:"rarity" },
     { name:"Crit Up", icon:"🎯", kind:"crit" },
     { name:"Resist", icon:"🧿", kind:"resist" },
+      { name:"Leech", icon:"🩸", kind:"leech" },
   ];
 
   const START_WORDS = [
@@ -310,19 +394,43 @@
   ];
 
   const ITEM_POOL = [
-    // weapon
-    () => ({ type:"weapon", name:`Sunsteel Sword +${irnd(1,4)}`, icon:"🗡️", atk: irnd(4,9), elem: "Fire", crit: irnd(0,3) }),
-    () => ({ type:"weapon", name:`Frostfang Dagger +${irnd(1,4)}`, icon:"🗡️", atk: irnd(3,8), elem: "Ice", crit: irnd(1,4) }),
-    () => ({ type:"weapon", name:`Gale Axe +${irnd(1,4)}`, icon:"🪓", atk: irnd(5,10), elem: "Storm", crit: irnd(0,2) }),
-    // helm
-    () => ({ type:"helm", name:`Traveler's Cap`, icon:"🪖", def: irnd(2,5), hp: irnd(0,8) }),
-    () => ({ type:"helm", name:`Mystic Hood`, icon:"🧙", def: irnd(1,3), mana: irnd(1,3), crit: irnd(0,2) }),
-    // armor
-    () => ({ type:"armor", name:`Explorer's Vest`, icon:"🥋", def: irnd(3,6), hp: irnd(8,18) }),
-    () => ({ type:"armor", name:`Runed Mail`, icon:"🛡️", def: irnd(4,8), hp: irnd(6,14), resist: pick(ELEMENTS, irnd(0,9999)) }),
-    // potion
-    () => ({ type:"potion", name:`Healing Potion`, icon:"🧪", heal: irnd(20,50) }),
-  ];
+  // Weapon
+  () => ({ type:"weapon", name:`Sunsteel Sword +${irnd(1,4)}`, icon:"🗡️", atk: irnd(4,9), elem: "Fire", crit: irnd(0,3) }),
+  () => ({ type:"weapon", name:`Frostfang Dagger +${irnd(1,4)}`, icon:"🗡️", atk: irnd(3,8), elem: "Ice", crit: irnd(1,4) }),
+  () => ({ type:"weapon", name:`Gale Axe +${irnd(1,4)}`, icon:"🪓", atk: irnd(5,10), elem: "Storm", crit: irnd(0,2) }),
+
+  // Helmet
+  () => ({ type:"helmet", name:`Traveler's Cap`, icon:"🪖", def: irnd(2,5), hp: irnd(0,8) }),
+  () => ({ type:"helmet", name:`Mystic Hood`, icon:"🧙", def: irnd(1,3), mana: irnd(1,3), crit: irnd(0,2) }),
+
+  // Chest
+  () => ({ type:"chest", name:`Explorer's Vest`, icon:"🥋", def: irnd(3,6), hp: irnd(8,18) }),
+  () => ({ type:"chest", name:`Runed Mail`, icon:"🛡️", def: irnd(4,8), hp: irnd(6,14), resist: pick(ELEMENTS, irnd(0,9999)) }),
+
+  // Offhand
+  () => ({ type:"offhand", name:`Iron Buckler`, icon:"🛡️", def: irnd(2,6), hp: irnd(0,10) }),
+  () => ({ type:"offhand", name:`Ward Talisman`, icon:"🪬", mana: irnd(1,4), crit: irnd(0,2) }),
+
+  // Hands
+  () => ({ type:"hands", name:`Ranger Gloves`, icon:"🧤", atk: irnd(1,4), crit: irnd(0,2) }),
+  () => ({ type:"hands", name:`Runewrap Mitts`, icon:"🧤", def: irnd(1,3), mana: irnd(0,2) }),
+
+  // Boots
+  () => ({ type:"boots", name:`Trail Boots`, icon:"👢", def: irnd(1,4), hp: irnd(0,6) }),
+  () => ({ type:"boots", name:`Swift Greaves`, icon:"👢", def: irnd(2,5), crit: irnd(0,2) }),
+
+  // Trinkets (two slots)
+  () => ({ type:"trinket", name:`Lucky Charm`, icon:"✨", crit: irnd(1,3), loot: 0.02 }),
+  () => ({ type:"trinket", name:`Ember Pendant`, icon:"🔥", atk: irnd(1,4), elem: "Fire" }),
+  () => ({ type:"trinket", name:`Frost Locket`, icon:"❄️", def: irnd(1,4), elem: "Ice" }),
+
+  // Backpack (utility)
+  () => ({ type:"backpack", name:`Sturdy Backpack`, icon:"🎒", hp: irnd(4,10), mana: irnd(0,2), loot: 0.03 }),
+
+  // Potion
+  () => ({ type:"potion", name:`Healing Potion`, icon:"🧪", heal: irnd(20,50) }),
+];
+
 
   function newSeed(){
     return Math.random().toString(16).slice(2) + "-" + Date.now().toString(16);
@@ -367,6 +475,7 @@
   }
 
   function makeEnemy(level = (state.player?.level || 1)){
+
     const base = { ...ENEMIES[irnd(0, ENEMIES.length-1)] };
     const scale = 1 + Math.min(0.9, (level-1)*0.12);
     const hp = Math.round(base.hp * scale);
@@ -407,31 +516,61 @@
   }
 
   function basePlayer(){
-    return {
-      seed: newSeed(),
-      level: 1,
-      xp: 0,
-      xpMax: 100,
-      startAt: nowMs(),
-      hpMax: 85,
-      hp: 85,
-      manaMax: 8,
-      mana: 8,
-      // base stats (before equipment)
-      baseAtk: 20,
-      baseDef: 14,
-      baseCrit: 0.07,
-      lootBonus: 0,
-      savedWords: [],
-      inventory: [],
-      equip: { weapon:null, helm:null, armor:null },
-      buff: null,
-      shield: 0,
-      discovery: 0, // 0..100
-    };
-  }
+  return {
+    seed: newSeed(),
+    level: 1,
+    xp: 0,
+    // XP threshold for next level (cumulative)
+    xpMax: xpForLevel(2),
+    startAt: nowMs(),
 
-  function rollStartWords(p){
+    // Base maxima (stats points affect these). Gear adds bonuses on top.
+    baseHpMax: 85,
+    baseManaMax: 8,
+
+    hpMax: 85,
+    hp: 85,
+    manaMax: 8,
+    mana: 8,
+
+    // base stats (before equipment)
+    baseAtk: 20,
+    baseDef: 14,
+    baseCrit: 0.07,
+    lootBonus: 0,
+
+    savedWords: [],
+    wordBook: [],
+    inventory: [],
+
+    // Equipment slots (Diablo-style)
+    equip: {
+      weapon: null,
+      helmet: null,
+      offhand: null,
+      hands: null,
+      trinket1: null,
+      trinket2: null,
+      backpack: null,
+      boots: null,
+      chest: null,
+    },
+
+    buff: null,
+    shield: 0,
+    discovery: 0, // 0..100
+  };
+}
+
+
+  
+function xpForLevel(level){
+  // Cumulative XP required to reach `level` (level 1 starts at 0 XP)
+  // L2: 30, L3: 90, L4: 180, ... (30 * (level-1)*level/2)
+  const L = Math.max(1, Math.floor(level||1));
+  return Math.round(30 * (L - 1) * L / 2);
+}
+function rollStartWords(p){
     // two random to begin + one locked slot (still filled but not usable until lvl4)
     const a = START_WORDS[irnd(0, START_WORDS.length-1)];
     let b = START_WORDS[irnd(0, START_WORDS.length-1)];
@@ -446,7 +585,7 @@
     let crit = p.baseCrit;
     let loot = p.lootBonus;
 
-    const eq = [p.equip.weapon, p.equip.helm, p.equip.armor].filter(Boolean);
+    const eq = Object.values(p.equip || {}).filter(Boolean);
     for(const it of eq){
       atk += (it.atk || 0);
       def += (it.def || 0);
@@ -487,6 +626,7 @@
     const p = s.player || basePlayer();
     if(!p.seed) p.seed = newSeed();
     if(!Array.isArray(p.savedWords) || p.savedWords.length !== 3) rollStartWords(p);
+    p.wordBook = Array.isArray(p.wordBook) ? p.wordBook : [];
     p.level = Number(p.level||1);
     p.xp = Number(p.xp||0);
     p.xpMax = Number(p.xpMax||100);
@@ -494,6 +634,8 @@
     p.hp = clamp(Number(p.hp||p.hpMax), 0, p.hpMax);
     p.manaMax = Number(p.manaMax||8);
     p.mana = clamp(Number(p.mana||p.manaMax), 0, p.manaMax);
+    p.energyMax = Number(p.energyMax||10);
+    p.energy = clamp(Number(p.energy||p.energyMax), 0, p.energyMax);
     p.baseAtk = Number(p.baseAtk||20);
     p.baseDef = Number(p.baseDef||14);
     p.baseCrit = Number(p.baseCrit||0.07);
@@ -503,15 +645,22 @@
     p.equip = p.equip || { weapon:null, helm:null, armor:null };
     p.buff = p.buff || null;
     p.shield = Number(p.shield||0);
+    p.dot = p.dot || null;
+    p.status = Array.isArray(p.status) ? p.status : [];
 
     const enemy = s.enemy?.id ? s.enemy : makeEnemy(p.level);
     enemy.hpMax = Number(enemy.hpMax||enemy.hp||70);
     enemy.hp = clamp(Number(enemy.hp||enemy.hpMax), 0, enemy.hpMax);
     enemy.dot = enemy.dot || null;
+    enemy.guard = Number(enemy.guard||0);
+    enemy.intent = enemy.intent || null;
+    enemy.status = Array.isArray(enemy.status) ? enemy.status : [];
 
     return {
       player: p,
       enemy,
+      attackSlots: s.attackSlots || null,
+      uiAssignWordId: s.uiAssignWordId || null,
       pendingRewards: s.pendingRewards || null,
       pendingWord: s.pendingWord || null,
       turnLock: !!s.turnLock,
@@ -524,6 +673,9 @@
       lastReward: s.lastReward || "",
       nextReady: !!s.nextReady,
       combatLog: s.combatLog || [],
+      combo: Number(s.combo||0),
+      comboBest: Number(s.comboBest||0),
+      enemyTimerId: s.enemyTimerId || null,
       journal: s.journal || [],
       lastText: s.lastText || "Skriv ett ord och attackera!",
       lastCast: s.lastCast || "",
@@ -539,6 +691,7 @@
     state.pendingRewards = null;
     state.pendingWord = null;
     state.turnLock = false;
+    state.uiAssignWordId = null;
     state.pendingLevelUp = null;
     state.deferredRewards = null;
     state.combatLog = [];
@@ -551,6 +704,7 @@
     journalPush(state.sceneText);
     journalPush(`En ${state.enemy.name} dyker upp!`);
     state.lastCast = "";
+    ensureAttackSlots();
     renderAll();
     toast("Ny run startad.");
   }
@@ -569,10 +723,16 @@
     ui.xp.textContent = Math.floor(p.xp);
     ui.xpmax.textContent = p.xpMax;
 
-    ui.hp.textContent = Math.floor(p.hp);
-    ui.hpmax.textContent = p.hpMax;
-    ui.mana.textContent = Math.floor(p.mana);
-    ui.manamax.textContent = p.manaMax;
+    // Left: base stats overview
+    if(ui.baseLife) ui.baseLife.textContent = String(Math.floor(p.hpMax));
+    if(ui.baseMana) ui.baseMana.textContent = String(Math.floor(p.manaMax));
+    if(ui.baseEnergy) ui.baseEnergy.textContent = String(Math.floor(p.energyMax || 0));
+    if(ui.baseRegen){
+      let regen = 0;
+      if(p.buff && p.buff.kind === "regen") regen = Math.max(1, Math.round((p.buff.magnitude||0)/3));
+      ui.baseRegen.textContent = String(regen);
+    }
+    if(ui.baseShield) ui.baseShield.textContent = String(Math.floor(p.shield || 0));
 
     // HUD (cinematic layout)
     if(ui.hpHud) ui.hpHud.textContent = Math.floor(p.hp);
@@ -588,12 +748,11 @@
     ui.crit.textContent = `${Math.round(ds.crit*100)}%`;
     ui.loot.textContent = `+${Math.round(ds.loot*100)}%`;
 
-    ui.hpbar.style.width = `${clamp((p.hp/p.hpMax)*100,0,100)}%`;
-    ui.hpbarcenter.style.width = `${clamp((p.hp/p.hpMax)*100,0,100)}%`;
-    ui.manabar.style.width = `${clamp((p.mana/p.manaMax)*100,0,100)}%`;
-
-    if(ui.hpbarHud) ui.hpbarHud.style.width = ui.hpbar.style.width;
-    if(ui.manabarHud) ui.manabarHud.style.width = ui.manabar.style.width;
+    const hpPct = `${clamp((p.hp/p.hpMax)*100,0,100)}%`;
+    const mpPct = `${clamp((p.mana/p.manaMax)*100,0,100)}%`;
+    ui.hpbarcenter.style.width = hpPct;
+    if(ui.hpbarHud) ui.hpbarHud.style.width = hpPct;
+    if(ui.manabarHud) ui.manabarHud.style.width = mpPct;
 
     ui.enemyName.textContent = e.name;
     ui.enemyResist.textContent = `${RESIST_ICON[e.resist] || ""} ${e.resist}`;
@@ -606,15 +765,23 @@
 
     ui.battletext.textContent = state.lastText;
 
-    renderWords();
     renderInventoryLeft();
+    renderWords();
     renderEquip();
     renderRewards();
     if(state.pendingLevelUp) renderLevelUp();
     renderDiscovery();
-    renderSpellPreview();
+    // spell preview removed from UI
     renderJournal();
     renderCombat();
+    renderStatusUi();
+
+    // Disable attack buttons when no word is typed
+    const hasWord = ((ui.input && ui.input.value) ? ui.input.value.trim() : "").length > 0;
+    if(ui.attack) ui.attack.disabled = !hasWord;
+    const dockBtn = document.getElementById("dockAttackBtn");
+    if(dockBtn) dockBtn.disabled = !hasWord;
+    if(window.__GAMEONE__ && window.__GAMEONE__.onDockRender){ try{ window.__GAMEONE__.onDockRender(); }catch(e){} }
   }
 
   
@@ -637,90 +804,8 @@
     return { dmg, critChance };
   }
 
-  function renderSpellPreview(){
-    const p = state.player;
-    const e = state.enemy;
-    const ds = derivedStats(p);
-    const unlocked = unlockedSlots(p.level);
-    const parts = getCastParts();
-
-    // role 0 (attack)
-    const w0 = parts[0] || "";
-    if(w0){
-      const props0 = wordProps(w0, 0, p.seed);
-      const est = estimateMainDamage(props0, ds, e, p);
-      ui.pvWord0.textContent = props0.word;
-      ui.pvElem0.textContent = `${RESIST_ICON[props0.element] || "✨"} ${props0.element}`;
-      ui.pvDmg0.textContent = est ? `DMG ${est.dmg} • Crit ${est.critChance}%` : "DMG —";
-      const resistNote = (props0.element === e.resist) ? `Motstånd: ${e.resist} (−25%)` : `Svaghet? Testa andra element.`;
-      ui.pvSub0.textContent = `${resistNote}`;
-      ui.pvSave0.disabled = false;
-    }else{
-      ui.pvWord0.textContent = "Skriv ett ord…";
-      ui.pvElem0.textContent = "—";
-      ui.pvDmg0.textContent = "DMG —";
-      ui.pvSub0.textContent = "Element och skada visas här.";
-      ui.pvSave0.disabled = true;
-    }
-
-    // role 1 (dot)
-    const card1 = ui.pvSave1.closest(".spcard");
-    if(unlocked >= 2){
-      card1.classList.remove("locked");
-      const w1 = parts[1] || "";
-      if(w1){
-        const props1 = wordProps(w1, 1, p.seed);
-        const mult = calcElementMultiplier(props1.element);
-        const per = Math.max(1, Math.round(props1.perTurn * mult));
-        ui.pvWord1.textContent = props1.word;
-        ui.pvElem1.textContent = `${RESIST_ICON[props1.element] || "✨"} ${props1.element}`;
-        ui.pvDmg1.textContent = `${props1.dot.icon} ${props1.dot.name}: ${per}×${props1.turns}`;
-        ui.pvSub1.textContent = (props1.element === e.resist) ? `Motstånd: ${e.resist} (DoT sänks)` : "DoT triggar när Attack träffar.";
-        ui.pvSave1.disabled = false;
-      }else{
-        ui.pvWord1.textContent = "Skriv ord 2…";
-        ui.pvElem1.textContent = "—";
-        ui.pvDmg1.textContent = "DOT —";
-        ui.pvSub1.textContent = "Ex: Gift / Bränn / Frost.";
-        ui.pvSave1.disabled = true;
-      }
-    }else{
-      card1.classList.add("locked");
-      ui.pvWord1.textContent = "Låses upp på Level 2";
-      ui.pvElem1.textContent = "—";
-      ui.pvDmg1.textContent = "DOT —";
-      ui.pvSub1.textContent = "Du får kasta 2 ord på Level 2.";
-      ui.pvSave1.disabled = true;
-    }
-
-    // role 2 (buff)
-    const card2 = ui.pvSave2.closest(".spcard");
-    if(unlocked >= 3){
-      card2.classList.remove("locked");
-      const w2 = parts[2] || "";
-      if(w2){
-        const props2 = wordProps(w2, 2, p.seed);
-        ui.pvWord2.textContent = props2.word;
-        ui.pvElem2.textContent = `${RESIST_ICON[props2.element] || "✨"} ${props2.element}`;
-        ui.pvDmg2.textContent = `${props2.buff.icon} ${props2.buff.name}: +${props2.magnitude} (${props2.turns}t)`;
-        ui.pvSub2.textContent = "Buffen gäller dig (sköld/regen/rarity/resist…).";
-        ui.pvSave2.disabled = false;
-      }else{
-        ui.pvWord2.textContent = "Skriv ord 3…";
-        ui.pvElem2.textContent = "—";
-        ui.pvDmg2.textContent = "BUFF —";
-        ui.pvSub2.textContent = "Ex: Sköld / Regen / Rarity.";
-        ui.pvSave2.disabled = true;
-      }
-    }else{
-      card2.classList.add("locked");
-      ui.pvWord2.textContent = "Låses upp på Level 4";
-      ui.pvElem2.textContent = "—";
-      ui.pvDmg2.textContent = "BUFF —";
-      ui.pvSub2.textContent = "Du får kasta 3 ord på Level 4.";
-      ui.pvSave2.disabled = true;
-    }
-  }
+  // Spell preview UI removed.
+  function renderSpellPreview(){ return; }
 
   function renderJournal(){
     if(!ui.journalLog) return;
@@ -769,10 +854,22 @@
       toast("Skriv ett ord först.");
       return;
     }
+    // keep legacy slots
     p.savedWords[role] = w;
-    toast(`Sparade ${w} som ${role===0?"Attack":role===1?"DoT":"Buff"}-ord.`);
+
+    // add to wordBook (and mark usable immediately)
+    const id = ensureWordInBook(w);
+    const wb = getWordById(id);
+    if(wb) wb.revealed = true;
+    ensureAttackSlots();
+    // convenience: first save prefers Spark if empty
+    if(role === 0 && !state.attackSlots.spark.wordId){
+      state.attackSlots.spark.wordId = id;
+    }
+    toast(`Sparade ${w}.`);
     renderAll();
   }
+
 
 function renderWords(){
     const p = state.player;
@@ -796,46 +893,6 @@ function renderWords(){
         detail = `${props.buff.icon} ${props.buff.name} +${props.magnitude} (${props.turns}t)`;
       }
 
-
-function renderInventoryLeft(){
-  const box = document.querySelector("#ui-inv-left");
-  const eqBox = document.querySelector("#ui-eq-left");
-  if(!box && !eqBox) return;
-  const p = state.player || {};
-  const inv = (p.inventory || []);
-  const eq = (p.equip || {});
-  if(eqBox){
-    const parts = [];
-    const slots = [
-      ["weapon","🗡️","Vapen"],
-      ["armor","🛡️","Rustning"],
-      ["helm","🪖","Hjälm"],
-      ["ring","💍","Ring"],
-    ];
-    for(const [k,ico,label] of slots){
-      const it = eq[k];
-      parts.push(`<div class="invrow"><div class="ico">${ico}</div><div class="txt"><b>${label}</b><div class="muted">${it? (it.name||it.title||"") : "–"}</div></div></div>`);
-    }
-    eqBox.innerHTML = parts.join("") || `<div class="muted">Ingen utrustning ännu.</div>`;
-  }
-  if(box){
-    if(!inv.length){
-      box.innerHTML = `<div class="muted">Tom ryggsäck.</div>`;
-    }else{
-      box.innerHTML = inv.slice(0,12).map((it,idx)=>(
-        `<button class="invitem" data-idx="${idx}" type="button">
-          <span class="ico">${it.icon||"🎒"}</span>
-          <span class="name">${it.name||it.title||it.kind||"Item"}</span>
-        </button>`
-      )).join("");
-      // open inventory modal on click
-      box.querySelectorAll(".invitem").forEach(btn=>{
-        btn.addEventListener("click", ()=>{ try{ openInventory(); }catch(e){} });
-      });
-    }
-  }
-}
-
       div.innerHTML = `
         <div>
           <b>${props.icon || RESIST_ICON[props.element] || "✨"} ${escapeHtml(w)}</b><br/>
@@ -852,31 +909,91 @@ function renderInventoryLeft(){
     });
   }
 
-  function renderEquip(){
-    const p = state.player;
-    const eq = p.equip;
+  
 
-    const rows = [
-      { slot:"weapon", icon:"🗡️", label:"Weapon", item:eq.weapon },
-      { slot:"helm", icon:"🪖", label:"Helm", item:eq.helm },
-      { slot:"armor", icon:"🥋", label:"Armor", item:eq.armor },
-    ];
+function renderInventoryLeft(){
+  const p = state.player;
+  if(!ui.leftEquip || !p) return;
 
-    ui.equiplist.innerHTML = "";
-    for(const r of rows){
-      const el = document.createElement("div");
-      el.className = "equipitem";
-      const it = r.item;
-      el.innerHTML = `
-        <div class="equipicon">${r.icon}</div>
-        <div class="equiptext">
-          <b>${escapeHtml(it ? it.name : "Empty")}</b>
-          <small>${escapeHtml(it ? itemDesc(it) : "Click rewards to equip items.")}</small>
-        </div>
-      `;
-      ui.equiplist.appendChild(el);
-    }
+  const eq = p.equip || {};
+  // Backward compat from older saves
+  if(eq.helm && !eq.helmet) eq.helmet = eq.helm;
+  if(eq.armor && !eq.chest) eq.chest = eq.armor;
+
+  const slots = [
+    { key:"helmet",   area:"helmet",   icon:"🪖", label:"Helmet",   item:eq.helmet },
+    { key:"weapon",   area:"weapon",   icon:"🗡️", label:"Weapon",   item:eq.weapon },
+    { key:"offhand",  area:"offhand",  icon:"🛡️", label:"Offhand",  item:eq.offhand },
+    { key:"chest",    area:"chest",    icon:"🥋", label:"Chest",    item:eq.chest },
+    { key:"hands",    area:"hands",    icon:"🧤", label:"Hands",    item:eq.hands },
+    { key:"backpack", area:"backpack", icon:"🎒", label:"Backpack", item:eq.backpack },
+    { key:"trinket1", area:"trinket1", icon:"✨", label:"Trinket",  item:eq.trinket1 },
+    { key:"trinket2", area:"trinket2", icon:"✨", label:"Trinket",  item:eq.trinket2 },
+    { key:"boots",    area:"boots",    icon:"👢", label:"Boots",    item:eq.boots },
+  ];
+
+  ui.leftEquip.innerHTML = `
+    <div class="paperdoll" aria-label="Equipment overview">
+      <div class="pd-sil" aria-hidden="true"></div>
+      ${slots.map(s=>{
+        const it = s.item;
+        const name = it ? it.name : "Tomt";
+        const sub  = it ? itemDesc(it) : s.label;
+        return `
+          <button type="button" class="pd-slot" data-slot="${escapeHtml(s.key)}" style="grid-area:${escapeHtml(s.area)}" title="${escapeHtml(sub)}">
+            <div class="pd-ico">${s.icon}</div>
+            <div class="pd-name">${escapeHtml(name)}</div>
+          </button>
+        `;
+      }).join("")}
+    </div>
+  `;
+
+  if(ui.leftInvCount) ui.leftInvCount.textContent = String((p.inventory||[]).length);
+}
+function renderEquip(){
+  const p = state.player;
+  const eq = p.equip || {};
+  if(eq.helm && !eq.helmet) eq.helmet = eq.helm;
+  if(eq.armor && !eq.chest) eq.chest = eq.armor;
+
+  const rows = [
+    { slot:"helmet",   area:"helmet",   icon:"🪖", label:"Helmet",   item:eq.helmet },
+    { slot:"weapon",   area:"weapon",   icon:"🗡️", label:"Weapon",   item:eq.weapon },
+    { slot:"offhand",  area:"offhand",  icon:"🛡️", label:"Offhand",  item:eq.offhand },
+    { slot:"hands",    area:"hands",    icon:"🧤", label:"Hands",    item:eq.hands },
+    { slot:"trinket1", area:"trinket1", icon:"✨", label:"Trinket",  item:eq.trinket1 },
+    { slot:"trinket2", area:"trinket2", icon:"✨", label:"Trinket",  item:eq.trinket2 },
+    { slot:"backpack", area:"backpack", icon:"🎒", label:"Backpack", item:eq.backpack },
+    { slot:"boots",    area:"boots",    icon:"👢", label:"Boots",    item:eq.boots },
+    { slot:"chest",    area:"chest",    icon:"🥋", label:"Chest",    item:eq.chest },
+  ];
+
+  ui.equiplist.innerHTML = "";
+  const grid = document.createElement("div");
+  grid.className = "equip-grid";
+  ui.equiplist.appendChild(grid);
+
+  for(const r of rows){
+    const it = r.item;
+    const itemName = it ? it.name : "Tomt";
+    const itemSub  = it ? itemDesc(it) : r.label;
+
+    const box = document.createElement("div");
+    box.className = "equip-slot";
+    box.dataset.slot = r.slot;
+    box.style.gridArea = r.area;
+
+    box.innerHTML = `
+      <div class="equip-ico">${r.icon}</div>
+      <div class="equip-txt">
+        <b>${escapeHtml(itemName)}</b>
+        <small>${escapeHtml(itemSub)}</small>
+      </div>
+    `;
+    grid.appendChild(box);
   }
+}
 
   function renderDiscovery(){
     const p = state.player;
@@ -905,75 +1022,196 @@ function renderInventoryLeft(){
   }
 
   function showLevelUp(levels=1){
-    state.pendingLevelUp = { levelsLeft: levels, choices: pickUpgrades(3) };
-    if(ui.levelupScreen){
-      ui.levelupScreen.classList.add("show");
-      ui.levelupScreen.setAttribute("aria-hidden","false");
-    }
-    renderLevelUp();
+  const gained = Math.max(1, (levels|0));
+  const points = gained * 5; // 5 points per level gained
+  const p = state.player;
+
+  state.pendingLevelUp = {
+    pointsTotal: points,
+    pointsLeft: points,
+    // base snapshot so we can support minus button safely
+    base: {
+      life: Number(p.hpMax||85),
+      mana: Number(p.manaMax||8),
+      energy: Number(p.energyMax||10),
+      atk: Number(p.baseAtk||20),
+      def: Number(p.baseDef||14),
+      crit: Number(Math.round((p.baseCrit||0.07)*100)), // store as %
+      regen: Number(p.baseRegen||0),
+    },
+    alloc: { life:0, mana:0, energy:0, atk:0, def:0, crit:0, regen:0 },
+  };
+
+  // Force the level-up screen visible even on mobile/drawer layouts
+  if(ui.levelupScreen){
+    ui.levelupScreen.style.position = "fixed";
+    ui.levelupScreen.style.inset = "0";
+    ui.levelupScreen.style.zIndex = "99999";
+    ui.levelupScreen.style.display = "flex";
+    ui.levelupScreen.style.alignItems = "center";
+    ui.levelupScreen.style.justifyContent = "center";
+    ui.levelupScreen.classList.add("is-open");
+    ui.levelupScreen.setAttribute("aria-hidden","false");
+  }
+}
+
+function hideLevelUp(){
+  if(ui.levelupScreen){
+    ui.levelupScreen.classList.remove("is-open");
+    ui.levelupScreen.setAttribute("aria-hidden","true");
+  }
+}
+
+function renderLevelUp(){
+  if(!state.pendingLevelUp || !ui.levelupChoices) return;
+  const p = state.player;
+  const L = state.pendingLevelUp;
+
+  if(ui.levelupSub){
+    ui.levelupSub.textContent = `Du är nu level ${p.level}. Fördela ${L.pointsTotal} poäng. Kvar: ${L.pointsLeft}.`;
   }
 
-  function hideLevelUp(){
-    if(ui.levelupScreen){
-      ui.levelupScreen.classList.remove("show");
-      ui.levelupScreen.setAttribute("aria-hidden","true");
-    }
-  }
+  const rows = [
+    { key:"life",  label:"Life",       desc:"+5 HP max",     step: 5 },
+    { key:"mana",  label:"Mana",       desc:"+1 Mana max",   step: 1 },
+    { key:"energy",label:"Energy",     desc:"+2 Energy max", step: 2 },
+    { key:"atk",   label:"Attack",     desc:"+1 ATK",        step: 1 },
+    { key:"def",   label:"Defense",    desc:"+1 DEF",        step: 1 },
+    { key:"crit",  label:"Crit",       desc:"+1% Crit",      step: 1 },
+    { key:"regen", label:"Life regen", desc:"+1 Regen",      step: 1 },
+  ];
 
-  function renderLevelUp(){
-    if(!state.pendingLevelUp || !ui.levelupChoices) return;
-    const p = state.player;
-    const lvl = p?.level ?? 0;
-    if(ui.levelupSub) ui.levelupSub.textContent = `Du är nu level ${lvl}. Välj 1 uppgradering.`;
-    ui.levelupChoices.innerHTML = state.pendingLevelUp.choices.map(c => {
-      const tags = (c.tags||[]).map(t=>`<span class=\"lu-tag\">${escapeHtml(t)}</span>`).join("");
-      return `
-        <button class=\"lu-choice\" type=\"button\" data-upg=\"${escapeHtml(c.id)}\">
-          <div class=\"lu-title\">${escapeHtml(c.title)}</div>
-          <div class=\"lu-desc\">${escapeHtml(c.desc)}</div>
-          <div class=\"lu-tagrow\">${tags}</div>
-        </button>
-      `;
-    }).join("");
-    ui.levelupChoices.querySelectorAll("[data-upg]").forEach(btn=>{
-      btn.addEventListener("click", ()=>{
-        const id = btn.getAttribute("data-upg");
-        applyUpgrade(id);
-      });
+  const rowHtml = (r)=>{
+    const a = L.alloc[r.key]||0;
+    return `
+      <div class="lvlrow">
+        <div class="lvlleft">
+          <div class="lvllabel">${r.label}</div>
+          <div class="lvldesc muted">${r.desc}</div>
+        </div>
+        <div class="lvlright">
+          <button class="btn small lvlbtn" data-k="${r.key}" data-d="-">−</button>
+          <div class="lvlval"><b>${a}</b></div>
+          <button class="btn small lvlbtn" data-k="${r.key}" data-d="+">+</button>
+        </div>
+      </div>
+    `;
+  };
+
+  ui.levelupChoices.innerHTML = `
+    <div class="lvlwrap">
+      ${rows.map(rowHtml).join("")}
+      <div class="lvlactions">
+        <button class="btn" id="btn-levelup-confirm" ${L.pointsLeft!==0 ? "disabled":""}>Bekräfta</button>
+      </div>
+    </div>
+  `;
+
+  ui.levelupChoices.querySelectorAll(".lvlbtn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const k = btn.getAttribute("data-k");
+      const d = btn.getAttribute("data-d");
+      if(!k) return;
+      if(d === "+" && L.pointsLeft > 0){
+        L.alloc[k] = (L.alloc[k]||0) + 1;
+        L.pointsLeft -= 1;
+      } else if(d === "-" && (L.alloc[k]||0) > 0){
+        L.alloc[k] = (L.alloc[k]||0) - 1;
+        L.pointsLeft += 1;
+      }
+      renderLevelUp();
+    });
+  });
+
+  const c = ui.levelupChoices.querySelector("#btn-levelup-confirm");
+  if(c){
+    c.addEventListener("click", ()=>{
+      applyLevelUpAlloc();
     });
   }
+}
 
-  function applyUpgrade(id){
-    const p = state.player;
-    const u = UPGRADE_POOL.find(x=>x.id===id);
-    if(p && u && typeof u.apply === "function"){
-      u.apply(p);
-      journalPush(`Uppgradering: ${u.title}`);
-      combatPush(`UPGRADE: ${u.title}`);
-      playSfx("attack");
-    }
-    state.pendingLevelUp.levelsLeft -= 1;
-    if(state.pendingLevelUp.levelsLeft > 0){
-      state.pendingLevelUp.choices = pickUpgrades(3);
-      renderLevelUp();
-      return;
-    }
-    state.pendingLevelUp = null;
-    hideLevelUp();
-    if(state.deferredRewards){
-      state.pendingRewards = state.deferredRewards;
-      state.deferredRewards = null;
-      renderAll();
-    } else {
-      renderAll();
+function applyLevelUpAlloc(){
+  const p = state.player;
+  const L = state.pendingLevelUp;
+  if(!p || !L) return;
+  if(L.pointsLeft !== 0){
+    toast("Fördela alla poäng först.");
+    return;
+  }
+
+  // Apply allocations
+  const hpAdd = (L.alloc.life||0) * 5;
+  const manaAdd = (L.alloc.mana||0) * 1;
+  const energyAdd = (L.alloc.energy||0) * 2;
+
+  p.hpMax = Math.max(1, Number(p.hpMax||85) + hpAdd);
+  p.manaMax = Math.max(0, Number(p.manaMax||8) + manaAdd);
+  p.energyMax = Math.max(0, Number(p.energyMax||10) + energyAdd);
+
+  p.baseAtk = Number(p.baseAtk||20) + (L.alloc.atk||0);
+  p.baseDef = Number(p.baseDef||14) + (L.alloc.def||0);
+
+  // crit stored as fraction
+  p.baseCrit = clamp(Number(p.baseCrit||0.07) + ((L.alloc.crit||0) * 0.01), 0, 0.95);
+
+  // regen stat
+  p.baseRegen = Number(p.baseRegen||0) + (L.alloc.regen||0);
+
+  // refill current to new max limits
+  p.hp = clamp(p.hp + hpAdd, 0, p.hpMax);
+  p.mana = clamp(p.mana + 1, 0, p.manaMax);
+  p.energy = clamp(p.energy, 0, p.energyMax);
+
+  state.pendingLevelUp = null;
+  hideLevelUp();
+
+  // Now show rewards (only on level-up)
+  if(state.deferredRewards && !state.pendingRewards){
+    state.pendingRewards = state.deferredRewards;
+    state.deferredRewards = null;
+    if(ui.panelRewards){
+      ui.panelRewards.classList.add("rewards-pop");
+      setTimeout(()=>ui.panelRewards && ui.panelRewards.classList.remove("rewards-pop"), 260);
     }
   }
+
+  renderAll();
+}
+
+function applyUpgrade(){ /* replaced by stat points level-up */ }
+
 
   function renderRewards(){
-  // show/hide rewards modal
+  const open = !!state.pendingRewards || !!state.nextReady;
   if(ui.panelRewards){
-    ui.panelRewards.classList.toggle('is-open', !!state.pendingRewards || !!state.nextReady);
+    ui.panelRewards.classList.toggle('is-open', open);
+    ui.panelRewards.classList.toggle('hidden', !open);
   }
+
+  const buildRowsHtml = (rewards) => rewards.map((r, idx)=>`
+    <div class="reward" data-idx="${idx}">
+      <div class="rewardicon">${r.icon}</div>
+      <div class="rewardtext">
+        <b>${escapeHtml(r.title)}</b>
+        <small>${escapeHtml(r.desc)}</small>
+      </div>
+    </div>
+  `).join("");
+
+  const wireClicks = (root, rewards) => {
+    if(!root) return;
+    root.querySelectorAll(".reward").forEach(el=>{
+      el.addEventListener("click", ()=>{
+        const idx = Number(el.getAttribute("data-idx"));
+        const r = rewards[idx];
+        if(r) claimReward(r);
+      });
+    });
+  };
+
+  // Sidebar list
+  if(ui.rewards){
     ui.rewards.innerHTML = "";
     if(!state.pendingRewards){
       if(state.nextReady){
@@ -990,25 +1228,71 @@ function renderInventoryLeft(){
           state.lastReward = "";
           nextFight();
         });
-        return;
+      } else {
+        ui.rewards.innerHTML = `<div class="muted">Vinn en strid för att få belöningar.</div>`;
       }
-      ui.rewards.innerHTML = `<div class="muted">Vinn en strid för att få belöningar.</div>`;
-      return;
-    }
-    for(const r of state.pendingRewards){
-      const div = document.createElement("div");
-      div.className = "reward";
-      div.innerHTML = `
-        <div class="rewardicon">${r.icon}</div>
-        <div class="rewardtext">
-          <b>${escapeHtml(r.title)}</b>
-          <small>${escapeHtml(r.desc)}</small>
-        </div>
-      `;
-      div.addEventListener("click", () => claimReward(r));
-      ui.rewards.appendChild(div);
+    } else {
+      ui.rewards.innerHTML = buildRowsHtml(state.pendingRewards);
+      wireClicks(ui.rewards, state.pendingRewards);
     }
   }
+
+  // Popup modal
+  if(!ui.panelRewards) return;
+  if(!open){
+    ui.panelRewards.innerHTML = "";
+    return;
+  }
+
+  if(state.pendingRewards){
+    const rows = buildRowsHtml(state.pendingRewards);
+    ui.panelRewards.innerHTML = `
+      <div class="modal-card rewards-pop">
+        <div class="modal-head">
+          <div class="modal-title">VÄLJ BELÖNING</div>
+          <button class="iconbtn" id="btn-rewards-close" title="Stäng">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="muted" style="margin-bottom:10px">Välj en belöning för att fortsätta.</div>
+          <div class="rewardslist">${rows}</div>
+        </div>
+      </div>
+    `;
+    // Don't allow closing while pending (prevents softlock)
+    const closeBtn = document.getElementById("btn-rewards-close");
+    if(closeBtn) closeBtn.addEventListener("click", (e)=>{ e.preventDefault(); });
+    wireClicks(ui.panelRewards, state.pendingRewards);
+    return;
+  }
+
+  // Next ready
+  ui.panelRewards.innerHTML = `
+    <div class="modal-card rewards-pop">
+      <div class="modal-head">
+        <div class="modal-title">BELÖNING</div>
+        <button class="iconbtn" id="btn-rewards-close2" title="Stäng">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="muted" style="margin-bottom:10px">${escapeHtml(state.lastReward || "Belöning tagen.")}</div>
+        <button class="btn" id="btn-next-fight2">Nästa fiende</button>
+      </div>
+    </div>
+  `;
+  const btn2 = document.getElementById("btn-next-fight2");
+  if(btn2) btn2.addEventListener("click", ()=>{
+    if(state.mode === MODES.ADVENTURE && state.modeRun){
+      state.modeRun.room += 1;
+    }
+    state.nextReady = false;
+    state.lastReward = "";
+    nextFight();
+  });
+  const close2 = document.getElementById("btn-rewards-close2");
+  if(close2) close2.addEventListener("click", ()=>{
+    ui.panelRewards.classList.add("hidden");
+    ui.panelRewards.classList.remove("is-open");
+  });
+}
 
   function toast(text){
     state.lastText = text;
@@ -1031,14 +1315,13 @@ function renderInventoryLeft(){
     if(state.journal.length > 14) state.journal.shift();
   }
 
-
 function journalNow(msg){
   if(!msg) return;
   state.lastText = msg;
   journalPush(msg);
-  try{ renderJournal(); }catch(e){}
-  if(ui.journalNow) ui.journalNow.textContent = msg;
+  try{ renderJournal(); } catch(e){}
 }
+
 
   function fmtClock(ms){
     const s = Math.floor(ms/1000);
@@ -1055,48 +1338,57 @@ function journalNow(msg){
   }
 
   function float(layer, text, color="red", small=false){
-  const el = document.createElement("div");
-  el.className = `float ${color}` + (small ? " small" : "");
-  el.textContent = text;
-  const ox = irnd(-55, 55);
-  const oy = irnd(-18, 22);
-  el.style.left = `calc(50% + ${ox}px)`;
-  el.style.top = `calc(50% + ${oy}px)`;
-  layer.appendChild(el);
-  setTimeout(()=>el.remove(), 1100);
-}
+    const el = document.createElement("div");
+    el.className = `float ${color}` + (small ? " small" : "");
+    el.textContent = text;
+    const ox = irnd(-55, 55);
+    const oy = irnd(-18, 22);
 
-// --- SFX (no external files) ---
-let _audioCtx = null;
-function getAudio(){
-  try{
-    if(!_audioCtx){ _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-    return _audioCtx;
-  }catch(e){ return null; }
-}
+    layer = layer || ui.arena || document.body;
+    layer.appendChild(el);
 
-function playSfx(type="attack"){
-  const ctx = getAudio();
-  if(!ctx) return;
-  const t0 = ctx.currentTime;
-  const o = ctx.createOscillator();
-  const g = ctx.createGain();
-  const f = ctx.createBiquadFilter();
-  f.type = "lowpass";
-  f.frequency.setValueAtTime(type==="enemy" ? 900 : 1400, t0);
-  o.type = type==="enemy" ? "sawtooth" : "triangle";
-  const base = (type==="enemy") ? 140 : 220;
-  o.frequency.setValueAtTime(base, t0);
-  o.frequency.exponentialRampToValueAtTime(base*3.2, t0+0.06);
-  o.frequency.exponentialRampToValueAtTime(base*1.4, t0+0.14);
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(type==="enemy" ? 0.12 : 0.10, t0+0.02);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0+0.16);
-  o.connect(f);
-  f.connect(g);
-  g.connect(ctx.destination);
-  try{ o.start(t0); o.stop(t0+0.18); }catch(e){}
-}function itemDesc(it){
+    el.style.transform = `translate(${ox}px, ${oy}px)`;
+    requestAnimationFrame(()=>{
+      el.classList.add("show");
+      el.style.transform = `translate(${ox}px, ${oy-70}px)`;
+      el.style.opacity = "0";
+    });
+    setTimeout(()=> el.remove(), 900);
+  }
+
+
+  // --- SFX (no external files) ---
+  let _audioCtx = null;
+  function getAudio(){
+    try{
+      if(!_audioCtx){ _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      return _audioCtx;
+    }catch(e){ return null; }
+  }
+
+  function playSfx(type="attack"){
+    const ctx = getAudio();
+    if(!ctx) return;
+    const t0 = ctx.currentTime;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    const f = ctx.createBiquadFilter();
+    f.type = "lowpass";
+    f.frequency.setValueAtTime(type==="enemy" ? 900 : 1400, t0);
+    o.type = type==="enemy" ? "sawtooth" : "triangle";
+    const base = (type==="enemy") ? 140 : 220;
+    o.frequency.setValueAtTime(base, t0);
+    o.frequency.exponentialRampToValueAtTime(base*3.2, t0+0.06);
+    o.frequency.exponentialRampToValueAtTime(base*1.4, t0+0.14);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(type==="enemy" ? 0.12 : 0.10, t0+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+0.16);
+    o.connect(f);
+    f.connect(g);
+    g.connect(ctx.destination);
+    try{ o.start(t0); o.stop(t0+0.18); }catch(e){}
+  }
+  function itemDesc(it){
     const parts = [];
     if(it.atk) parts.push(`+${it.atk} ATK`);
     if(it.def) parts.push(`+${it.def} DEF`);
@@ -1110,7 +1402,7 @@ function playSfx(type="attack"){
   }
 
   // Rewards
-  function makeRewards(){
+  function makeRewards(count=3){
     const p = state.player;
     const lootBoost = derivedStats(p).loot;
     const rareRoll = Math.random() < (0.10 + lootBoost);
@@ -1156,7 +1448,7 @@ function playSfx(type="attack"){
       });
     }
 
-    return rewards.slice(0,3);
+    return rewards.slice(0, Math.max(1, count|0));
   }
 
   function claimReward(r){
@@ -1164,7 +1456,11 @@ function playSfx(type="attack"){
     if(!state.pendingRewards) return;
 
     if(r.kind === "word"){
-      openWordModal(r.word);
+      state.pendingRewards = null;
+      state.nextReady = true;
+      state.lastReward = `Du fick nytt ord: ${r.word?.name || r.word?.title || "Nytt ord"}`;
+      renderAll();
+      setTimeout(()=>{ openWordModal(r.word); }, 0);
       return;
     }
     if(r.kind === "item" || r.kind === "bonus"){
@@ -1203,70 +1499,123 @@ function playSfx(type="attack"){
   }
 
   function autoEquip(it){
-    const p = state.player;
-    if(it.type === "weapon" && !p.equip.weapon) p.equip.weapon = it;
-    if(it.type === "helm" && !p.equip.helm) p.equip.helm = it;
-    if(it.type === "armor" && !p.equip.armor) p.equip.armor = it;
-    // apply hp/mana bonuses by increasing max and current
-    applyEquipDerived();
+  const p = state.player;
+  if(!p) return;
+  const eq = p.equip || (p.equip = {});
+  if(eq.helm && !eq.helmet) eq.helmet = eq.helm;
+  if(eq.armor && !eq.chest) eq.chest = eq.armor;
+
+  const t = it.type;
+
+  if(t === "weapon" && !eq.weapon) eq.weapon = it;
+  if((t === "helmet" || t === "helm") && !eq.helmet) eq.helmet = it;
+  if(t === "offhand" && !eq.offhand) eq.offhand = it;
+  if(t === "hands" && !eq.hands) eq.hands = it;
+  if(t === "boots" && !eq.boots) eq.boots = it;
+  if((t === "chest" || t === "armor") && !eq.chest) eq.chest = it;
+  if(t === "backpack" && !eq.backpack) eq.backpack = it;
+
+  if(t === "trinket"){
+    if(!eq.trinket1) eq.trinket1 = it;
+    else if(!eq.trinket2) eq.trinket2 = it;
   }
+
+  // apply hp/mana bonuses etc
+  applyEquipDerived();
+}
+
 
   function applyEquipDerived(){
-    const p = state.player;
-    // recompute max hp/mana from equipment bonuses
-    let hpBonus=0, manaBonus=0;
-    for(const it of [p.equip.weapon, p.equip.helm, p.equip.armor].filter(Boolean)){
-      hpBonus += it.hp || 0;
-      manaBonus += it.mana || 0;
-    }
-    const baseHp = 85 + (p.level-1)*6;
-    const baseMana = 8 + Math.floor((p.level-1)/2);
-    const newHpMax = baseHp + hpBonus;
-    const newManaMax = baseMana + manaBonus;
+  const p = state.player;
+  if(!p) return;
 
-    // keep ratio-ish
-    const hpPct = p.hp / p.hpMax;
-    const manaPct = p.mana / p.manaMax;
+  // Backward compat for older saves
+  p.baseHpMax ??= p.hpMax ?? 85;
+  p.baseManaMax ??= p.manaMax ?? 8;
+  const eq = p.equip || (p.equip = {});
+  if(eq.helm && !eq.helmet) eq.helmet = eq.helm;
+  if(eq.armor && !eq.chest) eq.chest = eq.armor;
 
-    p.hpMax = newHpMax;
-    p.manaMax = newManaMax;
-
-    p.hp = clamp(Math.round(p.hpMax * hpPct), 1, p.hpMax);
-    p.mana = clamp(Math.round(p.manaMax * manaPct), 0, p.manaMax);
+  let hpBonus = 0, manaBonus = 0;
+  for(const it of Object.values(eq).filter(Boolean)){
+    hpBonus += (it.hp || 0);
+    manaBonus += (it.mana || 0);
   }
+
+  const newHpMax = Math.max(1, Math.round((p.baseHpMax || 85) + hpBonus));
+  const newManaMax = Math.max(0, Math.round((p.baseManaMax || 8) + manaBonus));
+
+  // Keep current values within new max
+  p.hpMax = newHpMax;
+  p.manaMax = newManaMax;
+  p.hp = clamp(p.hp, 0, p.hpMax);
+  p.mana = clamp(p.mana, 0, p.manaMax);
+}
+
 
   // Word Scroll modal
   function openWordModal(word){
     const p = state.player;
-    const role = 0; // preview as attack (role 0) since it is the main use
-    const props = wordProps(word, role, p.seed);
+
+    const props = wordProps(word, 0, p.seed);
     state.pendingWord = word;
 
     ui.newWordName.textContent = word;
-    ui.newWordDesc.textContent = `Element: ${props.element} • Power: ${props.power}`;
+    ui.newWordDesc.textContent = `Element: ${props.element} • ATK: ${props.power} • Tier: ${tierForWord(p.seed, word)}`;
+
+    // Create/ensure word in book
+    const id = ensureWordInBook(word);
+    // If the player has the word in hand (reward), it is revealed/usable.
+    const wb = getWordById(id);
+    if(wb) wb.revealed = true;
 
     ui.replaceGrid.innerHTML = "";
-    p.savedWords.forEach((w,i)=>{
-      const pr = wordProps(w, i, p.seed);
+
+    const addBtn = (slotKey, title, locked=false) => {
       const btn = document.createElement("div");
-      btn.className = "replacebtn";
+      btn.className = "replacebtn" + (locked ? " locked" : "");
+      const slot = (state.attackSlots && state.attackSlots[slotKey]) ? state.attackSlots[slotKey] : null;
+      const sub = locked ? "Låst" : "Placera här";
       btn.innerHTML = `
-        <div><b>Slot ${i+1}: ${escapeHtml(w)}</b><br/><small>${i===0?"Attack":i===1?"DoT":"Buff"} • ${pr.element}</small></div>
-        <small>Replace</small>
+        <div><b>${escapeHtml(title)}</b><br/><small>${escapeHtml(sub)}</small></div>
+        <small>${locked ? "🔒" : "Välj"}</small>
       `;
-      btn.addEventListener("click", ()=> {
-        p.savedWords[i] = word;
-        state.pendingWord = null;
-        closeWordModal();
-        toast(`Du lär dig ${word} och sparar den i slot ${i+1}.`);
-        state.pendingRewards = null;
-        nextFight();
-      });
+      if(!locked){
+        btn.addEventListener("click", ()=> {
+          assignWordToSlot(id, slotKey);
+          state.pendingWord = null;
+          closeWordModal();
+          state.pendingRewards = null;
+          nextFight();
+        });
+      }
       ui.replaceGrid.appendChild(btn);
+    };
+
+    ensureAttackSlots();
+    addBtn("tap", "Tap");
+    addBtn("spark", "Spark");
+    addBtn("arc", "Arc", !state.attackSlots.arc.unlocked);
+    addBtn("burst", "Burst", !state.attackSlots.burst.unlocked);
+
+    // optional: add to list only
+    const keep = document.createElement("div");
+    keep.className = "replacebtn";
+    keep.innerHTML = `
+      <div><b>Lägg i listan</b><br/><small>Spara ordet utan att placera det nu</small></div>
+      <small>OK</small>
+    `;
+    keep.addEventListener("click", ()=>{
+      state.pendingWord = null;
+      closeWordModal();
+      state.pendingRewards = null;
+      nextFight();
     });
+    ui.replaceGrid.appendChild(keep);
 
     ui.wordModal.classList.remove("hidden");
   }
+
   function closeWordModal(){
     ui.wordModal.classList.add("hidden");
   }
@@ -1345,9 +1694,15 @@ function playSfx(type="attack"){
     if(!e.dot) return 0;
     e.dot.turns -= 1;
     const dmg = e.dot.perTurn;
+    // enemy guard reduces incoming damage once
+    if(e.guard > 0){
+      dmg = Math.max(1, Math.round(dmg * 0.70));
+      e.guard = 0;
+      float(ui.floatE, "BLOCK", "blue", true);
+    }
     e.hp = Math.max(0, e.hp - dmg);
     checkEnemyDead("dot");
-    float(ui.floatE, `-${dmg}`, "green", true);
+    float(ui.floatE, `-${dmg}`, "purple", true);
     toast(`${e.dot.icon} ${e.dot.name} tick: -${dmg}`);
     if(e.dot.turns <= 0) e.dot = null;
     return dmg;
@@ -1368,11 +1723,91 @@ function playSfx(type="attack"){
     }
   }
 
-  function enemyAttack(){
+  
+  function rollEnemyIntent(){
+    const e = state.enemy;
+    if(!e) return null;
+    const r = Math.random();
+    let intent = null;
+    if(r < 0.70){
+      intent = { type:"attack", icon:"🗡️", label:"Attack" };
+    } else if(r < 0.90){
+      intent = { type:"block", icon:"🛡️", label:"Block" };
+    } else {
+      intent = { type:"poison", icon:"☠️", label:"Poison" };
+    }
+    e.intent = intent;
+    return intent;
+  }
+
+  function applyEnemyIntent(){
+    const p = state.player;
+    const e = state.enemy;
+    if(!p || !e) return;
+    const intent = e.intent || rollEnemyIntent();
+    if(!intent) return;
+
+    if(intent.type === "block"){
+      e.guard = 1;
+      toast("Fienden förbereder block!");
+      float(ui.floatE, "BLOCK", "blue", true);
+      // no damage this turn when blocking: treat as a defensive action
+      return { didAttack:false };
+    }
+
+    if(intent.type === "poison"){
+      // Poison strike (small dmg + dot)
+      const ds = derivedStats(p);
+      let dmg = irnd(e.atk[0], e.atk[1]);
+      dmg = Math.max(1, dmg - Math.floor(ds.def/8));
+      p.hp = Math.max(0, p.hp - dmg);
+      float(ui.floatP, `-${dmg}`, "red");
+      const per = Math.max(1, Math.round(2 + (e.level||1)/2));
+      p.dot = { name:"Poison", icon:"☠️", perTurn: per, turns: 3 };
+      toast(`☠️ Poison: -${per}×3`);
+      combatPush(`Fiende: Poison → ${dmg} dmg + DOT`);
+      playSfx("enemy");
+      return { didAttack:true };
+    }
+
+    return { didAttack:true }; // normal attack happens in enemyAttack()
+  }
+
+  function tickPlayerDot(){
+    const p = state.player;
+    if(!p.dot) return;
+    p.dot.turns -= 1;
+    const dmg = p.dot.perTurn;
+    p.hp = Math.max(0, p.hp - dmg);
+    float(ui.floatP, `-${dmg}`, "purple", true);
+    toast(`${p.dot.icon||"☠️"} ${p.dot.name||"Poison"}: -${dmg}`);
+    if(p.dot.turns <= 0) p.dot = null;
+  }
+function enemyAttack(){
     const p = state.player;
     const e = state.enemy;
     if(state.mode === MODES.TRAINING) return;
     const ds = derivedStats(p);
+
+    // dead/ended guards
+    if(!e || e.hp <= 0 || state.fightEnded) return;
+
+    // Execute intent (may block or poison instead of normal attack)
+    const intent = e.intent || rollEnemyIntent();
+    if(intent){
+      if(intent.type === "block"){
+        applyEnemyIntent();
+        rollEnemyIntent();
+        renderAll();
+        return;
+      }
+      if(intent.type === "poison"){
+        applyEnemyIntent();
+        rollEnemyIntent();
+        renderAll();
+        return;
+      }
+    }
 
     let dmg = irnd(e.atk[0], e.atk[1]);
     dmg = Math.max(1, dmg - Math.floor(ds.def/6));
@@ -1424,6 +1859,14 @@ function playSfx(type="attack"){
     if(state.turnLock){
       return;
     }
+
+    // start of your turn: tick any player DoT
+    tickPlayerDot();
+    if(p.hp <= 0){
+      toast("Du föll!");
+      float(ui.floatP, "KO", "red", true);
+      return;
+    }
     if(state.nextReady){
       toast("Tryck 'Nästa fiende' för att fortsätta.");
       return;
@@ -1448,12 +1891,25 @@ function playSfx(type="attack"){
     let raw = (ui.input.value || "").trim().toUpperCase();
     raw = raw.replace(/[^A-ZÅÄÖ\s]/g, "");
     const parts = raw.split(/\s+/).filter(Boolean).slice(0, unlocked);
-
-    // if none typed: use saved word 1
+    // Require at least one typed word
     if(parts.length === 0){
-      parts.push(p.savedWords[0]);
-      ui.input.value = parts[0];
+      toast("Skriv ett ord först.");
+      return;
     }
+
+    // Keep a snapshot of saved words BEFORE auto-saving (used for discovery)
+    const prevSavedSet = new Set((p.savedWords||[]).map(w => String(w||"").toUpperCase()));
+
+    // Auto-save typed words so your latest cast becomes your saved words
+    for(let i=0; i<Math.min(parts.length, 3); i++){
+      if(parts[i]){
+        p.savedWords[i] = parts[i];
+        const id = ensureWordInBook(parts[i]);
+        const wb = getWordById(id);
+        if(wb) wb.revealed = true;
+      }
+    }
+    ensureAttackSlots();
 
     const cost = manaCostFor(parts.length);
     let weakMode = false;
@@ -1466,7 +1922,7 @@ function playSfx(type="attack"){
     }
 
     // discovery: if any word not in saved set, add discovery
-    const savedSet = new Set(p.savedWords.map(w=>w.toUpperCase()));
+    const savedSet = prevSavedSet;
     for(const w of parts){
       if(!savedSet.has(w)){
         p.discovery = clamp(p.discovery + 18, 0, 100);
@@ -1543,7 +1999,7 @@ function playSfx(type="attack"){
         float(ui.floatP, "KO", "red", true);
       }
       renderAll();
-    }, 260);
+    }, 2000);
 
     state.lastCast = parts.join(" ");
     renderAll();
@@ -1559,17 +2015,16 @@ function playSfx(type="attack"){
     const xpGain = Math.max(4, Math.round(6 + (e.isBoss?6:0)));
     let levelsGained = 0;
     p.xp += xpGain;
-    while(p.xp >= p.xpNext){
-      p.xp -= p.xpNext;
+
+    // Cumulative XP: never reset XP on level-up.
+    while(p.xp >= xpForLevel((p.level||1) + 1)){
       p.level += 1;
       levelsGained += 1;
-      p.xpNext = Math.round(p.xpNext * 1.22);
-      // small baseline bump each level (choices add the fun)
-      p.hpMax += 4;
-      p.manaMax += 1;
-      p.hp = Math.min(p.hpMax, p.hp + 6);
-      p.mana = Math.min(p.manaMax, p.mana + 1);
+      // Small refill on each level gained (stats points handle growth)
+      p.hp = Math.min(p.hpMax, p.hp + 10);
+      p.mana = Math.min(p.manaMax, p.mana + 2);
     }
+    p.xpMax = xpForLevel((p.level||1) + 1);
 
     if(state.mode === MODES.ADVENTURE && state.modeRun){
       state.modeRun.cleared = (state.modeRun.cleared||0) + 1;
@@ -1587,21 +2042,21 @@ function playSfx(type="attack"){
     }
 
     combatPush(`Du vinner striden (+${xpGain} XP)`);
-    journalNow(`Fienden är besegrad! Välj en belöning.`);
+    journalNow(`Fienden är besegrad!`);
 
-    // Training: still show rewards (so you can progress), but nextFight will reset dummy + DPS window.
-
-    const rewards = makeRewards();
+    // Rewards ONLY when leveling up
     state.pendingRewards = null;
-    state.deferredRewards = rewards;
+    state.deferredRewards = null;
+
     if(levelsGained > 0){
+      state.deferredRewards = makeRewards(5);
       showLevelUp(levelsGained);
       renderAll();
       return;
     }
-    state.pendingRewards = rewards;
-    state.deferredRewards = null;
-    state.nextReady = false;
+
+    // No level-up: go directly to next fight
+    state.nextReady = true;
     state.lastReward = "";
     renderAll();
   }
@@ -1645,10 +2100,14 @@ function playSfx(type="attack"){
   ui.attack.addEventListener("click", playerCast);
   ui.input.addEventListener("keydown", (ev)=>{ if(ev.key==="Enter"){ ev.preventDefault(); playerCast(); }});
 
-  ui.input.addEventListener("input", () => {
-    // live preview without waiting for Enter
-    renderSpellPreview();
+
+  ui.input.addEventListener("input", ()=>{
+    const hasWord = (ui.input.value || "").trim().length > 0;
+    if(ui.attack) ui.attack.disabled = !hasWord;
+    const dockBtn = document.getElementById("dockAttackBtn");
+    if(dockBtn) dockBtn.disabled = !hasWord;
   });
+  // Spell preview UI removed (save buttons moved to left panel)
 
   ui.pvSave0.addEventListener("click", () => saveTypedWord(0));
   ui.pvSave1.addEventListener("click", () => saveTypedWord(1));
@@ -1685,10 +2144,7 @@ function playSfx(type="attack"){
 
   ui.btnInv.addEventListener("click", showInventory);
   ui.btnInv2.addEventListener("click", showInventory);
-  
-  const btnOpenInv = document.querySelector("#btn-open-inventory");
-  if(btnOpenInv) btnOpenInv.addEventListener("click", showInventory);
-ui.btnEquip.addEventListener("click", showEquipment);
+  ui.btnEquip.addEventListener("click", showEquipment);
 
   ui.modalClose.addEventListener("click", closeModal);
   ui.modal.addEventListener("click", (ev)=>{ if(ev.target === ui.modal) closeModal(); });
@@ -1712,4 +2168,398 @@ ui.btnEquip.addEventListener("click", showEquipment);
 
   // boot
   newRun();
+
+  // =========================
+  // Attack Slots (Tap/Spark/Arc/Burst/Nova/Big Plus) + WordBook
+  // =========================
+
+  function tierForWord(seed, word){
+    const h = hash32(`${seed}|tier|${(word||"").toUpperCase()}`);
+    return 1 + (h % 5); // 1..5
+  }
+
+  function ensureWordInBook(wordStr){
+    const p = state.player;
+    if(!p) return null;
+    p.wordBook = Array.isArray(p.wordBook) ? p.wordBook : [];
+    const name = (wordStr||"").trim().toUpperCase().slice(0,12);
+    if(!name) return null;
+    let found = p.wordBook.find(w => w && w.name === name);
+    if(found) return found.id;
+
+    const props = wordProps(name, 0, p.seed);
+    const obj = {
+      id: `w_${hash32(`${p.seed}|wb|${name}`)}`,
+      name,
+      element: props.element,
+      attack: props.power,
+      tier: tierForWord(p.seed, name),
+      revealed: false
+    };
+    p.wordBook.push(obj);
+    return obj.id;
+  }
+
+  function ensureWordBookBaseline(){
+    const p = state.player;
+    if(!p) return;
+    p.wordBook = Array.isArray(p.wordBook) ? p.wordBook : [];
+    // Ensure start words exist in book
+    if(Array.isArray(p.savedWords)){
+      for(const w of p.savedWords){
+        const id = ensureWordInBook(w);
+        // Saved words are already known, so mark them usable immediately.
+        const wb = p.wordBook.find(x => x && x.id === id);
+        if(wb) wb.revealed = true;
+      }
+
+    }
+  }
+
+    function generateFoundWordName(){
+    const p = state.player;
+    if(!p) return "ORD";
+    p.wordBook = Array.isArray(p.wordBook) ? p.wordBook : [];
+    const consonants = "BCDFGHJKLMNPRSTV";
+    const vowels = "AEIOU";
+    const mk = () => {
+      const len = irnd(3, 6);
+      let s = "";
+      for(let i=0;i<len;i++){
+        const useV = (i % 2 === 1);
+        const src = useV ? vowels : consonants;
+        s += src.charAt(irnd(0, src.length-1));
+      }
+      return s;
+    };
+    for(let tries=0; tries<40; tries++){
+      const name = mk();
+      if(!p.wordBook.find(w=>w && w.name === name)) return name;
+    }
+    const base = (START_WORDS && START_WORDS.length) ? START_WORDS[irnd(0, START_WORDS.length-1)].toUpperCase() : "ORD";
+    return (base + String(irnd(0,9))).slice(0,12);
+  }
+
+
+function ensureAttackSlots(){
+    if(!state.attackSlots){
+      state.attackSlots = {
+        tap:     { key:"tap", label:"Tap", rounds:0, unlocked:true,  cooldown:0, wordId:null },
+        spark:   { key:"spark", label:"Spark", rounds:1, unlocked:true, cooldown:0, wordId:null },
+        arc:     { key:"arc", label:"Arc", rounds:2, unlocked:true, cooldown:0, wordId:null },
+        burst:   { key:"burst", label:"Burst", rounds:3, unlocked:true, cooldown:0, wordId:null },
+        nova:    { key:"nova", label:"Nova", rounds:6, unlocked:false, cooldown:0, wordId:null },
+        bigplus: { key:"bigplus", label:"Big Plus", rounds:10, unlocked:false, cooldown:0, wordId:null },
+      };
+    }
+
+    // baseline: put first start word into Spark if empty
+    ensureWordBookBaseline();
+    const p2 = state.player;
+    if(p2 && !state.attackSlots.spark.wordId){
+      const first = (p2.wordBook && p2.wordBook[0]) ? p2.wordBook[0].id : null;
+      state.attackSlots.spark.wordId = first;
+    }
+    if(state.attackSlots.arc.unlocked && !state.attackSlots.arc.wordId && state.player.wordBook?.[1]){
+      state.attackSlots.arc.wordId = state.player.wordBook[1].id;
+    }
+    if(state.attackSlots.burst.unlocked && !state.attackSlots.burst.wordId && state.player.wordBook?.[2]){
+      state.attackSlots.burst.wordId = state.player.wordBook[2].id;
+    }
+  }
+
+  function getWordById(id){
+    const p = state.player;
+    if(!p || !id) return null;
+    return (p.wordBook || []).find(w => w && w.id === id) || null;
+  }
+  function wordName(w){ return (w?.name || "").toUpperCase(); }
+  function wordElement(w){ return w?.element || "—"; }
+  function baseWordAtk(w){ return Number(w?.attack || 0); }
+  function wordTier(w){ return Number(w?.tier || 1); }
+
+  const ADV = { Fire:"Nature", Nature:"Storm", Storm:"Mist", Mist:"Light", Light:"Fire" };
+  function isEffective(attElem, enemyResist){
+    if(!attElem || !enemyResist) return false;
+    return ADV[attElem] === enemyResist;
+  }
+
+  function tickCooldowns(){
+    ensureAttackSlots();
+    const s = state.attackSlots;
+    for(const k in s){
+      if(s[k].cooldown > 0) s[k].cooldown -= 1;
+    }
+  }
+
+  function setCooldown(slot){
+    if(slot.rounds <= 0){ slot.cooldown = 0; return; }
+    slot.cooldown = slot.rounds + 1; // makes (1 round) skip next turn
+  }
+
+  function assignWordToSlot(wordId, slotKey){
+  ensureAttackSlots();
+  // Saved words can be assigned to Tap (basic), Arc or Burst
+  if(slotKey !== "tap" && slotKey !== "arc" && slotKey !== "burst"){
+    toast("Sparade ord kan läggas på Tap, Arc eller Burst.");
+    return false;
+  }
+  const slot = state.attackSlots[slotKey];
+  if(!slot) return false;
+  if(!slot.unlocked){
+    toast("Den attacken är låst ännu.");
+    return false;
+  }
+  slot.wordId = wordId;
+  // If you can place it in a slot, you already "know" it.
+  const wb = getWordById(wordId);
+  if(wb) wb.revealed = true;
+  toast(`Satt ${getWordById(wordId)?.name || "ord"} på ${slot.label}.`);
+  renderAll();
+  return true;
+}
+
+  function castFromSlot(slotKey){
+    const p = state.player;
+    const e = state.enemy;
+    ensureAttackSlots();
+
+    if(state.pendingRewards){ toast("Välj en belöning först."); return; }
+    if(state.pendingLevelUp){ toast("Välj en uppgradering först."); return; }
+    if(state.nextReady){ toast("Tryck 'Nästa fiende' för att fortsätta."); return; }
+    if(!e) return;
+
+    // start of player turn: tick cooldowns + player DoT
+    tickCooldowns();
+    tickPlayerDot();
+    if(p.hp <= 0){ toast("Du föll!"); float(ui.floatP, "KO", "red", true); return; }
+
+    const slot = state.attackSlots[slotKey];
+    if(!slot){ return; }
+    if(!slot.unlocked){ toast("Den attacken är låst ännu."); return; }
+    if(slot.cooldown > 0){ toast(`${slot.label} är på cooldown (${slot.cooldown}).`); return; }
+
+    // guard dead enemy
+    if(e.hp <= 0){
+      checkEnemyDead("guard-slot");
+      toast("Fienden är besegrad. Välj belöning.");
+      return;
+    }
+
+    const lvl = p.level || 1;
+
+    // Mana cost rules
+    let cost = 0;
+    if(slotKey === "spark") cost = 1;
+    if(slotKey === "nova") cost = 3;
+    if(slotKey === "bigplus") cost = 10;
+
+    if(cost > 0 && p.mana < cost){
+      toast("Inte tillräckligt med mana.");
+      return;
+    }
+
+    // Word requirements
+    const w = getWordById(slot.wordId);
+    // Arc/Burst require a slotted (revealed) word
+    if(slotKey === "arc" || slotKey === "burst" || slotKey === "nova" || slotKey === "bigplus"){
+      if(!w){ toast("Välj ett sparat ord och slotta det på attacken först."); return; }
+    if((slotKey === "arc" || slotKey === "burst") && !w.revealed){
+        toast("Ordet måste avslöjas (Spark) först.");
+        return;
+      }
+    }
+    
+    // apply mana cost
+    if(cost > 0){ p.mana = Math.max(0, p.mana - cost); }
+
+    // compute dmg
+    let dmg = 0;
+    let elem = null;
+
+    if(slotKey === "tap"){
+      // Tap can optionally use a slotted word, but it is ALWAYS basic:
+      // only base word damage + player ATK (no element, no tiers)
+      const base = w ? baseWordAtk(w) : (5 + lvl);
+      dmg = Math.round(base + (p.baseAtk || 0));
+      elem = "Physical";
+    } else if(slotKey === "spark"){
+      dmg = 5 + lvl;
+      // Spark finds a new word. The word is saved as "latest/quick", but Spark button must never preview it.
+      const foundName = generateFoundWordName();
+      const foundId = ensureWordInBook(foundName);
+      const found = getWordById(foundId);
+      if(found){
+        found.revealed = true;
+        state.lastFoundWordId = found.id; // quick-slot source
+        // Do NOT attach the word to the Spark slot (prevents showing it on the button)
+        state.attackSlots.spark.wordId = null;
+        elem = "Mystic";
+        toast(`✨ Avslöjade ett nytt ord!`);
+      } else {
+        elem = "Mystic";
+      }
+    } else if(slotKey === "arc" || slotKey === "burst"){
+      const tier = clamp(wordTier(w), 1, 4);
+      const base = baseWordAtk(w);
+      dmg = slotKey === "burst"
+        ? Math.round(base * 1.25 + (tier-1)*2)
+        : Math.round(base + (tier-1)*2);
+      elem = wordElement(w);
+
+      // Arc/Burst: mana gain on cast
+      p.mana = Math.min(p.manaMax, p.mana + 1);
+
+      // Tier 2+: crit enabled
+      const ds = derivedStats(p);
+      let isCrit = false;
+      if(tier >= 2){
+        isCrit = Math.random() < (ds.crit || 0);
+        if(isCrit) dmg = Math.round(dmg * 1.6);
+      }
+
+      // Apply def later with the main flow. After damage is applied, add tier effects:
+      slot.__tier = tier;
+      slot.__isCrit = isCrit;
+    } else if(slotKey === "nova"){
+      dmg = w ? Math.round(baseWordAtk(w) * 1.6 + 10) : (10 + lvl);
+      elem = w ? wordElement(w) : "Mystic";
+    } else if(slotKey === "bigplus"){
+      dmg = w ? Math.round(baseWordAtk(w) * 2.0 + 20) : (20 + lvl);
+      elem = w ? wordElement(w) : "Mythic";
+    }// Resist reduces damage slightly (simple rule)
+    if(elem && e.resist && elem === e.resist){
+      dmg = Math.max(1, Math.round(dmg * 0.78));
+    }
+
+    // apply def
+    dmg = Math.max(1, dmg - (e.def || 0));
+    // enemy guard reduces incoming damage once
+    if(e.guard > 0){
+      dmg = Math.max(1, Math.round(dmg * 0.70));
+      e.guard = 0;
+      float(ui.floatE, "BLOCK", "blue", true);
+    }
+    e.hp = Math.max(0, e.hp - dmg);
+
+    combatPush(`${slot.label} träffar för ${dmg} dmg`);
+    float(ui.floatE, `-${dmg}`, "red", true);
+    // Tier effects for Arc/Burst (based on word tier)
+    if(slotKey === "arc" || slotKey === "burst"){
+      const tier = slot.__tier || 1;
+
+      // Crit reaction (visual) handled by UI layer; keep a marker for combat log
+      if(slot.__isCrit){
+        combatPush("CRIT!");
+      }
+
+      // Tier 3+: apply DoT from the same word (role 1)
+      if(tier >= 3){
+        const props = wordProps(wordName(w), 1, p.seed);
+        const mult = (elem && e.resist && elem === e.resist) ? 0.78 : 1;
+        e.dot = {
+          name: props.dot.name,
+          icon: props.dot.icon,
+          element: props.element,
+          perTurn: Math.max(1, Math.round(props.perTurn * mult)),
+          turns: props.turns
+        };
+        toast(`${props.dot.icon} DoT: ${e.dot.perTurn}×${e.dot.turns}`);
+      }
+
+      // Tier 4: Leech heals you for 10% of damage dealt
+      if(tier >= 4){
+        const heal = Math.max(1, Math.round(dmg * 0.10));
+        p.hp = clamp(p.hp + heal, 0, p.hpMax);
+        float(ui.floatP, `+${heal}`, "green", true);
+        toast(`💚 Leech: +${heal} HP`);
+      }
+
+      // cleanup temp markers
+      delete slot.__tier;
+      delete slot.__isCrit;
+    }
+
+
+    // set cooldown
+    setCooldown(slot);
+
+    if(checkEnemyDead("slot")) { renderAll(); return; }
+
+    // enemy retaliates after a delay (not in training)
+    if(state.mode !== MODES.TRAINING){
+      const enemyRef = state.enemy;
+      setTimeout(()=>{
+        // Guard: enemy might have died, fight might have ended, or a reward/level-up modal might be open.
+        if(!enemyRef || enemyRef.hp <= 0) return;
+        if(state.fightEnded || state.pendingRewards || state.pendingLevelUp) return;
+        // enemy turn start: buffs + DoT tick, then attack
+        applyBuffTick();
+        applyDotTick();
+        if(state.enemy && state.enemy.hp > 0){
+          enemyAttack();
+        }
+        renderAll();
+      }, 2000);
+    }
+    renderAll();
+  }
+
+  
+  function restTurn(){
+    const p = state.player;
+    const e = state.enemy;
+    if(state.pendingRewards){ toast("Välj en belöning först."); return; }
+    if(state.pendingLevelUp){ toast("Välj en uppgradering först."); return; }
+    if(state.nextReady){ toast("Tryck 'Nästa fiende' för att fortsätta."); return; }
+    if(!e) return;
+
+    // start of player turn: tick cooldowns
+    tickCooldowns();
+
+    if(e.hp <= 0){
+      checkEnemyDead("rest-guard");
+      toast("Fienden är besegrad. Välj belöning.");
+      return;
+    }
+
+    combatPush("Du vilar… fienden får en gratis attack.");
+    enemyAttack();
+
+    if(p.hp > 0){
+      const beforeHp = p.hp;
+      const beforeMana = p.mana;
+      p.hp = Math.min(p.hpMax, p.hp + 30);
+      p.mana = Math.min(p.manaMax, p.mana + 10);
+      const gainedHp = p.hp - beforeHp;
+      const gainedMana = p.mana - beforeMana;
+      toast(`Du vaknar: +${gainedHp} HP, +${gainedMana} mana`);
+      combatPush(`Vila: +${gainedHp} HP, +${gainedMana} mana`);
+      float(ui.floatP, `+${gainedHp}`, "green", true);
+    }
+
+    renderAll();
+  }
+
+function playerCastFromInput(){
+    // uses existing typed casting system
+    try{ playerCast(); }catch(e){ console.error(e); toast("Något gick fel i cast."); }
+  }
+
+  // Expose API for blocks
+  window.__GAMEONE__ = window.__GAMEONE__ || {};
+  window.__GAMEONE__.state = state;
+  window.__GAMEONE__.ui = ui;
+  window.__GAMEONE__.ensureAttackSlots = ensureAttackSlots;
+  window.__GAMEONE__.getWordById = getWordById;
+  window.__GAMEONE__.wordName = wordName;
+  window.__GAMEONE__.wordElement = wordElement;
+  window.__GAMEONE__.baseWordAtk = baseWordAtk;
+  window.__GAMEONE__.wordTier = wordTier;
+  window.__GAMEONE__.isEffective = isEffective;
+  window.__GAMEONE__.assignWordToSlot = assignWordToSlot;
+  window.__GAMEONE__.castFromSlot = castFromSlot;
+  window.__GAMEONE__.playerCastFromInput = playerCastFromInput;
+  window.__GAMEONE__.restTurn = restTurn;
+
 })();

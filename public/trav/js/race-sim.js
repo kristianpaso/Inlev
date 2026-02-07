@@ -74,6 +74,27 @@ function parseTrackMeters(v){
   return Number(String(m[1]).replace(',','.'));
 }
 
+function readSimGeoFromTrack(track){
+  const texts = [];
+  if (track?.infoText) texts.push(String(track.infoText));
+  if (Array.isArray(track?.comments)){
+    for (const c of track.comments){
+      if (c?.comment) texts.push(String(c.comment));
+    }
+  }
+  const rx = /SIM_GEO\s*[:=]\s*(\{[^\n\r]+\})/i;
+  for (const t of texts){
+    const m = String(t).match(rx);
+    if (!m) continue;
+    try{
+      const obj = JSON.parse(m[1]);
+      if (obj && typeof obj === 'object') return obj;
+    }catch(_e){}
+  }
+  return null;
+}
+
+
 function laneBias(lane){
   // Du gav: bäst 1,6,7. Sämre 4,5. 12 sämst.
   if (!lane) return 0;
@@ -84,66 +105,138 @@ function laneBias(lane){
   return 0;
 }
 
-function getTrackGeometry(track, canvas){
+function getTrackGeometry(track, canvas, padOverride){
   const totalLen = parseTrackMeters(track?.length) || 1000;
   const widthM = parseTrackMeters(track?.width) || 23;
 
   const cw = canvas.width, ch = canvas.height;
-  const pad = 70;
+  const pad = (typeof padOverride === 'number' ? padOverride : 70);
 
-  // En oval: två rakor + två kurvor.
-  // Vi väljer en rimlig raklängd utifrån totalLen och canvas-bredd
-  const ovalW = cw - pad*2;
-  const ovalH = Math.min(ch*0.68, ovalW*0.46);
+  // "Stadium-oval": 2 rakor + 2 kurvor (halvcirklar).
+  // Vi väljer en raklängd som känns rimlig på en 1000m-bana,
+  // och låter radien räknas fram så att total längd ≈ totalLen.
+  const simGeo = readSimGeoFromTrack(track);
 
-  // approx: 30% av varvet raka, 70% kurvor
-  const straight = clamp(totalLen * 0.30, 180, 420);
-  const Rm = Math.max(50, (totalLen - 2*straight) / (2*Math.PI));
+  let straightM = clamp(totalLen * 0.30, 180, 420);
+  let Rm = Math.max(50, (totalLen - 2*straightM) / (2*Math.PI));
+
+  // Om ban-analys finns: använd aspect (bredd/höjd) för att få en mer "rätt" oval i bilden.
+  // aspect ≈ (straight + 2R) / (2R) i vår stadium-modell.
+  if (simGeo && Number.isFinite(Number(simGeo.aspect))){
+    const ratio = clamp(Number(simGeo.aspect), 1.25, 2.45);
+    const denom = (2*(2*(ratio-1) + Math.PI));
+    const r2 = denom > 0 ? (totalLen / denom) : Rm;
+    if (Number.isFinite(r2) && r2 > 30){
+      Rm = r2;
+      straightM = clamp(2*Rm*(ratio-1), 120, totalLen*0.45);
+    }
+  }
+
+  // Skala så att banan får plats både i bredd och höjd.
+  const maxW = cw - pad*2;
+  const maxH = ch - pad*2;
+  const pxPerM_w = maxW / (straightM + 2*Rm);
+  const pxPerM_h = maxH / (2*Rm);
+  const pxPerM = Math.max(0.18, Math.min(pxPerM_w, pxPerM_h));
+
+  const straight = straightM;
   const turnLen = Math.PI * Rm;
 
-  const pxPerM = ovalW / (straight + 2*Rm);
   const centerX = cw/2;
   const centerY = ch/2 + 6;
 
-  const lanePx = (widthM * pxPerM) / 10.0; // ~10 "synliga" spår
-  return { totalLen, straight, Rm, turnLen, widthM, pxPerM, centerX, centerY, ovalW, ovalH, lanePx, pad };
+  // ~10 "synliga" spår (räcker för vår grafik)
+  const lanePx = (widthM * pxPerM) / 10.0 * 1.25; // bredare bana visuellt
+
+  return {
+    totalLen,
+    straight,
+    Rm,
+    turnLen,
+    widthM,
+    pxPerM,
+    centerX,
+    centerY,
+    ovalW: (straight + 2*Rm),
+    ovalH: (2*Rm),
+    lanePx,
+    pad,
+  };
 }
 
 // meters -> xy på en stabil oval som alltid går vänster varv.
 // (Vänster varv = svänger vänster i kurvorna.)
 // Vi använder en kontinuerlig oval-parametrisering för att slippa "hoppa" och att någon häst ser ut att gå baklänges.
 function mapMetersToXY(rawMeters, laneFloat, geom){
-  const { totalLen, centerX, centerY, ovalW, ovalH, lanePx } = geom;
+  const { totalLen, straight, Rm, pxPerM, centerX, centerY, lanePx } = geom;
 
-  // wrap runt ovalen (rawMeters kan vara negativ i starten pga tillägg/andra raden)
-  const s = ((rawMeters % totalLen) + totalLen) % totalLen;
+  // wrap runt banan (rawMeters kan vara > varvlängd vid 2–3 varv)
+  const s0 = ((rawMeters % totalLen) + totalLen) % totalLen;
 
-  // laneFloat ~ 1..5 (1 inner, högre = längre ut)
+  // 🔁 Vi vänder riktningen visuellt så "upploppet" känns vänster→höger på skärmen.
+  // (Samma finishS=0 som innan, bara omvänd traversal.)
+  const s = (totalLen - s0) % totalLen;
+
+  const straightPx = straight * pxPerM;
+  const Rpx = Rm * pxPerM;
+
+  // Stadium-oval i "världskoordinater" (utan rotation).
+  // S=0 ligger vid nedre högra hörnet (MÅL-markör i vår graf).
+  let x0 = centerX, y0 = centerY;
+  let nx = 0, ny = 1; // utåt-normal för spår-offset
+
+  const seg1 = straight;          // nedre raka
+  const seg2 = Math.PI * Rm;      // vänsterkurva
+  const seg3 = straight;          // övre raka
+  const seg4 = Math.PI * Rm;      // högerkurva
+
+  if (s < seg1){
+    // Nedre raka: höger -> vänster (i basgeometrin). (Efter s-inversion blir känslan vänster→höger för täten.)
+    const u = s * pxPerM;
+    x0 = centerX + straightPx/2 - u;
+    y0 = centerY + Rpx;
+    nx = 0; ny = 1; // utåt = nedåt
+  } else if (s < seg1 + seg2){
+    // Vänsterkurva: botten -> topp
+    const u = (s - seg1) / seg2; // 0..1
+    const phi = (Math.PI/2) - u * Math.PI; // +90° -> -90°
+    const cx = centerX - straightPx/2;
+    const cy = centerY;
+    x0 = cx + Rpx * Math.cos(phi);
+    y0 = cy + Rpx * Math.sin(phi);
+    const vx = x0 - cx, vy = y0 - cy;
+    const l = Math.hypot(vx, vy) || 1;
+    nx = vx/l; ny = vy/l; // utåt = radiellt från kurvcentrum
+  } else if (s < seg1 + seg2 + seg3){
+    // Övre raka: vänster -> höger
+    const u = (s - (seg1 + seg2)) * pxPerM;
+    x0 = centerX - straightPx/2 + u;
+    y0 = centerY - Rpx;
+    nx = 0; ny = -1; // utåt = uppåt
+  } else {
+    // Högerkurva: topp -> botten
+    const u = (s - (seg1 + seg2 + seg3)) / seg4; // 0..1
+    const phi = (-Math.PI/2) + u * Math.PI; // -90° -> +90°
+    const cx = centerX + straightPx/2;
+    const cy = centerY;
+    x0 = cx + Rpx * Math.cos(phi);
+    y0 = cy + Rpx * Math.sin(phi);
+    const vx = x0 - cx, vy = y0 - cy;
+    const l = Math.hypot(vx, vy) || 1;
+    nx = vx/l; ny = vy/l;
+  }
+
+  // laneFloat ~ 1..6 (1 inner, högre = längre ut)
   const lf = clamp(laneFloat ?? 1, 1, 6);
-  const laneOffset = (lf - 1) * lanePx * 0.90;
+  const laneOffset = (lf - 1) * lanePx; // px
 
-  // Bas-oval (snarlik ATG-diagram).
-  const a = (ovalW * 0.42) + laneOffset;
-  const b = (ovalH * 0.50) + laneOffset * 0.90;
-
-  // Välj start så att "upploppet" känns vänster→höger (som i din bild)
-  // och låt s öka i vänster varv.
-  // I skärmkoordinater (y ner) blir vänster varv enklast med minus på theta.
-  const startTheta = Math.PI - 0.45;
-  const theta = startTheta - (s / totalLen) * (Math.PI * 2);
-
-  let x = centerX + a * Math.cos(theta);
-  let y = centerY + b * Math.sin(theta);
-
-  // Liten rotation för att se mer ut som ATG-bilder
-  const rot = (-14 * Math.PI) / 180;
-  const dx = x - centerX;
-  const dy = y - centerY;
-  x = centerX + dx * Math.cos(rot) - dy * Math.sin(rot);
-  y = centerY + dx * Math.sin(rot) + dy * Math.cos(rot);
+  // Offset utåt från banans mittlinje (korrekt normal: raka = vertikal, kurva = radiell)
+  const x = x0 + nx * laneOffset;
+  const y = y0 + ny * laneOffset;
 
   return { x, y };
 }
+
 
 function classifyStartType(horses, baseDist){
   const dset = new Set(horses.map(h => h.dist).filter(d => Number.isFinite(d)));
@@ -441,7 +534,7 @@ function simulateRace({ horses, distance, startType, env, seed, withTimeline }){
       const h = horses.find(x => x.number === s.num);
       const spr = h? h._sim.sprint : 0.5;
 
-      const remain = distance - s.covered;
+      const remain = (s.finishedAt != null) ? 0 : (distance - s.covered);
       if (remain > 360) continue;
 
       const behind = leader.covered - s.covered;
@@ -462,6 +555,44 @@ function simulateRace({ horses, distance, startType, env, seed, withTimeline }){
     }
   }
 
+
+  function applyMinGap(){
+    // Förhindra att hästar hamnar på exakt samma meter i samma spår (modell, inte bara grafik).
+    // Detta tar bort "krockar" och att någon blir en stillastående vägg.
+    const minGapM = 1.85;
+    const laneBuckets = {};
+    for (const s of state){
+      if (s.err){
+        // Ute ur loppet: flytta åt sidan så den inte "är i vägen"
+        const outLane = 6.8;
+        s.lane += clamp(outLane - s.lane, -0.18, 0.18);
+        // bromsa ner tydligt
+        s.speed += clamp(0 - s.speed, -0.55, 0.12);
+        s.speed = Math.max(0, s.speed);
+        // rulla lite framåt om den fortfarande har fart
+        const laneScale = 1 + (s.lane - 1) * 0.012;
+        const dErr = (s.speed * dt) / laneScale;
+        s.covered += Math.max(0, dErr);
+        continue;
+      }
+      const li = clamp(Math.round(s.lane), 1, 4);
+      (laneBuckets[li] ||= []).push(s);
+    }
+    for (const k of Object.keys(laneBuckets)){
+      const arr = laneBuckets[k].sort((a,b)=>b.covered-a.covered); // front först
+      for (let i=1;i<arr.length;i++){
+        const front = arr[i-1];
+        const back  = arr[i];
+        const desired = front.covered - minGapM;
+        if (back.covered > desired){
+          back.covered = desired;
+          // om man blir "tillbakapressad" – sänk fart lite så modellen inte flippar
+          back.speed = Math.min(back.speed, front.speed*0.985);
+        }
+      }
+    }
+  }
+
   function maybeError(h){
     const rel = h._sim.reliability ?? 0.8;
     const baseRisk = 0.045 + (1-rel)*0.18 + weatherNoise*0.10;
@@ -469,9 +600,10 @@ function simulateRace({ horses, distance, startType, env, seed, withTimeline }){
   }
 
   // sim-loop
+  const COOL_AFTER_FINISH_M = 85; // rulla efter mål och bromsa (val 2)
   while (t < maxT){
     // bryt om alla i mål / ute
-    if (state.every(s => s.err || s.finishedAt != null)) break;
+    if (state.every(s => s.err || (s.finishedAt != null && s.covered >= distance + COOL_AFTER_FINISH_M))) break;
 
     const sorted = getSorted();
     const leader = sorted[0];
@@ -485,13 +617,30 @@ function simulateRace({ horses, distance, startType, env, seed, withTimeline }){
     lateMoves();
 
     for (const s of state){
-      if (s.err || s.finishedAt != null) continue;
+      if (s.err){
+        // Ute ur loppet: flytta åt sidan så den inte "är i vägen"
+        const outLane = 6.8;
+        s.lane += clamp(outLane - s.lane, -0.18, 0.18);
+        // bromsa ner tydligt
+        s.speed += clamp(0 - s.speed, -0.55, 0.12);
+        s.speed = Math.max(0, s.speed);
+        // rulla lite framåt om den fortfarande har fart
+        const laneScale = 1 + (s.lane - 1) * 0.012;
+        const dErr = (s.speed * dt) / laneScale;
+        s.covered += Math.max(0, dErr);
+        continue;
+      }
+      const finished = (s.finishedAt != null);
+      if (finished && s.covered >= distance + COOL_AFTER_FINISH_M) continue;
       const h = horses.find(x => x.number === s.num);
       if (!h) continue;
 
       // galopp/strul: oftare i start + vid tempoökning
       if ((t < 20 || distance - s.covered < 420) && maybeError(h) && rng() < 0.12){
         s.err = true;
+        s.errAt = t;
+        // börja drifta utåt direkt
+        s.lane = Math.max(s.lane, 5.6);
         continue;
       }
 
@@ -500,7 +649,7 @@ function simulateRace({ horses, distance, startType, env, seed, withTimeline }){
       const spr = h._sim.sprint;
       const gate = h._sim.gate;
 
-      const remain = distance - s.covered;
+      const remain = (s.finishedAt != null) ? 0 : (distance - s.covered);
 
       // target speed utifrån rekord + form
       let target = h._sim.baseSpeedMS;
@@ -553,6 +702,22 @@ function simulateRace({ horses, distance, startType, env, seed, withTimeline }){
 
       // ytterspår = fler meter. laneScale sänker progress på inner-axis
       const laneScale = 1 + (s.lane - 1) * 0.012; // spår 5 -> ~+4.8%
+      // Efter målgång: fortsätt rulla fram en kort bit (så hästarna inte "stannar" vid linjen)
+      if (finished){
+        const past = Math.max(0, s.covered - distance);
+        const k = clamp(1 - (past / COOL_AFTER_FINISH_M), 0, 1); // 1→0 under "rollout"
+        let target2 = h._sim.baseSpeedMS * (0.78 + 0.05*(s._form || 1));
+        // tydlig inbromsning efter mål (val 2)
+        target2 *= (0.22 + 0.78 * k);
+        // väder
+        target2 *= clamp(weatherSlow, 0.88, 1.05);
+        const minRoll = 3.0;
+        target2 = Math.max(minRoll, target2);
+        s.speed += clamp(target2 - s.speed, -0.55, 0.18);
+        const delta2 = (s.speed * dt) / laneScale;
+        s.covered += delta2;
+        continue;
+      }
       // pocket-block: invändigt fast bakom – ibland får man lucka, ibland blir man kvar.
       // Viktigt att detta inte triggar varje tick (då blir det "samma" utfall och konstigt beteende).
       if (hasOutsideBlock(s) && s.lane < 1.7 && remain > 200){
@@ -594,21 +759,25 @@ function simulateRace({ horses, distance, startType, env, seed, withTimeline }){
       const delta = (s.speed * dt) / laneScale;
       s.covered += delta;
 
-      if (s.covered >= distance){
+      if (s.covered >= distance && s.finishedAt == null){
         s.finishedAt = t;
       }
     }
+
+    applyMinGap();
 
     if (withTimeline){
       // spara var 2:a tick för mindre data men mjukt nog
       if (Math.round(t / dt) % 2 === 0){
         const snap = {};
         const lanes = {};
+        const flags = {};
         for (const s of state){
           snap[s.num] = s.covered;
           lanes[s.num] = s.lane;
+          flags[s.num] = { err: !!s.err, inactive: !!s.err || !!s._doneRolling || !!s._parked || false };
         }
-        timeline.push({ t, metersByNum: snap, laneByNum: lanes });
+        timeline.push({ t, metersByNum: snap, laneByNum: lanes, flagsByNum: flags });
       }
     }
 
@@ -691,7 +860,7 @@ function renderScenario(el, env, meta, topPick){
   el.textContent =
 `Väder: ${env.tempC ?? '-'}°C, vind ${env.wind ?? '-'} m/s, snö ${env.snowCm ?? '-'} cm.
 Start: ${meta?.startType || '?'} • Distans: ${meta?.distance || '-'} m.
-Modell: två-wide pack + drafting + ytterspårs-meter + upploppsspår 3–5.
+Modell: stadium-oval (raka + kurvor) + två-wide pack + drafting + ytterspårs-meter + upploppsspår 3–4.
 Trolig vinnare: ${topPick ? ('#'+topPick.num+' ('+Math.round(topPick.winP*100)+'%)') : '?' }.`;
 }
 
@@ -709,37 +878,253 @@ function drawTrack(ctx, geom){
   ctx.clearRect(0,0,ctx.canvas.width, ctx.canvas.height);
   const { centerX, centerY, ovalW, ovalH } = geom;
 
+  // Mörk bakgrund med lätt vignette för "TV-grafik"-känsla
+  const bg = ctx.createRadialGradient(centerX, centerY, 10, centerX, centerY, Math.max(ctx.canvas.width, ctx.canvas.height));
+  bg.addColorStop(0, 'rgba(255,255,255,0.06)');
+  bg.addColorStop(1, 'rgba(0,0,0,0.35)');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0,0,ctx.canvas.width, ctx.canvas.height);
+
+  // Bana – ritas genom sampling av mapMetersToXY() så den alltid matchar själva simuleringsbanan.
+  // (Detta undviker att kortsidan "går inåt" när bakgrunden inte matchar geometrin.)
+  const step = 8; // meter
+
+  // "Asfalt"-band (yttre)
+  ctx.strokeStyle = 'rgba(0,0,0,.35)';
+  ctx.lineWidth = 20;
+  ctx.beginPath();
+  for (let s=0; s<=geom.totalLen; s+=step){
+    const p = mapMetersToXY(s, 6.6, geom);
+    if (s===0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  }
+  ctx.closePath();
+  ctx.stroke();
+
+  // ytterkant highlight
   ctx.strokeStyle = 'rgba(255,255,255,.22)';
-  ctx.lineWidth = 6;
+  ctx.lineWidth = 10;
   ctx.beginPath();
-  ctx.ellipse(centerX, centerY, ovalW*0.42, ovalH*0.50, 0, 0, Math.PI*2);
+  for (let s=0; s<=geom.totalLen; s+=step){
+    const p = mapMetersToXY(s, 6.2, geom);
+    if (s===0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  }
+  ctx.closePath();
   ctx.stroke();
 
-  // inner line
-  ctx.strokeStyle = 'rgba(255,255,255,.10)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.ellipse(centerX, centerY, ovalW*0.39, ovalH*0.47, 0, 0, Math.PI*2);
-  ctx.stroke();
+  // spårlinjer (6 spår)
+  for (let lane=1; lane<=6; lane++){
+    ctx.strokeStyle = lane===1 ? 'rgba(255,255,255,.18)' : 'rgba(255,255,255,.10)';
+    ctx.lineWidth = lane===1 ? 3 : 2;
+    ctx.beginPath();
+    for (let s=0; s<=geom.totalLen; s+=step){
+      const p = mapMetersToXY(s, lane, geom);
+      if (s===0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+  }
 
-  // markera mål / start på upploppsrakan (vänster del)
-  const startP = mapMetersToXY(0, 1, geom);
-  ctx.strokeStyle = 'rgba(255,255,255,.35)';
-  ctx.lineWidth = 3;
+  // mål-linje (s=0 i vår bana)
+  const pFinishA = mapMetersToXY(0, 1.15, geom);
+  const pFinishB = mapMetersToXY(0, 2.45, geom);
+  ctx.save();
+  ctx.globalAlpha = 0.95;
+  ctx.strokeStyle = 'rgba(255,255,255,.90)';
+  ctx.lineWidth = 4;
   ctx.beginPath();
-  ctx.moveTo(startP.x, startP.y - 40);
-  ctx.lineTo(startP.x, startP.y + 40);
+  ctx.moveTo(pFinishA.x, pFinishA.y);
+  ctx.lineTo(pFinishB.x, pFinishB.y);
   ctx.stroke();
+  ctx.restore();
+  // MÅL-etikett och markering ritas senare i drawTrackWorld()
 }
 
-function animateRace({ canvas, horses, track, sampleRun }){
+function animateRace({ canvas, sideCanvas = null, miniCanvas = null, horses, track, sampleRun, renderHud = true, sideCamMeters = 300, onProgress = null, onFinish = null }){
   const ctx = canvas.getContext('2d', { alpha:true });
+  const sideCtx = sideCanvas ? sideCanvas.getContext('2d', { alpha:true }) : null;
+  const miniCtx = miniCanvas ? miniCanvas.getContext('2d', { alpha:true }) : null;
+  if (!ctx.roundRect){
+    // fallback for older canvas impl
+    ctx.roundRect = function(x,y,w,h,r){
+      r = Math.min(r, w/2, h/2);
+      this.beginPath();
+      this.moveTo(x+r, y);
+      this.arcTo(x+w, y, x+w, y+h, r);
+      this.arcTo(x+w, y+h, x, y+h, r);
+      this.arcTo(x, y+h, x, y, r);
+      this.arcTo(x, y, x+w, y, r);
+      this.closePath();
+      return this;
+    };
+  }
+
+if (sideCtx && !sideCtx.roundRect){
+  // fallback för äldre canvas
+  sideCtx.roundRect = function(x,y,w,h,r){
+    r = Math.min(r, w/2, h/2);
+    this.beginPath();
+    this.moveTo(x+r, y);
+    this.arcTo(x+w, y, x+w, y+h, r);
+    this.arcTo(x+w, y+h, x, y+h, r);
+    this.arcTo(x, y+h, x, y, r);
+    this.arcTo(x, y, x+w, y, r);
+    this.closePath();
+    return this;
+  };
+}
   let raf = null;
   let startTs = null;
+  let finishedOnce = false;
+    let lastFlagsByNum = {};
+let followM = null; // kamera-följning (meter längs banan)
 
   const geom = getTrackGeometry(track||{}, canvas);
   const timeline = sampleRun?.timeline || [];
-  const durationMs = 22000; // långsammare
+  const simMeta = sampleRun?.meta || {};
+  const durationMs = 22000; // lite långsammare och mer "TV"-känsla
+
+  // ====== Trails (spår) ======
+  const trailsByNum = new Map(); // num -> [{x,y}]
+  const TRAIL_MAX = 80;
+
+  // ====== Mini-standings (1–5) ======
+  const lastRankByNum = new Map(); // num -> rank
+
+  // ====== Kamera (pan/zoom) ======
+  const cam = {
+    x: geom.centerX,
+    y: geom.centerY,
+    zoom: 1.10,
+    tilt: 0.72,
+  };
+
+  function lerp(a,b,t){ return a + (b-a)*t; }
+
+  function pushTrailPoint(num, x, y){
+    let arr = trailsByNum.get(num);
+    if (!arr){ arr = []; trailsByNum.set(num, arr); }
+    arr.push({ x, y });
+    if (arr.length > TRAIL_MAX) arr.splice(0, arr.length - TRAIL_MAX);
+  }
+
+  function drawBackground(){
+    // Mörk bakgrund med vignette (skärm-space)
+    ctx.save();
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,ctx.canvas.width, ctx.canvas.height);
+
+    const { centerX, centerY } = geom;
+    const bg = ctx.createRadialGradient(centerX, centerY, 10, centerX, centerY, Math.max(ctx.canvas.width, ctx.canvas.height));
+    bg.addColorStop(0, 'rgba(255,255,255,0.05)');
+    bg.addColorStop(1, 'rgba(0,0,0,0.55)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0,0,ctx.canvas.width, ctx.canvas.height);
+    ctx.restore();
+  }
+
+  // --- Finish på banan (fast position) + SHIFT så att distansens mål hamnar vid finish ---
+// Vi vill att MÅL ska ligga på samma plats oavsett distans (som i TV-grafik),
+// och därför skiftar vi hästarnas meter->bana så att covered=distance hamnar vid finishS.
+  const totalLen = geom.totalLen || 1000;
+  const distanceM = simMeta?.distance ?? 2140;
+
+  const finishS = 0; // fast "MÅL"-position i stadium-mappningen
+  const distMod = ((distanceM % totalLen) + totalLen) % totalLen;
+  const shiftS = ((finishS - distMod) % totalLen + totalLen) % totalLen;
+
+  const marker500S = ((finishS - 500) % totalLen + totalLen) % totalLen;
+  const marker200S = ((finishS - 200) % totalLen + totalLen) % totalLen;
+
+;
+
+  function drawTrackWorld(){
+    const totalLen = geom.totalLen || 1000;
+
+    // yttre/inner spår (sampel-bana så den matchar mapMetersToXY exakt)
+    const lanes = [1,2,3,4,5,6];
+    for (let li=0; li<lanes.length; li++){
+      const lane = lanes[li];
+      const step = 10; // meter
+      ctx.beginPath();
+      for (let s=0; s<=totalLen; s+=step){
+        const p = mapMetersToXY(s, lane, geom);
+        if (s===0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+
+      if (li === 0){
+        ctx.strokeStyle = 'rgba(255,255,255,.18)';
+        ctx.lineWidth = 5;
+      } else {
+        ctx.strokeStyle = 'rgba(255,255,255,.10)';
+        ctx.lineWidth = 2;
+      }
+      ctx.stroke();
+    }
+
+    // Mållinje + markörer (200/500)
+    function drawMarkerAtS(s, label, alpha){
+      const p = mapMetersToXY(s, 1.15, geom);
+      const p2 = mapMetersToXY(s, 2.45, geom);
+
+      // linje över spåren
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = 'rgba(255,255,255,.85)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+
+      // label
+      ctx.fillStyle = 'rgba(0,0,0,.55)';
+      ctx.beginPath();
+      ctx.roundRect(p2.x + 8, p2.y - 10, 46, 20, 8);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.25)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      ctx.font = '700 11px system-ui, -apple-system, Segoe UI, Roboto';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, p2.x + 14, p2.y);
+
+      ctx.restore();
+    }
+
+    // mål (lite tydligare)
+    drawMarkerAtS(finishS, 'MÅL', 1);
+    drawMarkerAtS(marker500S, '500', 0.85);
+    drawMarkerAtS(marker200S, '200', 0.92);
+  }
+
+  function drawTrails(){
+    for (const h of horses){
+      const num = h.number;
+      const arr = trailsByNum.get(num);
+      if (!arr || arr.length < 2) continue;
+
+      const base = seededColor(num);
+      for (let i=1;i<arr.length;i++){
+        const a = i / (arr.length - 1);
+        ctx.globalAlpha = 0.05 + a * 0.18;
+        ctx.strokeStyle = base;
+        ctx.lineWidth = 6 - a*3;
+        ctx.beginPath();
+        ctx.moveTo(arr[i-1].x, arr[i-1].y);
+        ctx.lineTo(arr[i].x, arr[i].y);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
 
   function getFrameIndex(progress01){
     if (!timeline.length) return { i:0, frac:0 };
@@ -748,17 +1133,15 @@ function animateRace({ canvas, horses, track, sampleRun }){
     return { i, frac: idxF - i };
   }
 
-  function lerp(a,b,t){ return a + (b-a)*t; }
-
   function getInterpolated(progress01){
-    if (!timeline.length) return { meters:{}, lanes:{} };
+    if (!timeline.length) return { meters:{}, lanes:{}, simT: 0, flagsByNum: {} };
     const { i, frac } = getFrameIndex(progress01);
     const A = timeline[i];
     const B = timeline[Math.min(i+1, timeline.length-1)];
     const meters = {};
     const lanes = {};
     for (const h of horses){
-      const n = h.number;
+      const n = (h.number ?? h.num);
       const a = A.metersByNum?.[n] ?? 0;
       const b = B.metersByNum?.[n] ?? a;
       const la = A.laneByNum?.[n] ?? 1;
@@ -766,34 +1149,11 @@ function animateRace({ canvas, horses, track, sampleRun }){
       meters[n] = lerp(a,b,frac);
       lanes[n] = lerp(la,lb,frac);
     }
-    return { meters, lanes };
+    const simT = lerp(A.t ?? 0, B.t ?? (A.t ?? 0), frac);
+    const flagsByNum = A.flagsByNum || {};
+    return { meters, lanes, simT, flagsByNum };
   }
 
-  function drawHorses(metersByNum, lanesByNum){
-    for (const h of horses){
-      const m = metersByNum?.[h.number] ?? 0;
-      const lane = lanesByNum?.[h.number] ?? 1;
-      const p = mapMetersToXY(m, lane, geom);
-
-      ctx.fillStyle = seededColor(h.number);
-      ctx.globalAlpha = 0.95;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 12, 0, Math.PI*2);
-      ctx.fill();
-
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = 'rgba(0,0,0,.65)';
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 10, 0, Math.PI*2);
-      ctx.fill();
-
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 11px system-ui, -apple-system, Segoe UI, Roboto';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(String(h.number), p.x, p.y);
-    }
-  }
 
   function eased(u){
     // längre tid på upploppet (sista 20%)
@@ -801,21 +1161,736 @@ function animateRace({ canvas, horses, track, sampleRun }){
     return 0.70 + ((u-0.80)/0.20) * 0.30;
   }
 
+  function computeRanks(metersByNum){
+    return horses
+      .map(h => ({ num: h.number, m: metersByNum?.[h.number] ?? 0 }))
+      .sort((a,b)=>b.m-a.m);
+  }
+
+  function drawHUD({ ranks, leaderRemain, simT, analysisName, startType, distance }){
+    ctx.save();
+    ctx.setTransform(1,0,0,1,0,0);
+
+    // top-left info
+    const pad = 14;
+    const boxW = 340;
+    const boxH = 88;
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(0,0,0,.45)';
+    ctx.beginPath();
+    ctx.roundRect(pad, pad, boxW, boxH, 14);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.14)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    const trackName = track?.name || track?.code || '';
+
+    ctx.fillStyle = 'rgba(255,255,255,.92)';
+    ctx.font = '800 13px system-ui, -apple-system, Segoe UI, Roboto';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`${trackName}${analysisName ? ' • Analys: ' + analysisName : ' • Analys: —'}`, pad+12, pad+10);
+
+    ctx.font = '600 12px system-ui, -apple-system, Segoe UI, Roboto';
+    const st = startType ? (startType === 'auto' ? 'Autostart' : 'Voltstart') : '';
+    const distTxt = distance ? `${distance}m` : '';
+    ctx.fillStyle = 'rgba(255,255,255,.82)';
+    ctx.fillText(`${st}${(st && distTxt) ? ' • ' : ''}${distTxt} • Tid: ${simT.toFixed(1)}s`, pad+12, pad+32);
+
+    const lead = ranks?.[0]?.num;
+    const remainTxt = Number.isFinite(leaderRemain) ? `${Math.max(0, Math.round(leaderRemain))}m kvar` : '—';
+    ctx.fillStyle = 'rgba(255,255,255,.92)';
+    ctx.font = '800 18px system-ui, -apple-system, Segoe UI, Roboto';
+    ctx.fillText(lead != null ? `#${lead}  ${remainTxt}` : remainTxt, pad+12, pad+52);
+
+    // 500/200-pill
+    function pill(x, y, label, active){
+      ctx.save();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = active ? 'rgba(255,255,255,.16)' : 'rgba(255,255,255,.07)';
+      ctx.strokeStyle = active ? 'rgba(255,255,255,.30)' : 'rgba(255,255,255,.14)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(x, y, 54, 22, 999);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = active ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.75)';
+      ctx.font = '800 12px system-ui, -apple-system, Segoe UI, Roboto';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, x+27, y+11);
+      ctx.restore();
+    }
+
+    const yP = pad + boxH + 10;
+    const active500 = Number.isFinite(leaderRemain) ? leaderRemain <= 500 : false;
+    const active200 = Number.isFinite(leaderRemain) ? leaderRemain <= 200 : false;
+    pill(pad, yP, '500m', active500);
+    pill(pad+60, yP, '200m', active200);
+
+    // bottom-left: mini standings 1–5
+    const standW = 180;
+    const standH = 138;
+    const sx = 14;
+    const sy = ctx.canvas.height - standH - 14;
+
+    ctx.fillStyle = 'rgba(0,0,0,.42)';
+    ctx.beginPath();
+    ctx.roundRect(sx, sy, standW, standH, 14);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.12)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,255,255,.90)';
+    ctx.font = '800 12px system-ui, -apple-system, Segoe UI, Roboto';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Placering', sx+12, sy+10);
+
+    const top5 = ranks.slice(0,5);
+    ctx.font = '700 12px system-ui, -apple-system, Segoe UI, Roboto';
+
+    for (let i=0;i<top5.length;i++){
+      const num = top5[i].num;
+      const prevRank = lastRankByNum.get(num);
+      const nowRank = i+1;
+      let arrow = '•';
+      if (prevRank != null){
+        if (nowRank < prevRank) arrow = '▲';
+        else if (nowRank > prevRank) arrow = '▼';
+      }
+
+      const rowY = sy + 34 + i*20;
+      // färgboll
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = seededColor(num);
+      ctx.beginPath();
+      ctx.arc(sx+18, rowY+8, 5, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      ctx.fillText(`${nowRank}.  #${num}`, sx+30, rowY);
+
+      ctx.fillStyle = 'rgba(255,255,255,.70)';
+      ctx.fillText(arrow, sx+140, rowY);
+    }
+
+    ctx.restore();
+  }
+
+  
+function drawSulkyTop(p, n, base, isLead, isSecond){
+  const ang = p?.ang ?? 0;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(ang);
+
+  // shadow
+  ctx.globalAlpha = 0.22;
+  ctx.fillStyle = 'rgba(0,0,0,.45)';
+  ctx.beginPath();
+  ctx.ellipse(-2, 10, 18, 7, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // wheels + axle
+  ctx.globalAlpha = 0.95;
+  ctx.fillStyle = 'rgba(0,0,0,.55)';
+  ctx.strokeStyle = 'rgba(255,255,255,.18)';
+  ctx.lineWidth = 2;
+  const wx = -18;
+  for (const wy of [-7, 7]){
+    ctx.beginPath();
+    ctx.arc(wx, wy, 6.2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+    // spokes (lätt animation)
+    const spokeAng = (p.spin || 0) + (wx<0 ? 0 : 0.6);
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    const sx = Math.cos(spokeAng) * 6;
+    const sy = Math.sin(spokeAng) * 6;
+    ctx.moveTo(wx - sx, wy - sy);
+    ctx.lineTo(wx + sx, wy + sy);
+    ctx.moveTo(wx - sy, wy + sx);
+    ctx.lineTo(wx + sy, wy - sx);
+    ctx.stroke();
+    ctx.globalAlpha = 0.95;
+  }
+  ctx.globalAlpha = 0.65;
+  ctx.beginPath();
+  ctx.moveTo(wx, -7);
+  ctx.lineTo(wx, 7);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // shafts (mot hästen)
+  ctx.strokeStyle = 'rgba(255,255,255,.16)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(wx+6, -6);
+  ctx.lineTo(-6, -6);
+  ctx.moveTo(wx+6, 6);
+  ctx.lineTo(-6, 6);
+  ctx.stroke();
+
+  // body (mörk)
+  ctx.globalAlpha = 0.96;
+  ctx.fillStyle = 'rgba(10,12,16,.78)';
+  ctx.beginPath();
+  ctx.roundRect(-6, -9, 24, 18, 9);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.10)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // saddle cloth
+  ctx.globalAlpha = 0.95;
+  ctx.fillStyle = base;
+  ctx.beginPath();
+  ctx.roundRect(6, -9, 16, 18, 6);
+  ctx.fill();
+
+  // number on cloth
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(255,255,255,.95)';
+  ctx.font = 'bold 12px system-ui, -apple-system, Segoe UI, Roboto';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(n), 14, 0.5);
+
+  // horse head
+  ctx.fillStyle = 'rgba(10,12,16,.86)';
+  ctx.beginPath();
+  ctx.arc(21, -3, 4, 0, Math.PI*2);
+  ctx.fill();
+
+  // highlight for lead / second
+  if (isLead){
+    ctx.strokeStyle = 'rgba(70,255,140,.95)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.roundRect(-8, -11, 40, 22, 12);
+    ctx.stroke();
+  } else if (isSecond){
+    ctx.strokeStyle = 'rgba(185,120,255,.95)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(-7, -10, 38, 20, 12);
+    ctx.stroke();
+  }
+
+  // glow
+  ctx.globalAlpha = 0.10;
+  ctx.fillStyle = base;
+  ctx.beginPath();
+  ctx.arc(8, 0, 26, 0, Math.PI*2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+
+function drawMiniMap({ metersByNum, lanesByNum, flagsByNum = {} }){
+  if (!miniCtx || !miniCanvas) return;
+  const w = miniCanvas.width, h = miniCanvas.height;
+  miniCtx.save();
+  miniCtx.setTransform(1,0,0,1,0,0);
+  miniCtx.clearRect(0,0,w,h);
+
+  // bakgrund
+  miniCtx.fillStyle = 'rgba(0,0,0,0.22)';
+  miniCtx.fillRect(0,0,w,h);
+
+  // liten geom för mini
+  const g = getTrackGeometry(track||{}, miniCanvas, 14);
+  // enkel oval (ytterkant)
+  const step = Math.max(6, Math.floor(g.totalLen/180));
+  miniCtx.strokeStyle = 'rgba(255,255,255,0.28)';
+  miniCtx.lineWidth = 2;
+  miniCtx.beginPath();
+  for (let s=0; s<=g.totalLen; s+=step){
+    const p = mapMetersToXY(s, 6.2, g);
+    if (s===0) miniCtx.moveTo(p.x, p.y);
+    else miniCtx.lineTo(p.x, p.y);
+  }
+  miniCtx.closePath();
+  miniCtx.stroke();
+
+  // prickar (hästar)
+  for (const h0 of horses){
+    const n = (h0.number ?? h0.num);
+    const m = metersByNum?.[n] ?? 0;
+    const lane = lanesByNum?.[n] ?? (h0._sim?.lane ?? 2.0);
+    const p = mapMetersToXY(m, lane, g);
+    const f = flagsByNum?.[n] || {};
+    const isDQ = !!(f.dq || f.disq || f.gallop || f.gaitChange) || dqStartMsByNum.has(n);
+    miniCtx.fillStyle = isDQ ? 'rgba(255,60,60,.95)' : (h0.color || seededColor(n));
+    miniCtx.beginPath();
+    miniCtx.arc(p.x, p.y, 4.5, 0, Math.PI*2);
+    miniCtx.fill();
+    if (isDQ){
+      miniCtx.strokeStyle = 'rgba(255,255,255,.35)';
+      miniCtx.lineWidth = 1.5;
+      miniCtx.beginPath();
+      miniCtx.arc(p.x, p.y, 6.5, 0, Math.PI*2);
+      miniCtx.stroke();
+    }
+  }
+
+  miniCtx.restore();
+}
+
+function drawSideCam({ metersByNum, ranks, distance }){
+  if (!sideCtx || !sideCanvas) return;
+
+  const w = sideCanvas.width, h = sideCanvas.height;
+  sideCtx.clearRect(0,0,w,h);
+
+  // background
+  const g = sideCtx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0, 'rgba(0,0,0,.35)');
+  g.addColorStop(1, 'rgba(0,0,0,.55)');
+  sideCtx.fillStyle = g;
+  sideCtx.fillRect(0,0,w,h);
+
+  const pad = 18;
+  const finishX = w - pad;
+  const top = 26;
+  const bot = h - 26;
+
+  // finish pole
+  sideCtx.strokeStyle = 'rgba(255,255,255,.92)';
+  sideCtx.lineWidth = 3;
+  sideCtx.beginPath();
+  sideCtx.moveTo(finishX, top);
+  sideCtx.lineTo(finishX, bot);
+  sideCtx.stroke();
+
+  sideCtx.globalAlpha = 0.9;
+  sideCtx.lineWidth = 6;
+  for (let y=top; y<bot; y+=18){
+    sideCtx.strokeStyle = (Math.floor(y/18)%2===0) ? 'rgba(255,255,255,.9)' : 'rgba(0,0,0,.85)';
+    sideCtx.beginPath();
+    sideCtx.moveTo(finishX, y);
+    sideCtx.lineTo(finishX, y+10);
+    sideCtx.stroke();
+  }
+  sideCtx.globalAlpha = 1;
+
+  // rails
+  sideCtx.strokeStyle = 'rgba(255,255,255,.14)';
+  sideCtx.lineWidth = 2;
+  sideCtx.beginPath();
+  sideCtx.moveTo(pad, top);
+  sideCtx.lineTo(finishX, top);
+  sideCtx.moveTo(pad, bot);
+  sideCtx.lineTo(finishX, bot);
+  sideCtx.stroke();
+
+  const safeRanks = Array.isArray(ranks) ? ranks : [];
+  const show = safeRanks.slice(0, Math.min(8, safeRanks.length));
+  const usableW = (finishX - pad);
+  const yStep = (show.length <= 1) ? 0 : ((bot - top) / (show.length - 1));
+
+  for (let i=0;i<show.length;i++){
+    const num = show[i].num;
+    const m = metersByNum?.[num] ?? 0;
+    const remain = distance - m;
+    const prog = clamp((sideCamMeters - remain) / sideCamMeters, 0, 1);
+    const x = pad + prog * usableW;
+    const y = top + i * yStep;
+    const col = seededColor(num);
+
+    // shadow
+    sideCtx.globalAlpha = 0.22;
+    sideCtx.fillStyle = 'rgba(0,0,0,.6)';
+    sideCtx.beginPath();
+    sideCtx.ellipse(x-8, y+8, 18, 6, 0, 0, Math.PI*2);
+    sideCtx.fill();
+
+    // wheels
+    sideCtx.globalAlpha = 0.95;
+    sideCtx.fillStyle = 'rgba(0,0,0,.55)';
+    sideCtx.strokeStyle = 'rgba(255,255,255,.16)';
+    sideCtx.lineWidth = 2;
+    for (const dy of [-7, 7]){
+      sideCtx.beginPath();
+      sideCtx.arc(x-18, y+dy, 6, 0, Math.PI*2);
+      sideCtx.fill();
+      sideCtx.stroke();
+    }
+
+    // body
+    sideCtx.globalAlpha = 0.96;
+    sideCtx.fillStyle = 'rgba(10,12,16,.78)';
+    sideCtx.beginPath();
+    sideCtx.roundRect(x-6, y-9, 24, 18, 9);
+    sideCtx.fill();
+
+    // cloth
+    sideCtx.globalAlpha = 0.95;
+    sideCtx.fillStyle = col;
+    sideCtx.beginPath();
+    sideCtx.roundRect(x+6, y-9, 16, 18, 6);
+    sideCtx.fill();
+
+    // num
+    sideCtx.globalAlpha = 1;
+    sideCtx.fillStyle = 'rgba(255,255,255,.95)';
+    sideCtx.font = 'bold 12px system-ui, -apple-system, Segoe UI, Roboto';
+    sideCtx.textAlign = 'center';
+    sideCtx.textBaseline = 'middle';
+    sideCtx.fillText(String(num), x+14, y+0.5);
+  }
+
+  sideCtx.fillStyle = 'rgba(255,255,255,.82)';
+  sideCtx.font = 'bold 12px system-ui, -apple-system, Segoe UI, Roboto';
+  sideCtx.textAlign = 'right';
+  sideCtx.textBaseline = 'bottom';
+  sideCtx.fillText('MÅL', finishX-6, top-6);
+}
+
+
+function drawMiniMap({ metersByNum, lanesByNum }){
+  if (!miniCtx || !miniCanvas) return;
+  // ensure size
+  const w = miniCanvas.width || 1;
+  const h = miniCanvas.height || 1;
+  miniCtx.save();
+  miniCtx.setTransform(1,0,0,1,0,0);
+  miniCtx.clearRect(0,0,w,h);
+
+  // background
+  const g = miniCtx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'rgba(255,255,255,0.05)');
+  g.addColorStop(1,'rgba(0,0,0,0.55)');
+  miniCtx.fillStyle = g;
+  miniCtx.fillRect(0,0,w,h);
+
+  // mini-geom based on mini canvas
+  const mg = getTrackGeometry(track||{}, miniCanvas);
+  const totalLen = mg.totalLen || 1000;
+
+  // draw lanes (oval) – only here
+  const lanes = [1,2,3,4,5,6];
+  for (let li=0; li<lanes.length; li++){
+    const lane = lanes[li];
+    const step = 12;
+    miniCtx.beginPath();
+    for (let s=0; s<=totalLen; s+=step){
+      const p = mapMetersToXY(s, lane, mg);
+      if (s===0) miniCtx.moveTo(p.x, p.y);
+      else miniCtx.lineTo(p.x, p.y);
+    }
+    miniCtx.closePath();
+    miniCtx.strokeStyle = (li===0) ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.10)';
+    miniCtx.lineWidth = (li===0) ? 3 : 1.4;
+    miniCtx.stroke();
+  }
+
+  // dots
+  for (const h0 of horses){
+    const n = (h0.number ?? h0.num);
+    const m = metersByNum?.[n] ?? 0;
+    let lane = lanesByNum?.[n] ?? 1;
+    lane = clamp(lane, 1.05, 5.8);
+    const pp = mapMetersToXY(m + shiftS, lane, mg);
+
+    miniCtx.globalAlpha = 0.22;
+    miniCtx.fillStyle = 'rgba(0,0,0,.85)';
+    miniCtx.beginPath();
+    miniCtx.ellipse(pp.x, pp.y+4, 9, 4, 0, 0, Math.PI*2);
+    miniCtx.fill();
+
+    miniCtx.globalAlpha = 0.98;
+    miniCtx.fillStyle = seededColor(n);
+    miniCtx.beginPath();
+    miniCtx.arc(pp.x, pp.y, 6.5, 0, Math.PI*2);
+    miniCtx.fill();
+
+    miniCtx.globalAlpha = 1;
+    miniCtx.fillStyle = 'rgba(255,255,255,.95)';
+    miniCtx.font = '700 9px system-ui, -apple-system, Segoe UI, Roboto';
+    miniCtx.textAlign = 'center';
+    miniCtx.textBaseline = 'middle';
+    miniCtx.fillText(String(n), pp.x, pp.y+0.5);
+  }
+
+  miniCtx.restore();
+}
+
+function drawWorld({ metersByNum, lanesByNum, flagsByNum, ranks, leaderRemain }){
+  // HUVUDVY = “kamera” som alltid visar ledaren (som upplopp-view), ingen oval här.
+  const w = ctx.canvas.width;
+  const h = ctx.canvas.height;
+
+  const safeRanks = Array.isArray(ranks) ? ranks : [];
+  const leadNum = safeRanks?.[0]?.num;
+  const leadM = (leadNum != null) ? (metersByNum?.[leadNum] ?? 0) : 0;
+
+  // mjuk kamera: följ ledaren men med easing
+  if (followM == null) followM = leadM;
+  followM = followM + (leadM - followM) * 0.14;
+  const camM = followM;
+
+  // view window (meters)
+  const isStretch = Number.isFinite(leaderRemain) && leaderRemain <= 300;
+
+  // view window (meters) – mer zoom än tidigare
+  const backM = isStretch ? 360 : 520;   // hur långt bak vi ser (zoomar ut mer)
+  const frontM = isStretch ? 260 : 380;  // hur långt fram vi ser (zoomar ut mer)
+  const spanM = backM + frontM;
+
+  // px per meter – lite mindre än tidigare (zoomar ut). Vid upplopp (<=300m) zoomar vi in lite.
+  let pxPerM = (w * 0.68) / spanM;
+  if (isStretch) pxPerM *= 1.12; // lätt extra zoom på upploppet
+
+  const leaderX = w * 0.62;
+  const midY = h * 0.60;
+
+  // lanes
+  const laneGap = 36; // bredare spår visuellt
+  const laneCount = 6;
+  const top = midY - laneGap * (laneCount-1)/2;
+
+  // draw “straight” lanes (camera view)
+  ctx.save();
+  ctx.setTransform(1,0,0,1,0,0);
+  // 2.5D-känsla: lätt tilt genom att komprimera Y runt mitten
+  ctx.translate(0, midY);
+  ctx.scale(1, 0.88);
+  ctx.translate(0, -midY);
+
+  // subtle fog layer for TV feel
+  const fog = ctx.createLinearGradient(0,0,w,0);
+  fog.addColorStop(0,'rgba(0,0,0,.55)');
+  fog.addColorStop(0.30,'rgba(0,0,0,.15)');
+  fog.addColorStop(0.70,'rgba(0,0,0,.12)');
+  fog.addColorStop(1,'rgba(0,0,0,.50)');
+
+  // lane lines
+  for (let i=0;i<laneCount;i++){
+    const y = top + i*laneGap;
+    ctx.strokeStyle = (i==0) ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.10)';
+    ctx.lineWidth = (i==0) ? 3 : 2;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+
+  // finish marker (if we know distance)
+  if (simMeta.distance != null && Number.isFinite(leaderRemain)){
+    const finishX = leaderX + (leaderRemain) * pxPerM;
+    if (finishX > 20 && finishX < w-20){
+      ctx.save();
+      ctx.globalAlpha = 0.92;
+      ctx.strokeStyle = 'rgba(255,255,255,.85)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(finishX, top-18);
+      ctx.lineTo(finishX, top + laneGap*(laneCount-1) + 18);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(0,0,0,.55)';
+      ctx.beginPath();
+      ctx.roundRect(finishX-24, top-40, 48, 20, 8);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.22)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      ctx.font = '800 11px system-ui, -apple-system, Segoe UI, Roboto';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillText('MÅL', finishX, top-30);
+      ctx.restore();
+    }
+  }
+
+  // horses in camera coordinates
+  // draw back-to-front for depth
+  const order = safeRanks.slice().reverse();
+  const placed = []; // simple de-overlap in screen coords
+  for (const r of order){
+    const n = r.num;
+    const f = flagsByNum?.[n];
+    if (f?.inactive) continue;
+    const m = metersByNum?.[n] ?? 0;
+    const dm = m - camM;
+    if (dm < -backM || dm > frontM) continue;
+    let lane = lanesByNum?.[n] ?? 1;
+    lane = clamp(lane, 1.05, 5.8);
+    let y = top + (lane-1) * laneGap;
+    const x = leaderX + dm * pxPerM;
+
+    // De-overlap: if two sulkies end up on (almost) the same spot, push in Y.
+    // (Keeps the “pack” readable without breaking lane logic too much.)
+    for (let tries=0; tries<6; tries++){
+      let bumped = false;
+      for (const p0 of placed){
+        const dx = Math.abs(x - p0.x);
+        const dy = Math.abs(y - p0.y);
+        if (dx < 34 && dy < 22){
+          y += (y <= p0.y ? -14 : 14);
+          bumped = true;
+        }
+      }
+      if (!bumped) break;
+    }
+    const minY = top - 14;
+    const maxY = top + laneGap*(laneCount-1) + 14;
+    y = clamp(y, minY, maxY);
+    placed.push({ x, y });
+
+    const isLead = (n === leadNum);
+    const isSecond = (safeRanks?.[1]?.num === n);
+
+    // use the same “TV sulky” icon (like sidecam) but larger
+    const col = seededColor(n);
+
+    // shadow
+    ctx.globalAlpha = 0.26;
+    ctx.fillStyle = 'rgba(0,0,0,.75)';
+    ctx.beginPath();
+    ctx.ellipse(x-10, y+10, 22, 7, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // wheels (animated)
+    const spin = (m/10) % (Math.PI*2);
+    ctx.globalAlpha = 0.95;
+    ctx.fillStyle = 'rgba(0,0,0,.55)';
+    ctx.strokeStyle = 'rgba(255,255,255,.16)';
+    ctx.lineWidth = 2;
+    for (const dy of [-8, 8]){
+      ctx.beginPath();
+      ctx.arc(x-22, y+dy, 7, 0, Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+      // spokes
+      ctx.save();
+      ctx.translate(x-22, y+dy);
+      ctx.rotate(spin);
+      ctx.globalAlpha = 0.28;
+      ctx.strokeStyle = 'rgba(255,255,255,.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-6,0); ctx.lineTo(6,0);
+      ctx.moveTo(0,-6); ctx.lineTo(0,6);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // body
+    ctx.globalAlpha = 0.96;
+    ctx.fillStyle = 'rgba(10,12,16,.78)';
+    ctx.beginPath();
+    ctx.roundRect(x-6, y-11, 30, 22, 10);
+    ctx.fill();
+
+    // cloth (number plate)
+    ctx.globalAlpha = 0.96;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.roundRect(x+10, y-11, 18, 22, 7);
+    ctx.fill();
+
+    // highlight lead/second
+    if (isLead || isSecond){
+      ctx.globalAlpha = isLead ? 0.92 : 0.55;
+      ctx.strokeStyle = isLead ? 'rgba(120,220,255,.85)' : 'rgba(255,255,255,.45)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(x-10, y-15, 50, 30, 12);
+      ctx.stroke();
+    }
+
+    // number
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(255,255,255,.95)';
+    ctx.font = 'bold 13px system-ui, -apple-system, Segoe UI, Roboto';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(n), x+19, y+0.5);
+  }
+
+  // overlay fog
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = fog;
+  ctx.fillRect(0,0,w,h);
+
+  ctx.restore();
+}
+
+
   function frame(ts){
     if (!startTs) startTs = ts;
-    const t = ts - startTs;
-    const u = clamp(t / durationMs, 0, 1);
+    const tms = ts - startTs;
+    let u = clamp(tms / durationMs, 0, 1);
+    // SLOWMO_FINISH: lite långsammare sista biten för spänning
+    const slowStart = 0.78;
+    if (u > slowStart){
+      u = slowStart + (u - slowStart) * 0.55;
+    }
     const p = eased(u);
 
-    drawTrack(ctx, geom);
+    drawBackground();
 
-    const { meters, lanes } = getInterpolated(p);
-    drawHorses(meters, lanes);
+    const { meters, lanes, simT, flagsByNum = {} } = getInterpolated(p);
+    lastFlagsByNum = flagsByNum || {};
+    const ranks = computeRanks(meters);
+
+    // uppdatera rank-historik för pilar
+    for (let i=0;i<Math.min(12, ranks.length);i++){
+      lastRankByNum.set(ranks[i].num, i+1);
+    }
+
+    // leader remain
+    const distance = simMeta.distance ?? null;
+    const leadCovered = ranks?.[0]?.m ?? 0;
+    const leaderRemain = (distance != null) ? (distance - leadCovered) : null;
+
+    drawWorld({ metersByNum: meters, lanesByNum: lanes, flagsByNum, ranks, leaderRemain });
+
+    // Mini-oval (karta) nere i hörnet
+    drawMiniMap({ metersByNum: meters, lanesByNum: lanes, flagsByNum });
+
+    if (typeof onProgress === 'function'){
+      try{ onProgress({ leaderRemain, ranks, simT }); }catch{}
+    }
+
+    if (renderHud){
+      drawHUD({
+        ranks,
+        leaderRemain,
+        simT,
+        analysisName: simMeta.analysisName || simMeta.analysis || '',
+        startType: simMeta.startType,
+        distance: simMeta.distance,
+      });
+    }
 
     if (u < 1){
       raf = requestAnimationFrame(frame);
     } else {
       raf = null;
+      if (!finishedOnce){
+        finishedOnce = true;
+        if (typeof onFinish === 'function'){
+          try{
+            const isDQNum = (n)=> {
+  const f = lastFlagsByNum?.[n] || {};
+  return !!(f.dq || f.disq || f.gallop || f.gaitChange) || dqStartMsByNum.has(n);
+};
+const winnerNum = (ranks || []).find(r => !isDQNum(r.num))?.num ?? (ranks?.[0]?.num ?? null);
+            const winnerHorse = horses.find(h => (h.number ?? h.num) === winnerNum) || null;
+            onFinish({ winnerNum, winnerHorse, ranks });
+          }catch{}
+        }
+      }
     }
   }
 
@@ -823,8 +1898,22 @@ function animateRace({ canvas, horses, track, sampleRun }){
   function stop(){ if (raf) cancelAnimationFrame(raf); raf = null; }
 
   start();
-  return { stop, replay: () => { stop(); startTs = null; start(); } };
+  return {
+    stop,
+    replay: () => {
+      stop();
+      startTs = null;
+      trailsByNum.clear();
+      finishedOnce = false;
+      lastRankByNum.clear();
+      cam.x = geom.centerX;
+      cam.y = geom.centerY;
+      cam.zoom = 1.10;
+      start();
+    }
+  };
 }
+
 
 function getHistoryKey(game, track, divisionIndex){
   const date = game?.date ? String(game.date).slice(0,10) : 'nodate';
@@ -842,8 +1931,7 @@ function readHistory(key){
 function writeHistory(key, arr){
   try{ localStorage.setItem(key, JSON.stringify(arr)); }catch{}
 }
-
-export function initRaceSim({
+function initRaceSim({
   getDivision,
   getDivisions,
   getHeaderColumns,
@@ -861,10 +1949,20 @@ export function initRaceSim({
   const btnRun = document.getElementById('btn-sim-run');
   const btnReplay = document.getElementById('btn-sim-replay');
 
-  const tabOneBtn = document.getElementById('btn-sim-tab-one');
-  const tabAllBtn = document.getElementById('btn-sim-tab-all');
-  const wrapOne = document.getElementById('sim-one-wrap');
-  const wrapAll = document.getElementById('sim-all-wrap');
+const tabsEl = document.getElementById('sim-div-tabs');
+const wrapOne = document.getElementById('sim-one-wrap');
+const wrapAll = document.getElementById('sim-all-wrap');
+
+const sideCamWrap = null;
+const sideCamLabel = null;
+const sideCanvas = null;
+const winnerWrap = document.getElementById('sim-winner');
+const winnerNumEl = document.getElementById('sim-winner-num');
+const winnerNameEl = document.getElementById('sim-winner-name');
+
+const stakeEl = document.getElementById('sim-stake');
+const winEl = document.getElementById('sim-win');
+
 
   const titleEl = document.getElementById('sim-title');
   const subtitleEl = document.getElementById('sim-subtitle');
@@ -876,13 +1974,17 @@ export function initRaceSim({
   const inputIters = document.getElementById('sim-iters');
 
   const settingsWrap = document.getElementById('sim-settings');
+  if (settingsWrap && settingsWrap.hidden) { settingsWrap.style.display = 'none'; }
+
   const btnSettingsToggle = document.getElementById('btn-sim-settings-toggle');
 
   const btnSimCoupon = document.getElementById('btn-sim-coupon');
 
   const top3El = document.getElementById('sim-top3');
+  const pos51El = document.getElementById('sim-pos-5to1');
   const logEl = document.getElementById('sim-log');
   const canvas = document.getElementById('sim-canvas');
+  const miniCanvas = document.getElementById('sim-mini-canvas');
 
   const histEl = document.getElementById('sim-history');
   const histMetaEl = document.getElementById('sim-history-meta');
@@ -943,21 +2045,46 @@ export function initRaceSim({
     };
   }
 
-  function setTab(which){
-    if (!wrapOne || !wrapAll) return;
-    const one = which === 'one';
-    wrapOne.hidden = !one;
-    wrapAll.hidden = one;
-    tabOneBtn?.classList.toggle('active', one);
-    tabAllBtn?.classList.toggle('active', !one);
-  }
+let uiMode = 'one'; // 'one' | 'all'
 
-  function resizeCanvas(){
-    if (!canvas) return;
+function setTab(which){
+  uiMode = (which === 'all') ? 'all' : 'one';
+  const one = uiMode === 'one';
+  if (wrapOne) wrapOne.hidden = !one;
+  if (wrapAll) wrapAll.hidden = one;
+
+  // active class on tabs
+  if (tabsEl){
+    const divisions = getDivisions?.() || [];
+    const div = getDivision?.();
+    const currentIndex = Math.max(0, divisions.indexOf(div));
+    for (const b of tabsEl.querySelectorAll('.sim-div-tab')){
+      const mode = b.dataset.mode || 'one';
+      const idxStr = b.dataset.index;
+      const idx = (idxStr != null) ? Number(idxStr) : null;
+      const active = (uiMode === 'all' && mode === 'all') || (uiMode === 'one' && mode === 'one' && idx === currentIndex);
+      b.classList.toggle('active', !!active);
+    }
+  }
+}
+
+function resizeCanvas(){
+  if (canvas){
     const rect = canvas.getBoundingClientRect();
     canvas.width = Math.max(520, Math.floor(rect.width));
     canvas.height = Math.max(360, Math.floor(rect.height));
   }
+  if (miniCanvas){
+    const r3 = miniCanvas.getBoundingClientRect();
+    miniCanvas.width = Math.max(220, Math.floor(r3.width));
+    miniCanvas.height = Math.max(150, Math.floor(r3.height));
+  }
+  if (sideCanvas){
+    const r2 = sideCanvas.getBoundingClientRect();
+    sideCanvas.width = Math.max(320, Math.floor(r2.width));
+    sideCanvas.height = Math.max(120, Math.floor(r2.height));
+  }
+}
 
   function renderHistoryForDiv(divIndex){
     if (!histEl || !histMetaEl) return;
@@ -989,11 +2116,61 @@ export function initRaceSim({
     }
   }
 
+
+function buildTabs(){
+  if (!tabsEl) return;
+  const divisions = getDivisions?.() || [];
+  tabsEl.innerHTML = '';
+
+  const mk = (label, mode, index=null) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'sim-div-tab';
+    b.textContent = label;
+    b.dataset.mode = mode;
+    if (index != null) b.dataset.index = String(index);
+    b.addEventListener('click', () => {
+      // Byt vy utan att auto-starta simuleringen
+      if (mode === 'all'){
+        setTab('all');
+        if (logEl) logEl.textContent = 'Tryck "Kör" för att simulera alla avdelningar.';
+        if (allResultsEl) allResultsEl.innerHTML = '<div style="opacity:.75;">Tryck "Kör" för att simulera alla avdelningar.</div>';
+      } else {
+        setCurrentIndex?.(index);
+        setTab('one');
+        renderHistoryForDiv(index);
+        if (logEl) logEl.textContent = 'Tryck "Kör" för att starta.';
+      }
+      // reset overlays
+            if (winnerWrap){ winnerWrap.hidden = true; winnerWrap.style.display = 'none'; }
+      if (btnReplay) btnReplay.disabled = true;
+      lastRun = null;
+      lastHorses = null;
+      if (currentAnim) currentAnim.stop();
+      currentAnim = null;
+      resizeCanvas();
+      setTab(uiMode);
+    });
+    return b;
+  };
+
+  // "Alla" först
+  tabsEl.appendChild(mk('Alla', 'all', null));
+  // Avdelningar
+  divisions.forEach((_, i) => {
+    tabsEl.appendChild(mk('Avd ' + (i+1), 'one', i));
+  });
+
+  // sätt aktiv efter nuvarande val
+  setTab(uiMode);
+}
+
   function open(which){
     if (!overlay) return;
     overlay.hidden = false;
     // robust: även om CSS saknar [hidden]-regel
-    overlay.style.display = 'flex';
+    const isEmbed = overlay.classList.contains('sim-embed');
+    overlay.style.display = isEmbed ? 'block' : 'flex';
 
     const track = getTrack?.() || null;
     const game = getGame?.() || null;
@@ -1003,8 +2180,17 @@ export function initRaceSim({
     titleEl.textContent = 'Simulering';
     subtitleEl.textContent = `${trackName ? trackName : ''}${dateStr ? ' • '+dateStr : ''}`;
 
+    buildTabs();
+
+    // reset overlays
+        if (winnerWrap){ winnerWrap.hidden = true; winnerWrap.style.display = 'none'; }
+
     resizeCanvas();
     setTab(which || 'one');
+
+    // Extra: säkerställ korrekt layout första gången (embeddat läge kan ha 0px höjd tills layouten satt sig)
+    try{ requestAnimationFrame(()=>resizeCanvas()); }catch{}
+    setTimeout(()=>{ try{ resizeCanvas(); }catch{} }, 60);
 
     // 🔸 Viktigt: starta INTE simuleringen automatiskt.
     // Den ska starta först när användaren trycker "Kör simulering".
@@ -1068,8 +2254,45 @@ export function initRaceSim({
       renderHistoryForDiv(Math.max(0, divIndex));
     }
 
-    if (currentAnim) currentAnim.stop();
-    currentAnim = animateRace({ canvas, horses, track, sampleRun: lastRun });
+if (winnerWrap){ winnerWrap.hidden = true; winnerWrap.style.display = 'none'; }
+
+if (currentAnim) currentAnim.stop();
+currentAnim = animateRace({
+  canvas,
+  sideCanvas,
+  miniCanvas,
+  horses,
+  track,
+  sampleRun: lastRun,
+  renderHud: false,
+  sideCamMeters: 300,
+  onProgress: ({ leaderRemain, ranks }) => {
+    // Ingen upplopp-popup längre. Vi zoomar i TV-vyn inne i drawWorld().
+    // Uppdatera lista 5→1 längst ner i mitten.
+    if (pos51El && Array.isArray(ranks) && ranks.length){
+      const top5 = ranks.slice(0, Math.min(5, ranks.length));
+      const items = top5.slice().reverse(); // 5..1
+      pos51El.innerHTML = items.map(r => {
+        const n = r.num;
+        const nm = (r.horse || r.name || '').toString();
+        return `<span class="sim-pos-chip"><span class="n">#${n}</span><span class="name">${nm}</span></span>`;
+      }).join('');
+    }
+    // Liten text i loggen vid upplopp
+    if (logEl && Number.isFinite(leaderRemain) && leaderRemain <= 300 && leaderRemain >= -5){
+      logEl.textContent = `Upplopp! ${Math.max(0, Math.round(leaderRemain))}m kvar`;
+    }
+  },
+  onFinish: ({ winnerNum, winnerHorse }) => {
+    if (winnerNumEl) winnerNumEl.textContent = winnerNum != null ? ('#' + winnerNum) : '#';
+    if (winnerNameEl) winnerNameEl.textContent = winnerHorse?.name || winnerHorse?.horse || '—';
+    if (winnerWrap){
+      winnerWrap.hidden = false;
+      winnerWrap.style.display = '';
+    }
+  }
+});
+
     if (btnReplay) btnReplay.disabled = false;
   }
 
@@ -1274,15 +2497,6 @@ export function initRaceSim({
     if (e.key === 'Escape' && overlay && !overlay.hidden) close();
   });
 
-  // tabs
-  tabOneBtn?.addEventListener('click', () => setTab('one'));
-  tabAllBtn?.addEventListener('click', () => {
-    setTab('all');
-    if (allResultsEl && !allResultsEl.innerHTML.trim()){
-      allResultsEl.innerHTML = '<div style="opacity:.75">Tryck "Kör simulering" för att simulera alla avdelningar.</div>';
-    }
-  });
-
   // resize vid fönsterändring
   window.addEventListener('resize', () => {
     if (!overlay || overlay.hidden) return;
@@ -1292,17 +2506,48 @@ export function initRaceSim({
     if (!lastRun || !lastHorses) return;
     const track = getTrack?.() || {};
     if (currentAnim) currentAnim.stop();
-    currentAnim = animateRace({ canvas, horses: lastHorses, track, sampleRun: lastRun });
+currentAnim = animateRace({
+  canvas,
+  sideCanvas,
+  horses: lastHorses,
+  track,
+  sampleRun: lastRun,
+  renderHud: false,
+  sideCamMeters: 300,
+  onProgress: ({ leaderRemain }) => {
+    const show = Number.isFinite(leaderRemain) && leaderRemain <= 300 && leaderRemain >= -20;
+    if (sideCamWrap){
+      sideCamWrap.hidden = !show;
+      sideCamWrap.style.display = show ? '' : 'none';
+    }
+    if (sideCamLabel && show){
+      sideCamLabel.textContent = `Upplopp • ${Math.max(0, Math.round(leaderRemain))}m kvar`;
+    }
+  },
+  onFinish: ({ winnerNum, winnerHorse }) => {
+    if (winnerNumEl) winnerNumEl.textContent = winnerNum != null ? ('#' + winnerNum) : '#';
+    if (winnerNameEl) winnerNameEl.textContent = winnerHorse?.name || winnerHorse?.horse || '—';
+    if (winnerWrap){
+      winnerWrap.hidden = false;
+      winnerWrap.style.display = '';
+    }
+  }
+});
+
   });
 
   // settings-toggle
-  btnSettingsToggle?.addEventListener('click', () => {
-    if (!settingsWrap) return;
-    settingsWrap.hidden = !settingsWrap.hidden;
-    if (btnSettingsToggle){
-      btnSettingsToggle.textContent = settingsWrap.hidden ? 'Visa inställningar' : 'Dölj inställningar';
-    }
-  });
+btnSettingsToggle?.addEventListener('click', () => {
+  if (!settingsWrap) return;
+
+  const nextHidden = !settingsWrap.hidden;
+  settingsWrap.hidden = nextHidden;
+  settingsWrap.style.display = nextHidden ? 'none' : '';
+
+  if (btnSettingsToggle){
+    btnSettingsToggle.setAttribute('aria-pressed', String(!nextHidden));
+  }
+});
 
   // Sim Kupong
   btnSimCoupon?.addEventListener('click', async () => {
@@ -1324,3 +2569,6 @@ export function initRaceSim({
 
   return { open, close };
 }
+
+// Expose for non-module usage (overview.js loader expects window.initRaceSim)
+try{ if (typeof window !== 'undefined') window.initRaceSim = initRaceSim; }catch(e){}

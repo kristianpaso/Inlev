@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>BeteKnepet</title>
+  <meta name="description" content="Rak på sak fiskecoach för sjö i Sverige. Fler napp, mindre gissning." />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="./styles.css" />
+  <!-- React (no build step). -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- JSX in browser (keeps this project plug-and-play inside /public). -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    // Simple environment detection:
+    // - local: http://localhost:8888/beteknepet/index.html  (Netlify dev serves frontend)
+    // - backend local default: http://localhost:5005
+    // - prod backend set via ?api=... or localStorage BK_API
+    (function(){
+      const params = new URLSearchParams(location.search);
+      const qp = params.get('api');
+      if (qp) localStorage.setItem('BK_API', qp);
+      window.BK = window.BK || {};
+      window.BK.API_BASE = localStorage.getItem('BK_API') || 'http://localhost:5005';
+    })();
+  </script>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="text/babel" data-presets="env,react" src="./app.jsx"></script>
+</body>
+</html>

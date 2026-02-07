@@ -106,9 +106,13 @@
 
 /* Keep side panels as overlays */
 .panel-left{
-  left: 18px !important;
-  bottom: 18px !important;
-  z-index: 120;
+    position: fixed;
+    left: 18px;
+    top: calc(10px + var(--topbar-h) + 26px);
+    width: 475px;
+    max-height: calc(100vh - (10px + var(--topbar-h) + 48px));
+    z-index: 120;
+    overflow: auto;
 }
 .panel-right{
   right: 18px !important;

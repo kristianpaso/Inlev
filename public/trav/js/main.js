@@ -1,3 +1,4 @@
+import { initAnalysisUI } from './ui-analysis.js';
 // public/trav/js/main.js
 
 import {
@@ -9,6 +10,10 @@ import {
   createTrack,
   updateTrack,
   deleteTrack,
+  getAnalyses,
+  createAnalysis,
+  updateAnalysis,
+  deleteAnalysis,
 } from './api.js';
 
 import { initGameForm } from './ui-game-form.js';
@@ -88,7 +93,30 @@ document.addEventListener('DOMContentLoaded', () => {
  
 
   loadGames();
- initTrackPanel();
+  initTrackPanel();
+  initAnalysisUI({
+    getAnalyses,
+    createAnalysis,
+    updateAnalysis,
+    deleteAnalysis,
+  });
+
+  const trackAnalysisModal = initTrackAnalysisModal({
+    updateTrack,
+    onUpdated: (updated) => {
+      // uppdatera cache och UI
+      const idx = allTracks.findIndex(x => x._id === updated?._id);
+      if (idx >= 0) allTracks[idx] = updated;
+      else allTracks.push(updated);
+      renderTrackList();
+      populateTrackSelect();
+    }
+  });
+
+  window.__openTrackAnalysis = (trackId) => {
+    const t = allTracks.find(x => x._id === trackId);
+    if (t) trackAnalysisModal.open(t);
+  };
 });
 
 
@@ -223,6 +251,12 @@ function renderTrackList() {
       editBtn.className = 'btn small';
       editBtn.textContent = 'Redigera';
 
+      const analysisBtn = document.createElement('button');
+      analysisBtn.type = 'button';
+      analysisBtn.className = 'btn small';
+      analysisBtn.textContent = 'Analys';
+
+
       editBtn.addEventListener('click', () => {
   const panel = document.getElementById('track-panel');
   const form = document.getElementById('track-form');
@@ -285,6 +319,7 @@ function renderTrackList() {
       });
 
       actions.appendChild(editBtn);
+      actions.appendChild(analysisBtn);
       actions.appendChild(deleteBtn);
 
       li.appendChild(actions);
