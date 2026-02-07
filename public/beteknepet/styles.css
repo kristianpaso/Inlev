@@ -483,3 +483,32 @@ body{
   .wizardLayout{ grid-template-columns: 1fr; }
   .wizardSide{ position:relative; top:auto; }
 }
+
+/* Mobile compact steps */
+.sideTitleRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+.sideToggle{
+  display:none;
+  border: 1px solid rgba(11,27,36,0.14);
+  background: rgba(255,255,255,0.85);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-weight: 700;
+  cursor:pointer;
+}
+@media (max-width: 820px){
+  .sideToggle{ display:inline-flex; }
+  .sideList{ display:none; }
+  .sideList.open{ display:block; }
+  .wizardSide{ padding: 10px; }
+  .sideRow{ padding:8px 10px 8px 12px; margin-bottom:6px; }
+  .sideLabel{ font-size:11px; }
+}
+@media (max-width: 420px){
+  .sideRow{ padding:7px 9px 7px 12px; }
+}

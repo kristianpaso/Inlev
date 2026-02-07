@@ -550,6 +550,7 @@ function App() {
   const [catches, setCatches] = useState([]);
   const [lureCheck, setLureCheck] = useState(null);
   const [showDonate, setShowDonate] = useState(false);
+  const [showStepsMobile, setShowStepsMobile] = useState(false);
 
 
   function labelSpecies(v){
@@ -660,12 +661,22 @@ function App() {
   }
 
   async function makePlan() {
-    if (!species || !goal || !platform || !water || !depth || (!autoFromWeather && (!timeofday || !wind))) {
-      setToast('Fyll i alla val först.');
+    // Hitta första saknade steg (så du slipper gissa)
+    if (!species || !goal || !platform || (!autoFromWeather && !timeofday) || (!autoFromWeather && !wind) || !water || !depth) {
+      let missing = 0;
+      if (!species) missing = 0;
+      else if (!goal) missing = 1;
+      else if (!platform) missing = 2;
+      else if (!autoFromWeather && !timeofday) missing = 3;
+      else if (!autoFromWeather && !wind) missing = 4;
+      else if (!water) missing = 5;
+      else if (!depth) missing = 6;
+      setStep(missing);
+      setToast('Välj alla steg först.');
       return;
     }
 
-    setLoading(true);
+  setLoading(true);
     setToast('');
     setFix(null);
     try {
@@ -1061,7 +1072,13 @@ function App() {
               
               <div className="wizardLayout">
                 <div className="wizardSide">
-                  <div className="sideTitle">Dina val</div>
+                  <div className="sideTitleRow">
+                    <div className="sideTitle">Dina val</div>
+                    <button className="sideToggle" type="button" onClick={()=>setShowStepsMobile(!showStepsMobile)}>
+                      {showStepsMobile ? "Dölj" : "Visa"}
+                    </button>
+                  </div>
+                  <div className={"sideList " + (showStepsMobile ? "open" : "")}>
                   {stepsInfo.map((s) => (
                     <button
                       key={s.idx}
@@ -1074,6 +1091,7 @@ function App() {
                       
                     </button>
                   ))}
+                  </div>
                   <div className="muted" style={{marginTop:10}}>Klicka på ett steg för att ändra.</div>
                 </div>
                 <div className="wizardMain">
@@ -1086,7 +1104,7 @@ function App() {
                         value={species}
                         onChange={(e)=>{ const v=e.target.value; if(!v) return; setSpecies(v); setStep(1); }}
                       >
-                        <option value="" disabled hidden>Välj art</option>
+                        <option value="" hidden>Välj art</option>
                         <option value="gadda">Gädda</option>
                         <option value="gos">Gös</option>
                         <option value="abborre">Abborre</option>
@@ -1105,7 +1123,7 @@ function App() {
                         value={goal}
                         onChange={(e)=>{ const v=e.target.value; if(!v) return; setGoal(v); setStep(2); }}
                       >
-                        <option value="" disabled hidden>Välj mål</option>
+                        <option value="" hidden>Välj mål</option>
                         <option value="forsta">Fånga första fisken</option>
                         <option value="mer">Fånga fler idag</option>
                       </select>
@@ -1123,7 +1141,7 @@ function App() {
                         value={platform}
                         onChange={(e)=>{ const v=e.target.value; if(!v) return; setPlatform(v); setStep(3); }}
                       >
-                        <option value="" disabled hidden>Land eller båt</option>
+                        <option value="" hidden>Land eller båt</option>
                         <option value="land">Land</option>
                         <option value="bat">Båt</option>
                       </select>
@@ -1145,7 +1163,7 @@ function App() {
                         value={timeofday}
                         onChange={(e)=>{ const v=e.target.value; if(!v) return; setAutoFromWeather(false); setTimeofday(v); setStep(4); }}
                       >
-                        <option value="" disabled hidden>Välj tid</option>
+                        <option value="" hidden>Välj tid</option>
                         <option value="morgon">Morgon</option>
                         <option value="dag">Dag</option>
                         <option value="kvall">Kväll</option>
@@ -1175,7 +1193,7 @@ function App() {
                         value={wind}
                         onChange={(e)=>{ const v=e.target.value; if(!v) return; setWind(v); setStep(5); }}
                       >
-                        <option value="" disabled hidden>Välj vind</option>
+                        <option value="" hidden>Välj vind</option>
                         <option value="svag">Svag</option>
                         <option value="medel">Medel</option>
                         <option value="hard">Hård</option>
@@ -1194,7 +1212,7 @@ function App() {
                         value={water}
                         onChange={(e)=>{ const v=e.target.value; if(!v) return; setWater(v); setStep(6); }}
                       >
-                        <option value="" disabled hidden>Typ av vatten</option>
+                        <option value="" hidden>Typ av vatten</option>
                         <option value="klar">Klart</option>
                         <option value="mellan">Mellan</option>
                         <option value="grumlig">Grumligt</option>
@@ -1217,7 +1235,7 @@ function App() {
                         onChange={async (e)=>{ const v=e.target.value; if(!v) return; setDepth(v); await makePlan(); }}
                         disabled={loading}
                       >
-                        <option value="" disabled hidden>Välj djup</option>
+                        <option value="" hidden>Välj djup</option>
                         <option value="grunt">Grunt (0–3m)</option>
                         <option value="medel">Medel (3–8m)</option>
                         <option value="djupt">Djupt (8m+)</option>
