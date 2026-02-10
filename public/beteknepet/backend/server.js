@@ -50,6 +50,109 @@ const upload = multer({
 
 app.use(express.json({ limit: '1mb' }));
 
+function buildSonarPreset(input){
+  const preset = (input && input.preset) ? String(input.preset) : 'allround';
+  const env = (input && input.env) ? String(input.env) : 'blandat';
+  const depth = (input && input.depth) ? String(input.depth) : 'medel';
+  const water = (input && input.water) ? String(input.water) : 'mellan';
+  const platform = (input && input.platform) ? String(input.platform) : 'land';
+
+  // Bas
+  let out = {
+    preset: 'Allround',
+    recommended: [
+      { k: '2D CHIRP', v: 'Medium CHIRP (allround)' },
+      { k: 'DownScan frekvens', v: '455 kHz (räckvidd)' },
+      { k: 'SideScan', v: '455 kHz längre räckvidd' },
+      { k: 'Känslighet/Gain', v: 'Auto +2' },
+      { k: 'Colorline/Contrast', v: '65–75%' },
+      { k: 'Noise Rejection', v: 'Medel' },
+      { k: 'Surface Clarity', v: 'Medel' },
+      { k: 'Ping speed', v: platform === 'bat' ? 'Hög (om båten rör sig)' : 'Medel' },
+      { k: 'Scroll speed', v: 'Matcha fart (Auto/Medel)' },
+      { k: 'Djup/range', v: depth === 'djupt' ? '0–30 m' : (depth === 'grunt' ? '0–8 m' : '0–15 m') },
+    ]
+  };
+
+  // Presets
+  if (preset === 'structure' || env === 'stenigt'){
+    out.preset = 'Struktur / stenigt';
+    out.recommended = [
+      { k: '2D CHIRP', v: 'Medium CHIRP' },
+      { k: 'DownScan frekvens', v: '800 kHz (mer detalj)' },
+      { k: 'SideScan', v: '455 kHz (räckvidd)' },
+      { k: 'Känslighet/Gain', v: 'Auto +3' },
+      { k: 'Colorline/Contrast', v: '70–80% (se hårda kanter)' },
+      { k: 'Noise Rejection', v: 'Medel' },
+      { k: 'Surface Clarity', v: 'Låg/Medel' },
+      { k: 'Ping speed', v: platform === 'bat' ? 'Hög' : 'Medel' },
+      { k: 'Scroll speed', v: 'Matcha fart' },
+      { k: 'Djup/range', v: depth === 'djupt' ? '0–30 m' : '0–15 m' },
+    ];
+  }
+  if (preset === 'reeds' || env === 'vass'){
+    out.preset = 'Mycket vass';
+    out.recommended = [
+      { k: '2D CHIRP', v: 'Medium CHIRP (se fisk i vass)' },
+      { k: 'DownScan frekvens', v: '455 kHz (räckvidd)' },
+      { k: 'SideScan', v: '455 kHz' },
+      { k: 'Känslighet/Gain', v: 'Auto +2' },
+      { k: 'Colorline/Contrast', v: '60–70% (mindre brus)' },
+      { k: 'Noise Rejection', v: 'Hög (rensar växtbrus)' },
+      { k: 'Surface Clarity', v: 'Medel/Hög' },
+      { k: 'Ping speed', v: platform === 'bat' ? 'Hög' : 'Medel' },
+      { k: 'Scroll speed', v: 'Medel (inte för snabbt)' },
+      { k: 'Djup/range', v: '0–8 m' },
+    ];
+  }
+  if (preset === 'veg' || env === 'vegetation'){
+    out.preset = 'Vegetation';
+    out.recommended = [
+      { k: '2D CHIRP', v: 'Medium CHIRP' },
+      { k: 'DownScan frekvens', v: '455 kHz' },
+      { k: 'SideScan', v: '455 kHz' },
+      { k: 'Känslighet/Gain', v: 'Auto +1' },
+      { k: 'Colorline/Contrast', v: '60–70%' },
+      { k: 'Noise Rejection', v: 'Hög' },
+      { k: 'Surface Clarity', v: 'Hög' },
+      { k: 'Ping speed', v: platform === 'bat' ? 'Hög' : 'Medel' },
+      { k: 'Scroll speed', v: 'Medel' },
+      { k: 'Djup/range', v: depth === 'djupt' ? '0–20 m' : '0–15 m' },
+    ];
+  }
+  if (preset === 'deep' || depth === 'djupt'){
+    out.preset = 'Djupt';
+    out.recommended = [
+      { k: '2D CHIRP', v: 'Low/Medium CHIRP (penetration)' },
+      { k: 'DownScan frekvens', v: '455 kHz (räckvidd)' },
+      { k: 'SideScan', v: '455 kHz' },
+      { k: 'Känslighet/Gain', v: 'Auto +2' },
+      { k: 'Noise Rejection', v: 'Medel' },
+      { k: 'Surface Clarity', v: 'Medel' },
+      { k: 'Ping speed', v: 'Medel/Hög' },
+      { k: 'Scroll speed', v: 'Matcha fart' },
+      { k: 'Djup/range', v: '0–40 m' },
+    ];
+  }
+  if (preset === 'shallow' || depth === 'grunt'){
+    out.preset = 'Grunt';
+    out.recommended = [
+      { k: '2D CHIRP', v: 'Medium/High CHIRP' },
+      { k: 'DownScan frekvens', v: '800 kHz (detalj)' },
+      { k: 'SideScan', v: '800/455 (om finns)' },
+      { k: 'Känslighet/Gain', v: 'Auto +1' },
+      { k: 'Noise Rejection', v: water === 'grumlig' ? 'Hög' : 'Medel' },
+      { k: 'Surface Clarity', v: 'Hög' },
+      { k: 'Ping speed', v: platform === 'bat' ? 'Hög' : 'Medel' },
+      { k: 'Scroll speed', v: 'Medel' },
+      { k: 'Djup/range', v: '0–8 m' },
+    ];
+  }
+
+  return out;
+}
+
+
 // CORS: allow local Netlify dev + Netlify prod domain.
 // You can add more allowed origins via env BK_ALLOWED_ORIGINS (comma separated).
 const DEFAULT_ALLOWED = [
@@ -378,20 +481,22 @@ app.get('/api/beteknepet/weather', async (req, res) => {
 
 app.post('/api/beteknepet/sonar', (req, res) => {
   try {
-    const sonar = buildSonar(req.body || {});
-    res.json(sonar);
+    const input = req.body || {};
+    const data = buildSonarPreset(input);
+    res.json(data);
   } catch (e) {
-    res.status(400).json({ error: e.message || 'bad request' });
+    res.status(400).json({ error: String(e && e.message ? e.message : e) });
   }
 });
 
 // GET-variant (fallback)
 app.get('/api/beteknepet/sonar', (req, res) => {
   try {
-    const sonar = buildSonar(req.query || {});
-    res.json(sonar);
+    const input = { ...req.query };
+    const data = buildSonarPreset(input);
+    res.json(data);
   } catch (e) {
-    res.status(400).json({ error: e.message || 'bad request' });
+    res.status(400).json({ error: String(e && e.message ? e.message : e) });
   }
 });
 

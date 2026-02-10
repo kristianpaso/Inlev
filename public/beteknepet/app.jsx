@@ -539,6 +539,8 @@ function App() {
   const [plan, setPlan] = useState(null);
   const [fix, setFix] = useState(null);
   const [sonar, setSonar] = useState(null);
+  const [sonarPreset, setSonarPreset] = useState('allround');
+  const [sonarEnv, setSonarEnv] = useState('blandat');
   const [toast, setToast] = useState('');
 
   const [loc, setLoc] = useState(null);
@@ -621,8 +623,10 @@ function App() {
     goal: goal,
     depth: depth,
     location: loc,
-    weather: wx
-  }), [species, platform, timeofday, wind, water, goal, depth, loc, wx]);
+    weather: wx,
+    preset: sonarPreset,
+    env: sonarEnv
+  }), [species, platform, timeofday, wind, water, goal, depth, loc, wx, sonarPreset, sonarEnv]);
 
   // Zoner
   const areaKey = useMemo(function(){
@@ -660,17 +664,25 @@ function App() {
     reset();
   }
 
-  async function makePlan() {
+  async function makePlan(overrides = {}) {
+    const s = overrides.species ?? species;
+    const g = overrides.goal ?? goal;
+    const p = overrides.platform ?? platform;
+    const t = overrides.timeofday ?? timeofday;
+    const wi = overrides.wind ?? wind;
+    const wa = overrides.water ?? water;
+    const d = overrides.depth ?? depth;
+
     // Hitta första saknade steg (så du slipper gissa)
-    if (!species || !goal || !platform || (!autoFromWeather && !timeofday) || (!autoFromWeather && !wind) || !water || !depth) {
+    if (!s || !g || !p || (!autoFromWeather && !t) || (!autoFromWeather && !wi) || !wa || !d) {
       let missing = 0;
-      if (!species) missing = 0;
-      else if (!goal) missing = 1;
-      else if (!platform) missing = 2;
-      else if (!autoFromWeather && !timeofday) missing = 3;
-      else if (!autoFromWeather && !wind) missing = 4;
-      else if (!water) missing = 5;
-      else if (!depth) missing = 6;
+      if (!s) missing = 0;
+      else if (!g) missing = 1;
+      else if (!p) missing = 2;
+      else if (!autoFromWeather && !t) missing = 3;
+      else if (!autoFromWeather && !wi) missing = 4;
+      else if (!wa) missing = 5;
+      else if (!d) missing = 6;
       setStep(missing);
       setToast('Välj alla steg först.');
       return;
@@ -680,7 +692,8 @@ function App() {
     setToast('');
     setFix(null);
     try {
-      const data = await postJSON(api + '/api/beteknepet/plan', request);
+      const payload = { ...request, species: (overrides.species ?? species), goal: (overrides.goal ?? goal), platform: (overrides.platform ?? platform), timeofday: (overrides.timeofday ?? timeofday), wind: (overrides.wind ?? wind), water: (overrides.water ?? water), depth: (overrides.depth ?? depth), preset: sonarPreset, env: sonarEnv };
+      const data = await postJSON(api + '/api/beteknepet/plan', payload);
       setPlan(data);
       if (data && data.sonar) setSonar(data.sonar);
       setStarted(false);
@@ -911,6 +924,30 @@ function App() {
                     <div className="muted" style={{marginBottom:8}}>
                       Preset: <b>{sonar.preset}</b>
                     </div>
+
+                    <div className="sonarControls">
+                      <div className="field">
+                        <label className="sr">Preset</label>
+                        <select value={sonarPreset} onChange={(e)=>setSonarPreset(e.target.value)}>
+                          <option value="allround">Allround</option>
+                          <option value="structure">Stenigt / struktur</option>
+                          <option value="reeds">Mycket vass</option>
+                          <option value="veg">Vegetation</option>
+                          <option value="deep">Djupt</option>
+                          <option value="shallow">Grunt</option>
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label className="sr">Miljö</label>
+                        <select value={sonarEnv} onChange={(e)=>setSonarEnv(e.target.value)}>
+                          <option value="blandat">Blandat</option>
+                          <option value="stenigt">Stenigt</option>
+                          <option value="vass">Vass</option>
+                          <option value="vegetation">Vegetation</option>
+                          <option value="oppet">Öppet vatten</option>
+                        </select>
+                      </div>
+                    </div>
                     <div className="kv">
                       {sonar.recommended.map((it, i) => (
                         <div className="item" key={i}>
@@ -926,7 +963,30 @@ function App() {
                 ) : (
                   <div className="block">
                     <h3>Ekolod</h3>
-                    <div className="muted">Tryck för att få inställningar utifrån din registrering.</div>
+                    <div className="muted">Välj preset/miljö och tryck för att få inställningar utifrån din registrering.</div>
+                    <div className="sonarControls">
+                      <div className="field">
+                        <label className="sr">Preset</label>
+                        <select value={sonarPreset} onChange={(e)=>setSonarPreset(e.target.value)}>
+                          <option value="allround">Allround</option>
+                          <option value="structure">Stenigt / struktur</option>
+                          <option value="reeds">Mycket vass</option>
+                          <option value="veg">Vegetation</option>
+                          <option value="deep">Djupt</option>
+                          <option value="shallow">Grunt</option>
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label className="sr">Miljö</label>
+                        <select value={sonarEnv} onChange={(e)=>setSonarEnv(e.target.value)}>
+                          <option value="blandat">Blandat</option>
+                          <option value="stenigt">Stenigt</option>
+                          <option value="vass">Vass</option>
+                          <option value="vegetation">Vegetation</option>
+                          <option value="oppet">Öppet vatten</option>
+                        </select>
+                      </div>
+                    </div>
                     <div className="actions" style={{marginTop:10}}>
                       <button className="btn" onClick={fetchSonar} disabled={loading}>Ekolod</button>
                     </div>
@@ -1020,7 +1080,7 @@ function App() {
                 )}
               </div>
 
-{toast ? <div className={"toast" + ((String(toast).toLowerCase().indexOf('fail')>=0 || String(toast).toLowerCase().indexOf('error')>=0) ? " error": "")}>{toast}</div> : null}
+              {toast ? <div className={"toast" + ((String(toast).toLowerCase().indexOf('fail')>=0 || String(toast).toLowerCase().indexOf('error')>=0) ? " error": "")}>{toast}</div> : null}
             </div>
           </div>
         </div>
@@ -1057,209 +1117,210 @@ function App() {
               <span className="tag">Steg-för-steg</span>
             </div>
             <div className="body">
-              <div className="stepper">
-                <div className={"dot" + (step>=0 ? " on":"")}></div>
-                <div className={"dot" + (step>=1 ? " on":"")}></div>
-                <div className={"dot" + (step>=2 ? " on":"")}></div>
-                <div className={"dot" + (step>=3 ? " on":"")}></div>
-                <div className={"dot" + (step>=4 ? " on":"")}></div>
-                <div className={"dot" + (step>=5 ? " on":"")}></div>
-                <div className={"dot" + (step>=6 ? " on":"")}></div>
-                <div className={"dot" + (step>=7 ? " on":"")}></div>
-              </div>
-
+              <div className="mockWizard">
+                              <div className="mockHeader">
+                                <div>
+                                  <div className="mockTitle">Registrera (steg {step+1}/7)</div>
+                                  <div className="mockSub">En fråga i taget. Plan skapas automatiskt när du är klar.</div>
+                                </div>
+                                <div className="pill">Steg för-steg</div>
+                              </div>
               
+                              <div className="dots" aria-label="Progress">
+                                {Array.from({length:7}).map((_,i)=>(
+                                  <span key={i} className={"dot " + (i<=step ? "on":"")} />
+                                ))}
+                              </div>
               
-              <div className="wizardLayout">
-                <div className="wizardSide">
-                  <div className="sideTitleRow">
-                    <div className="sideTitle">Dina val</div>
-                    <button className="sideToggle" type="button" onClick={()=>setShowStepsMobile(!showStepsMobile)}>
-                      {showStepsMobile ? "Dölj" : "Visa"}
-                    </button>
-                  </div>
-                  <div className={"sideList " + (showStepsMobile ? "open" : "")}>
-                  {stepsInfo.map((s) => (
-                    <button
-                      key={s.idx}
-                      className={"sideRow " + ((step === s.idx) ? "active" : "")}
-                      onClick={() => { if (s.idx <= step) setStep(s.idx); }}
-                      type="button"
-                    >
-                      <div className="sideLabel">{s.title}</div>
-                      <div className="sideValue">{s.value}</div>
-                      
-                    </button>
-                  ))}
-                  </div>
-                  <div className="muted" style={{marginTop:10}}>Klicka på ett steg för att ändra.</div>
-                </div>
-                <div className="wizardMain">
-{step === 0 ? (
-                <div className="block">
-                  <div className="row">
-                    <div className="field">
-                      <label className="sr">Välj art</label>
-                      <select
-                        value={species}
-                        onChange={(e)=>{ const v=e.target.value; if(!v) return; setSpecies(v); setStep(1); }}
-                      >
-                        <option value="" hidden>Välj art</option>
-                        <option value="gadda">Gädda</option>
-                        <option value="gos">Gös</option>
-                        <option value="abborre">Abborre</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
+                              <div className="mockCard">
+                                <div className="sectionTitle">{step === 0 ? 'Välj art' : step === 1 ? 'Mål' : step === 2 ? 'Plats' : step === 3 ? 'Tid' : step === 4 ? 'Vind' : step === 5 ? 'Typ av vatten' : 'Djup'}</div>
+              
+                                {/* Step content */}
+                                {step === 0 ? (
+                                  <div className="choiceGrid cols3">
+                                    <button className={"choiceCard imgCard bg-species-gadda " + (species==='gadda' ? 'selected':'')} type="button" onClick={()=>{ setSpecies('gadda'); setStep(1); }}>
+                                      <div className="imgTop" />
+                                      <div className="choiceTitleRow"><div className="choiceTitle">Gädda</div>{species==='gadda' ? <div className="check">✓</div> : null}</div>
+                                    </button>
+                                    <button className={"choiceCard imgCard bg-species-gos " + (species==='gos' ? 'selected':'')} type="button" onClick={()=>{ setSpecies('gos'); setStep(1); }}>
+                                      <div className="imgTop" />
+                                      <div className="choiceTitleRow"><div className="choiceTitle">Gös</div>{species==='gos' ? <div className="check">✓</div> : null}</div>
+                                    </button>
+                                    <button className={"choiceCard imgCard bg-species-abborre " + (species==='abborre' ? 'selected':'')} type="button" onClick={()=>{ setSpecies('abborre'); setStep(1); }}>
+                                      <div className="imgTop" />
+                                      <div className="choiceTitleRow"><div className="choiceTitle">Abborre</div>{species==='abborre' ? <div className="check">✓</div> : null}</div>
+                                    </button>
+                                  </div>
+                                ) : null}
+              
+                                {step === 1 ? (
+                                  <div className="choiceGrid cols2">
+                                    <button className={"choiceCard imgCard bg-goal-first " + (goal==='forsta' ? 'selected':'')} type="button" onClick={()=>{ setGoal('forsta'); setStep(2); }}>
+                                      <div className="imgTop" />
+                                      <div className="choiceTitleRow"><div className="choiceTitle">Första fisk</div>{goal==='forsta' ? <div className="check">✓</div> : null}</div>
+                                    </button>
+                                    <button className={"choiceCard imgCard bg-goal-more " + (goal==='mer' ? 'selected':'')} type="button" onClick={()=>{ setGoal('mer'); setStep(2); }}>
+                                      <div className="imgTop" />
+                                      <div className="choiceTitleRow"><div className="choiceTitle">Mer napp</div>{goal==='mer' ? <div className="check">✓</div> : null}</div>
+                                    </button>
+                                  </div>
+                                ) : null}
+              
+                                {step === 2 ? (
+                                  <div className="choiceGrid cols2">
+                                    <button className={"choiceCard imgCard bg-platform-land " + (platform==='land' ? 'selected':'')} type="button" onClick={()=>{ setPlatform('land'); setStep(3); }}>
+                                      <div className="imgTop" />
+                                      <div className="choiceTitleRow"><div className="choiceTitle">Land</div>{platform==='land' ? <div className="check">✓</div> : null}</div>
+                                    </button>
+                                    <button className={"choiceCard imgCard bg-platform-bat " + (platform==='bat' ? 'selected':'')} type="button" onClick={()=>{ setPlatform('bat'); setStep(3); }}>
+                                      <div className="imgTop" />
+                                      <div className="choiceTitleRow"><div className="choiceTitle">Båt</div>{platform==='bat' ? <div className="check">✓</div> : null}</div>
+                                    </button>
+                                  </div>
+                                ) : null}
+              
+                                {step === 3 ? (
+                                  <div>
+                                    <div className="choiceGrid cols4">
+                                      <button className={"choiceCard imgCard bg-time-morgon " + (timeofday==='morgon' && !autoFromWeather ? 'selected':'')} type="button" onClick={()=>{ setAutoFromWeather(false); setTimeofday('morgon'); setStep(4); }}>
+                                        <div className="imgTop" /><div className="choiceTitleRow"><div className="choiceTitle">Morgon</div>{(timeofday==='morgon' && !autoFromWeather) ? <div className="check">✓</div> : null}</div>
+                                      </button>
+                                      <button className={"choiceCard imgCard bg-time-dag " + (timeofday==='dag' && !autoFromWeather ? 'selected':'')} type="button" onClick={()=>{ setAutoFromWeather(false); setTimeofday('dag'); setStep(4); }}>
+                                        <div className="imgTop" /><div className="choiceTitleRow"><div className="choiceTitle">Dag</div>{(timeofday==='dag' && !autoFromWeather) ? <div className="check">✓</div> : null}</div>
+                                      </button>
+                                      <button className={"choiceCard imgCard bg-time-kvall " + (timeofday==='kvall' && !autoFromWeather ? 'selected':'')} type="button" onClick={()=>{ setAutoFromWeather(false); setTimeofday('kvall'); setStep(4); }}>
+                                        <div className="imgTop" /><div className="choiceTitleRow"><div className="choiceTitle">Kväll</div>{(timeofday==='kvall' && !autoFromWeather) ? <div className="check">✓</div> : null}</div>
+                                      </button>
+                                      <button className={"choiceCard imgCard bg-time-natt " + (timeofday==='natt' && !autoFromWeather ? 'selected':'')} type="button" onClick={()=>{ setAutoFromWeather(false); setTimeofday('natt'); setStep(4); }}>
+                                        <div className="imgTop" /><div className="choiceTitleRow"><div className="choiceTitle">Natt</div>{(timeofday==='natt' && !autoFromWeather) ? <div className="check">✓</div> : null}</div>
+                                      </button>
+                                    </div>
+                                    <div className="inlineActions">
+                                      <button className="btn ghost" type="button" onClick={async ()=>{ await getPlaceAndWeather(); }} disabled={wxLoading}>
+                                        {wxLoading ? 'Hämtar…' : 'Hämta plats & väder'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : null}
+              
+                                {(step === 4 && !autoFromWeather) ? (
+                                  <div className="choiceGrid cols3">
+                                    <button className={"choiceCard imgCard bg-wind-svag " + (wind==='svag' ? 'selected':'')} type="button" onClick={()=>{ setWind('svag'); setStep(5); }}>
+                                      <div className="imgTop" /><div className="choiceTitleRow"><div className="choiceTitle">Svag</div>{wind==='svag' ? <div className="check">✓</div> : null}</div>
+                                    </button>
+                                    <button className={"choiceCard imgCard bg-wind-medel " + (wind==='medel' ? 'selected':'')} type="button" onClick={()=>{ setWind('medel'); setStep(5); }}>
+                                      <div className="imgTop" /><div className="choiceTitleRow"><div className="choiceTitle">Medel</div>{wind==='medel' ? <div className="check">✓</div> : null}</div>
+                                    </button>
+                                    <button className={"choiceCard imgCard bg-wind-hard " + (wind==='hard' ? 'selected':'')} type="button" onClick={()=>{ setWind('hard'); setStep(5); }}>
+                                      <div className="imgTop" /><div className="choiceTitleRow"><div className="choiceTitle">Hård</div>{wind==='hard' ? <div className="check">✓</div> : null}</div>
+                                    </button>
+                                  </div>
+                                ) : null}
+              
+                                {step === 5 ? (
+                                  <div className="choiceGrid cols3">
+                                    <button className={"choiceCard imgCard bg-water-klar " + (water==='klar' ? 'selected':'')} type="button" onClick={()=>{ setWater('klar'); setStep(6); }}>
+                                      <div className="imgTop" /><div className="choiceTitleRow"><div className="choiceTitle">Klart</div>{water==='klar' ? <div className="check">✓</div> : null}</div>
+                                    </button>
+                                    <button className={"choiceCard imgCard bg-water-mellan " + (water==='mellan' ? 'selected':'')} type="button" onClick={()=>{ setWater('mellan'); setStep(6); }}>
+                                      <div className="imgTop" /><div className="choiceTitleRow"><div className="choiceTitle">Mellan</div>{water==='mellan' ? <div className="check">✓</div> : null}</div>
+                                    </button>
+                                    <button className={"choiceCard imgCard bg-water-grumlig " + (water==='grumlig' ? 'selected':'')} type="button" onClick={()=>{ setWater('grumlig'); setStep(6); }}>
+                                      <div className="imgTop" /><div className="choiceTitleRow"><div className="choiceTitle">Grumligt</div>{water==='grumlig' ? <div className="check">✓</div> : null}</div>
+                                    </button>
+                                  </div>
+                                ) : null}
+              
+                                {step === 6 ? (
+                                  <div>
+                                    <div className="choiceGrid cols3">
+                                      <button className={"choiceCard imgCard bg-depth-grunt " + (depth==='grunt' ? 'selected':'')} type="button" onClick={()=>{ setDepth('grunt'); }}>
+                                        <div className="imgTop" /><div className="choiceTitleRow"><div className="choiceTitle">Grunt (0–3m)</div>{depth==='grunt' ? <div className="check">✓</div> : null}</div>
+                                      </button>
+                                      <button className={"choiceCard imgCard bg-depth-medel " + (depth==='medel' ? 'selected':'')} type="button" onClick={()=>{ setDepth('medel'); }}>
+                                        <div className="imgTop" /><div className="choiceTitleRow"><div className="choiceTitle">Medel (3–8m)</div>{depth==='medel' ? <div className="check">✓</div> : null}</div>
+                                      </button>
+                                      <button className={"choiceCard imgCard bg-depth-djupt " + (depth==='djupt' ? 'selected':'')} type="button" onClick={()=>{ setDepth('djupt'); }}>
+                                        <div className="imgTop" /><div className="choiceTitleRow"><div className="choiceTitle">Djupt (8m+)</div>{depth==='djupt' ? <div className="check">✓</div> : null}</div>
+                                      </button>
+                                    </div>
+              
+                                    <div className="presetBlock">
+                                      <div className="presetLabel">Preset</div>
+                                      <select className="selectModern" value={sonarPreset} onChange={(e)=>setSonarPreset(e.target.value)}>
+                                        <option value="allround">Miljö (valfritt)</option>
+                                        <option value="structure">Stenigt / struktur</option>
+                                        <option value="reeds">Mycket vass</option>
+                                        <option value="veg">Mycket vegetation</option>
+                                        <option value="deep">Djupt</option>
+                                        <option value="shallow">Grunt</option>
+                                      </select>
+                                      <select className="selectModern" value={sonarEnv} onChange={(e)=>setSonarEnv(e.target.value)}>
+                                        <option value="blandat">Blandat</option>
+                                        <option value="stenigt">Stenigt</option>
+                                        <option value="vass">Mycket vass</option>
+                                        <option value="vegetation">Mycket vegetation</option>
+                                        <option value="oppet">Öppet vatten</option>
+                                      </select>
+              
+                                      <div className="actionRow">
+                                        <button className="btn ghost" type="button" onClick={()=>{ 
+                                          const spp=['gadda','gos','abborre']; 
+                                          const g=['forsta','mer']; 
+                                          const p=['land','bat']; 
+                                          const t=['morgon','dag','kvall','natt']; 
+                                          const wi=['svag','medel','hard']; 
+                                          const wa=['klar','mellan','grumlig']; 
+                                          const d=['grunt','medel','djupt'];
+                                          setSpecies(spp[Math.floor(Math.random()*spp.length)]);
+                                          setGoal(g[Math.floor(Math.random()*g.length)]);
+                                          setPlatform(p[Math.floor(Math.random()*p.length)]);
+                                          setTimeofday(t[Math.floor(Math.random()*t.length)]);
+                                          setWind(wi[Math.floor(Math.random()*wi.length)]);
+                                          setWater(wa[Math.floor(Math.random()*wa.length)]);
+                                          setDepth(d[Math.floor(Math.random()*d.length)]);
+                                        }}>Överraska mig</button>
+                                        <button className="btn primary" type="button" disabled={loading || !(species&&goal&&platform&&water&&depth&&(autoFromWeather || (timeofday&&wind)))} onClick={async ()=>{ await makePlan({ depth }); }}>Skapa plan</button>
+                                      </div>
+                                    </div>
+              
+                                    <div className="sonarMiniCard">
+                                      <div className="sonarMiniHead">
+                                        <div className="sonarMiniTitle">Ekolod-inställningar</div>
+                                        <select className="sonarMiniRight" value={sonarPreset} onChange={(e)=>setSonarPreset(e.target.value)}>
+                                          <option value="allround">Allround</option>
+                                          <option value="structure">Struktur</option>
+                                          <option value="reeds">Vass</option>
+                                          <option value="veg">Vegetation</option>
+                                          <option value="deep">Djupt</option>
+                                          <option value="shallow">Grunt</option>
+                                        </select>
+                                      </div>
+                                      <select className="selectModern" value={sonarEnv} onChange={(e)=>setSonarEnv(e.target.value)}>
+                                        <option value="blandat">Allround</option>
+                                        <option value="stenigt">Stenigt</option>
+                                        <option value="vass">Vass</option>
+                                        <option value="vegetation">Vegetation</option>
+                                        <option value="oppet">Öppet vatten</option>
+                                      </select>
+                                    </div>
+                                  </div>
+                                ) : null}
+              
+                              </div>
+              
+                              <div className="footerRow">
+                                <div className="muted">Utan spot-drama.</div>
+                                <div className="muted">v1.1</div>
+                              </div>
+                            </div>
 
-              {step === 1 ? (
-                <div className="block">
-                  <div className="row">
-                    <div className="field">
-                      <label className="sr">Välj mål</label>
-                      <select
-                        value={goal}
-                        onChange={(e)=>{ const v=e.target.value; if(!v) return; setGoal(v); setStep(2); }}
-                      >
-                        <option value="" hidden>Välj mål</option>
-                        <option value="forsta">Fånga första fisken</option>
-                        <option value="mer">Fånga fler idag</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {step === 2 ? (
-                <div className="block">
-                  <div className="row">
-                    <div className="field">
-                      <label className="sr">Land eller båt</label>
-                      <select
-                        value={platform}
-                        onChange={(e)=>{ const v=e.target.value; if(!v) return; setPlatform(v); setStep(3); }}
-                      >
-                        <option value="" hidden>Land eller båt</option>
-                        <option value="land">Land</option>
-                        <option value="bat">Båt</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {step === 3 ? (
-                <div className="block">
-                  <div className="muted" style={{marginBottom:10}}>
-                    Spara tid: tryck <b>Hämta plats & väder</b> så fylls Tid + Vind i automatiskt.
-                  </div>
-
-                  <div className="row">
-                    <div className="field">
-                      <label className="sr">Välj tid</label>
-                      <select
-                        value={timeofday}
-                        onChange={(e)=>{ const v=e.target.value; if(!v) return; setAutoFromWeather(false); setTimeofday(v); setStep(4); }}
-                      >
-                        <option value="" hidden>Välj tid</option>
-                        <option value="morgon">Morgon</option>
-                        <option value="dag">Dag</option>
-                        <option value="kvall">Kväll</option>
-                        <option value="natt">Natt</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="actions" style={{marginTop:10}}>
-                    <button
-                      className="btn primary"
-                      onClick={async ()=>{ await getPlaceAndWeather(); }}
-                      disabled={wxLoading}
-                    >
-                      {wxLoading ? 'Hämtar...' : 'Hämta plats & väder'}
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {(step === 4 && !autoFromWeather) ? (
-                <div className="block">
-                  <div className="row">
-                    <div className="field">
-                      <label className="sr">Välj vind</label>
-                      <select
-                        value={wind}
-                        onChange={(e)=>{ const v=e.target.value; if(!v) return; setWind(v); setStep(5); }}
-                      >
-                        <option value="" hidden>Välj vind</option>
-                        <option value="svag">Svag</option>
-                        <option value="medel">Medel</option>
-                        <option value="hard">Hård</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {step === 5 ? (
-                <div className="block">
-                  <div className="row">
-                    <div className="field">
-                      <label className="sr">Sikt i vattnet</label>
-                      <select
-                        value={water}
-                        onChange={(e)=>{ const v=e.target.value; if(!v) return; setWater(v); setStep(6); }}
-                      >
-                        <option value="" hidden>Typ av vatten</option>
-                        <option value="klar">Klart</option>
-                        <option value="mellan">Mellan</option>
-                        <option value="grumlig">Grumligt</option>
-                      </select>
-                      <div className="muted" style={{marginTop:6}}>
-                        Grumligt: välj beten som syns/känns (kontrast + vibration).
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {step === 6 ? (
-                <div className="block">
-                  <div className="row">
-                    <div className="field">
-                      <label className="sr">Välj djup</label>
-                      <select
-                        value={depth}
-                        onChange={async (e)=>{ const v=e.target.value; if(!v) return; setDepth(v); await makePlan(); }}
-                        disabled={loading}
-                      >
-                        <option value="" hidden>Välj djup</option>
-                        <option value="grunt">Grunt (0–3m)</option>
-                        <option value="medel">Medel (3–8m)</option>
-                        <option value="djupt">Djupt (8m+)</option>
-                      </select>
-                      <div className="muted" style={{marginTop:6}}>Väljer du djup skapas planen direkt.</div>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-
-
-                </div>
-              </div>
-{toast ? <div className={"toast" + ((String(toast).toLowerCase().indexOf('fail')>=0 || String(toast).toLowerCase().indexOf('error')>=0) ? " error": "")}>{toast}</div> : null}
-
-              <div className="footer">
-                <div className="muted">Du kan alltid backa. Inget krångel.</div>
-                <div className="muted">v1.1</div>
-              </div>
+              {toast ? <div className={"toast" + ((String(toast).toLowerCase().indexOf('fail')>=0 || String(toast).toLowerCase().indexOf('error')>=0) ? " error": "")}>{toast}</div> : null}
             </div>
           </div>
         </div>
       ))}
+
 
       {showDonate ? (<div id="stotta" className="card" style={{marginTop:14}}>
         <div className="head">
