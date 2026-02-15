@@ -870,21 +870,21 @@ body{
 .bg-wind-hard .imgTop{ background-image: var(--img-wind-hard); background-size: cover; background-position: center; }
 
 :root{
-  --img-grunt: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23ffe7b2'/%3E%3Cstop offset='0.55' stop-color='%2392d7ff'/%3E%3Cstop offset='1' stop-color='%2332b7ff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='450' fill='url(%23a)'/%3E%3Ccircle cx='640' cy='92' r='42' fill='%23fff3c9' opacity='0.95'/%3E%3Cpath d='M0 270 C 160 230, 300 330, 520 280 S 760 330, 800 290 L800 450 L0 450 Z' fill='%23caa77a' opacity='0.65'/%3E%3Cpath d='M0 240 C 220 200, 360 300, 540 250 S 760 300, 800 260' fill='none' stroke='%23ffffff' stroke-width='10' opacity='0.20'/%3E%3C/svg%3E");
-  --img-medel: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450'%3E%3Cdefs%3E%3CradialGradient id='b' cx='50%25' cy='30%25' r='70%25'%3E%3Cstop offset='0' stop-color='%23c8fff0'/%3E%3Cstop offset='0.55' stop-color='%238de6ff'/%3E%3Cstop offset='1' stop-color='%2336b7ff'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='800' height='450' fill='url(%23b)'/%3E%3Cpath d='M0 290 C 180 250, 360 360, 560 300 S 760 350, 800 320 L800 450 L0 450 Z' fill='%2343c9a7' opacity='0.22'/%3E%3Cpath d='M410 70 L450 450' stroke='%23ffffff' stroke-width='26' opacity='0.12'/%3E%3Cpath d='M470 90 L520 450' stroke='%23ffffff' stroke-width='18' opacity='0.10'/%3E%3C/svg%3E");
-  --img-djupt: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450'%3E%3Cdefs%3E%3CradialGradient id='c' cx='55%25' cy='20%25' r='90%25'%3E%3Cstop offset='0' stop-color='%23b7f1ff'/%3E%3Cstop offset='0.55' stop-color='%2354c8ff'/%3E%3Cstop offset='1' stop-color='%230b5fae'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='800' height='450' fill='url(%23c)'/%3E%3Cpath d='M0 330 C 220 280, 340 410, 520 340 S 760 400, 800 360 L800 450 L0 450 Z' fill='%2307447d' opacity='0.35'/%3E%3Cpath d='M510 40 L560 450' stroke='%23ffffff' stroke-width='22' opacity='0.10'/%3E%3Cpath d='M580 80 L610 450' stroke='%23ffffff' stroke-width='14' opacity='0.08'/%3E%3C/svg%3E");
+  --img-grunt: url("./assets/depth_grunt.png");
+  --img-medel: url("./assets/depth_medel.png");
+  --img-djupt: url("./assets/depth_djupt.png");
 
   --img-klar: var(--img-medel);
   --img-mellan: var(--img-grunt);
   --img-grumlig: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450'%3E%3Cdefs%3E%3ClinearGradient id='d' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23d8e7f0'/%3E%3Cstop offset='0.55' stop-color='%23b9d2da'/%3E%3Cstop offset='1' stop-color='%238a7a6d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='450' fill='url(%23d)'/%3E%3Cpath d='M0 300 C 210 260, 360 360, 540 310 S 760 360, 800 330 L800 450 L0 450 Z' fill='%236e6156' opacity='0.50'/%3E%3Cpath d='M0 240 C 260 210, 420 300, 800 240' fill='none' stroke='%23ffffff' stroke-width='14' opacity='0.10'/%3E%3C/svg%3E");
 
-  --img-gadda: var(--img-grunt);
-  --img-gos: var(--img-djupt);
-  --img-abborre: var(--img-medel);
-  --img-land: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450'%3E%3Cdefs%3E%3ClinearGradient id='e' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23f7ffd9'/%3E%3Cstop offset='0.55' stop-color='%2392d7ff'/%3E%3Cstop offset='1' stop-color='%232fc89f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='450' fill='url(%23e)'/%3E%3Cpath d='M0 320 C 140 260, 320 370, 520 310 S 760 370, 800 340 L800 450 L0 450 Z' fill='%2327a36f' opacity='0.25'/%3E%3C/svg%3E");
-  --img-bat: var(--img-djupt);
-  --img-first: var(--img-medel);
-  --img-more: var(--img-klar);
+  --img-gadda: url("./assets/gadda.png");
+  --img-gos: url("./assets/gos.png");
+  --img-abborre: url("./assets/abborre.png");
+  --img-land: url("./assets/land.png");
+  --img-bat: url("./assets/bat.png");
+  --img-first: url("./assets/goal_forsta.png");
+  --img-more: url("./assets/goal_fler.png");
   --img-morgon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450'%3E%3Cdefs%3E%3ClinearGradient id='f' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23fff2b9'/%3E%3Cstop offset='0.55' stop-color='%2392d7ff'/%3E%3Cstop offset='1' stop-color='%232fc89f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='450' fill='url(%23f)'/%3E%3Ccircle cx='620' cy='110' r='46' fill='%23ffe184'/%3E%3C/svg%3E");
   --img-dag: var(--img-klar);
   --img-kvall: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23ffd0b2'/%3E%3Cstop offset='0.55' stop-color='%2380c9ff'/%3E%3Cstop offset='1' stop-color='%232fc89f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='450' fill='url(%23g)'/%3E%3Ccircle cx='600' cy='120' r='44' fill='%23ffb27a' opacity='0.95'/%3E%3C/svg%3E");
@@ -893,3 +893,91 @@ body{
   --img-wind-medel: var(--img-medel);
   --img-wind-hard: var(--img-grumlig);
 }
+
+
+/* --- Option images (PNG assets) --- */
+:root{
+  --img-gadda: url("./assets/gadda.png");
+  --img-gos: url("./assets/gos.png");
+  --img-abborre: url("./assets/abborre.png");
+
+  --img-first: url("./assets/goal_forsta.png");
+  --img-more: url("./assets/goal_more.png");
+
+  --img-land: url("./assets/land.png");
+  --img-bat: url("./assets/bat.png");
+
+  --img-morgon: url("./assets/morgon.png");
+  --img-dag: url("./assets/dag.png");
+  --img-kvall: url("./assets/kvall.png");
+  --img-natt: url("./assets/natt.png");
+
+  --img-wind-svag: url("./assets/wind_svag.png");
+  --img-wind-medel: url("./assets/wind_medel.png");
+  --img-wind-hard: url("./assets/wind_hard.png");
+
+  --img-klar: url("./assets/water_klar.png");
+  --img-mellan: url("./assets/water_mellan.png");
+  --img-grumlig: url("./assets/water_grumligt.png");
+
+  --img-grunt: url("./assets/depth_grunt.png");
+  --img-medel: url("./assets/depth_medel.png");
+  --img-djupt: url("./assets/depth_djupt.png");
+}
+
+
+
+/* --- Core option images (no text) --- */
+:root{
+  --img-gadda: url("./assets/gadda.png");
+  --img-gos: url("./assets/gos.png");
+  --img-abborre: url("./assets/abborre.png");
+
+  --img-first: url("./assets/goal_forsta.png");
+  --img-more: url("./assets/goal_more.png");
+
+  --img-land: url("./assets/land.png");
+  --img-bat: url("./assets/bat.png");
+}
+
+
+
+/* --- Bigger cards + max 2 columns --- */
+.optionGrid, .optionsGrid, .choiceGrid, .grid2 {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+}
+
+.optionCard, .choiceCard, .opt, .cardOption {
+  border-radius: 18px !important;
+  overflow: hidden !important;
+  cursor: pointer !important;
+  min-height: 150px !important;
+}
+
+.optionCard .img, .choiceCard .img, .opt .img, .cardOption .img,
+.optionCard .thumb, .choiceCard .thumb, .opt .thumb, .cardOption .thumb {
+  width: 100% !important;
+  aspect-ratio: 1 / 1 !important;
+  background-size: cover !important;
+  background-position: center !important;
+}
+
+.optionCard.selected, .choiceCard.selected, .opt.selected, .cardOption.selected {
+  outline: 3px solid rgba(48, 200, 160, 0.75) !important;
+  box-shadow: 0 12px 30px rgba(0,0,0,.12) !important;
+  transform: translateY(-1px) !important;
+}
+
+
+
+/* Ensure image area is big */
+.choiceCard .imgTop{
+  width: 100% !important;
+  aspect-ratio: 1 / 1 !important;
+  height: auto !important;
+  background-size: cover !important;
+  background-position: center !important;
+}
+

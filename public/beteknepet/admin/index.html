@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>BeteKnepet Admin</title>
+  <link rel="stylesheet" href="../styles.css"/>
+  <style>
+    body{ padding:16px; }
+    .adminWrap{ max-width:980px; margin:0 auto; }
+    textarea{ width:100%; min-height:360px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .row{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .row > *{ flex: 1 1 auto; }
+    .hint{ opacity:.75; font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="adminWrap">
+    <h1>BeteKnepet Admin</h1>
+    <p class="hint">Ändra steg/alternativ i MongoDB. Frontend kan senare byggas helt dynamiskt från dessa steg.</p>
+
+    <div class="card">
+      <div class="body">
+        <div class="row">
+          <label>API-bas (lokalt: http://localhost:5005)</label>
+          <input id="apiBase" class="input" placeholder="http://localhost:5005" />
+          <button id="load" class="btn">Hämta</button>
+          <button id="save" class="btn">Spara</button>
+        </div>
+
+        <p class="hint" style="margin-top:10px;">
+          Endpoint: <b>/api/beteknepet/steg</b><br/>
+          JSON-format: <b>{ "steg": [...] }</b>
+        </p>
+
+        <textarea id="json" spellcheck="false"></textarea>
+        <div id="msg" class="hint" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const $ = (id)=>document.getElementById(id);
+const apiInput = $("apiBase");
+apiInput.value = localStorage.getItem("BK_API_BASE") || "http://localhost:5005";
+function api(){
+  const v = (apiInput.value || "").trim().replace(/\/$/,"");
+  localStorage.setItem("BK_API_BASE", v);
+  return v;
+}
+
+$("load").onclick = async ()=>{
+  $("msg").textContent = "Hämtar...";
+  try{
+    const r = await fetch(api()+"/api/beteknepet/steg");
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || r.statusText);
+    $("json").value = JSON.stringify({steg:j.steg || []}, null, 2);
+    $("msg").textContent = "OK.";
+  }catch(e){
+    $("msg").textContent = "Fel: " + e.message + " (Kontrollera att API kör på port 5005)";
+  }
+};
+
+$("save").onclick = async ()=>{
+  $("msg").textContent = "Sparar...";
+  try{
+    const parsed = JSON.parse($("json").value || "{}");
+    const r = await fetch(api()+"/api/beteknepet/steg", {
+      method:"PUT",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({steg: parsed.steg || []})
+    });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || r.statusText);
+    $("msg").textContent = "Sparat. antal steg=" + j.count;
+  }catch(e){
+    $("msg").textContent = "Fel: " + e.message;
+  }
+};
+</script>
+</body>
+</html>

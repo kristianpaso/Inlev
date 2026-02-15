@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rotation</title>
+  <style>
+    :root{--bg:#0b1220;--card:#121a2b;--muted:#9fb0cc;--text:#e7eefc;--accent:#6aa7ff;--danger:#ff6a6a;--ok:#63d392;}
+    *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;}
+    body{margin:0;background:linear-gradient(180deg,#071022 0%, #0b1220 60%);color:var(--text);}    
+    header{padding:18px 14px;border-bottom:1px solid rgba(255,255,255,.06);position:sticky;top:0;background:rgba(11,18,32,.85);backdrop-filter: blur(10px);}
+    h1{margin:0;font-size:18px;letter-spacing:.2px}
+    main{max-width:980px;margin:0 auto;padding:14px;display:grid;gap:12px;}
+    .row{display:grid;gap:12px;grid-template-columns:1fr;}
+    @media (min-width: 900px){.row{grid-template-columns: 1fr 1fr;}}
+    .card{background:rgba(18,26,43,.92);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .card h2{margin:0 0 10px 0;font-size:15px}
+    label{display:block;color:var(--muted);font-size:12px;margin:10px 0 6px}
+    input,select,button{width:100%;border-radius:12px;border:1px solid rgba(255,255,255,.10);background:#0b1326;color:var(--text);padding:10px 12px;font-size:14px;outline:none}
+    select[multiple]{min-height:120px}
+    button{background:linear-gradient(180deg,#2a63ff,#1b4cd9);border:none;cursor:pointer;font-weight:600}
+    button.secondary{background:#0b1326;border:1px solid rgba(255,255,255,.12)}
+    button.danger{background:linear-gradient(180deg,#ff4d4d,#d62929)}
+    .hint{color:var(--muted);font-size:12px;margin-top:8px;line-height:1.35}
+    .topbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .topbar input{max-width:520px}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(106,167,255,.12);border:1px solid rgba(106,167,255,.25);color:var(--text);font-size:12px}
+    .badge.ok{background:rgba(99,211,146,.12);border-color:rgba(99,211,146,.25)}
+    .badge.bad{background:rgba(255,106,106,.10);border-color:rgba(255,106,106,.25)}
+    .list{display:grid;gap:8px;margin-top:10px}
+    .item{padding:10px 12px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(8,14,26,.6)}
+    .item-title{font-weight:700}
+    .item-sub{color:var(--muted);font-size:12px;margin-top:4px}
+    .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);font-size:12px;margin:6px 6px 0 0}
+    .split{display:flex;gap:8px}
+    .split > *{flex:1}
+    .tabs{display:flex;gap:8px;margin-top:10px}
+    .tab{flex:0 0 auto;padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.10);background:rgba(11,19,38,.8);color:var(--text);cursor:pointer;font-size:13px}
+    .tab.active{background:rgba(106,167,255,.18);border-color:rgba(106,167,255,.35)}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <h1>Rotation – personer & avdelningar</h1>
+      <span id="apiStatus" class="badge">API: okänt</span>
+    </div>
+    <div class="topbar" style="margin-top:10px">
+      <input id="apiBase" placeholder="API Base URL (Render eller lokal)" />
+      <button id="saveApi" class="secondary" style="max-width:180px">Spara API</button>
+      <button id="testApi" class="secondary" style="max-width:180px">Testa</button>
+    </div>
+    <div class="hint">Exempel lokalt: <b>http://localhost:5050</b> &nbsp; • &nbsp; Exempel Render: <b>https://din-service.onrender.com</b></div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="departments">Avdelningar</button>
+      <button class="tab" data-tab="persons">Personer</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="tab-departments" class="row">
+      <div class="card">
+        <h2>Lägg till avdelning</h2>
+        <label for="deptName">Namn</label>
+        <input id="deptName" placeholder="t.ex. Pålastning" />
+        <button id="addDept" style="margin-top:10px">Spara avdelning</button>
+        <div class="hint">Senare kan vi lägga till fält för <b>kg/dag</b>, <b>hanteringar</b> och <b>koncentration</b> på avdelningen.</div>
+      </div>
+      <div class="card">
+        <h2>Avdelningar</h2>
+        <div id="deptList" class="list"></div>
+      </div>
+    </section>
+
+    <section id="tab-persons" class="row hidden">
+      <div class="card">
+        <h2>Lägg till person</h2>
+        <label for="personName">Namn</label>
+        <input id="personName" placeholder="t.ex. Person 1" />
+
+        <label for="personDepts">Välj avdelningar (Ctrl/Cmd för flera)</label>
+        <select id="personDepts" multiple></select>
+
+        <button id="addPerson" style="margin-top:10px">Spara person</button>
+        <div class="hint">Personen sparas med valda avdelningar. Du kan senare ändra och lägga till rotation/dagar.</div>
+      </div>
+      <div class="card">
+        <h2>Personer</h2>
+        <div id="personList" class="list"></div>
+      </div>
+    </section>
+
+  </main>
+
+<script>
+(() => {
+  const els = {
+    apiBase: document.getElementById('apiBase'),
+    apiStatus: document.getElementById('apiStatus'),
+    saveApi: document.getElementById('saveApi'),
+    testApi: document.getElementById('testApi'),
+    deptName: document.getElementById('deptName'),
+    addDept: document.getElementById('addDept'),
+    deptList: document.getElementById('deptList'),
+    personName: document.getElementById('personName'),
+    personDepts: document.getElementById('personDepts'),
+    addPerson: document.getElementById('addPerson'),
+    personList: document.getElementById('personList'),
+    tabs: Array.from(document.querySelectorAll('.tab')),
+    tabDepartments: document.getElementById('tab-departments'),
+    tabPersons: document.getElementById('tab-persons'),
+  };
+
+  function getApiBase(){
+    return (localStorage.getItem('rotation_api_base') || els.apiBase.value || '').replace(/\/$/, '');
+  }
+
+  function setStatus(ok, text){
+    els.apiStatus.textContent = text;
+    els.apiStatus.className = 'badge ' + (ok ? 'ok' : 'bad');
+  }
+
+  async function api(path, opts={}){
+    const base = getApiBase();
+    if(!base) throw new Error('Ingen API Base URL angiven');
+    const res = await fetch(base + path, {
+      headers: { 'Content-Type': 'application/json', ...(opts.headers||{}) },
+      ...opts
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(data.error || 'API error');
+    return data;
+  }
+
+  function renderDepts(depts){
+    els.deptList.innerHTML = '';
+    if(!depts.length){
+      els.deptList.innerHTML = '<div class="hint">Inga avdelningar ännu.</div>';
+      return;
+    }
+    for(const d of depts){
+      const div = document.createElement('div');
+      div.className = 'item';
+      div.innerHTML = `
+        <div class="item-title">${escapeHtml(d.name)}</div>
+        <div class="item-sub">ID: ${escapeHtml(d.id)} • Skapad: ${new Date(d.createdAt).toLocaleString()}</div>
+      `;
+      els.deptList.appendChild(div);
+    }
+  }
+
+  function fillDeptSelect(depts){
+    const prev = new Set(Array.from(els.personDepts.selectedOptions).map(o => o.value));
+    els.personDepts.innerHTML = '';
+    for(const d of depts){
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = d.name;
+      if(prev.has(d.id)) opt.selected = true;
+      els.personDepts.appendChild(opt);
+    }
+  }
+
+  function renderPersons(persons, deptMap){
+    els.personList.innerHTML = '';
+    if(!persons.length){
+      els.personList.innerHTML = '<div class="hint">Inga personer ännu.</div>';
+      return;
+    }
+    for(const p of persons){
+      const div = document.createElement('div');
+      div.className = 'item';
+      const pills = (p.departmentIds||[]).map(id => {
+        const name = deptMap.get(id)?.name || id;
+        return `<span class="pill">${escapeHtml(name)}</span>`;
+      }).join('');
+      div.innerHTML = `
+        <div class="item-title">${escapeHtml(p.name)}</div>
+        <div class="item-sub">${pills || '<span class="hint">Inga avdelningar valda</span>'}</div>
+      `;
+      els.personList.appendChild(div);
+    }
+  }
+
+  async function refreshAll(){
+    const depts = await api('/api/departments');
+    renderDepts(depts);
+    fillDeptSelect(depts);
+    const persons = await api('/api/persons');
+    const deptMap = new Map(depts.map(d => [d.id, d]));
+    renderPersons(persons, deptMap);
+  }
+
+  async function testHealth(){
+    try{
+      const h = await api('/api/health');
+      setStatus(true, 'API: OK');
+      return h;
+    }catch(e){
+      setStatus(false, 'API: FEL');
+      throw e;
+    }
+  }
+
+  // Tabs
+  els.tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      els.tabs.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.tab;
+      els.tabDepartments.classList.toggle('hidden', tab !== 'departments');
+      els.tabPersons.classList.toggle('hidden', tab !== 'persons');
+    });
+  });
+
+  // API base setup
+  els.apiBase.value = localStorage.getItem('rotation_api_base') || 'http://localhost:5050';
+  els.saveApi.addEventListener('click', () => {
+    localStorage.setItem('rotation_api_base', els.apiBase.value.trim());
+    setStatus(false, 'API: sparad');
+  });
+  els.testApi.addEventListener('click', async () => {
+    localStorage.setItem('rotation_api_base', els.apiBase.value.trim());
+    try{ await testHealth(); await refreshAll(); }
+    catch(e){ alert('Kunde inte nå API: ' + e.message); }
+  });
+
+  // Add dept
+  els.addDept.addEventListener('click', async () => {
+    const name = els.deptName.value.trim();
+    if(name.length < 2) return alert('Skriv minst 2 tecken');
+    try{
+      await api('/api/departments', { method:'POST', body: JSON.stringify({ name }) });
+      els.deptName.value = '';
+      await refreshAll();
+    }catch(e){ alert(e.message); }
+  });
+
+  // Add person
+  els.addPerson.addEventListener('click', async () => {
+    const name = els.personName.value.trim();
+    const departmentIds = Array.from(els.personDepts.selectedOptions).map(o => o.value);
+    if(name.length < 2) return alert('Skriv minst 2 tecken');
+    try{
+      await api('/api/persons', { method:'POST', body: JSON.stringify({ name, departmentIds }) });
+      els.personName.value = '';
+      Array.from(els.personDepts.options).forEach(o => o.selected = false);
+      await refreshAll();
+    }catch(e){ alert(e.message); }
+  });
+
+  function escapeHtml(str){
+    return String(str)
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'",'&#039;');
+  }
+
+  // Initial
+  (async () => {
+    try{ await testHealth(); await refreshAll(); }
+    catch{ setStatus(false, 'API: FEL'); }
+  })();
+})();
+</script>
+</body>
+</html>
