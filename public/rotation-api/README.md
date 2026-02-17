@@ -38,3 +38,21 @@ npm run start
   - `https://sage-vacherin-aa5cd3.netlify.app,http://localhost:8888`
 
 > Note: This demo uses a JSON file DB. On Render, file storage may reset on redeploy. If you want persistence, switch to MongoDB/Postgres.
+
+
+## MongoDB
+
+Create a `.env` file in `rotation-api/`:
+
+```env
+MONGODB_URI=mongodb+srv://<user>:<password>@pasocluster.y7nqhop.mongodb.net/rotation-api?retryWrites=true&w=majority&appName=PasoCluster
+PORT=5050
+CORS_ORIGINS=http://localhost:8888,https://sage-vacherin-aa5cd3.netlify.app
+```
+
+Then:
+
+```bash
+npm install
+npm start
+```

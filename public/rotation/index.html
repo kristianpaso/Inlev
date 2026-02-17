@@ -34,10 +34,26 @@
     .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);font-size:12px;margin:6px 6px 0 0}
     .split{display:flex;gap:8px}
     .split > *{flex:1}
-    .tabs{display:flex;gap:8px;margin-top:10px}
+    .tabs {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    width: 120px;
+  }
     .tab{flex:0 0 auto;padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.10);background:rgba(11,19,38,.8);color:var(--text);cursor:pointer;font-size:13px}
     .tab.active{background:rgba(106,167,255,.18);border-color:rgba(106,167,255,.35)}
     .hidden{display:none}
+  textarea{width:100%;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);resize:vertical}
+.btn-secondary{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.14);color:var(--text);padding:8px 10px;border-radius:10px;cursor:pointer;font-weight:700}
+.btn-secondary:hover{filter:brightness(1.05)}
+
+  .score-badge{display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;border-radius:10px;background:rgba(106,167,255,.18);border:1px solid rgba(106,167,255,.35);color:var(--text);font-weight:800}
+.dept-row{display:flex;align-items:flex-start;gap:10px}
+table.meta{width:100%;border-collapse:collapse;margin-top:10px}
+table.meta td{padding:8px 8px;border-top:1px solid rgba(255,255,255,.08);vertical-align:top}
+table.meta td:first-child{color:var(--muted);width:220px}
+.small{font-size:12px;color:var(--muted)}
+
   </style>
 </head>
 <body>
@@ -64,7 +80,17 @@
       <div class="card">
         <h2>Lägg till avdelning</h2>
         <label for="deptName">Namn</label>
-        <input id="deptName" placeholder="t.ex. Pålastning" />
+<input id="deptName" placeholder="t.ex. Pålastning" />
+
+<label for="deptGoal">Mål / timme</label>
+<input id="deptGoal" type="number" min="0" step="1" placeholder="t.ex. 165" />
+
+<label for="deptAvgWeight">Snitt vikt (kg) per artikel/låda</label>
+<input id="deptAvgWeight" type="number" min="0" step="0.01" placeholder="t.ex. 0.6" />
+
+<label for="deptInfo">Information om avdelningen</label>
+<textarea id="deptInfo" rows="6" placeholder="Skriv en kort beskrivning..."></textarea>
+<button id="fillPlockInfo" class="btn-secondary" type="button" style="margin-top:8px">Fyll med exempel: Plock</button>
         <button id="addDept" style="margin-top:10px">Spara avdelning</button>
         <div class="hint">Senare kan vi lägga till fält för <b>kg/dag</b>, <b>hanteringar</b> och <b>koncentration</b> på avdelningen.</div>
       </div>
@@ -72,6 +98,46 @@
         <h2>Avdelningar</h2>
         <div id="deptList" class="list"></div>
       </div>
+<div class="card">
+  <h2>Veckoslit per person</h2>
+  <div class="small">Välj antal dagar för beräkningen. Varje person roterar genom sina valda avdelningar och börjar om från början när listan tar slut.</div>
+
+  <label for="calcDays">Antal dagar (1–10)</label>
+  <select id="calcDays">
+    <option value="1">1 dag</option>
+    <option value="2">2 dagar</option>
+    <option value="3">3 dagar</option>
+    <option value="4">4 dagar</option>
+    <option value="5" selected>5 dagar</option>
+    <option value="6">6 dagar</option>
+    <option value="7">7 dagar</option>
+    <option value="8">8 dagar</option>
+    <option value="9">9 dagar</option>
+    <option value="10">10 dagar</option>
+  </select>
+
+  <div id="personStats" class="list" style="margin-top:10px"></div>
+
+  <details style="margin-top:12px">
+    <summary><b>Formler (dokumentation)</b></summary>
+    <div class="small" style="margin-top:8px;line-height:1.5">
+      <div><b>1) Belastning (kg/h)</b> = <code>målPerTimme × snittViktKg</code></div>
+      <div><b>2) Belastning (kg/dag)</b> = <code>kg/h × 8</code></div>
+      <div><b>3) MET (ungefär)</b> (heuristik från kg/h):</div>
+      <ul class="small">
+        <li><code>&lt; 50 kg/h</code> ⇒ MET ≈ <code>2.5</code></li>
+        <li><code>50–149 kg/h</code> ⇒ MET ≈ <code>3.5</code></li>
+        <li><code>150–299 kg/h</code> ⇒ MET ≈ <code>4.5</code></li>
+        <li><code>300–599 kg/h</code> ⇒ MET ≈ <code>6.0</code></li>
+        <li><code>≥ 600 kg/h</code> ⇒ MET ≈ <code>7.0</code></li>
+        <li>Tillägg: om <code>mål/h ≥ 300</code> ⇒ <code>+0.5 MET</code>, om <code>mål/h ≥ 600</code> ⇒ ytterligare <code>+0.5 MET</code> (max 8.0)</li>
+      </ul>
+      <div><b>4) kcal/timme (70 kg)</b> = <code>MET × 3.5 × 70 / 200 × 60</code></div>
+      <div><b>5) kcal/dag (8h)</b> = <code>kcal/timme × 8</code></div>
+      <div><b>6) Rotationsregel</b>: dag <i>i</i> använder avdelning <code>(i mod N)</code> ur personens lista (N = antal valda avdelningar), och börjar om när listan tar slut.</div>
+    </div>
+  </details>
+</div>
     </section>
 
     <section id="tab-persons" class="row hidden">
@@ -86,6 +152,20 @@
         <button id="addPerson" style="margin-top:10px">Spara person</button>
         <div class="hint">Personen sparas med valda avdelningar. Du kan senare ändra och lägga till rotation/dagar.</div>
       </div>
+<div class="card">
+  <h2>Redigera person</h2>
+  <label for="editPersonSelect">Välj person</label>
+  <select id="editPersonSelect"></select>
+
+  <label for="editPersonName">Namn</label>
+  <input id="editPersonName" placeholder="t.ex. Person 1" />
+
+  <label for="editPersonDepts">Avdelningar (Ctrl/Cmd för flera)</label>
+  <select id="editPersonDepts" multiple></select>
+
+  <button id="savePersonEdit" style="margin-top:10px">Uppdatera person</button>
+  <div class="hint">Ändrar namn och/eller avdelningar för vald person.</div>
+</div>
       <div class="card">
         <h2>Personer</h2>
         <div id="personList" class="list"></div>
@@ -102,12 +182,25 @@
     saveApi: document.getElementById('saveApi'),
     testApi: document.getElementById('testApi'),
     deptName: document.getElementById('deptName'),
+    deptGoal: document.getElementById('deptGoal'),
+    deptAvgWeight: document.getElementById('deptAvgWeight'),
+    deptInfo: document.getElementById('deptInfo'),
+    fillPlockInfo: document.getElementById('fillPlockInfo'),
     addDept: document.getElementById('addDept'),
     deptList: document.getElementById('deptList'),
     personName: document.getElementById('personName'),
+    personNameQuick: document.getElementById('personNameQuick'),
     personDepts: document.getElementById('personDepts'),
+    personDeptsQuick: document.getElementById('personDeptsQuick'),
     addPerson: document.getElementById('addPerson'),
+    addPersonQuick: document.getElementById('addPersonQuick'),
     personList: document.getElementById('personList'),
+    calcDays: document.getElementById('calcDays'),
+    personStats: document.getElementById('personStats'),
+    editPersonSelect: document.getElementById('editPersonSelect'),
+    editPersonName: document.getElementById('editPersonName'),
+    editPersonDepts: document.getElementById('editPersonDepts'),
+    savePersonEdit: document.getElementById('savePersonEdit'),
     tabs: Array.from(document.querySelectorAll('.tab')),
     tabDepartments: document.getElementById('tab-departments'),
     tabPersons: document.getElementById('tab-persons'),
@@ -134,64 +227,394 @@
     return data;
   }
 
-  function renderDepts(depts){
-    els.deptList.innerHTML = '';
-    if(!depts.length){
-      els.deptList.innerHTML = '<div class="hint">Inga avdelningar ännu.</div>';
-      return;
-    }
-    for(const d of depts){
-      const div = document.createElement('div');
-      div.className = 'item';
-      div.innerHTML = `
-        <div class="item-title">${escapeHtml(d.name)}</div>
-        <div class="item-sub">ID: ${escapeHtml(d.id)} • Skapad: ${new Date(d.createdAt).toLocaleString()}</div>
-      `;
-      els.deptList.appendChild(div);
-    }
+  function renderDepts(depts, maxes){
+  els.deptList.innerHTML = '';
+  if(!depts.length){
+    els.deptList.innerHTML = '<div class="hint">Inga avdelningar ännu.</div>';
+    return;
   }
+
+  for(const d of depts){
+    const id = d.id || d._id;
+
+    const goalPerHour = numOrNull(d.goalPerHour);
+    const avgWeightKg = numOrNull(d.avgWeightKg);
+    const kgPerHour = estimateKgPerHour(goalPerHour, avgWeightKg);
+    const volumePerDay = goalPerHour === null ? null : goalPerHour * 8;
+    const kgPerDay = kgPerHour === null ? null : kgPerHour * 8;
+
+    const met = estimateMET(kgPerHour, goalPerHour);
+    const kcalH = kcalPerHourFromMET(met, BODY_WEIGHT_KG);
+    const kcal8 = kcalH === null ? null : kcalH * 8;
+
+    const score = metToScore(met);
+
+    const div = document.createElement('div');
+    div.className = 'item';
+
+    const infoPreview = d.info ? `Info: ${escapeHtml(String(d.info).slice(0,240))}${String(d.info).length>240?'…':''}` : '';
+
+    div.innerHTML = `
+      <div class="dept-row">
+        <div class="score-badge" title="Poäng 1–10">${score}</div>
+
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+            <div style="min-width:0">
+              <div class="item-title">${escapeHtml(d.name)}</div>
+              <div class="item-sub">
+                ID: ${escapeHtml(String(id))}${d.createdAt ? ` • Skapad: ${new Date(d.createdAt).toLocaleString()}` : ''}
+              </div>
+            </div>
+
+            <div style="display:flex;gap:8px;flex-shrink:0">
+              <button class="btn-secondary" data-edit-dept="${escapeHtml(String(id))}">Ändra</button>
+              <button class="btn-danger" data-del-dept="${escapeHtml(String(id))}">Ta bort</button>
+            </div>
+          </div>
+
+          ${infoPreview ? `<div class="small" style="margin-top:6px">${infoPreview}</div>` : ''}
+
+          <details style="margin-top:10px">
+  <summary><b>Visa mer</b> <span class="small">(info, energi, slit)</span></summary>
+  <table class="meta">
+    <tr><td>Arbetsuppgift</td><td>${escapeHtml(d.info ? 'Se info-text.' : '— (lägg gärna in info)')}</td></tr>
+    <tr><td>Volym (8h)</td><td>${volumePerDay===null ? '—' : `${formatNum(volumePerDay,0)} st`} (mål/h: ${formatNum(goalPerHour,0)})</td></tr>
+    <tr><td>Typisk belastning</td><td>${kgPerDay===null ? '—' : `${formatNum(kgPerDay,0)} kg/dag`} (≈ ${kgPerHour===null?'—':formatNum(kgPerHour,0)} kg/h)</td></tr>
+    <tr><td>MET (ungefär)</td><td>${met===null?'—':formatNum(met,1)}</td></tr>
+    <tr><td>kcal/timme (70 kg)</td><td>${kcalH===null?'—':formatNum(kcalH,0)} kcal</td></tr>
+    <tr><td>kcal/8h (70 kg)</td><td>${kcal8===null?'—':formatNum(kcal8,0)} kcal</td></tr>
+    <tr><td>Sliter mest på…</td><td>${kgPerHour===null ? '—' : (kgPerHour>=600 ? 'Rygg/axlar/grepp (tunga lyft)' : kgPerHour>=150 ? 'Axlar/armar/grepp (många lyft)' : 'Grepp/armar (lättare repetitivt)')}</td></tr>
+    <tr><td>Bedömd “jobbighet”</td><td>${score===null?'—':`${score}/10`}</td></tr>
+    <tr><td>Bedömd hälsoslitage</td><td>${score===null?'—':`${score}/10`}</td></tr>
+  </table>
+
+  ${d.info ? `<div class="small" style="margin-top:8px;white-space:pre-wrap">${escapeHtml(d.info)}</div>` : `<div class="small" style="margin-top:8px">Lägg gärna in “Information om avdelningen” för att få en bra beskrivning här.</div>`}
+
+  <div class="small">Poängsystem: MET→poäng (2.0 = 1, 8.0 = 10, linjärt däremellan).</div>
+</details>
+        </div>
+      </div>
+    `;
+
+    els.deptList.appendChild(div);
+  }
+}
+
 
   function fillDeptSelect(depts){
-    const prev = new Set(Array.from(els.personDepts.selectedOptions).map(o => o.value));
-    els.personDepts.innerHTML = '';
+  const prev = new Set(Array.from(els.personDepts.selectedOptions).map(o => o.value));
+  const prevQ = els.personDeptsQuick ? new Set(Array.from(els.personDeptsQuick.selectedOptions).map(o => o.value)) : new Set();
+
+  const fillOne = (sel, prevSet) => {
+    if(!sel) return;
+    sel.innerHTML = '';
     for(const d of depts){
+      const id = d.id || d._id;
       const opt = document.createElement('option');
-      opt.value = d.id;
+      opt.value = String(id);
       opt.textContent = d.name;
-      if(prev.has(d.id)) opt.selected = true;
-      els.personDepts.appendChild(opt);
+      if(prevSet.has(String(id))) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  };
+
+  fillOne(els.personDepts, prev);
+  fillOne(els.personDeptsQuick, prevQ);
+}
+
+
+  
+function fillPersonEdit(persons, depts){
+  if(!els.editPersonSelect) return;
+  const current = els.editPersonSelect.value;
+  els.editPersonSelect.innerHTML = '';
+  for(const p of persons){
+    const id = String(p.id || p._id);
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = p.name;
+    if(current && current === id) opt.selected = true;
+    els.editPersonSelect.appendChild(opt);
+  }
+
+  // fill dept options
+  if(els.editPersonDepts){
+    const prev = new Set(Array.from(els.editPersonDepts.selectedOptions).map(o=>o.value));
+    els.editPersonDepts.innerHTML = '';
+    for(const d of depts){
+      const id = String(d.id || d._id);
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = d.name;
+      if(prev.has(id)) opt.selected = true;
+      els.editPersonDepts.appendChild(opt);
     }
   }
 
-  function renderPersons(persons, deptMap){
-    els.personList.innerHTML = '';
-    if(!persons.length){
-      els.personList.innerHTML = '<div class="hint">Inga personer ännu.</div>';
-      return;
+  // load selected person into fields
+  loadSelectedPersonIntoEdit();
+}
+
+function loadSelectedPersonIntoEdit(){
+  if(!els.editPersonSelect) return;
+  const id = els.editPersonSelect.value;
+  const p = (state.persons || []).find(x => String(x.id || x._id) === String(id));
+  if(!p) return;
+  if(els.editPersonName) els.editPersonName.value = p.name || '';
+  if(els.editPersonDepts){
+    const chosen = new Set((p.departmentIds || []).map(x=>String(x)));
+    Array.from(els.editPersonDepts.options).forEach(o => { o.selected = chosen.has(o.value); });
+  }
+}
+
+if(els.editPersonSelect){
+  els.editPersonSelect.addEventListener('change', () => loadSelectedPersonIntoEdit());
+}
+
+if(els.savePersonEdit){
+  els.savePersonEdit.addEventListener('click', async () => {
+    const id = els.editPersonSelect?.value;
+    if(!id) return alert('Välj en person');
+    const name = (els.editPersonName?.value || '').trim();
+    const departmentIds = Array.from(els.editPersonDepts?.selectedOptions || []).map(o=>o.value);
+    if(name.length < 2) return alert('Skriv minst 2 tecken');
+    try{
+      await api('/api/persons/' + encodeURIComponent(id), { method:'PUT', body: JSON.stringify({ name, departmentIds }) });
+      await refreshAll();
+      setStatus(true, 'Person uppdaterad');
+    }catch(e){
+      setStatus(false, e.message);
+      alert(e.message);
     }
-    for(const p of persons){
-      const div = document.createElement('div');
-      div.className = 'item';
-      const pills = (p.departmentIds||[]).map(id => {
-        const name = deptMap.get(id)?.name || id;
-        return `<span class="pill">${escapeHtml(name)}</span>`;
-      }).join('');
-      div.innerHTML = `
-        <div class="item-title">${escapeHtml(p.name)}</div>
-        <div class="item-sub">${pills || '<span class="hint">Inga avdelningar valda</span>'}</div>
-      `;
-      els.personList.appendChild(div);
+  });
+}
+
+function renderPersons(persons, deptMap){
+  els.personList.innerHTML = '';
+  if(!persons.length){
+    els.personList.innerHTML = '<div class="hint">Inga personer ännu.</div>';
+    return;
+  }
+  for(const p of persons){
+    const id = p.id || p._id;
+    const div = document.createElement('div');
+    div.className = 'item';
+    const pills = (p.departmentIds||[]).map(id2 => {
+      const name = deptMap.get(String(id2))?.name || String(id2);
+      return `<span class="pill">${escapeHtml(name)}</span>`;
+    }).join('');
+    div.innerHTML = `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div style="min-width:0">
+          <div class="item-title">${escapeHtml(p.name)}</div>
+          <div class="item-sub">${pills || '<span class="hint">Inga avdelningar valda</span>'}</div>
+        </div>
+        <button class="btn-danger" data-del-person="${escapeHtml(String(id))}">Ta bort</button>
+      </div>
+    `;
+    els.personList.appendChild(div);
+  }
+}
+
+
+      const state = { depts: [], persons: [] };
+let editingDeptId = null;
+// --- Energy + scoring helpers (simple, transparent model) ---
+const BODY_WEIGHT_KG = 70;
+
+function numOrNull(v){
+  if(v === null || v === undefined) return null;
+  if(typeof v === 'string' && v.trim() === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function estimateKgPerHour(goalPerHour, avgWeightKg){
+  const g = numOrNull(goalPerHour);
+  const w = numOrNull(avgWeightKg);
+  if(g === null || w === null) return null;
+  return g * w;
+}
+
+// Heuristic MET based on kg/hour + repetition. Calibrated to stay in plausible warehouse ranges.
+function estimateMET(kgPerHour, goalPerHour){
+  if(kgPerHour === null) return null;
+
+  let met;
+  if(kgPerHour < 50) met = 2.5;
+  else if(kgPerHour < 150) met = 3.5;
+  else if(kgPerHour < 300) met = 4.5;
+  else if(kgPerHour < 600) met = 6.0;
+  else met = 7.0;
+
+  const g = numOrNull(goalPerHour);
+  if(g !== null){
+    if(g >= 300) met += 0.5;
+    if(g >= 600) met += 0.5;
+  }
+
+  // clamp
+  met = Math.max(2.0, Math.min(8.0, met));
+  return Math.round(met * 10) / 10;
+}
+
+function kcalPerHourFromMET(met, bodyWeightKg=BODY_WEIGHT_KG){
+  if(met === null) return null;
+  // kcal/min = MET * 3.5 * kg / 200
+  // kcal/hour = *60
+  const kcalH = met * 3.5 * bodyWeightKg / 200 * 60;
+  return Math.round(kcalH);
+}
+
+function formatNum(n, digits=0){
+  if(n === null || n === undefined) return '—';
+  const v = Number(n);
+  if(!Number.isFinite(v)) return '—';
+  return v.toFixed(digits);
+}
+
+function computeDeptScore(dept, maxes){
+  const g = numOrNull(dept.goalPerHour);
+  const w = numOrNull(dept.avgWeightKg);
+  const kgph = estimateKgPerHour(g, w);
+
+  const normG = (g === null || !maxes.maxGoal) ? 0 : Math.min(1, g / maxes.maxGoal);
+  const normKg = (kgph === null || !maxes.maxKgph) ? 0 : Math.min(1, kgph / maxes.maxKgph);
+
+  // weight kg/hour more, but include repetition rate as well
+  const combined = 0.65 * normKg + 0.35 * normG;
+
+  // map to 1–10
+  const score = 1 + Math.round(combined * 9);
+  return Math.max(1, Math.min(10, score));
+}
+
+
+function metToScore(met){
+  if(met === null) return null;
+  // Map MET 2.0–8.0 => score 1–10
+  const minMet = 2.0, maxMet = 8.0;
+  const clamped = Math.max(minMet, Math.min(maxMet, met));
+  const t = (clamped - minMet) / (maxMet - minMet);
+  return Math.max(1, Math.min(10, 1 + Math.round(t * 9)));
+}
+
+function deptEnergyProfile(dept){
+  const goalPerHour = numOrNull(dept.goalPerHour);
+  const avgWeightKg = numOrNull(dept.avgWeightKg);
+  const kgPerHour = estimateKgPerHour(goalPerHour, avgWeightKg);
+  const met = estimateMET(kgPerHour, goalPerHour);
+  const kcalH = kcalPerHourFromMET(met, BODY_WEIGHT_KG);
+  const kcal8 = kcalH === null ? null : kcalH * 8;
+  const score = metToScore(met);
+  return { goalPerHour, avgWeightKg, kgPerHour, met, kcalH, kcal8, score };
+}
+
+function computeRotationForPerson(person, deptsById, days){
+  const deptIds = Array.isArray(person.departmentIds) ? person.departmentIds : [];
+  const plan = [];
+  let totalKcal = 0;
+  let totalMet = 0;
+  let metCount = 0;
+  let totalScore = 0;
+
+  if(deptIds.length === 0){
+    return { plan, totalKcal: null, avgMet: null, totalScore: 0 };
+  }
+
+  for(let i=0;i<days;i++){
+    const deptId = String(deptIds[i % deptIds.length]);
+    const dept = deptsById.get(deptId);
+    if(!dept){
+      plan.push({ day:i+1, deptName: 'Okänd avdelning', met:null, kcal8:null, score:null });
+      continue;
+    }
+    const prof = deptEnergyProfile(dept);
+    plan.push({ day:i+1, deptName: dept.name, met: prof.met, kcal8: prof.kcal8, score: prof.score });
+
+    if(prof.kcal8 !== null){
+      totalKcal += prof.kcal8;
+    }else{
+      totalKcal = null; // keep null if missing data for any day
+    }
+
+    if(prof.met !== null){
+      totalMet += prof.met;
+      metCount += 1;
+    }
+    if(prof.score !== null){
+      totalScore += prof.score;
     }
   }
 
-  async function refreshAll(){
-    const depts = await api('/api/departments');
-    renderDepts(depts);
-    fillDeptSelect(depts);
-    const persons = await api('/api/persons');
-    const deptMap = new Map(depts.map(d => [d.id, d]));
-    renderPersons(persons, deptMap);
+  const avgMet = metCount ? (totalMet / metCount) : null;
+  return { plan, totalKcal, avgMet, totalScore };
+}
+
+function renderPersonStats(persons, depts, days){
+  if(!els.personStats) return;
+  els.personStats.innerHTML = '';
+
+  const deptsById = new Map(depts.map(d => [String(d.id || d._id), d]));
+  const rows = persons.map(p => {
+    const id = p.id || p._id;
+    const r = computeRotationForPerson(p, deptsById, days);
+    return { id, name: p.name, ...r, deptCount: (p.departmentIds||[]).length };
+  });
+
+  // Sort: highest totalScore first, then kcal, then avgMet
+  rows.sort((a,b) => (b.totalScore - a.totalScore) || ((b.totalKcal||0)-(a.totalKcal||0)) || ((b.avgMet||0)-(a.avgMet||0)));
+
+  if(!rows.length){
+    els.personStats.innerHTML = '<div class="hint">Inga personer ännu.</div>';
+    return;
   }
+
+  for(const r of rows){
+    const div = document.createElement('div');
+    div.className = 'item';
+    const planTxt = r.plan.map(x => `${x.day}:${x.deptName}`).join(' • ');
+    div.innerHTML = `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div style="min-width:0">
+          <div class="item-title">${escapeHtml(r.name)}</div>
+          <div class="item-sub">
+            Avdelningar valda: ${r.deptCount} • Dagar: ${days}<br/>
+            <span class="pill">Totalpoäng: ${escapeHtml(String(r.totalScore))}</span>
+            <span class="pill">Snitt MET: ${r.avgMet===null?'—':escapeHtml(r.avgMet.toFixed(1))}</span>
+            <span class="pill">kcal/${days} dagar: ${r.totalKcal===null?'—':escapeHtml(String(Math.round(r.totalKcal)))}</span>
+          </div>
+          <div class="small" style="margin-top:6px">${escapeHtml(planTxt)}</div>
+        </div>
+        <div class="score-badge" title="Rank (högre = mer slit)">${escapeHtml(String(r.totalScore))}</div>
+      </div>
+    `;
+    els.personStats.appendChild(div);
+  }
+}
+
+async function refreshAll(){
+  const [depts, persons] = await Promise.all([
+    api('/api/departments'),
+    api('/api/persons')
+  ]);
+
+  state.depts = depts;
+  state.persons = persons;
+
+  const maxGoal = Math.max(0, ...depts.map(d => numOrNull(d.goalPerHour) || 0));
+    const maxKgph = Math.max(0, ...depts.map(d => estimateKgPerHour(d.goalPerHour, d.avgWeightKg) || 0));
+    renderDepts(depts, { maxGoal, maxKgph });
+  fillDeptSelect(depts);
+
+  const deptMap = new Map(depts.map(d => [String(d.id || d._id), d]));
+  renderPersons(persons, deptMap);
+    fillPersonEdit(persons, depts);
+
+    const days = Number(els.calcDays?.value || 5);
+    renderPersonStats(persons, depts, Math.max(1, Math.min(10, days)));
+}
 
   async function testHealth(){
     try{
@@ -204,17 +627,92 @@
     }
   }
 
-  // Tabs
-  els.tabs.forEach(btn => {
-    btn.addEventListener('click', () => {
-      els.tabs.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      const tab = btn.dataset.tab;
-      els.tabDepartments.classList.toggle('hidden', tab !== 'departments');
-      els.tabPersons.classList.toggle('hidden', tab !== 'persons');
-    });
-  });
+  // Delete (with confirmation)
+els.deptList.addEventListener('click', async (e) => {
+  const editBtn = e.target.closest('[data-edit-dept]');
+  if(editBtn){
+    const id = editBtn.getAttribute('data-edit-dept');
+    // load current department from cache
+    const d = (state.depts || []).find(x => String(x.id || x._id) === String(id));
+    if(!d) return alert('Kunde inte hitta avdelningen');
 
+    editingDeptId = String(id);
+    els.addDept.textContent = 'Uppdatera avdelning';
+    els.deptName.value = d.name || '';
+    if(els.deptGoal) els.deptGoal.value = (d.goalPerHour ?? '') === null ? '' : (d.goalPerHour ?? '');
+    if(els.deptAvgWeight) els.deptAvgWeight.value = (d.avgWeightKg ?? '') === null ? '' : (d.avgWeightKg ?? '');
+    if(els.deptInfo) els.deptInfo.value = d.info || '';
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+
+  const delBtn = e.target.closest('[data-del-dept]');
+  if(!delBtn) return;
+  const id = delBtn.getAttribute('data-del-dept');
+  if(!confirm('Ta bort avdelningen? Detta kan påverka personer som har den vald.')) return;
+  try{
+    await api('/api/departments/' + encodeURIComponent(id), { method: 'DELETE' });
+    if(editingDeptId === String(id)){
+      editingDeptId = null;
+      els.addDept.textContent = 'Spara avdelning';
+      els.deptName.value = '';
+      if(els.deptGoal) els.deptGoal.value = '';
+      if(els.deptAvgWeight) els.deptAvgWeight.value = '';
+      if(els.deptInfo) els.deptInfo.value = '';
+    }
+    await refreshAll();
+
+  if(els.calcDays){
+    els.calcDays.addEventListener('change', () => {
+      const days = Number(els.calcDays.value || 5);
+      renderPersonStats(state.persons || [], state.depts || [], Math.max(1, Math.min(10, days)));
+    });
+  }
+
+  refreshAll();
+    setStatus(true, 'Avdelning borttagen');
+  }catch(err){
+    setStatus(false, err.message);
+    alert(err.message);
+  }
+});
+
+els.personList.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-del-person]');
+  if(!btn) return;
+  const id = btn.getAttribute('data-del-person');
+  if(!confirm('Ta bort personen?')) return;
+  try{
+    await api('/api/persons/' + encodeURIComponent(id), { method: 'DELETE' });
+    await refreshAll();
+    setStatus(true, 'Person borttagen');
+  }catch(err){
+    setStatus(false, err.message);
+    alert(err.message);
+  }
+});
+
+// Tabs (Avdelningar / Personer)
+function showTab(name){
+  const isPersons = name === 'persons';
+  els.tabPersons.style.display = isPersons ? 'block' : 'none';
+  els.tabDepartments.style.display = isPersons ? 'none' : 'block';
+  for(const b of els.tabs){
+    b.classList.toggle('active', b.dataset.tab === name);
+  }
+  localStorage.setItem('rotation_active_tab', name);
+}
+
+for(const b of els.tabs){
+  b.addEventListener('click', () => {
+    const name = b.dataset.tab;
+    showTab(name);
+  });
+}
+
+// initial tab
+showTab(localStorage.getItem('rotation_active_tab') || 'departments');
   // API base setup
   els.apiBase.value = localStorage.getItem('rotation_api_base') || 'http://localhost:5050';
   els.saveApi.addEventListener('click', () => {
@@ -229,14 +727,43 @@
 
   // Add dept
   els.addDept.addEventListener('click', async () => {
-    const name = els.deptName.value.trim();
-    if(name.length < 2) return alert('Skriv minst 2 tecken');
-    try{
-      await api('/api/departments', { method:'POST', body: JSON.stringify({ name }) });
-      els.deptName.value = '';
-      await refreshAll();
-    }catch(e){ alert(e.message); }
-  });
+  const name = els.deptName.value.trim();
+  if(name.length < 2) return alert('Skriv minst 2 tecken');
+
+  const payload = {
+    name,
+    goalPerHour: els.deptGoal?.value,
+    avgWeightKg: els.deptAvgWeight?.value,
+    info: els.deptInfo?.value || ''
+  };
+
+  try{
+    if(editingDeptId){
+      await api('/api/departments/' + encodeURIComponent(editingDeptId), {
+        method:'PUT',
+        body: JSON.stringify(payload)
+      });
+      setStatus(true, 'Avdelning uppdaterad');
+    }else{
+      await api('/api/departments', { method:'POST', body: JSON.stringify(payload) });
+      setStatus(true, 'Avdelning skapad');
+    }
+
+    // reset form
+    editingDeptId = null;
+    els.addDept.textContent = 'Spara avdelning';
+    els.deptName.value = '';
+    if(els.deptGoal) els.deptGoal.value = '';
+    if(els.deptAvgWeight) els.deptAvgWeight.value = '';
+    if(els.deptInfo) els.deptInfo.value = '';
+
+    await refreshAll();
+  }catch(e){
+    setStatus(false, e.message);
+    alert(e.message);
+  }
+});
+
 
   // Add person
   els.addPerson.addEventListener('click', async () => {
@@ -251,7 +778,34 @@
     }catch(e){ alert(e.message); }
   });
 
-  function escapeHtml(str){
+  
+// Add person (quick on start page)
+if(els.addPersonQuick){
+  els.addPersonQuick.addEventListener('click', async () => {
+    const name = (els.personNameQuick?.value || '').trim();
+    const departmentIds = Array.from(els.personDeptsQuick?.selectedOptions || []).map(o => o.value);
+    if(name.length < 2) return alert('Skriv minst 2 tecken');
+    try{
+      await api('/api/persons', { method:'POST', body: JSON.stringify({ name, departmentIds }) });
+      if(els.personNameQuick) els.personNameQuick.value = '';
+      Array.from(els.personDeptsQuick?.options || []).forEach(o => o.selected = false);
+      await refreshAll();
+    }catch(e){ alert(e.message); }
+  });
+}
+
+// Fill example info for 'Plock'
+if(els.fillPlockInfo && els.deptInfo){
+  els.fillPlockInfo.addEventListener('click', () => {
+    const txt = "Man står vid en plockstation med en dator vid sidan och en maskin som hämtar plocklådan till dig. Packbordet för artiklarna ligger precis vid sidan om dig, man vrider sig 90 grader så är man vid packbordet. Rullbandet för färdig packade paket ligger bakom packbordet så det är bara att slida packet över bordet ner på rullbandet.\n\nPå datorn ser man hur många artiklar man ska plocka och vilket fack man ska plocka en artikel ifrån. När man plockat en artikel, skannar man den och nästa låda kommer. Har man plockat alla artiklar för ordern så skriv det ut en fraktsedel. Man tar artiklarna lägger dem i en påse försluter den och klistrar på fraktsedeln. Det färdiga paketet skickas till rullbandet och du är nu klar.";
+    els.deptInfo.value = txt;
+    if(!els.deptName.value.trim()) els.deptName.value = 'Plock/Pack';
+    if(els.deptGoal && !els.deptGoal.value) els.deptGoal.value = '165';
+    if(els.deptAvgWeight && !els.deptAvgWeight.value) els.deptAvgWeight.value = '0.6';
+  });
+}
+
+function escapeHtml(str){
     return String(str)
       .replaceAll('&','&amp;')
       .replaceAll('<','&lt;')
