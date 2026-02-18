@@ -9,10 +9,109 @@ const { connectDb } = require('./db');
 const Department = require('./models/Department');
 const Person = require('./models/Person');
 
+function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+function numOrNull(v){
+  if(v === null || v === undefined) return null;
+  if(typeof v === 'string' && v.trim() === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+function toInt(v, def=0){
+  const n = Number(v);
+  return Number.isFinite(n) ? n : def;
+}
+
+function kScoreFromParts(d){
+  const a = clamp(toInt(d.k_timePressure,0), 0, 2);
+  const b = clamp(toInt(d.k_interruptions,0), 0, 2);
+  const c = clamp(toInt(d.k_complexity,0), 0, 2);
+  const dd = clamp(toInt(d.k_errorConsequence,0), 0, 3);
+  const e = clamp(toInt(d.k_safetyRisk,0), 0, 1);
+  const sum = a+b+c+dd+e;
+  return clamp(sum === 0 ? 1 : sum, 1, 10);
+}
+
+function estimateKgPerHour(goalPerHour, avgWeightKg){
+  const g = numOrNull(goalPerHour);
+  const w = numOrNull(avgWeightKg);
+  if(g === null || w === null) return null;
+  return g * w;
+}
+
+function estimateMET(kgPerHour, goalPerHour){
+  if(kgPerHour === null) return null;
+  let met;
+  if(kgPerHour < 50) met = 2.5;
+  else if(kgPerHour < 150) met = 3.5;
+  else if(kgPerHour < 300) met = 4.5;
+  else if(kgPerHour < 600) met = 6.0;
+  else met = 7.0;
+
+  const g = numOrNull(goalPerHour);
+  if(g !== null){
+    if(g >= 300) met += 0.5;
+    if(g >= 600) met += 0.5;
+    if(g >= 900) met += 0.5;
+    if(g >= 1200) met += 0.5;
+  }
+  met = clamp(met, 2.0, 10.0);
+  return Math.round(met * 10) / 10;
+}
+
+function metToScore(met){
+  if(met === null) return null;
+  const minMet = 2.0, maxMet = 8.0;
+  const clamped = clamp(met, minMet, maxMet);
+  const t = (clamped - minMet) / (maxMet - minMet);
+  return clamp(1 + Math.round(t * 9), 1, 10);
+}
+
+function totalScore(metScore, kScore){
+  if(metScore === null) return null;
+  const t = (metScore + kScore) / 2;
+  return Math.round(t * 10) / 10;
+}
+
+function normalizeDepartment(d){
+  const kgph = estimateKgPerHour(d.goalPerHour, d.avgWeightKg);
+  const met = estimateMET(kgph, d.goalPerHour);
+  const metScore = metToScore(met);
+  const kScore = kScoreFromParts(d);
+  const tScore = metScore === null ? null : totalScore(metScore, kScore);
+
+  return {
+    id: String(d._id),
+    name: d.name,
+    goalPerHour: d.goalPerHour ?? null,
+    avgWeightKg: d.avgWeightKg ?? null,
+    info: d.info ?? '',
+    k_timePressure: d.k_timePressure ?? 0,
+    k_interruptions: d.k_interruptions ?? 0,
+    k_complexity: d.k_complexity ?? 0,
+    k_errorConsequence: d.k_errorConsequence ?? 0,
+    k_safetyRisk: d.k_safetyRisk ?? 0,
+    kScore,
+    met,
+    metScore,
+    totalScore: tScore,
+    createdAt: d.createdAt,
+    updatedAt: d.updatedAt
+  };
+}
+
+function normalizePerson(p){
+  return {
+    id: String(p._id),
+    name: p.name,
+    departmentIds: (p.departmentIds || []).map(x => String(x)),
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt
+  };
+}
+
 const app = express();
 const PORT = process.env.PORT || 5050;
 
-// CORS: allow Netlify + local dev + custom
 const allowed = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map(s => s.trim())
@@ -36,12 +135,11 @@ app.get('/', (req, res) => {
   res.json({
     ok: true,
     service: 'rotation-api',
-    version: '1.1.0',
+    version: '1.3.0',
     endpoints: [
       'GET /api/health',
-      'GET/POST /api/departments',
-      'GET/POST /api/persons',
-      'PUT /api/persons/:id',
+      'GET/POST/PUT/DELETE /api/departments',
+      'GET/POST/PUT/DELETE /api/persons',
       'GET /api/persons-expanded'
     ]
   });
@@ -51,19 +149,11 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
 });
 
-// Departments (MongoDB: collection "avdelningar")
+// ---------- Departments ----------
 app.get('/api/departments', async (req, res) => {
   try {
     const items = await Department.find({}).sort({ name: 1 }).lean();
-      res.json(items.map(d => ({
-        id: String(d._id),
-        name: d.name,
-        goalPerHour: d.goalPerHour ?? null,
-        avgWeightKg: d.avgWeightKg ?? null,
-        info: d.info ?? '',
-        createdAt: d.createdAt,
-        updatedAt: d.updatedAt
-      })));
+    res.json(items.map(normalizeDepartment));
   } catch (e) {
     res.status(500).json({ ok: false, error: 'Failed to fetch departments' });
   }
@@ -72,13 +162,12 @@ app.get('/api/departments', async (req, res) => {
 app.post('/api/departments', async (req, res) => {
   try {
     const name = (req.body?.name || '').trim();
-    const goalPerHourRaw = req.body?.goalPerHour;
-    const avgWeightKgRaw = req.body?.avgWeightKg;
-      const infoRaw = req.body?.info;
-
     if (!name || name.length < 2) {
       return res.status(400).json({ ok: false, error: 'name is required (min 2 chars)' });
     }
+
+    const goalPerHourRaw = req.body?.goalPerHour;
+    const avgWeightKgRaw = req.body?.avgWeightKg;
 
     const goalPerHour =
       goalPerHourRaw === null || goalPerHourRaw === undefined || goalPerHourRaw === ''
@@ -97,9 +186,22 @@ app.post('/api/departments', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'avgWeightKg must be a non-negative number' });
     }
 
-    const info = typeof infoRaw === 'string' ? infoRaw.trim() : '';
-      const created = await Department.create({ name, goalPerHour, avgWeightKg, info });
-    res.status(201).json({ ok: true, department: { id: String(created._id), name: created.name, goalPerHour: created.goalPerHour ?? null, avgWeightKg: created.avgWeightKg ?? null, info: created.info ?? '', createdAt: created.createdAt, updatedAt: created.updatedAt } });
+    const info = typeof req.body?.info === 'string' ? req.body.info.trim() : '';
+
+    const dept = {
+      name,
+      goalPerHour,
+      avgWeightKg,
+      info,
+      k_timePressure: clamp(toInt(req.body?.k_timePressure, 0), 0, 2),
+      k_interruptions: clamp(toInt(req.body?.k_interruptions, 0), 0, 2),
+      k_complexity: clamp(toInt(req.body?.k_complexity, 0), 0, 2),
+      k_errorConsequence: clamp(toInt(req.body?.k_errorConsequence, 0), 0, 3),
+      k_safetyRisk: clamp(toInt(req.body?.k_safetyRisk, 0), 0, 1)
+    };
+
+    const created = await Department.create(dept);
+    res.status(201).json({ ok: true, department: normalizeDepartment(created) });
   } catch (e) {
     if (e?.code === 11000) {
       return res.status(409).json({ ok: false, error: 'department already exists' });
@@ -107,7 +209,6 @@ app.post('/api/departments', async (req, res) => {
     res.status(500).json({ ok: false, error: 'Failed to create department' });
   }
 });
-
 
 app.put('/api/departments/:id', async (req, res) => {
   try {
@@ -122,41 +223,36 @@ app.put('/api/departments/:id', async (req, res) => {
 
     if (req.body?.goalPerHour !== undefined) {
       const v = req.body.goalPerHour;
-      const goalPerHour = v === null || v === '' ? null : Number(v);
-      if (goalPerHour !== null && (!Number.isFinite(goalPerHour) || goalPerHour < 0)) {
+      const n = v === null || v === '' ? null : Number(v);
+      if (n !== null && (!Number.isFinite(n) || n < 0)) {
         return res.status(400).json({ ok: false, error: 'goalPerHour must be a non-negative number' });
       }
-      update.goalPerHour = goalPerHour;
+      update.goalPerHour = n;
     }
 
     if (req.body?.avgWeightKg !== undefined) {
       const v = req.body.avgWeightKg;
-      const avgWeightKg = v === null || v === '' ? null : Number(v);
-      if (avgWeightKg !== null && (!Number.isFinite(avgWeightKg) || avgWeightKg < 0)) {
+      const n = v === null || v === '' ? null : Number(v);
+      if (n !== null && (!Number.isFinite(n) || n < 0)) {
         return res.status(400).json({ ok: false, error: 'avgWeightKg must be a non-negative number' });
       }
-      update.avgWeightKg = avgWeightKg;
+      update.avgWeightKg = n;
     }
 
     if (req.body?.info !== undefined) {
       update.info = typeof req.body.info === 'string' ? req.body.info.trim() : '';
     }
 
+    if (req.body?.k_timePressure !== undefined) update.k_timePressure = clamp(toInt(req.body.k_timePressure, 0), 0, 2);
+    if (req.body?.k_interruptions !== undefined) update.k_interruptions = clamp(toInt(req.body.k_interruptions, 0), 0, 2);
+    if (req.body?.k_complexity !== undefined) update.k_complexity = clamp(toInt(req.body.k_complexity, 0), 0, 2);
+    if (req.body?.k_errorConsequence !== undefined) update.k_errorConsequence = clamp(toInt(req.body.k_errorConsequence, 0), 0, 3);
+    if (req.body?.k_safetyRisk !== undefined) update.k_safetyRisk = clamp(toInt(req.body.k_safetyRisk, 0), 0, 1);
+
     const updated = await Department.findByIdAndUpdate(id, update, { new: true });
     if (!updated) return res.status(404).json({ ok: false, error: 'department not found' });
 
-    res.json({
-      ok: true,
-      department: {
-        id: String(updated._id),
-        name: updated.name,
-        goalPerHour: updated.goalPerHour ?? null,
-        avgWeightKg: updated.avgWeightKg ?? null,
-        info: updated.info ?? '',
-        createdAt: updated.createdAt,
-        updatedAt: updated.updatedAt
-      }
-    });
+    res.json({ ok: true, department: normalizeDepartment(updated) });
   } catch (e) {
     if (e?.code === 11000) {
       return res.status(409).json({ ok: false, error: 'department already exists' });
@@ -171,7 +267,6 @@ app.delete('/api/departments/:id', async (req, res) => {
     const deleted = await Department.findByIdAndDelete(id);
     if (!deleted) return res.status(404).json({ ok: false, error: 'department not found' });
 
-    // Remove reference from persons
     await Person.updateMany({}, { $pull: { departmentIds: deleted._id } });
 
     res.json({ ok: true, deletedId: id });
@@ -180,17 +275,11 @@ app.delete('/api/departments/:id', async (req, res) => {
   }
 });
 
-// Persons (MongoDB: collection "personer")
+// ---------- Persons ----------
 app.get('/api/persons', async (req, res) => {
   try {
     const persons = await Person.find({}).sort({ createdAt: -1 }).lean();
-      res.json(persons.map(p => ({
-        id: String(p._id),
-        name: p.name,
-        departmentIds: (p.departmentIds || []).map(x => String(x)),
-        createdAt: p.createdAt,
-        updatedAt: p.updatedAt
-      })));
+    res.json(persons.map(normalizePerson));
   } catch (e) {
     res.status(500).json({ ok: false, error: 'Failed to fetch persons' });
   }
@@ -203,10 +292,9 @@ app.post('/api/persons', async (req, res) => {
     if (!name || name.length < 2) {
       return res.status(400).json({ ok: false, error: 'name is required (min 2 chars)' });
     }
-    // Keep only valid Mongo ObjectId-looking strings
-    const cleanedIds = departmentIds.filter(v => typeof v === 'string' && /^[a-fA-F0-9]{24}$/.test(v));
-    const created = await Person.create({ name, departmentIds: cleanedIds });
-    res.status(201).json({ ok: true, person: { id: String(created._id), name: created.name, departmentIds: (created.departmentIds||[]).map(x=>String(x)), createdAt: created.createdAt, updatedAt: created.updatedAt } });
+
+    const created = await Person.create({ name, departmentIds });
+    res.status(201).json({ ok: true, person: normalizePerson(created) });
   } catch (e) {
     res.status(500).json({ ok: false, error: 'Failed to create person' });
   }
@@ -215,19 +303,21 @@ app.post('/api/persons', async (req, res) => {
 app.put('/api/persons/:id', async (req, res) => {
   try {
     const id = req.params.id;
-    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : null;
-    const departmentIds = Array.isArray(req.body?.departmentIds) ? req.body.departmentIds : null;
+    const name = (req.body?.name || '').trim();
+    const departmentIds = Array.isArray(req.body?.departmentIds) ? req.body.departmentIds : [];
 
-    const update = {};
-    if (name && name.length >= 2) update.name = name;
-    if (departmentIds) {
-      update.departmentIds = departmentIds
-        .filter(v => typeof v === 'string' && /^[a-fA-F0-9]{24}$/.test(v));
+    if (!name || name.length < 2) {
+      return res.status(400).json({ ok: false, error: 'name is required (min 2 chars)' });
     }
 
-    const updated = await Person.findByIdAndUpdate(id, update, { new: true });
+    const updated = await Person.findByIdAndUpdate(
+      id,
+      { name, departmentIds },
+      { new: true }
+    );
+
     if (!updated) return res.status(404).json({ ok: false, error: 'person not found' });
-    res.json({ ok: true, person: { id: String(updated._id), name: updated.name, departmentIds: (updated.departmentIds||[]).map(x=>String(x)), createdAt: updated.createdAt, updatedAt: updated.updatedAt } });
+    res.json({ ok: true, person: normalizePerson(updated) });
   } catch (e) {
     res.status(500).json({ ok: false, error: 'Failed to update person' });
   }
@@ -244,27 +334,21 @@ app.delete('/api/persons/:id', async (req, res) => {
   }
 });
 
-
-// Helpful: expand persons with department names
 app.get('/api/persons-expanded', async (req, res) => {
   try {
-    const persons = await Person.find({}).populate('departmentIds').lean();
-    const expanded = persons.map(p => ({
-      ...p,
-      departments: (p.departmentIds || []).map(d => ({ _id: d._id, name: d.name }))
-    }));
-    res.json(expanded);
+    const persons = await Person.find({}).sort({ createdAt: -1 }).lean();
+    const depts = await Department.find({}).sort({ name: 1 }).lean();
+    const map = new Map(depts.map(d => [String(d._id), normalizeDepartment(d)]));
+
+    res.json(persons.map(p => ({
+      ...normalizePerson(p),
+      departments: (p.departmentIds || []).map(id => map.get(String(id))).filter(Boolean)
+    })));
   } catch (e) {
-    res.status(500).json({ ok: false, error: 'Failed to fetch expanded persons' });
+    res.status(500).json({ ok: false, error: 'Failed to fetch persons-expanded' });
   }
 });
 
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(500).json({ ok: false, error: err.message || 'server error' });
-});
-
-// Start server after DB connect
 connectDb()
   .then(() => {
     app.listen(PORT, () => console.log(`rotation-api listening on :${PORT}`));
