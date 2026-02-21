@@ -79,7 +79,7 @@ app.get('/api/departments', async (req, res) => {
         name: d.name,
         goalPerHour: d.goalPerHour ?? null,
         avgWeightKg: d.avgWeightKg ?? null,
-        info: d.info ?? '',
+        info: d.info ?? '', k_timePressure: d.k_timePressure ?? 0, k_interruptions: d.k_interruptions ?? 0, k_complexity: d.k_complexity ?? 0, k_errorConsequence: d.k_errorConsequence ?? 0, k_safetyRisk: d.k_safetyRisk ?? 0,
         createdAt: d.createdAt,
         updatedAt: d.updatedAt
       })));
@@ -117,8 +117,29 @@ app.post('/api/departments', async (req, res) => {
     }
 
     const info = typeof infoRaw === 'string' ? infoRaw.trim() : '';
-      const created = await Department.create({ name, goalPerHour, avgWeightKg, info });
-    res.status(201).json({ ok: true, department: { id: String(created._id), name: created.name, goalPerHour: created.goalPerHour ?? null, avgWeightKg: created.avgWeightKg ?? null, info: created.info ?? '', createdAt: created.createdAt, updatedAt: created.updatedAt } });
+
+// K-delar (0–2/3/1). Om ej angivet → 0.
+const k_timePressure = req.body?.k_timePressure === undefined ? 0 : Number(req.body.k_timePressure);
+const k_interruptions = req.body?.k_interruptions === undefined ? 0 : Number(req.body.k_interruptions);
+const k_complexity = req.body?.k_complexity === undefined ? 0 : Number(req.body.k_complexity);
+const k_errorConsequence = req.body?.k_errorConsequence === undefined ? 0 : Number(req.body.k_errorConsequence);
+const k_safetyRisk = req.body?.k_safetyRisk === undefined ? 0 : Number(req.body.k_safetyRisk);
+
+const kv = [
+  ['k_timePressure', k_timePressure, 0, 2],
+  ['k_interruptions', k_interruptions, 0, 2],
+  ['k_complexity', k_complexity, 0, 2],
+  ['k_errorConsequence', k_errorConsequence, 0, 3],
+  ['k_safetyRisk', k_safetyRisk, 0, 1],
+];
+for(const [key,v,min,max] of kv){
+  if(!Number.isFinite(v) || v < min || v > max){
+    return res.status(400).json({ ok:false, error: key + ' must be ' + min + '-' + max });
+  }
+}
+
+    const created = await Department.create({ name, goalPerHour, avgWeightKg, info, k_timePressure, k_interruptions, k_complexity, k_errorConsequence, k_safetyRisk });
+    res.status(201).json({ ok: true, department: { id: String(created._id), name: created.name, goalPerHour: created.goalPerHour ?? null, avgWeightKg: created.avgWeightKg ?? null, info: created.info ?? '', k_timePressure: created.k_timePressure ?? 0, k_interruptions: created.k_interruptions ?? 0, k_complexity: created.k_complexity ?? 0, k_errorConsequence: created.k_errorConsequence ?? 0, k_safetyRisk: created.k_safetyRisk ?? 0, createdAt: created.createdAt, updatedAt: created.updatedAt } });
   } catch (e) {
     if (e?.code === 11000) {
       return res.status(409).json({ ok: false, error: 'department already exists' });
@@ -161,6 +182,39 @@ app.put('/api/departments/:id', async (req, res) => {
       update.info = typeof req.body.info === 'string' ? req.body.info.trim() : '';
     }
 
+
+// K-delar (0–2/3/1)
+const k_timePressure = req.body?.k_timePressure;
+if (k_timePressure !== undefined) {
+  const v = Number(k_timePressure);
+  if (!Number.isFinite(v) || v < 0 || v > 2) return res.status(400).json({ ok:false, error:'k_timePressure must be 0-2' });
+  update.k_timePressure = v;
+}
+const k_interruptions = req.body?.k_interruptions;
+if (k_interruptions !== undefined) {
+  const v = Number(k_interruptions);
+  if (!Number.isFinite(v) || v < 0 || v > 2) return res.status(400).json({ ok:false, error:'k_interruptions must be 0-2' });
+  update.k_interruptions = v;
+}
+const k_complexity = req.body?.k_complexity;
+if (k_complexity !== undefined) {
+  const v = Number(k_complexity);
+  if (!Number.isFinite(v) || v < 0 || v > 2) return res.status(400).json({ ok:false, error:'k_complexity must be 0-2' });
+  update.k_complexity = v;
+}
+const k_errorConsequence = req.body?.k_errorConsequence;
+if (k_errorConsequence !== undefined) {
+  const v = Number(k_errorConsequence);
+  if (!Number.isFinite(v) || v < 0 || v > 3) return res.status(400).json({ ok:false, error:'k_errorConsequence must be 0-3' });
+  update.k_errorConsequence = v;
+}
+const k_safetyRisk = req.body?.k_safetyRisk;
+if (k_safetyRisk !== undefined) {
+  const v = Number(k_safetyRisk);
+  if (!Number.isFinite(v) || v < 0 || v > 1) return res.status(400).json({ ok:false, error:'k_safetyRisk must be 0-1' });
+  update.k_safetyRisk = v;
+}
+
     const updated = await Department.findByIdAndUpdate(id, update, { new: true });
     if (!updated) return res.status(404).json({ ok: false, error: 'department not found' });
 
@@ -172,6 +226,11 @@ app.put('/api/departments/:id', async (req, res) => {
         goalPerHour: updated.goalPerHour ?? null,
         avgWeightKg: updated.avgWeightKg ?? null,
         info: updated.info ?? '',
+        k_timePressure: updated.k_timePressure ?? 0,
+        k_interruptions: updated.k_interruptions ?? 0,
+        k_complexity: updated.k_complexity ?? 0,
+        k_errorConsequence: updated.k_errorConsequence ?? 0,
+        k_safetyRisk: updated.k_safetyRisk ?? 0,
         createdAt: updated.createdAt,
         updatedAt: updated.updatedAt
       }
