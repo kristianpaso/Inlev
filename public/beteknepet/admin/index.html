@@ -5,79 +5,57 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>BeteKnepet Admin</title>
   <link rel="stylesheet" href="../styles.css"/>
-  <style>
-    body{ padding:16px; }
-    .adminWrap{ max-width:980px; margin:0 auto; }
-    textarea{ width:100%; min-height:360px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-    .row{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
-    .row > *{ flex: 1 1 auto; }
-    .hint{ opacity:.75; font-size:13px; }
-  </style>
+  <link rel="stylesheet" href="./admin.css"/>
 </head>
 <body>
   <div class="adminWrap">
-    <h1>BeteKnepet Admin</h1>
-    <p class="hint">Ändra steg/alternativ i MongoDB. Frontend kan senare byggas helt dynamiskt från dessa steg.</p>
+    <div class="adminTop">
+      <div>
+        <h1>BeteKnepet Admin</h1>
+        <div class="hint">Överblick och redigering av steg (hämtas/sparas i MongoDB via API).</div>
+      </div>
+
+      <div class="adminApi">
+        <label class="hint" for="apiBase">API</label>
+        <select id="apiPreset" class="miniSelect" title="Välj server">
+          <option value="local">Localhost</option>
+          <option value="render">Render</option>
+        </select>
+        <input id="apiBase" class="input" placeholder="http://localhost:5005" />
+        <button id="btnLoad" class="btn">Hämta</button>
+        <button id="btnSave" class="btn primary">Spara</button>
+      </div>
+    </div>
+
+    <div id="msg" class="msg"></div>
 
     <div class="card">
       <div class="body">
         <div class="row">
-          <label>API-bas (lokalt: http://localhost:5005)</label>
-          <input id="apiBase" class="input" placeholder="http://localhost:5005" />
-          <button id="load" class="btn">Hämta</button>
-          <button id="save" class="btn">Spara</button>
+          <div class="hint">Steg</div>
+          <button id="btnAddStep" class="btn">+ Nytt steg</button>
         </div>
-
-        <p class="hint" style="margin-top:10px;">
-          Endpoint: <b>/api/beteknepet/steg</b><br/>
-          JSON-format: <b>{ "steg": [...] }</b>
-        </p>
-
-        <textarea id="json" spellcheck="false"></textarea>
-        <div id="msg" class="hint" style="margin-top:10px;"></div>
+        <div id="stepsList" class="stepsList"></div>
       </div>
     </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div class="body">
+        <div class="row">
+          <div class="hint">Avancerat: JSON</div>
+          <button id="btnExport" class="btn">Exportera JSON</button>
+          <button id="btnImport" class="btn">Importera JSON</button>
+        </div>
+        <textarea id="jsonBox" class="jsonBox" placeholder='{ "steg": [...] }'></textarea>
+        <div class="hint" style="margin-top:8px;">
+          Format: <b>steg</b> = array. Varje steg: { id, title, key, order, options:[{value,label,img}] }.
+        </div>
+      </div>
+    </div>
+
+    <div class="hint" style="margin-top:12px;">Frontend läser från <code>/api/beteknepet/steg</code>.</div>
   </div>
 
-<script>
-const $ = (id)=>document.getElementById(id);
-const apiInput = $("apiBase");
-apiInput.value = localStorage.getItem("BK_API_BASE") || "http://localhost:5005";
-function api(){
-  const v = (apiInput.value || "").trim().replace(/\/$/,"");
-  localStorage.setItem("BK_API_BASE", v);
-  return v;
-}
-
-$("load").onclick = async ()=>{
-  $("msg").textContent = "Hämtar...";
-  try{
-    const r = await fetch(api()+"/api/beteknepet/steg");
-    const j = await r.json();
-    if(!r.ok) throw new Error(j.error || r.statusText);
-    $("json").value = JSON.stringify({steg:j.steg || []}, null, 2);
-    $("msg").textContent = "OK.";
-  }catch(e){
-    $("msg").textContent = "Fel: " + e.message + " (Kontrollera att API kör på port 5005)";
-  }
-};
-
-$("save").onclick = async ()=>{
-  $("msg").textContent = "Sparar...";
-  try{
-    const parsed = JSON.parse($("json").value || "{}");
-    const r = await fetch(api()+"/api/beteknepet/steg", {
-      method:"PUT",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({steg: parsed.steg || []})
-    });
-    const j = await r.json();
-    if(!r.ok) throw new Error(j.error || r.statusText);
-    $("msg").textContent = "Sparat. antal steg=" + j.count;
-  }catch(e){
-    $("msg").textContent = "Fel: " + e.message;
-  }
-};
-</script>
+  <script src="./admin.js"></script>
 </body>
 </html>

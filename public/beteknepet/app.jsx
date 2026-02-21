@@ -212,6 +212,13 @@ function ZoneModal(props) {
           </div>
         </div>
         <div className="headerActions">
+          <div className="apiSwitch">
+            <select className="miniSelect" value={apiMode} onChange={(e)=>setApiMode(e.target.value)} title="Välj server">
+              <option value="local">Localhost</option>
+              <option value="render">Render</option>
+            </select>
+          </div>
+
           <button className="iconBtn" title="Donation" onClick={() => setShowDonate(!showDonate)}>💛</button>
         </div>
       </div>
@@ -522,7 +529,107 @@ function LureCheckModal(props) {
 }
 
 function App() {
-  const [species, setSpecies] = useState('');
+
+  
+  function renderRemoteStep(stepObj, stepIndex){
+    const title = stepObj?.title || 'Steg';
+    const options = Array.isArray(stepObj?.options) ? stepObj.options : [];
+
+    function applyAnswer(key, value){
+      // keep compatibility with existing state names
+      if(key === 'species') setSpecies(value);
+      else if(key === 'goal') setGoal(value);
+      else if(key === 'platform') setPlatform(value);
+      else if(key === 'timeofday') setTimeofday(value);
+      else if(key === 'wind') setWind(value);
+      else if(key === 'water') setWater(value);
+      else if(key === 'depth') setDepth(value);
+    }
+
+    async function onPick(opt){
+      const key = stepObj?.key;
+      const value = opt?.value;
+      if(!key) return;
+      applyAnswer(key, value);
+
+      const isLast = stepIndex >= (remoteSteps.length - 1);
+      if(isLast){
+        try{
+          // If makePlan supports overrides, prefer it.
+          if(typeof makePlan === 'function'){
+            const overrides = {};
+            overrides[key] = value;
+            if(makePlan.length >= 1) await makePlan(overrides);
+            else await makePlan();
+          }
+        }catch(e){
+          setToast('Kunde inte skapa plan.');
+        }
+        return;
+      }
+      setStep(stepIndex+1);
+    }
+
+    return (
+      <div className="block">
+        <div className="sectionTitle">{title}</div>
+        <div className="choiceGrid">
+          {options.map((opt, i) => (
+            <button key={i} type="button" className="choiceCard" onClick={()=>onPick(opt)}>
+              <div className="imgTop" style={{ backgroundImage: opt.img ? `url(${opt.img})` : undefined }} />
+              <div className="choiceTitleRow">
+                <div className="choiceTitle">{opt.label || opt.value}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+const LOCAL_BASE = "http://localhost:5005";
+  const RENDER_BASE = "https://beteknepet-api.onrender.com";
+
+  // User can still choose, but if localhost is down we fall back to Render automatically.
+  const [apiMode, setApiMode] = useState(() => localStorage.getItem("BK_API_MODE") || "local");
+
+  useEffect(() => {
+    localStorage.setItem("BK_API_MODE", apiMode);
+  }, [apiMode]);
+
+  async function tryFetchWithTimeout(url, opts, timeoutMs=900){
+    const controller = new AbortController();
+    const id = setTimeout(()=>controller.abort(), timeoutMs);
+    try{
+      const res = await fetch(url, { ...(opts||{}), signal: controller.signal });
+      return res;
+    } finally {
+      clearTimeout(id);
+    }
+  }
+
+  async function apiFetch(path, opts){
+    const p = path.startsWith("/") ? path : ("/" + path);
+
+    // If user explicitly selected Render, use Render.
+    if(apiMode === "render"){
+      return fetch(RENDER_BASE + p, opts);
+    }
+
+    // Try localhost first. If unreachable/timeout, retry on Render and persist mode=render.
+    try{
+      const res = await tryFetchWithTimeout(LOCAL_BASE + p, opts, 900);
+      return res;
+    }catch(e){
+      try{
+        setApiMode("render");
+        return await fetch(RENDER_BASE + p, opts);
+      }catch(e2){
+        throw e2;
+      }
+    }
+  }
+const [species, setSpecies] = useState('');
   const [platform, setPlatform] = useState('');
   const [timeofday, setTimeofday] = useState('');
   const [wind, setWind] = useState('');
@@ -532,7 +639,9 @@ function App() {
 
   // Startflöde (steg-för-steg)
   const [started, setStarted] = useState(false);
-  const [step, setStep] = useState(0);
+    const [remoteSteps, setRemoteSteps] = useState(null);
+  const [remoteStepsErr, setRemoteStepsErr] = useState(null);
+const [step, setStep] = useState(0);
   const [autoFromWeather, setAutoFromWeather] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -1080,7 +1189,10 @@ function App() {
                 )}
               </div>
 
-              {toast ? <div className={"toast" + ((String(toast).toLowerCase().indexOf('fail')>=0 || String(toast).toLowerCase().indexOf('error')>=0) ? " error": "")}>{toast}</div> : null}
+              
+              )}
+
+{toast ? <div className={"toast" + ((String(toast).toLowerCase().indexOf('fail')>=0 || String(toast).toLowerCase().indexOf('error')>=0) ? " error": "")}>{toast}</div> : null}
             </div>
           </div>
         </div>
@@ -1134,8 +1246,12 @@ function App() {
               
                               <div className="mockCard">
                                 <div className="sectionTitle">{step === 0 ? 'Välj art' : step === 1 ? 'Mål' : step === 2 ? 'Plats' : step === 3 ? 'Tid' : step === 4 ? 'Vind' : step === 5 ? 'Typ av vatten' : 'Djup'}</div>
-              
-                                {/* Step content */}
+
+                                {remoteSteps && remoteSteps.length ? (
+                                  renderRemoteStep(remoteSteps[step] || remoteSteps[0], step)
+                                ) : (
+                                  <>
+                                    {/* Step content */}
                                 {step === 0 ? (
                                   <div className="choiceGrid cols3">
                                     <button className={"choiceCard imgCard bg-species-gadda " + (species==='gadda' ? 'selected':'')} type="button" onClick={()=>{ setSpecies('gadda'); setStep(1); }}>
@@ -1307,8 +1423,10 @@ function App() {
                                   </div>
                                 ) : null}
               
+                                    </>
+                                  )}
                               </div>
-              
+
                               <div className="footerRow">
                                 <div className="muted">Utan spot-drama.</div>
                                 <div className="muted">v1.1</div>

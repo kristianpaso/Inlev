@@ -3,271 +3,1307 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rotation – Startsida</title>
+  <title>Rotation – Hälsa & kalorier</title>
   <style>
-    :root{--bg:#0b1220;--text:#e9eefc;--muted:rgba(233,238,252,.72);--accent:#6aa7ff}
+    :root{
+      --bg:#06130f;
+      --panel:rgba(255,255,255,.06);
+      --panel2:rgba(255,255,255,.04);
+      --stroke:rgba(255,255,255,.10);
+      --text:#ecfff7;
+      --muted:rgba(236,255,247,.72);
+      --muted2:rgba(236,255,247,.55);
+      --good:#34d399;
+      --bad:#fb7185;
+      --warn:#fbbf24;
+      --accent:#2dd4bf;
+      --shadow: 0 14px 40px rgba(0,0,0,.55);
+      --r:18px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
     *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#070b14, var(--bg));color:var(--text)}
-    .wrap{max-width:1100px;margin:0 auto;padding:18px}
-    header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
-    h1{font-size:20px;margin:0}
-    .sub{font-size:12px;color:var(--muted)}
-    .btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:var(--text);padding:8px 10px;border-radius:10px;cursor:pointer;font-weight:800;text-decoration:none}
-    .btn:hover{filter:brightness(1.06)}
-    .grid{display:grid;grid-template-columns:1fr;gap:12px}
-    @media(min-width:980px){.grid{grid-template-columns:1fr 1fr}}
-    .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:14px}
-    .card h2{margin:0 0 10px;font-size:16px}
-    label{display:block;margin-top:10px;margin-bottom:6px;color:var(--muted);font-size:12px}
-    input{width:100%;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text)}
-    .hint{font-size:12px;color:var(--muted);margin-top:8px}
+    body{margin:0;background:
+        radial-gradient(1100px 650px at 18% 10%, rgba(45,212,191,.20), transparent 60%),
+        radial-gradient(900px 520px at 78% 18%, rgba(52,211,153,.16), transparent 55%),
+        radial-gradient(1000px 800px at 50% 95%, rgba(251,191,36,.08), transparent 60%),
+        linear-gradient(180deg, rgba(0,0,0,.35), transparent 38%),
+        var(--bg);
+      color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";}
+    body.modal-open{overflow:hidden}
+    .wrap{max-width:1200px;margin:0 auto;padding:22px 16px 40px}
+    h1{margin:0 0 6px 0;font-size:28px;letter-spacing:.2px}
+    .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+    .btn{
+      background:linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06));
+      border:1px solid var(--stroke);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      box-shadow: 0 6px 18px rgba(0,0,0,.35);
+      font-weight:700;
+    }
+    .btn:active{transform:translateY(1px)}
+    .btn.secondary{background:rgba(255,255,255,.05)}
+    .btn.danger{border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.10)}
+    .btn.good{border-color:rgba(45,212,191,.35);background:rgba(45,212,191,.10)}
+    .btn.small{padding:7px 9px;border-radius:10px;font-size:12px}
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.04));
+      border:1px solid var(--stroke);
+      border-radius: var(--r);
+      padding:14px;
+      box-shadow: var(--shadow);
+    }
+    .card h2{margin:0 0 10px 0;font-size:16px}
+    .grid2{display:grid;grid-template-columns: 1fr 1fr; gap:14px}
+    @media (max-width: 980px){.grid2{grid-template-columns:1fr}}
+    label{display:block;color:var(--muted);font-size:12px;margin:10px 0 6px}
+    input, select, textarea{
+      width:100%;
+      background: rgba(0,0,0,.22);
+      border:1px solid rgba(255,255,255,.10);
+      color:var(--text);
+      border-radius:12px;
+      padding:10px 10px;
+      outline:none;
+    }
+    textarea{min-height:90px;resize:vertical}
+    .hint{color:var(--muted2);font-size:12px}
+    .split{display:flex;gap:10px}
+    .split > *{flex:1}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.10);font-size:12px}
+    .pill b{color:var(--muted);font-weight:800}
     .list{display:flex;flex-direction:column;gap:10px}
-    .item{padding:12px;border-radius:14px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.18)}
-    .item-title{font-weight:900}
-    .item-sub{font-size:12px;color:var(--muted);margin-top:4px}
-    .pill{display:inline-flex;gap:6px;align-items:center;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.10);font-size:12px}
-  </style>
+    .item{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:12px}
+    .name{font-size:22px;font-weight:900;margin:0 0 4px}
+    .miniCal{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+    .dot{width:10px;height:10px;border-radius:4px;border:1px solid rgba(255,255,255,.18);background: rgba(255,255,255,.06);cursor:pointer;}
+    .dot.on{background: rgba(45,212,191,.35); border-color: rgba(45,212,191,.55)}
+    .dot.sel{outline:2px solid rgba(251,191,36,.65)}
+    .modalBackdrop{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;padding:14px;z-index:50;backdrop-filter: blur(6px)}
+    .card.modal{background:rgba(6,19,15,.96);border:1px solid rgba(255,255,255,.16);box-shadow:0 22px 70px rgba(0,0,0,.75)}
+.modal{max-width:820px;width:100%}
+    .modalHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+    .kgrid{display:grid;grid-template-columns:1fr 1fr; gap:10px}
+    @media(max-width:860px){.kgrid{grid-template-columns:1fr}}
+    .entries{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+    .entryRow{display:grid;grid-template-columns: 1fr 1.4fr 1fr 90px; gap:10px;align-items:center}
+    @media(max-width:900px){.entryRow{grid-template-columns:1fr}}
+    .mono{font-family:var(--mono)}
+    .right{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  
+    /* Person card redesign */
+    .personCardGrid{display:grid;grid-template-columns: 340px 1fr 300px;gap:14px;align-items:stretch}
+    @media(max-width:1100px){.personCardGrid{grid-template-columns:1fr;}}
+    .pLeft{background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:14px}
+    .pMid{background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:14px;overflow:auto}
+    .pRight{background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:14px}
+    .bigScore{font-size:52px;font-weight:900;line-height:1;margin-top:6px}
+    .metricLine{display:flex;justify-content:space-between;gap:10px;color:var(--muted);font-size:12px;margin-top:6px}
+    .metricLine span:last-child{color:var(--text);font-weight:800}
+    .miniTitle{font-weight:900;margin:0 0 8px 0}
+    table.pTable{width:100%;border-collapse:collapse;font-size:13px}
+    table.pTable th, table.pTable td{padding:6px 6px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left}
+    table.pTable th{color:var(--muted);font-size:12px;font-weight:800}
+    .scoreCols{display:flex;gap:10px;align-items:center;justify-content:flex-end}
+    .scoreBox2{display:inline-flex;gap:6px}
+    .sTiny{min-width:26px;text-align:center;padding:2px 6px;border-radius:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.10);font-size:12px}
+    .calGrid{display:grid;grid-template-columns: repeat(7, 1fr);gap:6px;margin-top:10px}
+    .calDow{color:var(--muted);font-size:11px;text-align:center}
+    .calDay{height:28px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.04);cursor:pointer;font-size:12px}
+    .calDay.off{opacity:.25;cursor:default}
+    .calDay.has{border-color: rgba(45,212,191,.45);background: rgba(45,212,191,.12)}
+    .calDay.sel{outline:2px solid rgba(251,191,36,.70)}
+    .calLegend{margin-top:10px;color:var(--muted);font-size:12px}
+
+
+/* v26: Daglogg låst till person, göm person-sök */
+#dayModal .dayLeft{display:none!important}
+#dayModal .dayGrid{grid-template-columns:1fr!important}
+
+</style>
 </head>
 <body>
   <div class="wrap">
-    <header>
+    <div class="topbar">
       <div>
-        <h1>Rotation – Startsida</h1>
-        <div class="sub">Överblick över personer och avdelningar. Öppna editor för att ändra.</div>
+        <h1>Hälsa & kalorier</h1>
+        <div class="sub">Registrera vad en person gjort en viss dag (avdelning + minuter). Systemet räknar MET → kcal och Totalpoäng (MET-poäng + K-poäng).</div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center">
-  <select id="apiMode" class="btn" style="padding:8px 10px">
-    <option value="local">Localhost</option>
-    <option value="render">Render</option>
-  </select>
-  <a class="btn" href="app.html">Öppna Editor</a>
-  <button class="btn" id="refreshTop">Uppdatera</button>
-</div>
-    </header>
+      <div class="right">
+        <select id="apiMode" class="btn" style="padding:10px 12px">
+          <option value="local">Localhost</option>
+          <option value="render">Render</option>
+        </select>
+        <button class="btn secondary" id="btnNewDay" style="display:none">Registrera dag</button>
+        <button class="btn secondary" id="btnPeople">Personer</button>
+        <button class="btn secondary" id="btnDepartments">Avdelningar</button>
+        <button class="btn" id="btnRefresh">Uppdatera</button>
+      </div>
+    </div>
 
-    <div class="grid">
-      <div class="card">
-        <h2>Avdelningar</h2>
-        <div id="deptList" class="list"></div>
+    <div id="viewOverview" class="card">
+      <h2>Överblick</h2>
+      <div class="hint">Klicka på en persons datumrutor för att markera dagar. Summering visas per person (markerade dagar, annars alla dagar).</div>
+      <div id="peopleList" class="list" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <div class="modalBackdrop" id="dayModal">
+    <div class="card modal">
+      <div class="modalHead">
+        <div>
+          <div style="font-weight:900;font-size:18px">Registrera dag</div>
+          <div class="hint">Välj person och datum. Lägg till 1+ avdelningar med minuter.</div>
+        </div>
+        <button class="btn danger" id="closeDayModal">Stäng</button>
       </div>
 
-      <div class="card" style="grid-column:1/-1">
-  <h2>Personer</h2>
-  <div class="hint">Visar totalslit baserat på vald rotationslängd. (Totalpoäng + kcal uppskattning, 70 kg)</div>
+      <div class="grid2 dayGrid">
+        <div class="dayLeft">
+          <label>Hitta person</label>
+          <input id="personSearch" placeholder="Skriv namn..." />
+          <div class="hint">Välj en person i listan nedan eller skapa ny.</div>
+          <div id="personPick" class="list" style="margin-top:10px;max-height:220px;overflow:auto"></div>
 
-  <label for="calcDays">Antal dagar</label>
-  <input id="calcDays" type="number" min="1" max="10" step="1" value="5" />
+          <div style="margin-top:10px" class="split">
+            <button class="btn secondary" id="btnAddPerson">Lägg till ny person</button>
+            <input id="newPersonName" placeholder="Namn" />
+          </div>
+        </div>
 
-  <div id="personList" class="list" style="margin-top:10px"></div>
-</div>
+        <div class="dayRight">
+          <label>Välj dag</label>
+          <input id="datePick" type="date" />
+          <div class="hint">Spara skapar/uppdaterar loggen för valt datum.</div>
+
+          <div style="margin-top:10px" class="card" style="padding:12px">
+            <div style="font-weight:900">Dagens rader</div>
+            <div class="hint">Minuter: 240 = 4h, 480 = 8h.</div>
+            <div id="entries" class="entries"></div>
+
+            <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn secondary" id="btnAddEntry">+ Lägg till avdelning</button>
+              <button class="btn secondary" id="btnCreateDept">Skapa avdelning</button>
+            </div>
+
+            <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn good" id="btnSaveDay">Spara dag</button>
+              <button class="btn" id="btnAddAnotherDay">Lägg till dag</button>
+              <button class="btn" id="btnDone">Klar</button>
+            </div>
+
+            <div id="dayStatus" class="hint" style="margin-top:10px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modalBackdrop" id="deptModal">
+    <div class="card modal">
+      <div class="modalHead">
+        <div>
+          <div style="font-weight:900;font-size:18px">Skapa avdelning</div>
+          <div class="hint">Fyll i mål/h, vikt och koncentration så räknas MET-poäng, K-poäng och Totalpoäng.</div>
+        </div>
+        <button class="btn danger" id="closeDeptModal">Stäng</button>
+      </div>
+
+      <div class="grid2">
+        <div>
+          <label>Namn</label>
+          <input id="d_name" placeholder="t.ex. Plock & Pack" />
+          <div class="split">
+            <div>
+              <label>Mål / timme</label>
+              <input id="d_goal" type="number" min="0" step="1" placeholder="t.ex. 165" />
+            </div>
+            <div>
+              <label>Snitt vikt (kg)</label>
+              <input id="d_weight" type="number" min="0" step="0.1" placeholder="t.ex. 0.8" />
+            </div>
+          </div>
+
+          <label>Information</label>
+          <textarea id="d_info" placeholder="Kort beskrivning..."></textarea>
+        </div>
+
+        <div>
+          <label>Koncentration (K-poäng delar)</label>
+          <div class="kgrid">
+            <div>
+              <label>A) Tidspress & takt (0–2)</label>
+              <select id="k_a"><option>0</option><option>1</option><option>2</option></select>
+            </div>
+            <div>
+              <label>B) Avbrott & multitasking (0–2)</label>
+              <select id="k_b"><option>0</option><option>1</option><option>2</option></select>
+            </div>
+            <div>
+              <label>C) Informationskomplexitet (0–2)</label>
+              <select id="k_c"><option>0</option><option>1</option><option>2</option></select>
+            </div>
+            <div>
+              <label>D) Felkonsekvens (0–3)</label>
+              <select id="k_d"><option>0</option><option>1</option><option>2</option><option>3</option></select>
+            </div>
+            <div>
+              <label>E) Säkerhets/ansvarsrisk (0–1)</label>
+              <select id="k_e"><option>0</option><option>1</option></select>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn good" id="btnSaveDept">Spara avdelning</button>
+            <span class="pill"><b>Totalpoäng</b><span id="preview_total">—</span></span>
+            <span class="pill"><b>MET-poäng</b><span id="preview_met">—</span></span>
+            <span class="pill"><b>K-poäng</b><span id="preview_k">—</span></span>
+          </div>
+          <div class="hint" id="deptStatus" style="margin-top:10px"></div>
+          <div class="hint mono" style="margin-top:10px">
+            Formler: kcal/timme = MET * 3.5 * viktKg / 200 * 60. MET-poäng mappas linjärt från MET 2.0→1 till MET 8.0→10.
+            Totalpoäng = (MET-poäng + K-poäng)/2. Dagpoäng = tidsvägt snitt över dagens rader.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Modal: Edit person -->
+  <div class="modalBackdrop" id="personModal">
+    <div class="card modal" style="max-width:520px">
+      <div class="modalHead">
+        <div>
+          <div style="font-weight:900;font-size:18px">Redigera person</div>
+          <div class="hint">Ändra namn eller ta bort personen.</div>
+        </div>
+        <button class="btn danger" id="closePersonModal">Stäng</button>
+      </div>
+
+      <label>Namn</label>
+      <input id="editPersonName" placeholder="Namn" />
+
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn good" id="btnSavePersonEdit">Spara</button>
+        <button class="btn danger" id="btnDeletePerson">Ta bort person</button>
+      </div>
+      <div class="hint" id="personStatus" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+
+  <!-- Modal: People -->
+  <div class="modalBackdrop" id="peopleManageModal">
+    <div class="card modal" style="max-width:560px">
+      <div class="modalHead">
+        <div>
+          <div style="font-weight:900;font-size:18px">Personer</div>
+          <div class="hint">Skapa ny person eller välj en person för att ändra namn / ta bort.</div>
+        </div>
+        <button class="btn danger" id="closePeopleManage">Stäng</button>
+      </div>
+
+      <div class="split" style="margin-bottom:10px">
+        <input id="pm_newName" placeholder="Namn på ny person" />
+        <button class="btn secondary" id="btnPmCreate">Skapa person</button>
+      </div>
+
+      <label>Välj person</label>
+      <select id="pm_select"></select>
+
+      <label>Namn</label>
+      <input id="pm_name" placeholder="Namn" />
+
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn good" id="btnPmSave">Spara</button>
+        <button class="btn danger" id="btnPmDelete">Ta bort person</button>
+      </div>
+      <div class="hint" id="pm_status" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+
+  <!-- Modal: Departments -->
+  <div class="modalBackdrop" id="deptManageModal">
+    <div class="card modal">
+      <div class="modalHead">
+        <div>
+          <div style="font-weight:900;font-size:18px">Avdelningar</div>
+          <div class="hint">Här kan du skapa, ändra och ta bort avdelningar.</div>
+        </div>
+        <button class="btn danger" id="closeDeptManage">Stäng</button>
+      </div>
+
+      <div class="grid2">
+        <div class="card" style="padding:12px">
+          <div style="font-weight:900;margin-bottom:8px">Skapa / ändra</div>
+
+          <label>Namn</label>
+          <input id="dm_name" placeholder="t.ex. Plock & Pack" />
+
+          <div class="split">
+            <div>
+              <label>Mål / timme</label>
+              <input id="dm_goal" type="number" min="0" step="1" placeholder="t.ex. 165" />
+            </div>
+            <div>
+              <label>Snitt vikt (kg)</label>
+              <input id="dm_weight" type="number" min="0" step="0.1" placeholder="t.ex. 0.8" />
+            </div>
+          </div>
+
+          <label>Information</label>
+          <textarea id="dm_info" placeholder="Kort beskrivning..."></textarea>
+
+          <label>Koncentration (K-poäng delar)</label>
+          <div class="kgrid">
+            <div>
+              <label>A) Tidspress & takt (0–2)</label>
+              <select id="dm_k_a"><option>0</option><option>1</option><option>2</option></select>
+            </div>
+            <div>
+              <label>B) Avbrott & multitasking (0–2)</label>
+              <select id="dm_k_b"><option>0</option><option>1</option><option>2</option></select>
+            </div>
+            <div>
+              <label>C) Informationskomplexitet (0–2)</label>
+              <select id="dm_k_c"><option>0</option><option>1</option><option>2</option></select>
+            </div>
+            <div>
+              <label>D) Felkonsekvens (0–3)</label>
+              <select id="dm_k_d"><option>0</option><option>1</option><option>2</option><option>3</option></select>
+            </div>
+            <div>
+              <label>E) Säkerhets/ansvarsrisk (0–1)</label>
+              <select id="dm_k_e"><option>0</option><option>1</option></select>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn good" id="btnDmSave">Spara</button>
+            <button class="btn secondary" id="btnDmClear">Ny</button>
+            <span class="pill"><b>Totalpoäng</b><span id="dm_preview_total">—</span></span>
+            <span class="pill"><b>MET-poäng</b><span id="dm_preview_met">—</span></span>
+            <span class="pill"><b>K-poäng</b><span id="dm_preview_k">—</span></span>
+          </div>
+          <div class="hint" id="dm_status" style="margin-top:10px"></div>
+        </div>
+
+        <div class="card" style="padding:12px">
+          <div style="font-weight:900;margin-bottom:8px">Lista</div>
+          <div class="hint">Klicka “Ändra” för att ladda in avdelningen i formuläret. “Ta bort” kräver bekräftelse.</div>
+          <div id="dm_list" class="list" style="margin-top:10px;max-height:65vh;overflow:auto"></div>
+        </div>
+      </div>
     </div>
   </div>
 
 <script>
 (() => {
-  const RENDER_URL = 'https://rotation-api.onrender.com';
-  const LOCAL_URL = 'http://localhost:5050';
+  const RENDER_URL = "https://rotation-api.onrender.com";
+  const LOCAL_URL = "http://localhost:5050";
 
   const els = {
-    apiMode: document.getElementById('apiMode'),
-    refreshTop: document.getElementById('refreshTop'),
-    deptList: document.getElementById('deptList'),
-    personList: document.getElementById('personList'),
-    calcDays: document.getElementById('calcDays')
+    apiMode: document.getElementById("apiMode"),
+    btnRefresh: document.getElementById("btnRefresh"),
+    btnNewDay: document.getElementById("btnNewDay"),
+    btnPeople: document.getElementById("btnPeople"),
+    btnDepartments: document.getElementById("btnDepartments"),
+    peopleList: document.getElementById("peopleList"),
+
+    dayModal: document.getElementById("dayModal"),
+    closeDayModal: document.getElementById("closeDayModal"),
+    personSearch: document.getElementById("personSearch"),
+    personPick: document.getElementById("personPick"),
+    btnAddPerson: document.getElementById("btnAddPerson"),
+    newPersonName: document.getElementById("newPersonName"),
+    datePick: document.getElementById("datePick"),
+    entries: document.getElementById("entries"),
+    btnAddEntry: document.getElementById("btnAddEntry"),
+    btnCreateDept: document.getElementById("btnCreateDept"),
+    btnSaveDay: document.getElementById("btnSaveDay"),
+    btnAddAnotherDay: document.getElementById("btnAddAnotherDay"),
+    btnDone: document.getElementById("btnDone"),
+    dayStatus: document.getElementById("dayStatus"),
+
+    deptModal: document.getElementById("deptModal"),
+    closeDeptModal: document.getElementById("closeDeptModal"),
+    d_name: document.getElementById("d_name"),
+    d_goal: document.getElementById("d_goal"),
+    d_weight: document.getElementById("d_weight"),
+    d_info: document.getElementById("d_info"),
+    k_a: document.getElementById("k_a"),
+    k_b: document.getElementById("k_b"),
+    k_c: document.getElementById("k_c"),
+    k_d: document.getElementById("k_d"),
+    k_e: document.getElementById("k_e"),
+    btnSaveDept: document.getElementById("btnSaveDept"),
+    preview_total: document.getElementById("preview_total"),
+    preview_met: document.getElementById("preview_met"),
+    preview_k: document.getElementById("preview_k"),
+    deptStatus: document.getElementById("deptStatus"),
+
+    personModal: document.getElementById("personModal"),
+    closePersonModal: document.getElementById("closePersonModal"),
+    editPersonName: document.getElementById("editPersonName"),
+    btnSavePersonEdit: document.getElementById("btnSavePersonEdit"),
+    btnDeletePerson: document.getElementById("btnDeletePerson"),
+    personStatus: document.getElementById("personStatus"),
+
+    peopleManageModal: document.getElementById("peopleManageModal"),
+    closePeopleManage: document.getElementById("closePeopleManage"),
+    pm_newName: document.getElementById("pm_newName"),
+    btnPmCreate: document.getElementById("btnPmCreate"),
+    pm_select: document.getElementById("pm_select"),
+    pm_name: document.getElementById("pm_name"),
+    btnPmSave: document.getElementById("btnPmSave"),
+    btnPmDelete: document.getElementById("btnPmDelete"),
+    pm_status: document.getElementById("pm_status"),
+
+    deptManageModal: document.getElementById("deptManageModal"),
+    closeDeptManage: document.getElementById("closeDeptManage"),
+    dm_name: document.getElementById("dm_name"),
+    dm_goal: document.getElementById("dm_goal"),
+    dm_weight: document.getElementById("dm_weight"),
+    dm_info: document.getElementById("dm_info"),
+    dm_k_a: document.getElementById("dm_k_a"),
+    dm_k_b: document.getElementById("dm_k_b"),
+    dm_k_c: document.getElementById("dm_k_c"),
+    dm_k_d: document.getElementById("dm_k_d"),
+    dm_k_e: document.getElementById("dm_k_e"),
+    btnDmSave: document.getElementById("btnDmSave"),
+    btnDmClear: document.getElementById("btnDmClear"),
+    dm_preview_total: document.getElementById("dm_preview_total"),
+    dm_preview_met: document.getElementById("dm_preview_met"),
+    dm_preview_k: document.getElementById("dm_preview_k"),
+    dm_status: document.getElementById("dm_status"),
+    dm_list: document.getElementById("dm_list"),
+  };
+
+  const state = {
+    editingDeptId: null,
+    editingPersonMenuId: null,
+    persons: [],
+    depts: [],
+    datesByPerson: new Map(),
+    selectedDates: new Map(),
+    currentPersonId: null,
+    editingPersonId: null,
+    entryRows: []
+  };
+
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
+  const numOrNull = (v)=>{
+    if(v===null||v===undefined) return null;
+    if(typeof v==="string" && v.trim()==="") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
   };
 
   function setApiMode(mode){
-    const v = (mode === 'render') ? 'render' : 'local';
-    localStorage.setItem('rotation_api_mode', v);
-    if(els.apiMode) els.apiMode.value = v;
+    const v = (mode === "render") ? "render" : "local";
+    localStorage.setItem("rotation_api_mode", v);
+    els.apiMode.value = v;
   }
-
   function apiBase(){
-    const mode = localStorage.getItem('rotation_api_mode') || 'local';
-    return mode === 'render' ? RENDER_URL : LOCAL_URL;
+    const mode = localStorage.getItem("rotation_api_mode") || "local";
+    return mode === "render" ? RENDER_URL : LOCAL_URL;
   }
+  setApiMode(localStorage.getItem("rotation_api_mode") || "local");
+  els.apiMode.addEventListener("change", () => { setApiMode(els.apiMode.value); refreshAll(); });
 
-  // defaults
-  setApiMode(localStorage.getItem('rotation_api_mode') || 'local');
-
-  async function api(path){
-    const res = await fetch(apiBase() + path);
-    const data = await res.json();
-    if(!res.ok) throw new Error(data?.error || ('API error ' + res.status));
+  async function api(path, opts={}){
+    const url = apiBase() + path;
+    const res = await fetch(url, { headers:{ "Content-Type":"application/json" }, ...opts });
+    const ct = res.headers.get("content-type") || "";
+    const data = ct.includes("application/json") ? await res.json() : { ok:false, error: await res.text() };
+    if(!res.ok) throw new Error(data?.error || ("API error " + res.status));
     return data;
   }
 
-  function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-  function numOrNull(v){
-    if(v === null || v === undefined) return null;
-    if(typeof v === 'string' && v.trim() === '') return null;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
-  }
-  function clamp(n,a,b){ return Math.max(a, Math.min(b, n)); }
+  // ---- scoring ----
   function estimateKgPerHour(goalPerHour, avgWeightKg){
     const g = numOrNull(goalPerHour);
     const w = numOrNull(avgWeightKg);
-    if(g === null || w === null) return null;
+    if(g===null || w===null) return null;
     return g * w;
   }
   function estimateMET(kgPerHour, goalPerHour){
-    if(kgPerHour === null) return null;
+    if(kgPerHour===null) return null;
     let met;
     if(kgPerHour < 50) met = 2.5;
     else if(kgPerHour < 150) met = 3.5;
     else if(kgPerHour < 300) met = 4.5;
     else if(kgPerHour < 600) met = 6.0;
     else met = 7.0;
+
     const g = numOrNull(goalPerHour);
-    if(g !== null){
-      if(g >= 300) met += 0.5;
-      if(g >= 600) met += 0.5;
+    if(g!==null){
+      if(g>=300) met += 0.5;
+      if(g>=600) met += 0.5;
     }
-    return clamp(Math.round(met*10)/10, 2.0, 8.0);
+    return Math.round(clamp(met,2.0,8.0)*10)/10;
   }
   function metToScore(met){
-    if(met === null) return null;
-    const minMet = 2.0, maxMet = 8.0;
-    const clamped = clamp(met, minMet, maxMet);
-    const t = (clamped - minMet) / (maxMet - minMet);
-    return clamp(1 + Math.round(t * 9), 1, 10);
+    if(met===null) return null;
+    const min=2.0,max=8.0;
+    const x = clamp(met,min,max);
+    const t = (x-min)/(max-min);
+    return clamp(1 + Math.round(t*9), 1, 10);
   }
   function kScore(d){
     const a = clamp(Number(d.k_timePressure ?? 0), 0, 2);
     const b = clamp(Number(d.k_interruptions ?? 0), 0, 2);
     const c = clamp(Number(d.k_complexity ?? 0), 0, 2);
-    const dd = clamp(Number(d.k_errorConsequence ?? 0), 0, 3);
+    const dd= clamp(Number(d.k_errorConsequence ?? 0), 0, 3);
     const e = clamp(Number(d.k_safetyRisk ?? 0), 0, 1);
     const sum = a+b+c+dd+e;
-    return clamp(sum === 0 ? 1 : sum, 1, 10);
+    return clamp(sum, 0, 10);
   }
   function totalScore(metScore, k){
-    if(metScore === null) return null;
-    const t = (Number(metScore) + Number(k)) / 2;
-    return Math.round(t*10)/10;
+    if(metScore===null) return null;
+    return Math.round(((Number(metScore)+Number(k))/2)*10)/10;
   }
-  function kcalPerHourFromMET(met, weightKg=70){
-    if(met === null) return null;
+  function kcalPerHour(met, weightKg=70){
+    if(met===null) return null;
     return met * 3.5 * weightKg / 200 * 60;
   }
+  function deptComputed(d){
+    const kgph = estimateKgPerHour(d.goalPerHour, d.avgWeightKg);
+    const met = estimateMET(kgph, d.goalPerHour);
+    const ms = metToScore(met);
+    const ks = kScore(d);
+    const ts = totalScore(ms, ks);
+    return { met, metScore: ms, kScore: ks, totalScore: ts, kcalH: kcalPerHour(met, 70) };
+  }
 
-  async function refresh(){
-    const [depts, persons] = await Promise.all([ api('/api/departments'), api('/api/persons') ]);
+  async function loadDatesForPerson(personId){
+    if(state.datesByPerson.has(personId)) return state.datesByPerson.get(personId);
+    try{
+      const dates = await api('/api/day-logs/dates?personId=' + encodeURIComponent(personId));
+      state.datesByPerson.set(personId, Array.isArray(dates) ? dates : []);
+      return state.datesByPerson.get(personId);
+    }catch(_e){
+      state.datesByPerson.set(personId, []);
+      return [];
+    }
+  }
+  async function loadLogsForPerson(personId, dates){
+    if(!dates.length) return [];
+    const sorted = dates.slice().sort();
+    const from = sorted[0];
+    const to = sorted[sorted.length-1];
+    return await api("/api/day-logs?personId=" + encodeURIComponent(personId) + "&from=" + from + "&to=" + to);
+  }
 
-    // Departments
-    els.deptList.innerHTML = depts.length ? '' : '<div class="hint">Inga avdelningar ännu.</div>';
-    for(const d of depts){
-      const goalPerHour = numOrNull(d.goalPerHour);
-      const avgWeightKg = numOrNull(d.avgWeightKg);
-      const kgph = estimateKgPerHour(goalPerHour, avgWeightKg);
-      const met = d.met ?? estimateMET(kgph, goalPerHour);
-      const metScore = d.metScore ?? metToScore(met);
-      const k = d.kScore ?? kScore(d);
-      const total = d.totalScore ?? totalScore(metScore, k);
-      const kcalH = kcalPerHourFromMET(met, 70);
-      const kcal8 = kcalH === null ? null : Math.round(kcalH * 8);
+  function computePeriod(logs, selectedSet){
+    const deptMap = new Map(state.depts.map(d => [String(d.id), d]));
+    let sumWeighted = 0;
+    let sumMinutes = 0;
+    let sumKcal = 0;
 
-      const div = document.createElement('div');
-      div.className = 'item';
-      div.innerHTML = `
-        <div class="item-title">${esc(d.name)}</div>
-        <div class="item-sub">
-          <span class="pill"><b>Total</b>: ${total ?? '—'}</span>
-          <span class="pill">MET: ${metScore ?? '—'}</span>
-          <span class="pill">K: ${k ?? '—'}</span>
-          <span class="pill">kcal/8h: ${kcal8 ?? '—'}</span>
-        </div>
-      `;
-      els.deptList.appendChild(div);
+    for(const log of logs){
+      if(selectedSet && selectedSet.size && !selectedSet.has(log.date)) continue;
+      for(const e of (log.entries||[])){
+        const dept = deptMap.get(String(e.departmentId));
+        if(!dept) continue;
+        const mins = Number(e.minutes||0);
+        if(!Number.isFinite(mins) || mins<=0) continue;
+        const c = deptComputed(dept);
+        if(c.totalScore!==null){
+          sumWeighted += Number(c.totalScore) * mins;
+          sumMinutes += mins;
+        }
+        if(c.kcalH!==null){
+          sumKcal += c.kcalH * (mins/60);
+        }
+      }
     }
 
-    // Persons with rotation scoring
-    const deptsById = new Map(depts.map(d => [String(d.id), d]));
-    const days = clamp(Number(els.calcDays?.value || 5), 1, 10);
+    const avgScore = sumMinutes ? Math.round((sumWeighted/sumMinutes)*10)/10 : null;
+    return {
+      minutes: sumMinutes,
+      hours: sumMinutes ? Math.round((sumMinutes/60)*10)/10 : 0,
+      totalScore: avgScore,
+      kcal: Math.round(sumKcal)
+    };
+  }
 
-    function computeRotationForPerson(person){
-      const deptIds = Array.isArray(person.departmentIds) ? person.departmentIds : [];
-      let totalPoints = 0;
-      let totalKcal = 0;
-      let kcalKnown = true;
-      const plan = [];
+  function renderPeople(){
+    els.peopleList.innerHTML = "";
+    if(!state.persons.length){
+      els.peopleList.innerHTML = '<div class="hint">Inga personer ännu. Klicka “Registrera person” och skapa en person.</div>';
+      return;
+    }
 
-      for(let i=0;i<days;i++){
-        if(deptIds.length === 0){
-          plan.push({day:i+1, name:'—', total:null});
-          continue;
+    const wrap = document.createElement("div");
+    wrap.className = "list";
+
+    const deptMap = new Map(state.depts.map(d => [String(d.id), d]));
+
+    // month calendar base: current month
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth(); // 0-11
+    const monthStart = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 0);
+    const daysInMonth = monthEnd.getDate();
+    // make Monday=0? mock shows Su Mo.. keep Sunday first
+    const firstDow = monthStart.getDay(); // 0=Sun
+    const cells = [];
+    for(let i=0;i<firstDow;i++) cells.push(null);
+    for(let d=1; d<=daysInMonth; d++){
+      const dd = String(d).padStart(2,'0');
+      const mm = String(month+1).padStart(2,'0');
+      const dateStr = `${year}-${mm}-${dd}`;
+      cells.push(dateStr);
+    }
+    // fill to 42 cells
+    while(cells.length < 42) cells.push(null);
+
+    function computePeriodDetailed(pid, logs, selectedSet){
+      let sumMinutes = 0;
+      let sumKcal = 0;
+      let sumTotalWeighted = 0;
+      let sumMetWeighted = 0;
+      let sumKWeighted = 0;
+
+      const byDept = new Map(); // deptId -> {minutes,kcal,totalW,metW,kW,name}
+      for(const log of logs){
+        if(selectedSet && selectedSet.size && !selectedSet.has(log.date)) continue;
+        for(const e of (log.entries||[])){
+          const dept = deptMap.get(String(e.departmentId));
+          if(!dept) continue;
+          const mins = Number(e.minutes||0);
+          if(!Number.isFinite(mins) || mins<=0) continue;
+
+          const c = deptComputed(dept); // {metScore,kScore,totalScore,kcalH}
+          const kcal = (c.kcalH ? c.kcalH * (mins/60) : 0);
+
+          sumMinutes += mins;
+          sumKcal += kcal;
+
+          if(c.totalScore!=null) sumTotalWeighted += Number(c.totalScore) * mins;
+          if(c.metScore!=null) sumMetWeighted += Number(c.metScore) * mins;
+          if(c.kScore!=null) sumKWeighted += Number(c.kScore) * mins;
+
+          const key = String(e.departmentId);
+          const row = byDept.get(key) || { name: dept.name, minutes:0, kcal:0, totalW:0, metW:0, kW:0 };
+          row.minutes += mins;
+          row.kcal += kcal;
+          if(c.totalScore!=null) row.totalW += Number(c.totalScore) * mins;
+          if(c.metScore!=null) row.metW += Number(c.metScore) * mins;
+          if(c.kScore!=null) row.kW += Number(c.kScore) * mins;
+          byDept.set(key, row);
         }
-        const dept = deptsById.get(String(deptIds[i % deptIds.length]));
-        if(!dept){
-          plan.push({day:i+1, name:'Okänd', total:null});
-          continue;
-        }
-        const goalPerHour = numOrNull(dept.goalPerHour);
-        const avgWeightKg = numOrNull(dept.avgWeightKg);
-        const kgph = estimateKgPerHour(goalPerHour, avgWeightKg);
-        const met = dept.met ?? estimateMET(kgph, goalPerHour);
-        const metScore = dept.metScore ?? metToScore(met);
-        const k = dept.kScore ?? kScore(dept);
-        const total = dept.totalScore ?? totalScore(metScore, k);
-
-        plan.push({day:i+1, name:dept.name, total});
-        if(total !== null && total !== undefined) totalPoints += Number(total);
-
-        const kcalH = kcalPerHourFromMET(met, 70);
-        if(kcalH !== null) totalKcal += kcalH * 8; else kcalKnown = false;
       }
 
+      const avgTotal = sumMinutes ? Math.round((sumTotalWeighted/sumMinutes)*10)/10 : null;
+      const avgMet = sumMinutes ? Math.round((sumMetWeighted/sumMinutes)*10)/10 : null;
+      const avgK = sumMinutes ? Math.round((sumKWeighted/sumMinutes)*10)/10 : null;
+
+      const deptRows = Array.from(byDept.values())
+        .map(r => ({
+          name: r.name,
+          minutes: r.minutes,
+          timeStr: minutesToStr(r.minutes),
+          kcal: Math.round(r.kcal),
+          met: r.minutes ? Math.round((r.metW/r.minutes)*10)/10 : null,
+          k: r.minutes ? Math.round((r.kW/r.minutes)*10)/10 : null,
+          total: r.minutes ? Math.round((r.totalW/r.minutes)*10)/10 : null
+        }))
+        .sort((a,b)=> (b.minutes - a.minutes));
+
       return {
-        totalPoints: Math.round(totalPoints*10)/10,
-        totalKcal: kcalKnown ? Math.round(totalKcal) : null,
-        plan
+        minutes: sumMinutes,
+        hours: sumMinutes ? Math.round((sumMinutes/60)*10)/10 : 0,
+        kcal: Math.round(sumKcal),
+        avgTotal, avgMet, avgK,
+        deptRows
       };
     }
 
-    const rows = persons.map(p => {
-      const deptNames = (p.departmentIds||[]).map(id => deptsById.get(String(id))?.name).filter(Boolean);
-      const r = computeRotationForPerson(p);
-      return { p, deptNames, ...r };
-    });
+    function minutesToStr(mins){
+      const h = Math.floor(mins/60);
+      const m = mins % 60;
+      if(h<=0) return `${m} min`;
+      if(m===0) return `${h}h`;
+      return `${h}h ${String(m).padStart(2,'0')}m`;
+    }
 
-    rows.sort((a,b) => (b.totalPoints - a.totalPoints) || ((b.totalKcal||0)-(a.totalKcal||0)));
+    state.persons.forEach(p => {
+      const pid = String(p.id);
+      const item = document.createElement("div");
+      item.className = "item";
 
-    els.personList.innerHTML = persons.length ? '' : '<div class="hint">Inga personer ännu.</div>';
-    for(const row of rows){
-      const planTxt = row.plan.map(x => `${x.day}:${x.name}`).join(' • ');
-      const div = document.createElement('div');
-      div.className = 'item';
-      div.innerHTML = `
-        <div class="item-title">${esc(row.p.name)}</div>
-        <div class="item-sub">
-          Avdelningar: ${row.deptNames.length ? esc(row.deptNames.join(', ')) : '—'}
-          <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
-            <span class="pill"><b>Totalpoäng:</b> ${row.totalPoints}</span>
-            <span class="pill">kcal (${days} d): ${row.totalKcal ?? '—'}</span>
+      const dates = (state.datesByPerson.get(pid) || []).slice().sort();
+      const sel = state.selectedDates.get(pid) || new Set();
+      const logs = state._logsByPerson?.get(pid) || [];
+
+      const stats = computePeriodDetailed(pid, logs, sel.size ? sel : null);
+
+      // calendar grid html
+      const cal = cells.map(dateStr => {
+        if(!dateStr) return `<div class="calDay off"></div>`;
+        const has = dates.includes(dateStr);
+        const isSel = sel.has(dateStr);
+        const cls = `calDay ${has ? "has" : ""} ${isSel ? "sel" : ""}`;
+        return `<div class="${cls}" data-person="${esc(pid)}" data-date="${esc(dateStr)}">${Number(dateStr.slice(-2))}</div>`;
+      }).join("");
+
+      const chosenCount = sel.size ? sel.size : dates.length;
+      const chosenLabel = sel.size ? `${sel.size} dagar valda` : "Alla dagar";
+
+      const rowsHtml = stats.deptRows.length ? stats.deptRows.map(r => `
+        <tr>
+          <td style="color:rgba(251,191,36,.95);font-weight:800">${esc(r.name)}</td>
+          <td>${esc(r.timeStr)}</td>
+          <td>${r.kcal}</td>
+          <td style="text-align:center">${r.met ?? "—"}</td>
+          <td style="text-align:center">${r.k ?? "—"}</td>
+          <td style="text-align:center;font-weight:900">${r.total ?? "—"}</td>
+        </tr>
+      `).join("") : `<tr><td colspan="6" class="hint">Inga registrerade dagar.</td></tr>`;
+
+      item.innerHTML = `
+        <div class="personCardGrid">
+          <div class="pLeft">
+            <div class="name">${esc(p.name)}</div>
+            <div class="metricLine"><span>Total Poäng</span></div>
+            <div class="bigScore">${stats.avgTotal ?? "—"}</div>
+
+            <div style="margin-top:10px" class="metricLine"><span>Avdelningar</span><span>${stats.deptRows.length}</span></div>
+            <div class="metricLine"><span>Met-poäng</span><span>${stats.avgMet ?? "—"}</span></div>
+            <div class="metricLine"><span>K-poäng</span><span>${stats.avgK ?? "—"}</span></div>
+            <div class="metricLine"><span>kcal</span><span>${stats.kcal}</span></div>
+            <div class="metricLine"><span>Tid</span><span>${minutesToStr(stats.minutes)}</span></div>
+
+            <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn small secondary" data-open-day-person="${esc(pid)}">Registrera dag</button>
+              <button class="btn small" data-open-edit-person="${esc(pid)}">Redigera</button>
+            </div>
           </div>
-          <div class="hint" style="margin-top:6px">${esc(planTxt)}</div>
+
+          <div class="pMid">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+              <div class="miniTitle">${chosenLabel}</div>
+              <div class="hint">Poäng: MET/K/Total</div>
+            </div>
+
+            <table class="pTable">
+              <thead>
+                <tr>
+                  <th>Avdelningar</th>
+                  <th>Tid</th>
+                  <th>Kcal</th>
+                  <th style="text-align:center">MET</th>
+                  <th style="text-align:center">K</th>
+                  <th style="text-align:center">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pRight">
+            <div class="miniTitle">${now.toLocaleString("sv-SE",{month:"long"})} ${year}</div>
+            <div class="calGrid">
+              ${["Su","Mo","Tu","We","Th","Fr","Sa"].map(d=>`<div class="calDow">${d}</div>`).join("")}
+              ${cal}
+            </div>
+            <div class="calLegend">Klicka datum för att markera. Grön = loggad dag.</div>
+          </div>
         </div>
       `;
-      els.personList.appendChild(div);
+      wrap.appendChild(item);
+    });
+
+    els.peopleList.appendChild(wrap);
+  }
+
+  function openDayModal(personId){
+    if(!personId){
+      alert('Använd "Registrera dag" på personkortet.');
+      return;
+    }
+    els.dayModal.style.display = "flex";
+    els.dayStatus.textContent = "";
+    state.currentPersonId = personId;
+    if(personId){
+      els.personSearch.value = state.persons.find(x => String(x.id)===String(personId))?.name || "";
+    }
+    if(!els.datePick.value){
+      const d = new Date();
+      els.datePick.value = d.toISOString().slice(0,10);
+    }
+    if(state.entryRows.length===0) addEntryRow();
+    renderPersonPick();
+    renderEntries();
+  }
+  function closeDayModal(){ els.dayModal.style.display="none"; }
+
+  function openDeptModal(){
+    els.deptModal.style.display="flex";
+    els.deptStatus.textContent = "";
+    updateDeptPreview();
+  }
+  function closeDeptModal(){ els.deptModal.style.display="none"; }
+
+function openPersonModal(personId){
+    if(!els.personModal || !els.editPersonName){ alert('Person-modal saknas i HTML'); return; }
+
+  state.editingPersonId = String(personId);
+  const p = state.persons.find(x => String(x.id) === String(personId));
+  els.editPersonName.value = p?.name || '';
+  els.personStatus.textContent = '';
+  document.body.classList.add('modal-open');
+    els.personModal.style.display = 'flex';
+}
+function closePersonModal(){
+  els.personModal.style.display = 'none';
+    document.body.classList.remove('modal-open');
+  state.editingPersonId = null;
+}
+
+
+  function renderPersonPick(){
+    const q = (els.personSearch.value || "").trim().toLowerCase();
+    els.personPick.innerHTML = "";
+    const filtered = state.persons.filter(p => p.name.toLowerCase().includes(q)).slice(0, 12);
+    if(!filtered.length){
+      els.personPick.innerHTML = '<div class="hint">Ingen match. Skapa en person.</div>';
+      return;
+    }
+    filtered.forEach(p => {
+      const b = document.createElement("button");
+      b.className = "btn secondary";
+      b.style.width = "100%";
+      b.style.textAlign = "left";
+      b.textContent = p.name;
+      b.addEventListener("click", () => {
+        state.currentPersonId = String(p.id);
+        els.personSearch.value = p.name;
+        els.dayStatus.textContent = "Vald person: " + p.name;
+      });
+      els.personPick.appendChild(b);
+    });
+  }
+
+  function deptOptions(){
+    return state.depts.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("");
+  }
+
+  function addEntryRow(){
+    state.entryRows.push({ departmentId: state.depts[0]?.id || "", minutes: 480 });
+  }
+
+  function renderEntries(){
+    els.entries.innerHTML = "";
+    if(!state.depts.length){
+      els.entries.innerHTML = '<div class="hint">Inga avdelningar ännu. Klicka “Skapa avdelning”.</div>';
+      return;
+    }
+    state.entryRows.forEach((r, idx) => {
+      const row = document.createElement("div");
+      row.className = "entryRow";
+      row.innerHTML = `
+        <div class="pill mono"><b>Rad</b><span>${idx+1}</span></div>
+        <select data-dept="${idx}">${deptOptions()}</select>
+        <input data-min="${idx}" type="number" min="1" step="1" value="${esc(r.minutes)}" />
+        <button class="btn danger small" data-del="${idx}">Ta bort</button>
+      `;
+      els.entries.appendChild(row);
+
+      const sel = row.querySelector("select");
+      sel.value = String(r.departmentId || state.depts[0].id);
+      sel.addEventListener("change", () => { r.departmentId = sel.value; });
+
+      const inp = row.querySelector("input");
+      inp.addEventListener("input", () => { r.minutes = Number(inp.value); });
+
+      row.querySelector("[data-del]").addEventListener("click", () => {
+        state.entryRows.splice(idx,1);
+        if(state.entryRows.length===0) addEntryRow();
+        renderEntries();
+      });
+    });
+  }
+
+  function updateDeptPreview(){
+    const temp = {
+      goalPerHour: numOrNull(els.d_goal.value),
+      avgWeightKg: numOrNull(els.d_weight.value),
+      k_timePressure: Number(els.k_a.value),
+      k_interruptions: Number(els.k_b.value),
+      k_complexity: Number(els.k_c.value),
+      k_errorConsequence: Number(els.k_d.value),
+      k_safetyRisk: Number(els.k_e.value),
+    };
+    const c = deptComputed(temp);
+    els.preview_total.textContent = (c.totalScore ?? "—");
+    els.preview_met.textContent = (c.metScore ?? "—");
+    els.preview_k.textContent = (c.kScore ?? "—");
+  }
+
+  async function saveDepartment(){
+    const name = (els.d_name.value||"").trim();
+    if(name.length<2) return alert("Skriv minst 2 tecken på namn");
+    const payload = {
+      name,
+      goalPerHour: numOrNull(els.d_goal.value),
+      avgWeightKg: numOrNull(els.d_weight.value),
+      info: (els.d_info.value||"").trim(),
+      k_timePressure: Number(els.k_a.value),
+      k_interruptions: Number(els.k_b.value),
+      k_complexity: Number(els.k_c.value),
+      k_errorConsequence: Number(els.k_d.value),
+      k_safetyRisk: Number(els.k_e.value),
+    };
+    try{
+      await api("/api/departments", { method:"POST", body: JSON.stringify(payload) });
+      els.deptStatus.textContent = "Sparad.";
+      await refreshAll();
+      closeDeptModal();
+      renderEntries();
+    }catch(e){
+      els.deptStatus.textContent = e.message;
+      alert(e.message);
+    }
+  }
+
+  async function addPerson(){
+    const name = (els.newPersonName.value||"").trim();
+    if(name.length<2) return alert("Skriv minst 2 tecken");
+    try{
+      const res = await api("/api/persons", { method:"POST", body: JSON.stringify({ name })});
+      els.newPersonName.value = "";
+      await refreshAll();
+      state.currentPersonId = res.person?.id || state.persons.find(p=>p.name===name)?.id;
+      els.personSearch.value = name;
+      els.dayStatus.textContent = "Vald person: " + name;
+      renderPersonPick();
+    }catch(e){
+      alert(e.message);
+    }
+  }
+
+  async function saveDay(andNext){
+    if(!state.currentPersonId) return alert("Välj en person");
+    const date = els.datePick.value;
+    if(!date) return alert("Välj datum");
+    if(!state.depts.length) return alert("Skapa minst en avdelning först");
+
+    const entries = state.entryRows
+      .map(r => ({ departmentId: r.departmentId, minutes: Number(r.minutes) }))
+      .filter(e => e.departmentId && Number.isFinite(e.minutes) && e.minutes>0);
+
+    if(!entries.length) return alert("Lägg till minst en rad");
+
+    await api("/api/day-logs", { method:"POST", body: JSON.stringify({ personId: state.currentPersonId, date, entries }) });
+
+    // invalidate
+    state.datesByPerson.delete(String(state.currentPersonId));
+
+    await refreshAll();
+    els.dayStatus.textContent = "Sparat: " + date;
+
+    if(andNext){
+      const d = new Date(date + "T00:00:00");
+      d.setDate(d.getDate()+1);
+      els.datePick.value = d.toISOString().slice(0,10);
     }
   }
 
   // events
-  if(els.apiMode){
-    els.apiMode.addEventListener('change', () => {
-      setApiMode(els.apiMode.value);
-      refresh().catch(err => alert(err.message));
-    });
-  }
-  if(els.refreshTop) els.refreshTop.addEventListener('click', () => refresh().catch(err => alert(err.message)));
-  if(els.calcDays){
-    els.calcDays.addEventListener('input', () => refresh().catch(()=>{}));
-    els.calcDays.addEventListener('change', () => refresh().catch(()=>{}));
+  els.btnRefresh.addEventListener("click", refreshAll);
+// Modal close buttons
+if(els.closePeopleManage) els.closePeopleManage.addEventListener('click', closePeopleManage);
+if(els.closeDeptManage) els.closeDeptManage.addEventListener('click', closeDeptManage);
+if(els.closePersonModal) els.closePersonModal.addEventListener('click', closePersonModal);
+
+// Close when clicking backdrop
+if(els.peopleManageModal) els.peopleManageModal.addEventListener('click', (e) => { if(e.target === els.peopleManageModal) closePeopleManage(); });
+if(els.deptManageModal) els.deptManageModal.addEventListener('click', (e) => { if(e.target === els.deptManageModal) closeDeptManage(); });
+if(els.personModal) els.personModal.addEventListener('click', (e) => { if(e.target === els.personModal) closePersonModal(); });
+  els.btnNewDay.addEventListener("click", () => openDayModal());
+  els.closeDayModal.addEventListener("click", closeDayModal);
+  els.personSearch.addEventListener("input", renderPersonPick);
+  els.btnAddPerson.addEventListener("click", addPerson);
+  els.btnAddEntry.addEventListener("click", () => { addEntryRow(); renderEntries(); });
+  els.btnCreateDept.addEventListener("click", openDeptModal);
+  els.closeDeptModal.addEventListener("click", closeDeptModal);
+  els.btnSaveDept.addEventListener("click", saveDepartment);
+  [els.d_goal, els.d_weight, els.k_a, els.k_b, els.k_c, els.k_d, els.k_e].forEach(el => el.addEventListener("change", updateDeptPreview));
+
+  els.btnSaveDay.addEventListener("click", async () => { try{ await saveDay(false); } catch(e){ alert(e.message); } });
+  els.btnAddAnotherDay.addEventListener("click", async () => { try{ await saveDay(true); } catch(e){ alert(e.message); } });
+  els.btnDone.addEventListener("click", async () => { try{ await saveDay(false); closeDayModal(); } catch(e){ alert(e.message); } });
+
+  els.peopleList.addEventListener("click", (e) => {
+    const dot = e.target.closest("[data-date]");
+    if(dot){
+      const pid = dot.getAttribute("data-person");
+      const date = dot.getAttribute("data-date");
+      const set = state.selectedDates.get(pid) || new Set();
+      if(set.has(date)) set.delete(date); else set.add(date);
+      state.selectedDates.set(pid, set);
+      renderPeople();
+      return;
+    }
+    const btnDay = e.target.closest("[data-open-day-person]");
+    if(btnDay){ openDayModal(btnDay.getAttribute("data-open-day-person")); return; }
+    const btnEdit = e.target.closest("[data-open-edit-person]");
+    if(btnEdit){ openPersonModal(btnEdit.getAttribute("data-open-edit-person")); return; }
+    const btn = e.target.closest("[data-open-register]");
+    if(btn){
+      openDayModal(btn.getAttribute("data-open-register"));
+      return;
+    }
+  });
+
+  async function refreshAll(){
+    try{
+      const [depts, persons] = await Promise.all([
+        api("/api/departments"),
+        api("/api/persons")
+      ]);
+      state.depts = depts;
+      state.persons = persons;
+
+      state._logsByPerson = new Map();
+      for(const p of state.persons){
+        const pid = String(p.id);
+        const dates = await loadDatesForPerson(pid);
+        const logs = await loadLogsForPerson(pid, dates);
+        state._logsByPerson.set(pid, logs);
+      }
+
+      if(state.entryRows.length===0) addEntryRow();
+      if(state.depts.length){
+        state.entryRows.forEach(r => { if(!r.departmentId) r.departmentId = state.depts[0].id; });
+      }
+
+      renderPeople();
+      renderPersonPick();
+      renderEntries();
+      updateDeptPreview();
+    }catch(e){
+      els.peopleList.innerHTML = '<div class="hint">API fel: ' + esc(e.message) + "</div>";
+      console.error(e);
+    }
   }
 
-  refresh().catch(err => alert(err.message));
+  // Departments modal interactions
+if(els.dm_list){
+  els.dm_list.addEventListener('click', (e) => {
+    const edit = e.target.closest('[data-dm-edit]');
+    if(edit){
+      const id = edit.getAttribute('data-dm-edit');
+      const dept = state.depts.find(x => String(x.id) === String(id));
+      if(dept) dmLoadDept(dept);
+      return;
+    }
+    const del = e.target.closest('[data-dm-del]');
+    if(del){
+      dmDelete(del.getAttribute('data-dm-del')).catch(err => alert(err.message));
+    }
+  });
+}
+[els.dm_goal, els.dm_weight, els.dm_k_a, els.dm_k_b, els.dm_k_c, els.dm_k_d, els.dm_k_e].filter(Boolean)
+  .forEach(el => el.addEventListener('change', dmUpdatePreview));
+
+// DeptManage: wire save/clear
+if(els.btnDmSave) els.btnDmSave.addEventListener('click', () => dmSave().catch(err => alert(err.message)));
+if(els.btnDmClear) els.btnDmClear.addEventListener('click', dmClearForm);
+
+// init
+  // Safety wiring (v29)
+  try{
+    const bP = document.getElementById('btnPeople');
+    const bD = document.getElementById('btnDepartments');
+    if(bP) bP.onclick = openPeopleManage;
+    if(bD) bD.onclick = openDeptManage;
+  }catch(_e){}
+
+  refreshAll();
+  // modal open via button
+
+
+// --- People management (menu) ---
+function openPeopleManage(){
+    if(!els.peopleManageModal){ alert('People modal saknas i HTML'); return; }
+
+  document.body.classList.add('modal-open');
+  els.peopleManageModal.style.display = 'flex';
+  renderPeopleManageSelect();
+}
+function closePeopleManage(){
+  els.peopleManageModal.style.display = 'none';
+  document.body.classList.remove('modal-open');
+  state.editingPersonMenuId = null;
+}
+function renderPeopleManageSelect(){
+  if(!els.pm_select) return;
+  els.pm_select.innerHTML = state.persons.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+  const first = state.persons[0]?.id;
+  const id = state.editingPersonMenuId || first;
+  if(id) els.pm_select.value = String(id);
+  loadPeopleManagePerson();
+}
+function loadPeopleManagePerson(){
+  const id = els.pm_select.value;
+  state.editingPersonMenuId = id;
+  const p = state.persons.find(x => String(x.id) === String(id));
+  els.pm_name.value = p?.name || '';
+  els.pm_status.textContent = '';
+}
+async function savePeopleManage(){
+  const id = state.editingPersonMenuId;
+  const name = (els.pm_name.value||'').trim();
+  if(name.length < 2) return alert('Skriv minst 2 tecken');
+  await api('/api/persons/' + encodeURIComponent(id), { method:'PUT', body: JSON.stringify({ name })});
+  await refreshAll();
+  els.pm_status.textContent = 'Sparad.';
+    closePeopleManage();
+}
+async function deletePeopleManage(){
+  const id = state.editingPersonMenuId;
+  const p = state.persons.find(x => String(x.id) === String(id));
+  const ok = confirm('Är du säker på att du vill ta bort personen' + (p?.name ? ' "' + p.name + '"' : '') + '?');
+  if(!ok) return;
+  await api('/api/persons/' + encodeURIComponent(id), { method:'DELETE' });
+  await refreshAll();
+  renderPeopleManageSelect();
+  els.pm_status.textContent = 'Borttagen.';
+    closePeopleManage();
+}
+
+// --- Departments management ---
+function openDeptManage(){
+    if(!els.deptManageModal){ alert('Dept modal saknas i HTML'); return; }
+
+  document.body.classList.add('modal-open');
+  els.deptManageModal.style.display = 'flex';
+  renderDeptManageList();
+  dmUpdatePreview();
+}
+function closeDeptManage(){
+  els.deptManageModal.style.display = 'none';
+  document.body.classList.remove('modal-open');
+  state.editingDeptId = null;
+}
+function dmReadTemp(){
+  return {
+    goalPerHour: numOrNull(els.dm_goal.value),
+    avgWeightKg: numOrNull(els.dm_weight.value),
+    k_timePressure: Number(els.dm_k_a.value),
+    k_interruptions: Number(els.dm_k_b.value),
+    k_complexity: Number(els.dm_k_c.value),
+    k_errorConsequence: Number(els.dm_k_d.value),
+    k_safetyRisk: Number(els.dm_k_e.value),
+  };
+}
+function dmUpdatePreview(){
+  const c = deptComputed(dmReadTemp());
+  els.dm_preview_total.textContent = (c.totalScore ?? '—');
+  els.dm_preview_met.textContent = (c.metScore ?? '—');
+  els.dm_preview_k.textContent = (c.kScore ?? '—');
+}
+function dmClearForm(){
+  state.editingDeptId = null;
+  els.dm_name.value = '';
+  els.dm_goal.value = '';
+  els.dm_weight.value = '';
+  els.dm_info.value = '';
+  els.dm_k_a.value = '0'; els.dm_k_b.value = '0'; els.dm_k_c.value = '0'; els.dm_k_d.value = '0'; els.dm_k_e.value = '0';
+  els.dm_status.textContent = '';
+  dmUpdatePreview();
+}
+function dmLoadDept(dept){
+  state.editingDeptId = String(dept.id);
+  els.dm_name.value = dept.name || '';
+  els.dm_goal.value = dept.goalPerHour ?? '';
+  els.dm_weight.value = dept.avgWeightKg ?? '';
+  els.dm_info.value = dept.info || '';
+  els.dm_k_a.value = String(dept.k_timePressure ?? 0);
+  els.dm_k_b.value = String(dept.k_interruptions ?? 0);
+  els.dm_k_c.value = String(dept.k_complexity ?? 0);
+  els.dm_k_d.value = String(dept.k_errorConsequence ?? 0);
+  els.dm_k_e.value = String(dept.k_safetyRisk ?? 0);
+  els.dm_status.textContent = 'Redigerar: ' + dept.name;
+  dmUpdatePreview();
+}
+function renderDeptManageList(){
+  els.dm_list.innerHTML = '';
+  if(!state.depts.length){
+    els.dm_list.innerHTML = '<div class="hint">Inga avdelningar ännu.</div>';
+    return;
+  }
+  for(const d of state.depts){
+    const c = deptComputed(d);
+    const div = document.createElement('div');
+    div.className = 'item';
+    div.innerHTML = `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div style="min-width:0">
+          <div style="font-weight:900">${esc(d.name)}</div>
+          <div class="hint">Mål/h: ${d.goalPerHour ?? '—'} • Vikt: ${d.avgWeightKg ?? '—'} kg • Total: ${c.totalScore ?? '—'}</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button class="btn small secondary" data-dm-edit="${esc(d.id)}">Ändra</button>
+          <button class="btn small danger" data-dm-del="${esc(d.id)}">Ta bort</button>
+        </div>
+      </div>
+    `;
+    els.dm_list.appendChild(div);
+  }
+}
+async function dmSave(){
+  const name = (els.dm_name.value || '').trim();
+  if(name.length < 2) return alert('Skriv minst 2 tecken på namn');
+  const payload = {
+    name,
+    goalPerHour: numOrNull(els.dm_goal.value),
+    avgWeightKg: numOrNull(els.dm_weight.value),
+    info: (els.dm_info.value || '').trim(),
+    k_timePressure: Number(els.dm_k_a.value),
+    k_interruptions: Number(els.dm_k_b.value),
+    k_complexity: Number(els.dm_k_c.value),
+    k_errorConsequence: Number(els.dm_k_d.value),
+    k_safetyRisk: Number(els.dm_k_e.value),
+  };
+
+  if(state.editingDeptId){
+    await api('/api/departments/' + encodeURIComponent(state.editingDeptId), { method:'PUT', body: JSON.stringify(payload) });
+    els.dm_status.textContent = 'Uppdaterad.';
+  }else{
+    await api('/api/departments', { method:'POST', body: JSON.stringify(payload) });
+    els.dm_status.textContent = 'Skapad.';
+  }
+
+  await refreshAll();
+  renderDeptManageList();
+  dmClearForm();
+  closeDeptManage();
+}
+async function dmDelete(id){
+  const d = state.depts.find(x => String(x.id) === String(id));
+  const ok = confirm('Är du säker på att du vill ta bort avdelningen' + (d?.name ? ' "' + d.name + '"' : '') + '?');
+  if(!ok) return;
+  await api('/api/departments/' + encodeURIComponent(id), { method:'DELETE' });
+  await refreshAll();
+  renderDeptManageList();
+  dmClearForm();
+closeDeptManage();
+  }
+
 })();
 </script>
 </body>

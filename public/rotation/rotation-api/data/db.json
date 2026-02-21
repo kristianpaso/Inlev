@@ -1,0 +1,25 @@
+{
+  "departments": [
+    {
+      "id": "ead00ad652",
+      "name": "Plock & Pack",
+      "createdAt": "2026-02-15T23:19:00.900Z"
+    },
+    {
+      "id": "cb75cabb62",
+      "name": "Returhantering",
+      "createdAt": "2026-02-15T23:19:07.346Z"
+    },
+    {
+      "id": "d274e707f6",
+      "name": "Inleverans - Pålastning",
+      "createdAt": "2026-02-15T23:19:28.767Z"
+    },
+    {
+      "id": "47abad0c59",
+      "name": "Inleverans - Avlastning",
+      "createdAt": "2026-02-15T23:19:35.810Z"
+    }
+  ],
+  "persons": []
+}

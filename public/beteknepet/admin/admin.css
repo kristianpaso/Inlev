@@ -1,0 +1,58 @@
+body{ padding:16px; }
+.adminWrap{ max-width: 1100px; margin:0 auto; }
+.adminTop{ display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; align-items:flex-end; }
+.adminTop h1{ margin:0; }
+.adminApi{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.msg{ margin: 12px 0; font-weight: 800; opacity:.95; }
+.msg.ok{ color: rgba(9,164,120,1); }
+.msg.err{ color: rgba(210,80,80,1); }
+
+.stepsList{ display:flex; flex-direction:column; gap:12px; margin-top:12px; }
+.stepCard{
+  border: 1px solid rgba(0,0,0,.10);
+  border-radius: 16px;
+  background: rgba(255,255,255,.72);
+  overflow:hidden;
+}
+.stepHead{
+  padding: 10px 12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  background: rgba(255,255,255,.82);
+  border-bottom: 1px solid rgba(0,0,0,.06);
+}
+.stepTitle{ font-weight: 900; }
+.stepMeta{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.smallInput{ padding:8px 10px; border-radius: 12px; border:1px solid rgba(0,0,0,.12); background: rgba(255,255,255,.9); }
+.smallInput.w160{ width: 180px; }
+.smallInput.w120{ width: 140px; }
+.smallInput.w90{ width: 100px; }
+
+.stepBody{ padding: 12px; }
+.optsHead{ display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; }
+.optionsGrid{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:10px; }
+.optCard{
+  border:1px solid rgba(0,0,0,.10);
+  border-radius: 14px;
+  background: rgba(255,255,255,.8);
+  padding: 10px;
+}
+.optRow{ display:flex; gap:8px; margin-bottom:8px; }
+.optRow .smallInput{ flex:1; }
+.optPreview{
+  height: 108px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,.08);
+  background: rgba(0,0,0,.03);
+  background-size: cover;
+  background-position:center;
+}
+
+.jsonBox{ width:100%; min-height: 260px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; }
+
+@media (max-width: 720px){
+  .optionsGrid{ grid-template-columns: 1fr; }
+  .smallInput.w160, .smallInput.w120, .smallInput.w90{ width: 100%; }
+}

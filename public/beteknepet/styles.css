@@ -981,3 +981,14 @@ body{
   background-position: center !important;
 }
 
+
+/* API server switch */
+.apiSwitch{ display:flex; align-items:center; gap:8px; }
+.miniSelect{
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,.12);
+  background: rgba(255,255,255,.85);
+  font-weight: 800;
+  cursor: pointer;
+}

@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const express = require('express');
+const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -8,114 +9,33 @@ const morgan = require('morgan');
 const { connectDb } = require('./db');
 const Department = require('./models/Department');
 const Person = require('./models/Person');
-
-function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
-function numOrNull(v){
-  if(v === null || v === undefined) return null;
-  if(typeof v === 'string' && v.trim() === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-function toInt(v, def=0){
-  const n = Number(v);
-  return Number.isFinite(n) ? n : def;
-}
-
-function kScoreFromParts(d){
-  const a = clamp(toInt(d.k_timePressure,0), 0, 2);
-  const b = clamp(toInt(d.k_interruptions,0), 0, 2);
-  const c = clamp(toInt(d.k_complexity,0), 0, 2);
-  const dd = clamp(toInt(d.k_errorConsequence,0), 0, 3);
-  const e = clamp(toInt(d.k_safetyRisk,0), 0, 1);
-  const sum = a+b+c+dd+e;
-  return clamp(sum === 0 ? 1 : sum, 1, 10);
-}
-
-function estimateKgPerHour(goalPerHour, avgWeightKg){
-  const g = numOrNull(goalPerHour);
-  const w = numOrNull(avgWeightKg);
-  if(g === null || w === null) return null;
-  return g * w;
-}
-
-function estimateMET(kgPerHour, goalPerHour){
-  if(kgPerHour === null) return null;
-  let met;
-  if(kgPerHour < 50) met = 2.5;
-  else if(kgPerHour < 150) met = 3.5;
-  else if(kgPerHour < 300) met = 4.5;
-  else if(kgPerHour < 600) met = 6.0;
-  else met = 7.0;
-
-  const g = numOrNull(goalPerHour);
-  if(g !== null){
-    if(g >= 300) met += 0.5;
-    if(g >= 600) met += 0.5;
-    if(g >= 900) met += 0.5;
-    if(g >= 1200) met += 0.5;
-  }
-  met = clamp(met, 2.0, 10.0);
-  return Math.round(met * 10) / 10;
-}
-
-function metToScore(met){
-  if(met === null) return null;
-  const minMet = 2.0, maxMet = 8.0;
-  const clamped = clamp(met, minMet, maxMet);
-  const t = (clamped - minMet) / (maxMet - minMet);
-  return clamp(1 + Math.round(t * 9), 1, 10);
-}
-
-function totalScore(metScore, kScore){
-  if(metScore === null) return null;
-  const t = (metScore + kScore) / 2;
-  return Math.round(t * 10) / 10;
-}
-
-function normalizeDepartment(d){
-  const kgph = estimateKgPerHour(d.goalPerHour, d.avgWeightKg);
-  const met = estimateMET(kgph, d.goalPerHour);
-  const metScore = metToScore(met);
-  const kScore = kScoreFromParts(d);
-  const tScore = metScore === null ? null : totalScore(metScore, kScore);
-
-  return {
-    id: String(d._id),
-    name: d.name,
-    goalPerHour: d.goalPerHour ?? null,
-    avgWeightKg: d.avgWeightKg ?? null,
-    info: d.info ?? '',
-    k_timePressure: d.k_timePressure ?? 0,
-    k_interruptions: d.k_interruptions ?? 0,
-    k_complexity: d.k_complexity ?? 0,
-    k_errorConsequence: d.k_errorConsequence ?? 0,
-    k_safetyRisk: d.k_safetyRisk ?? 0,
-    kScore,
-    met,
-    metScore,
-    totalScore: tScore,
-    createdAt: d.createdAt,
-    updatedAt: d.updatedAt
-  };
-}
-
-function normalizePerson(p){
-  return {
-    id: String(p._id),
-    name: p.name,
-    departmentIds: (p.departmentIds || []).map(x => String(x)),
-    createdAt: p.createdAt,
-    updatedAt: p.updatedAt
-  };
-}
+const DayLog = require('./models/DayLog');
 
 const app = express();
 const PORT = process.env.PORT || 5050;
 
+// CORS: allow Netlify + local dev + custom
 const allowed = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean);
+
+function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+function isValidObjectId(id){ return typeof id === 'string' && mongoose.Types.ObjectId.isValid(id); }
+function isIsoDate(s){ return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }
+
+function normEntries(entries){
+  if(!Array.isArray(entries)) return [];
+  const out = [];
+  for(const e of entries){
+    const departmentId = String(e?.departmentId || '');
+    const minutes = Number(e?.minutes);
+    if(!isValidObjectId(departmentId)) continue;
+    if(!Number.isFinite(minutes) || minutes <= 0) continue;
+    out.push({ departmentId: new mongoose.Types.ObjectId(departmentId), minutes: clamp(minutes, 1, 24*60) });
+  }
+  return out;
+}
 
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(morgan('dev'));
@@ -135,11 +55,12 @@ app.get('/', (req, res) => {
   res.json({
     ok: true,
     service: 'rotation-api',
-    version: '1.3.0',
+    version: '1.1.0',
     endpoints: [
       'GET /api/health',
-      'GET/POST/PUT/DELETE /api/departments',
-      'GET/POST/PUT/DELETE /api/persons',
+      'GET/POST /api/departments',
+      'GET/POST /api/persons',
+      'PUT /api/persons/:id',
       'GET /api/persons-expanded'
     ]
   });
@@ -149,11 +70,19 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
 });
 
-// ---------- Departments ----------
+// Departments (MongoDB: collection "avdelningar")
 app.get('/api/departments', async (req, res) => {
   try {
     const items = await Department.find({}).sort({ name: 1 }).lean();
-    res.json(items.map(normalizeDepartment));
+      res.json(items.map(d => ({
+        id: String(d._id),
+        name: d.name,
+        goalPerHour: d.goalPerHour ?? null,
+        avgWeightKg: d.avgWeightKg ?? null,
+        info: d.info ?? '',
+        createdAt: d.createdAt,
+        updatedAt: d.updatedAt
+      })));
   } catch (e) {
     res.status(500).json({ ok: false, error: 'Failed to fetch departments' });
   }
@@ -162,12 +91,13 @@ app.get('/api/departments', async (req, res) => {
 app.post('/api/departments', async (req, res) => {
   try {
     const name = (req.body?.name || '').trim();
+    const goalPerHourRaw = req.body?.goalPerHour;
+    const avgWeightKgRaw = req.body?.avgWeightKg;
+      const infoRaw = req.body?.info;
+
     if (!name || name.length < 2) {
       return res.status(400).json({ ok: false, error: 'name is required (min 2 chars)' });
     }
-
-    const goalPerHourRaw = req.body?.goalPerHour;
-    const avgWeightKgRaw = req.body?.avgWeightKg;
 
     const goalPerHour =
       goalPerHourRaw === null || goalPerHourRaw === undefined || goalPerHourRaw === ''
@@ -186,22 +116,9 @@ app.post('/api/departments', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'avgWeightKg must be a non-negative number' });
     }
 
-    const info = typeof req.body?.info === 'string' ? req.body.info.trim() : '';
-
-    const dept = {
-      name,
-      goalPerHour,
-      avgWeightKg,
-      info,
-      k_timePressure: clamp(toInt(req.body?.k_timePressure, 0), 0, 2),
-      k_interruptions: clamp(toInt(req.body?.k_interruptions, 0), 0, 2),
-      k_complexity: clamp(toInt(req.body?.k_complexity, 0), 0, 2),
-      k_errorConsequence: clamp(toInt(req.body?.k_errorConsequence, 0), 0, 3),
-      k_safetyRisk: clamp(toInt(req.body?.k_safetyRisk, 0), 0, 1)
-    };
-
-    const created = await Department.create(dept);
-    res.status(201).json({ ok: true, department: normalizeDepartment(created) });
+    const info = typeof infoRaw === 'string' ? infoRaw.trim() : '';
+      const created = await Department.create({ name, goalPerHour, avgWeightKg, info });
+    res.status(201).json({ ok: true, department: { id: String(created._id), name: created.name, goalPerHour: created.goalPerHour ?? null, avgWeightKg: created.avgWeightKg ?? null, info: created.info ?? '', createdAt: created.createdAt, updatedAt: created.updatedAt } });
   } catch (e) {
     if (e?.code === 11000) {
       return res.status(409).json({ ok: false, error: 'department already exists' });
@@ -209,6 +126,7 @@ app.post('/api/departments', async (req, res) => {
     res.status(500).json({ ok: false, error: 'Failed to create department' });
   }
 });
+
 
 app.put('/api/departments/:id', async (req, res) => {
   try {
@@ -223,36 +141,41 @@ app.put('/api/departments/:id', async (req, res) => {
 
     if (req.body?.goalPerHour !== undefined) {
       const v = req.body.goalPerHour;
-      const n = v === null || v === '' ? null : Number(v);
-      if (n !== null && (!Number.isFinite(n) || n < 0)) {
+      const goalPerHour = v === null || v === '' ? null : Number(v);
+      if (goalPerHour !== null && (!Number.isFinite(goalPerHour) || goalPerHour < 0)) {
         return res.status(400).json({ ok: false, error: 'goalPerHour must be a non-negative number' });
       }
-      update.goalPerHour = n;
+      update.goalPerHour = goalPerHour;
     }
 
     if (req.body?.avgWeightKg !== undefined) {
       const v = req.body.avgWeightKg;
-      const n = v === null || v === '' ? null : Number(v);
-      if (n !== null && (!Number.isFinite(n) || n < 0)) {
+      const avgWeightKg = v === null || v === '' ? null : Number(v);
+      if (avgWeightKg !== null && (!Number.isFinite(avgWeightKg) || avgWeightKg < 0)) {
         return res.status(400).json({ ok: false, error: 'avgWeightKg must be a non-negative number' });
       }
-      update.avgWeightKg = n;
+      update.avgWeightKg = avgWeightKg;
     }
 
     if (req.body?.info !== undefined) {
       update.info = typeof req.body.info === 'string' ? req.body.info.trim() : '';
     }
 
-    if (req.body?.k_timePressure !== undefined) update.k_timePressure = clamp(toInt(req.body.k_timePressure, 0), 0, 2);
-    if (req.body?.k_interruptions !== undefined) update.k_interruptions = clamp(toInt(req.body.k_interruptions, 0), 0, 2);
-    if (req.body?.k_complexity !== undefined) update.k_complexity = clamp(toInt(req.body.k_complexity, 0), 0, 2);
-    if (req.body?.k_errorConsequence !== undefined) update.k_errorConsequence = clamp(toInt(req.body.k_errorConsequence, 0), 0, 3);
-    if (req.body?.k_safetyRisk !== undefined) update.k_safetyRisk = clamp(toInt(req.body.k_safetyRisk, 0), 0, 1);
-
     const updated = await Department.findByIdAndUpdate(id, update, { new: true });
     if (!updated) return res.status(404).json({ ok: false, error: 'department not found' });
 
-    res.json({ ok: true, department: normalizeDepartment(updated) });
+    res.json({
+      ok: true,
+      department: {
+        id: String(updated._id),
+        name: updated.name,
+        goalPerHour: updated.goalPerHour ?? null,
+        avgWeightKg: updated.avgWeightKg ?? null,
+        info: updated.info ?? '',
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt
+      }
+    });
   } catch (e) {
     if (e?.code === 11000) {
       return res.status(409).json({ ok: false, error: 'department already exists' });
@@ -267,6 +190,7 @@ app.delete('/api/departments/:id', async (req, res) => {
     const deleted = await Department.findByIdAndDelete(id);
     if (!deleted) return res.status(404).json({ ok: false, error: 'department not found' });
 
+    // Remove reference from persons
     await Person.updateMany({}, { $pull: { departmentIds: deleted._id } });
 
     res.json({ ok: true, deletedId: id });
@@ -275,11 +199,17 @@ app.delete('/api/departments/:id', async (req, res) => {
   }
 });
 
-// ---------- Persons ----------
+// Persons (MongoDB: collection "personer")
 app.get('/api/persons', async (req, res) => {
   try {
     const persons = await Person.find({}).sort({ createdAt: -1 }).lean();
-    res.json(persons.map(normalizePerson));
+      res.json(persons.map(p => ({
+        id: String(p._id),
+        name: p.name,
+        departmentIds: (p.departmentIds || []).map(x => String(x)),
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt
+      })));
   } catch (e) {
     res.status(500).json({ ok: false, error: 'Failed to fetch persons' });
   }
@@ -292,9 +222,10 @@ app.post('/api/persons', async (req, res) => {
     if (!name || name.length < 2) {
       return res.status(400).json({ ok: false, error: 'name is required (min 2 chars)' });
     }
-
-    const created = await Person.create({ name, departmentIds });
-    res.status(201).json({ ok: true, person: normalizePerson(created) });
+    // Keep only valid Mongo ObjectId-looking strings
+    const cleanedIds = departmentIds.filter(v => typeof v === 'string' && /^[a-fA-F0-9]{24}$/.test(v));
+    const created = await Person.create({ name, departmentIds: cleanedIds });
+    res.status(201).json({ ok: true, person: { id: String(created._id), name: created.name, departmentIds: (created.departmentIds||[]).map(x=>String(x)), createdAt: created.createdAt, updatedAt: created.updatedAt } });
   } catch (e) {
     res.status(500).json({ ok: false, error: 'Failed to create person' });
   }
@@ -303,21 +234,19 @@ app.post('/api/persons', async (req, res) => {
 app.put('/api/persons/:id', async (req, res) => {
   try {
     const id = req.params.id;
-    const name = (req.body?.name || '').trim();
-    const departmentIds = Array.isArray(req.body?.departmentIds) ? req.body.departmentIds : [];
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : null;
+    const departmentIds = Array.isArray(req.body?.departmentIds) ? req.body.departmentIds : null;
 
-    if (!name || name.length < 2) {
-      return res.status(400).json({ ok: false, error: 'name is required (min 2 chars)' });
+    const update = {};
+    if (name && name.length >= 2) update.name = name;
+    if (departmentIds) {
+      update.departmentIds = departmentIds
+        .filter(v => typeof v === 'string' && /^[a-fA-F0-9]{24}$/.test(v));
     }
 
-    const updated = await Person.findByIdAndUpdate(
-      id,
-      { name, departmentIds },
-      { new: true }
-    );
-
+    const updated = await Person.findByIdAndUpdate(id, update, { new: true });
     if (!updated) return res.status(404).json({ ok: false, error: 'person not found' });
-    res.json({ ok: true, person: normalizePerson(updated) });
+    res.json({ ok: true, person: { id: String(updated._id), name: updated.name, departmentIds: (updated.departmentIds||[]).map(x=>String(x)), createdAt: updated.createdAt, updatedAt: updated.updatedAt } });
   } catch (e) {
     res.status(500).json({ ok: false, error: 'Failed to update person' });
   }
@@ -334,18 +263,105 @@ app.delete('/api/persons/:id', async (req, res) => {
   }
 });
 
+
+// Helpful: expand persons with department names
 app.get('/api/persons-expanded', async (req, res) => {
   try {
-    const persons = await Person.find({}).sort({ createdAt: -1 }).lean();
-    const depts = await Department.find({}).sort({ name: 1 }).lean();
-    const map = new Map(depts.map(d => [String(d._id), normalizeDepartment(d)]));
-
-    res.json(persons.map(p => ({
-      ...normalizePerson(p),
-      departments: (p.departmentIds || []).map(id => map.get(String(id))).filter(Boolean)
-    })));
+    const persons = await Person.find({}).populate('departmentIds').lean();
+    const expanded = persons.map(p => ({
+      ...p,
+      departments: (p.departmentIds || []).map(d => ({ _id: d._id, name: d.name }))
+    }));
+    res.json(expanded);
   } catch (e) {
-    res.status(500).json({ ok: false, error: 'Failed to fetch persons-expanded' });
+    res.status(500).json({ ok: false, error: 'Failed to fetch expanded persons' });
+  }
+});
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ ok: false, error: err.message || 'server error' });
+});
+
+// Start server after DB connect
+/* ---------------- Day Logs ---------------- */
+
+// Upsert day log for person+date
+app.post('/api/day-logs', async (req, res) => {
+  try{
+    const personIdRaw = String(req.body?.personId || '');
+    const date = req.body?.date;
+    const entries = normEntries(req.body?.entries);
+
+    if(!isValidObjectId(personIdRaw)) return res.status(400).json({ ok:false, error:'personId must be a valid ObjectId' });
+    if(!isIsoDate(date)) return res.status(400).json({ ok:false, error:'date must be YYYY-MM-DD' });
+    if(entries.length === 0) return res.status(400).json({ ok:false, error:'entries must contain at least 1 valid row (departmentId + minutes)' });
+
+    const personId = new mongoose.Types.ObjectId(personIdRaw);
+
+    const p = await Person.findById(personId).lean();
+    if(!p) return res.status(404).json({ ok:false, error:'person not found' });
+
+    // Robust upsert to avoid rare duplicate key race
+    try{
+      const doc = await DayLog.findOneAndUpdate(
+        { personId, date },
+        { $set: { entries } },
+        { upsert: true, new: true }
+      ).lean();
+
+      return res.json({ ok:true, dayLog: { id:String(doc._id), personId:String(doc.personId), date: doc.date, entries: doc.entries }});
+    }catch(e){
+      if(e && e.code === 11000){
+        const doc = await DayLog.findOneAndUpdate(
+          { personId, date },
+          { $set: { entries } },
+          { new: true }
+        ).lean();
+        return res.json({ ok:true, dayLog: { id:String(doc._id), personId:String(doc.personId), date: doc.date, entries: doc.entries }});
+      }
+      throw e;
+    }
+  }catch(e){
+    console.error('[day-logs] save error:', e);
+    res.status(500).json({ ok:false, error: e?.message || 'Failed to save day log' });
+  }
+});
+
+// Get logs for person (optional range)
+app.get('/api/day-logs', async (req, res) => {
+  try{
+    const personIdRaw = String(req.query.personId || '');
+    const from = req.query.from;
+    const to = req.query.to;
+
+    if(!isValidObjectId(personIdRaw)) return res.status(400).json({ ok:false, error:'personId must be a valid ObjectId' });
+    const personId = new mongoose.Types.ObjectId(personIdRaw);
+
+    const q = { personId };
+    if(from && isIsoDate(from)) q.date = { ...(q.date||{}), $gte: from };
+    if(to && isIsoDate(to)) q.date = { ...(q.date||{}), $lte: to };
+
+    const docs = await DayLog.find(q).sort({ date: 1 }).lean();
+    res.json(docs.map(d => ({ id:String(d._id), personId:String(d.personId), date:d.date, entries:d.entries })));
+  }catch(e){
+    console.error('[day-logs] fetch error:', e);
+    res.status(500).json({ ok:false, error: e?.message || 'Failed to fetch day logs' });
+  }
+});
+
+// Get list of dates with logs for person
+app.get('/api/day-logs/dates', async (req, res) => {
+  try{
+    const personIdRaw = String(req.query.personId || '');
+    if(!isValidObjectId(personIdRaw)) return res.status(400).json({ ok:false, error:'personId must be a valid ObjectId' });
+    const personId = new mongoose.Types.ObjectId(personIdRaw);
+
+    const docs = await DayLog.find({ personId }).select({ date: 1 }).sort({ date: 1 }).lean();
+    res.json(docs.map(d => d.date));
+  }catch(e){
+    console.error('[day-logs] dates error:', e);
+    res.status(500).json({ ok:false, error: e?.message || 'Failed to fetch day log dates' });
   }
 });
 
