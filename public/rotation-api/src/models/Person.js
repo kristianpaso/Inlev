@@ -17,7 +17,14 @@ const PersonSchema = new mongoose.Schema(
     departmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Department' }],
 
     // Ny: flera avdelningar per dag med timmar + veckodag
-    assignments: { type: [AssignmentSchema], default: [] }
+    assignments: { type: [AssignmentSchema], default: [] },
+
+    // Hälsa
+    sex: { type: String, enum: ['M','F'], default: 'M' },
+    age: { type: Number, default: 30 },
+    heightCm: { type: Number, default: 175 },
+    weightKg: { type: Number, default: 70 },
+    activityFactor: { type: Number, default: 1.4 }
   },
   { collection: 'personer', timestamps: true }
 );

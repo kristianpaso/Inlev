@@ -12,11 +12,10 @@
     <div class="adminTop">
       <div>
         <h1>BeteKnepet Admin</h1>
-        <div class="hint">Överblick och redigering av steg (hämtas/sparas i MongoDB via API).</div>
+        <div class="hint">Skapa och redigera steg som frontend använder. Sparas i MongoDB via API.</div>
       </div>
 
       <div class="adminApi">
-        <label class="hint" for="apiBase">API</label>
         <select id="apiPreset" class="miniSelect" title="Välj server">
           <option value="local">Localhost</option>
           <option value="render">Render</option>
@@ -33,27 +32,21 @@
       <div class="body">
         <div class="row">
           <div class="hint">Steg</div>
-          <button id="btnAddStep" class="btn">+ Nytt steg</button>
+          <button id="btnAddStep" class="btn">+ Lägg till steg</button>
         </div>
+
         <div id="stepsList" class="stepsList"></div>
       </div>
     </div>
 
     <div class="card" style="margin-top:14px;">
       <div class="body">
-        <div class="row">
-          <div class="hint">Avancerat: JSON</div>
-          <button id="btnExport" class="btn">Exportera JSON</button>
-          <button id="btnImport" class="btn">Importera JSON</button>
+        <div class="hint" style="margin-bottom:8px;">
+          Bild sparas som DataURL (base64) i MongoDB så det funkar utan filserver.
         </div>
-        <textarea id="jsonBox" class="jsonBox" placeholder='{ "steg": [...] }'></textarea>
-        <div class="hint" style="margin-top:8px;">
-          Format: <b>steg</b> = array. Varje steg: { id, title, key, order, options:[{value,label,img}] }.
-        </div>
+        <textarea id="jsonBox" class="jsonBox" placeholder='{ "steg": [] }'></textarea>
       </div>
     </div>
-
-    <div class="hint" style="margin-top:12px;">Frontend läser från <code>/api/beteknepet/steg</code>.</div>
   </div>
 
   <script src="./admin.js"></script>

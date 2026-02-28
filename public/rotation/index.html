@@ -123,6 +123,8 @@
 #dayModal .dayLeft{display:none!important}
 #dayModal .dayGrid{grid-template-columns:1fr!important}
 
+
+.calNav .btn.small{padding:6px 10px}
 </style>
 </head>
 <body>
@@ -139,6 +141,7 @@
         </select>
         <button class="btn secondary" id="btnNewDay" style="display:none">Registrera dag</button>
         <button class="btn secondary" id="btnPeople">Personer</button>
+        <button class="btn secondary" id="btnLeaderboard">Topplistan</button>
         <button class="btn secondary" id="btnDepartments">Avdelningar</button>
         <button class="btn" id="btnRefresh">Uppdatera</button>
       </div>
@@ -177,6 +180,12 @@
         <div class="dayRight">
           <label>Välj dag</label>
           <input id="datePick" type="date" />
+          <div class="calNav" style="margin-top:10px;display:flex;align-items:center;gap:10px">
+            <button class="btn secondary small" id="dayCalPrev" type="button">◀</button>
+            <div id="dayCalLabel" style="font-weight:900"></div>
+            <button class="btn secondary small" id="dayCalNext" type="button">▶</button>
+          </div>
+          <div id="dateQuickCal" class="calGrid" style="margin-top:8px"></div
           <div class="hint">Spara skapar/uppdaterar loggen för valt datum.</div>
 
           <div style="margin-top:10px" class="card" style="padding:12px">
@@ -287,6 +296,35 @@
       <label>Namn</label>
       <input id="editPersonName" placeholder="Namn" />
 
+      <div class="split">
+        <div>
+          <label>Kön</label>
+          <select id="editPersonSex"><option value="M">Man</option><option value="F">Kvinna</option></select>
+        </div>
+        <div>
+          <label>Ålder</label>
+          <input id="editPersonAge" type="number" min="5" max="90" />
+        </div>
+      </div>
+      <div class="split">
+        <div>
+          <label>Längd (cm)</label>
+          <input id="editPersonHeight" type="number" min="120" max="230" />
+        </div>
+        <div>
+          <label>Vikt (kg)</label>
+          <input id="editPersonWeight" type="number" min="30" max="250" step="0.1" />
+        </div>
+      </div>
+      <label>Aktivitetsfaktor (TDEE)</label>
+      <select id="editPersonAF">
+        <option value="1.2">1.2 (stillasittande)</option>
+        <option value="1.4">1.4 (lätt aktiv)</option>
+        <option value="1.6">1.6 (aktiv)</option>
+        <option value="1.8">1.8 (mycket aktiv)</option>
+        <option value="2.0">2.0 (extrem)</option>
+      </select>
+
       <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn good" id="btnSavePersonEdit">Spara</button>
         <button class="btn danger" id="btnDeletePerson">Ta bort person</button>
@@ -317,6 +355,35 @@
 
       <label>Namn</label>
       <input id="pm_name" placeholder="Namn" />
+
+      <div class="split">
+        <div>
+          <label>Kön</label>
+          <select id="pm_sex"><option value="M">Man</option><option value="F">Kvinna</option></select>
+        </div>
+        <div>
+          <label>Ålder</label>
+          <input id="pm_age" type="number" min="5" max="90" />
+        </div>
+      </div>
+      <div class="split">
+        <div>
+          <label>Längd (cm)</label>
+          <input id="pm_height" type="number" min="120" max="230" />
+        </div>
+        <div>
+          <label>Vikt (kg)</label>
+          <input id="pm_weight" type="number" min="30" max="250" step="0.1" />
+        </div>
+      </div>
+      <label>Aktivitetsfaktor (TDEE)</label>
+      <select id="pm_af">
+        <option value="1.2">1.2 (stillasittande)</option>
+        <option value="1.4">1.4 (lätt aktiv)</option>
+        <option value="1.6">1.6 (aktiv)</option>
+        <option value="1.8">1.8 (mycket aktiv)</option>
+        <option value="2.0">2.0 (extrem)</option>
+      </select>
 
       <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn good" id="btnPmSave">Spara</button>
@@ -398,6 +465,25 @@
           <div class="hint">Klicka “Ändra” för att ladda in avdelningen i formuläret. “Ta bort” kräver bekräftelse.</div>
           <div id="dm_list" class="list" style="margin-top:10px;max-height:65vh;overflow:auto"></div>
         </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Modal: Leaderboard -->
+  <div class="modalBackdrop" id="leaderModal">
+    <div class="card modal" style="max-width:860px">
+      <div class="modalHead">
+        <div>
+          <div style="font-weight:900;font-size:18px">Topplistan – Avdelningar</div>
+          <div class="hint">Sorterad på MET-poäng (högst först). “Jobbighet” är en enkel tolkning av MET.</div>
+        </div>
+        <button class="btn danger" id="closeLeaderModal">Stäng</button>
+      </div>
+
+      <div class="card" style="padding:12px">
+        <div class="hint">MET ~ 1–2 lätt, 3–4 måttlig, 5–6 tung, 7+ mycket tung.</div>
+        <div id="leaderList" class="list" style="margin-top:10px"></div>
       </div>
     </div>
   </div>
@@ -515,7 +601,12 @@
     return mode === "render" ? RENDER_URL : LOCAL_URL;
   }
   setApiMode(localStorage.getItem("rotation_api_mode") || "local");
-  els.apiMode.addEventListener("change", () => { setApiMode(els.apiMode.value); refreshAll(); });
+  els.apiMode.addEventListener("change", () => { setApiMode(els.apiMode.value); if(els.datePick) els.datePick.addEventListener('change', async () => { try{ const _d=new Date(String(els.datePick.value)+'T00:00:00'); if(!Number.isNaN(_d.getTime())){ state.dayCalYear=_d.getFullYear(); state.dayCalMonth=_d.getMonth(); } }catch(_e){}; renderQuickCal(); await syncEntriesFromSelectedDate(); });
+if(els.dateQuickCal) els.dateQuickCal.addEventListener('click', async (e) => { const c = e.target.closest('[data-datepick]'); if(!c) return; els.datePick.value = c.getAttribute('data-datepick'); try{ const _d=new Date(String(els.datePick.value)+'T00:00:00'); if(!Number.isNaN(_d.getTime())){ state.dayCalYear=_d.getFullYear(); state.dayCalMonth=_d.getMonth(); } }catch(_e){}; renderQuickCal(); await syncEntriesFromSelectedDate(); });
+if(els.dayCalPrev) els.dayCalPrev.addEventListener('click', () => { if(state.dayCalYear==null) return; state.dayCalMonth--; if(state.dayCalMonth<0){ state.dayCalMonth=11; state.dayCalYear--; } renderQuickCal(); });
+if(els.dayCalNext) els.dayCalNext.addEventListener('click', () => { if(state.dayCalYear==null) return; state.dayCalMonth++; if(state.dayCalMonth>11){ state.dayCalMonth=0; state.dayCalYear++; } renderQuickCal(); });
+
+refreshAll(); });
 
   async function api(path, opts={}){
     const url = apiBase() + path;
@@ -728,7 +819,21 @@
       };
     }
 
-    function minutesToStr(mins){
+    function calcBMR(p){
+    const w = Number(p?.weightKg ?? 70);
+    const h = Number(p?.heightCm ?? 175);
+    const a = Number(p?.age ?? 30);
+    const sex = (p?.sex === 'F') ? 'F' : 'M';
+    // Mifflin-St Jeor
+    const bmr = (10*w) + (6.25*h) - (5*a) + (sex==='M' ? 5 : -161);
+    return Math.round(bmr);
+  }
+  function calcTDEE(p){
+    const af = Number(p?.activityFactor ?? 1.4);
+    return Math.round(calcBMR(p) * af);
+  }
+
+  function minutesToStr(mins){
       const h = Math.floor(mins/60);
       const m = mins % 60;
       if(h<=0) return `${m} min`;
@@ -780,7 +885,9 @@
             <div style="margin-top:10px" class="metricLine"><span>Avdelningar</span><span>${stats.deptRows.length}</span></div>
             <div class="metricLine"><span>Met-poäng</span><span>${stats.avgMet ?? "—"}</span></div>
             <div class="metricLine"><span>K-poäng</span><span>${stats.avgK ?? "—"}</span></div>
-            <div class="metricLine"><span>kcal</span><span>${stats.kcal}</span></div>
+            <div class="metricLine"><span>kcal (loggat)</span><span>${stats.kcal}</span></div>
+            <div class="metricLine"><span>BMR</span><span>${calcBMR(p)} kcal/d</span></div>
+            <div class="metricLine"><span>TDEE</span><span>${calcTDEE(p)} kcal/d</span></div>
             <div class="metricLine"><span>Tid</span><span>${minutesToStr(stats.minutes)}</span></div>
 
             <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
@@ -846,6 +953,9 @@
     if(state.entryRows.length===0) addEntryRow();
     renderPersonPick();
     renderEntries();
+    try{ const _d=new Date(String(els.datePick.value)+'T00:00:00'); if(!Number.isNaN(_d.getTime())){ state.dayCalYear=_d.getFullYear(); state.dayCalMonth=_d.getMonth(); } }catch(_e){};
+    renderQuickCal();
+    syncEntriesFromSelectedDate();
   }
   function closeDayModal(){ els.dayModal.style.display="none"; }
 
@@ -862,6 +972,11 @@ function openPersonModal(personId){
   state.editingPersonId = String(personId);
   const p = state.persons.find(x => String(x.id) === String(personId));
   els.editPersonName.value = p?.name || '';
+    if(els.editPersonSex) els.editPersonSex.value = (p?.sex === 'F') ? 'F' : 'M';
+    if(els.editPersonAge) els.editPersonAge.value = p?.age ?? 30;
+    if(els.editPersonHeight) els.editPersonHeight.value = p?.heightCm ?? 175;
+    if(els.editPersonWeight) els.editPersonWeight.value = p?.weightKg ?? 70;
+    if(els.editPersonAF) els.editPersonAF.value = String(p?.activityFactor ?? 1.4);
   els.personStatus.textContent = '';
   document.body.classList.add('modal-open');
     els.personModal.style.display = 'flex';
@@ -910,6 +1025,79 @@ function closePersonModal(){
       els.entries.innerHTML = '<div class="hint">Inga avdelningar ännu. Klicka “Skapa avdelning”.</div>';
       return;
     }
+function monthLabel(y,m){
+  const months = ['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'];
+  return months[m] + ' ' + y;
+}
+
+async function loadDayLogFor(personId, dateStr){
+  if(!personId || !dateStr) return null;
+  try{
+    const logs = await api('/api/day-logs?personId=' + encodeURIComponent(personId) + '&from=' + encodeURIComponent(dateStr) + '&to=' + encodeURIComponent(dateStr));
+    if(Array.isArray(logs)) return logs.find(l => l.date === dateStr) || null;
+    return null;
+  }catch(_e){ return null; }
+}
+
+async function syncEntriesFromSelectedDate(){
+  if(!state.currentPersonId) return;
+  const dateStr = els.datePick?.value;
+  if(!dateStr) return;
+  const log = await loadDayLogFor(state.currentPersonId, dateStr);
+  if(log && Array.isArray(log.entries) && log.entries.length){
+    state.entryRows = log.entries.map(e => ({ departmentId: String(e.departmentId), minutes: Number(e.minutes) || 0 }));
+    renderEntries();
+    if(els.dayStatus) els.dayStatus.textContent = 'Laddade ' + log.entries.length + ' rad(er) för ' + dateStr;
+  }else{
+    state.entryRows = [{ departmentId: state.depts[0]?.id || '', minutes: 480 }];
+    renderEntries();
+    if(els.dayStatus) els.dayStatus.textContent = 'Ny dag: ' + dateStr;
+  }
+}
+
+function setDayCalFromDate(dateStr){
+  try{
+    const d = new Date(String(dateStr) + 'T00:00:00');
+    if(Number.isNaN(d.getTime())) return;
+    state.dayCalYear = d.getFullYear();
+    state.dayCalMonth = d.getMonth();
+  }catch(_e){}
+}
+
+function renderQuickCal(){
+  if(!els.dateQuickCal) return;
+  const y = state.dayCalYear;
+  const m = state.dayCalMonth;
+  if(y==null || m==null) return;
+
+  if(els.dayCalLabel) els.dayCalLabel.textContent = monthLabel(y,m);
+
+  const first = new Date(y,m,1);
+  const last = new Date(y,m+1,0);
+  const days = last.getDate();
+  const firstDow = first.getDay(); // 0=Sun
+
+  const dows = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  const cells = [];
+  for(let i=0;i<7;i++) cells.push('<div class="calDow">'+dows[i]+'</div>');
+  for(let i=0;i<firstDow;i++) cells.push('<div class="calDay" style="opacity:.18;cursor:default"></div>');
+
+  const mm = String(m+1).padStart(2,'0');
+  const sel = els.datePick?.value;
+  const dates = state.currentPersonId ? (state.datesByPerson.get(String(state.currentPersonId)) || []) : [];
+
+  for(let d=1; d<=days; d++){
+    const dd = String(d).padStart(2,'0');
+    const ds = y+'-'+mm+'-'+dd;
+    const isSel = sel === ds;
+    const has = dates.includes(ds);
+    const cls = 'calDay'+(isSel?' sel':'')+(has?' has':'');
+    cells.push('<div class="'+cls+'" data-datepick="'+ds+'">'+d+'</div>');
+  }
+
+  els.dateQuickCal.innerHTML = cells.join('');
+}
+
     state.entryRows.forEach((r, idx) => {
       const row = document.createElement("div");
       row.className = "entryRow";
@@ -971,7 +1159,6 @@ function closePersonModal(){
       els.deptStatus.textContent = "Sparad.";
       await refreshAll();
       closeDeptModal();
-      renderEntries();
     }catch(e){
       els.deptStatus.textContent = e.message;
       alert(e.message);
@@ -984,7 +1171,7 @@ function closePersonModal(){
     try{
       const res = await api("/api/persons", { method:"POST", body: JSON.stringify({ name })});
       els.newPersonName.value = "";
-      await refreshAll();
+      refreshAll();
       state.currentPersonId = res.person?.id || state.persons.find(p=>p.name===name)?.id;
       els.personSearch.value = name;
       els.dayStatus.textContent = "Vald person: " + name;
@@ -1011,7 +1198,7 @@ function closePersonModal(){
     // invalidate
     state.datesByPerson.delete(String(state.currentPersonId));
 
-    await refreshAll();
+refreshAll();
     els.dayStatus.textContent = "Sparat: " + date;
 
     if(andNext){
@@ -1132,7 +1319,12 @@ if(els.btnDmClear) els.btnDmClear.addEventListener('click', dmClearForm);
     if(bD) bD.onclick = openDeptManage;
   }catch(_e){}
 
-  refreshAll();
+  if(els.datePick) els.datePick.addEventListener('change', async () => { try{ const _d=new Date(String(els.datePick.value)+'T00:00:00'); if(!Number.isNaN(_d.getTime())){ state.dayCalYear=_d.getFullYear(); state.dayCalMonth=_d.getMonth(); } }catch(_e){}; renderQuickCal(); await syncEntriesFromSelectedDate(); });
+if(els.dateQuickCal) els.dateQuickCal.addEventListener('click', async (e) => { const c = e.target.closest('[data-datepick]'); if(!c) return; els.datePick.value = c.getAttribute('data-datepick'); try{ const _d=new Date(String(els.datePick.value)+'T00:00:00'); if(!Number.isNaN(_d.getTime())){ state.dayCalYear=_d.getFullYear(); state.dayCalMonth=_d.getMonth(); } }catch(_e){}; renderQuickCal(); await syncEntriesFromSelectedDate(); });
+if(els.dayCalPrev) els.dayCalPrev.addEventListener('click', () => { if(state.dayCalYear==null) return; state.dayCalMonth--; if(state.dayCalMonth<0){ state.dayCalMonth=11; state.dayCalYear--; } renderQuickCal(); });
+if(els.dayCalNext) els.dayCalNext.addEventListener('click', () => { if(state.dayCalYear==null) return; state.dayCalMonth++; if(state.dayCalMonth>11){ state.dayCalMonth=0; state.dayCalYear++; } renderQuickCal(); });
+
+refreshAll();
   // modal open via button
 
 
@@ -1162,14 +1354,24 @@ function loadPeopleManagePerson(){
   state.editingPersonMenuId = id;
   const p = state.persons.find(x => String(x.id) === String(id));
   els.pm_name.value = p?.name || '';
+    if(els.pm_sex) els.pm_sex.value = (p?.sex === 'F') ? 'F' : 'M';
+    if(els.pm_age) els.pm_age.value = p?.age ?? 30;
+    if(els.pm_height) els.pm_height.value = p?.heightCm ?? 175;
+    if(els.pm_weight) els.pm_weight.value = p?.weightKg ?? 70;
+    if(els.pm_af) els.pm_af.value = String(p?.activityFactor ?? 1.4);
   els.pm_status.textContent = '';
 }
 async function savePeopleManage(){
   const id = state.editingPersonMenuId;
   const name = (els.pm_name.value||'').trim();
   if(name.length < 2) return alert('Skriv minst 2 tecken');
-  await api('/api/persons/' + encodeURIComponent(id), { method:'PUT', body: JSON.stringify({ name })});
-  await refreshAll();
+  await api('/api/persons/' + encodeURIComponent(id), { method:'PUT', body: JSON.stringify({ name, sex: els.pm_sex?.value, age: Number(els.pm_age?.value), heightCm: Number(els.pm_height?.value), weightKg: Number(els.pm_weight?.value), activityFactor: Number(els.pm_af?.value) })});
+  if(els.datePick) els.datePick.addEventListener('change', async () => { try{ const _d=new Date(String(els.datePick.value)+'T00:00:00'); if(!Number.isNaN(_d.getTime())){ state.dayCalYear=_d.getFullYear(); state.dayCalMonth=_d.getMonth(); } }catch(_e){}; renderQuickCal(); await syncEntriesFromSelectedDate(); });
+if(els.dateQuickCal) els.dateQuickCal.addEventListener('click', async (e) => { const c = e.target.closest('[data-datepick]'); if(!c) return; els.datePick.value = c.getAttribute('data-datepick'); try{ const _d=new Date(String(els.datePick.value)+'T00:00:00'); if(!Number.isNaN(_d.getTime())){ state.dayCalYear=_d.getFullYear(); state.dayCalMonth=_d.getMonth(); } }catch(_e){}; renderQuickCal(); await syncEntriesFromSelectedDate(); });
+if(els.dayCalPrev) els.dayCalPrev.addEventListener('click', () => { if(state.dayCalYear==null) return; state.dayCalMonth--; if(state.dayCalMonth<0){ state.dayCalMonth=11; state.dayCalYear--; } renderQuickCal(); });
+if(els.dayCalNext) els.dayCalNext.addEventListener('click', () => { if(state.dayCalYear==null) return; state.dayCalMonth++; if(state.dayCalMonth>11){ state.dayCalMonth=0; state.dayCalYear++; } renderQuickCal(); });
+
+refreshAll();
   els.pm_status.textContent = 'Sparad.';
     closePeopleManage();
 }
@@ -1179,7 +1381,12 @@ async function deletePeopleManage(){
   const ok = confirm('Är du säker på att du vill ta bort personen' + (p?.name ? ' "' + p.name + '"' : '') + '?');
   if(!ok) return;
   await api('/api/persons/' + encodeURIComponent(id), { method:'DELETE' });
-  await refreshAll();
+  if(els.datePick) els.datePick.addEventListener('change', async () => { try{ const _d=new Date(String(els.datePick.value)+'T00:00:00'); if(!Number.isNaN(_d.getTime())){ state.dayCalYear=_d.getFullYear(); state.dayCalMonth=_d.getMonth(); } }catch(_e){}; renderQuickCal(); await syncEntriesFromSelectedDate(); });
+if(els.dateQuickCal) els.dateQuickCal.addEventListener('click', async (e) => { const c = e.target.closest('[data-datepick]'); if(!c) return; els.datePick.value = c.getAttribute('data-datepick'); try{ const _d=new Date(String(els.datePick.value)+'T00:00:00'); if(!Number.isNaN(_d.getTime())){ state.dayCalYear=_d.getFullYear(); state.dayCalMonth=_d.getMonth(); } }catch(_e){}; renderQuickCal(); await syncEntriesFromSelectedDate(); });
+if(els.dayCalPrev) els.dayCalPrev.addEventListener('click', () => { if(state.dayCalYear==null) return; state.dayCalMonth--; if(state.dayCalMonth<0){ state.dayCalMonth=11; state.dayCalYear--; } renderQuickCal(); });
+if(els.dayCalNext) els.dayCalNext.addEventListener('click', () => { if(state.dayCalYear==null) return; state.dayCalMonth++; if(state.dayCalMonth>11){ state.dayCalMonth=0; state.dayCalYear++; } renderQuickCal(); });
+
+refreshAll();
   renderPeopleManageSelect();
   els.pm_status.textContent = 'Borttagen.';
     closePeopleManage();
@@ -1288,7 +1495,12 @@ async function dmSave(){
     els.dm_status.textContent = 'Skapad.';
   }
 
-  await refreshAll();
+  if(els.datePick) els.datePick.addEventListener('change', async () => { try{ const _d=new Date(String(els.datePick.value)+'T00:00:00'); if(!Number.isNaN(_d.getTime())){ state.dayCalYear=_d.getFullYear(); state.dayCalMonth=_d.getMonth(); } }catch(_e){}; renderQuickCal(); await syncEntriesFromSelectedDate(); });
+if(els.dateQuickCal) els.dateQuickCal.addEventListener('click', async (e) => { const c = e.target.closest('[data-datepick]'); if(!c) return; els.datePick.value = c.getAttribute('data-datepick'); try{ const _d=new Date(String(els.datePick.value)+'T00:00:00'); if(!Number.isNaN(_d.getTime())){ state.dayCalYear=_d.getFullYear(); state.dayCalMonth=_d.getMonth(); } }catch(_e){}; renderQuickCal(); await syncEntriesFromSelectedDate(); });
+if(els.dayCalPrev) els.dayCalPrev.addEventListener('click', () => { if(state.dayCalYear==null) return; state.dayCalMonth--; if(state.dayCalMonth<0){ state.dayCalMonth=11; state.dayCalYear--; } renderQuickCal(); });
+if(els.dayCalNext) els.dayCalNext.addEventListener('click', () => { if(state.dayCalYear==null) return; state.dayCalMonth++; if(state.dayCalMonth>11){ state.dayCalMonth=0; state.dayCalYear++; } renderQuickCal(); });
+
+refreshAll();
   renderDeptManageList();
   dmClearForm();
   closeDeptManage();
@@ -1298,7 +1510,12 @@ async function dmDelete(id){
   const ok = confirm('Är du säker på att du vill ta bort avdelningen' + (d?.name ? ' "' + d.name + '"' : '') + '?');
   if(!ok) return;
   await api('/api/departments/' + encodeURIComponent(id), { method:'DELETE' });
-  await refreshAll();
+  if(els.datePick) els.datePick.addEventListener('change', async () => { try{ const _d=new Date(String(els.datePick.value)+'T00:00:00'); if(!Number.isNaN(_d.getTime())){ state.dayCalYear=_d.getFullYear(); state.dayCalMonth=_d.getMonth(); } }catch(_e){}; renderQuickCal(); await syncEntriesFromSelectedDate(); });
+if(els.dateQuickCal) els.dateQuickCal.addEventListener('click', async (e) => { const c = e.target.closest('[data-datepick]'); if(!c) return; els.datePick.value = c.getAttribute('data-datepick'); try{ const _d=new Date(String(els.datePick.value)+'T00:00:00'); if(!Number.isNaN(_d.getTime())){ state.dayCalYear=_d.getFullYear(); state.dayCalMonth=_d.getMonth(); } }catch(_e){}; renderQuickCal(); await syncEntriesFromSelectedDate(); });
+if(els.dayCalPrev) els.dayCalPrev.addEventListener('click', () => { if(state.dayCalYear==null) return; state.dayCalMonth--; if(state.dayCalMonth<0){ state.dayCalMonth=11; state.dayCalYear--; } renderQuickCal(); });
+if(els.dayCalNext) els.dayCalNext.addEventListener('click', () => { if(state.dayCalYear==null) return; state.dayCalMonth++; if(state.dayCalMonth>11){ state.dayCalMonth=0; state.dayCalYear++; } renderQuickCal(); });
+
+refreshAll();
   renderDeptManageList();
   dmClearForm();
 closeDeptManage();
@@ -1306,5 +1523,75 @@ closeDeptManage();
 
 })();
 </script>
-</body>
-</html>
+
+
+   
+       
+      
+        
+        
+        
+      
+  
+
+   
+     
+    
+      
+    
+  
+   
+     
+      
+    
+  
+
+   
+     
+           
+                     
+                
+        
+
+      
+    
+         
+        
+          
+      
+      
+    
+
+       
+         
+        
+
+         
+        
+        
+        
+        
+
+         
+        
+
+         
+        
+          
+
+         
+        
+         
+             
+         
+                
+          
+
+      
+      
+
+      
+      
+      
+    
+  

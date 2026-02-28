@@ -212,6 +212,10 @@ function ZoneModal(props) {
           </div>
         </div>
         <div className="headerActions">
+          <div className={"apiPill " + (apiStatus.ok ? "ok" : "bad")} title="Serverstatus">
+            {apiStatus.ok ? "Ansluten: " : "Offline: "}<b>{apiStatus.mode}</b>
+          </div>
+
           <div className="apiSwitch">
             <select className="miniSelect" value={apiMode} onChange={(e)=>setApiMode(e.target.value)} title="Välj server">
               <option value="local">Localhost</option>
@@ -629,6 +633,40 @@ const LOCAL_BASE = "http://localhost:5005";
       }
     }
   }
+
+
+  async function ping(base){
+    try{
+      const controller = new AbortController();
+      const id = setTimeout(()=>controller.abort(), 900);
+      const r = await fetch(base + "/health", { signal: controller.signal });
+      clearTimeout(id);
+      return r.ok;
+    }catch(e){
+      return false;
+    }
+  }
+
+  async function refreshApiStatus(){
+    const LOCAL = "http://localhost:5005";
+    const RENDER = "https://beteknepet-api.onrender.com";
+
+    if(apiMode === "render"){
+      const ok = await ping(RENDER);
+      setApiStatus({ mode: "Render", ok });
+      return;
+    }
+
+    const okLocal = await ping(LOCAL);
+    if(okLocal){
+      setApiStatus({ mode: "Localhost", ok: true });
+      return;
+    }
+    const okRender = await ping(RENDER);
+    setApiStatus({ mode: "Render", ok: okRender });
+  }
+
+
 const [species, setSpecies] = useState('');
   const [platform, setPlatform] = useState('');
   const [timeofday, setTimeofday] = useState('');
@@ -1245,13 +1283,13 @@ const [step, setStep] = useState(0);
                               </div>
               
                               <div className="mockCard">
-                                <div className="sectionTitle">{step === 0 ? 'Välj art' : step === 1 ? 'Mål' : step === 2 ? 'Plats' : step === 3 ? 'Tid' : step === 4 ? 'Vind' : step === 5 ? 'Typ av vatten' : 'Djup'}</div>
-
-                                {remoteSteps && remoteSteps.length ? (
-                                  renderRemoteStep(remoteSteps[step] || remoteSteps[0], step)
-                                ) : (
-                                  <>
-                                    {/* Step content */}
+                                <div className="sectionTitle">
+              {remoteSteps && remoteSteps.length ? (
+                renderRemoteStep(remoteSteps[step] || remoteSteps[0], step)
+              ) : (
+{step === 0 ? 'Välj art' : step === 1 ? 'Mål' : step === 2 ? 'Plats' : step === 3 ? 'Tid' : step === 4 ? 'Vind' : step === 5 ? 'Typ av vatten' : 'Djup'}</div>
+              
+                                {/* Step content */}
                                 {step === 0 ? (
                                   <div className="choiceGrid cols3">
                                     <button className={"choiceCard imgCard bg-species-gadda " + (species==='gadda' ? 'selected':'')} type="button" onClick={()=>{ setSpecies('gadda'); setStep(1); }}>
@@ -1423,10 +1461,8 @@ const [step, setStep] = useState(0);
                                   </div>
                                 ) : null}
               
-                                    </>
-                                  )}
                               </div>
-
+              
                               <div className="footerRow">
                                 <div className="muted">Utan spot-drama.</div>
                                 <div className="muted">v1.1</div>
@@ -1482,3 +1518,10 @@ const [step, setStep] = useState(0);
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+  // API status polling
+  useEffect(()=>{
+    refreshApiStatus();
+    const t = setInterval(refreshApiStatus, 10000);
+    return ()=>clearInterval(t);
+  }, [apiMode]);

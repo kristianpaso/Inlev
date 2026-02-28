@@ -992,3 +992,20 @@ body{
   font-weight: 800;
   cursor: pointer;
 }
+
+/* API connection status pill */
+.apiPill{
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 900;
+  border: 1px solid rgba(0,0,0,.10);
+  background: rgba(255,255,255,.75);
+}
+.apiPill.ok{
+  border-color: rgba(9,164,120,.35);
+  background: rgba(9,164,120,.14);
+}
+.apiPill.bad{
+  border-color: rgba(210,80,80,.35);
+  background: rgba(210,80,80,.12);
+}

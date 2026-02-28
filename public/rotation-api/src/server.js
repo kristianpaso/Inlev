@@ -35,7 +35,7 @@ function normEntries(entries){
     out.push({ departmentId: new mongoose.Types.ObjectId(departmentId), minutes: clamp(minutes, 1, 24*60) });
   }
   return out;
-}
+} 
 
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(morgan('dev'));
@@ -264,7 +264,7 @@ app.get('/api/persons', async (req, res) => {
     const persons = await Person.find({}).sort({ createdAt: -1 }).lean();
       res.json(persons.map(p => ({
         id: String(p._id),
-        name: p.name,
+        name: p.name, sex: p.sex, age: p.age, heightCm: p.heightCm, weightKg: p.weightKg, activityFactor: p.activityFactor,
         departmentIds: (p.departmentIds || []).map(x => String(x)),
         createdAt: p.createdAt,
         updatedAt: p.updatedAt
@@ -283,8 +283,21 @@ app.post('/api/persons', async (req, res) => {
     }
     // Keep only valid Mongo ObjectId-looking strings
     const cleanedIds = departmentIds.filter(v => typeof v === 'string' && /^[a-fA-F0-9]{24}$/.test(v));
-    const created = await Person.create({ name, departmentIds: cleanedIds });
-    res.status(201).json({ ok: true, person: { id: String(created._id), name: created.name, departmentIds: (created.departmentIds||[]).map(x=>String(x)), createdAt: created.createdAt, updatedAt: created.updatedAt } });
+
+const sexRaw = req.body?.sex;
+const sex = (sexRaw === 'F' || sexRaw === 'M') ? sexRaw : undefined;
+const age = req.body?.age !== undefined ? Number(req.body.age) : undefined;
+const heightCm = req.body?.heightCm !== undefined ? Number(req.body.heightCm) : undefined;
+const weightKg = req.body?.weightKg !== undefined ? Number(req.body.weightKg) : undefined;
+const activityFactor = req.body?.activityFactor !== undefined ? Number(req.body.activityFactor) : undefined;
+    const create = { name, departmentIds: cleanedIds };
+    if(sex) create.sex = sex;
+    if(Number.isFinite(age)) create.age = Math.max(5, Math.min(90, age));
+    if(Number.isFinite(heightCm)) create.heightCm = Math.max(120, Math.min(230, heightCm));
+    if(Number.isFinite(weightKg)) create.weightKg = Math.max(30, Math.min(250, weightKg));
+    if(Number.isFinite(activityFactor)) create.activityFactor = Math.max(1.2, Math.min(2.2, activityFactor));
+    const created = await Person.create(create);
+    res.status(201).json({ ok: true, person: { id: String(created._id), name: created.name, sex: created.sex, age: created.age, heightCm: created.heightCm, weightKg: created.weightKg, activityFactor: created.activityFactor, departmentIds: (created.departmentIds||[]).map(x=>String(x)), createdAt: created.createdAt, updatedAt: created.updatedAt } });
   } catch (e) {
     res.status(500).json({ ok: false, error: 'Failed to create person' });
   }
@@ -296,8 +309,21 @@ app.put('/api/persons/:id', async (req, res) => {
     const name = typeof req.body?.name === 'string' ? req.body.name.trim() : null;
     const departmentIds = Array.isArray(req.body?.departmentIds) ? req.body.departmentIds : null;
 
+const sexRaw = req.body?.sex;
+const sex = (sexRaw === 'F' || sexRaw === 'M') ? sexRaw : undefined;
+const age = req.body?.age !== undefined ? Number(req.body.age) : undefined;
+const heightCm = req.body?.heightCm !== undefined ? Number(req.body.heightCm) : undefined;
+const weightKg = req.body?.weightKg !== undefined ? Number(req.body.weightKg) : undefined;
+const activityFactor = req.body?.activityFactor !== undefined ? Number(req.body.activityFactor) : undefined;
+
     const update = {};
     if (name && name.length >= 2) update.name = name;
+    if(sex) update.sex = sex;
+    if(Number.isFinite(age)) update.age = Math.max(5, Math.min(90, age));
+    if(Number.isFinite(heightCm)) update.heightCm = Math.max(120, Math.min(230, heightCm));
+    if(Number.isFinite(weightKg)) update.weightKg = Math.max(30, Math.min(250, weightKg));
+    if(Number.isFinite(activityFactor)) update.activityFactor = Math.max(1.2, Math.min(2.2, activityFactor));
+
     if (departmentIds) {
       update.departmentIds = departmentIds
         .filter(v => typeof v === 'string' && /^[a-fA-F0-9]{24}$/.test(v));
@@ -305,7 +331,7 @@ app.put('/api/persons/:id', async (req, res) => {
 
     const updated = await Person.findByIdAndUpdate(id, update, { new: true });
     if (!updated) return res.status(404).json({ ok: false, error: 'person not found' });
-    res.json({ ok: true, person: { id: String(updated._id), name: updated.name, departmentIds: (updated.departmentIds||[]).map(x=>String(x)), createdAt: updated.createdAt, updatedAt: updated.updatedAt } });
+    res.json({ ok: true, person: { id: String(updated._id), name: updated.name, sex: updated.sex, age: updated.age, heightCm: updated.heightCm, weightKg: updated.weightKg, activityFactor: updated.activityFactor, departmentIds: (updated.departmentIds||[]).map(x=>String(x)), createdAt: updated.createdAt, updatedAt: updated.updatedAt } });
   } catch (e) {
     res.status(500).json({ ok: false, error: 'Failed to update person' });
   }
