@@ -4,51 +4,13 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>BeteKnepet Admin</title>
-  <link rel="stylesheet" href="../styles.css"/>
-  <link rel="stylesheet" href="./admin.css"/>
 </head>
-<body>
-  <div class="adminWrap">
-    <div class="adminTop">
-      <div>
-        <h1>BeteKnepet Admin</h1>
-        <div class="hint">Skapa och redigera steg som frontend använder. Sparas i MongoDB via API.</div>
-      </div>
-
-      <div class="adminApi">
-        <select id="apiPreset" class="miniSelect" title="Välj server">
-          <option value="local">Localhost</option>
-          <option value="render">Render</option>
-        </select>
-        <input id="apiBase" class="input" placeholder="http://localhost:5005" />
-        <button id="btnLoad" class="btn">Hämta</button>
-        <button id="btnSave" class="btn primary">Spara</button>
-      </div>
-    </div>
-
-    <div id="msg" class="msg"></div>
-
-    <div class="card">
-      <div class="body">
-        <div class="row">
-          <div class="hint">Steg</div>
-          <button id="btnAddStep" class="btn">+ Lägg till steg</button>
-        </div>
-
-        <div id="stepsList" class="stepsList"></div>
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:14px;">
-      <div class="body">
-        <div class="hint" style="margin-bottom:8px;">
-          Bild sparas som DataURL (base64) i MongoDB så det funkar utan filserver.
-        </div>
-        <textarea id="jsonBox" class="jsonBox" placeholder='{ "steg": [] }'></textarea>
-      </div>
-    </div>
-  </div>
-
-  <script src="./admin.js"></script>
+<body style="font-family:system-ui; padding:16px;">
+  <h2>BeteKnepet Admin</h2>
+  <p>Admin finns här:</p>
+  <ul>
+    <li><a href="/beteknepet-admin/">/beteknepet-admin/</a></li>
+  </ul>
+  <script>location.href="/beteknepet-admin/";</script>
 </body>
 </html>

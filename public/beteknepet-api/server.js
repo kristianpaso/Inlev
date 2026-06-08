@@ -1,3 +1,5 @@
+import "dotenv/config";
+import { MongoClient } from \"mongodb\";
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
@@ -179,6 +181,19 @@ app.use(cors({
     return cb(new Error('CORS blocked: ' + origin));
   }
 }));
+
+
+let _mongoClient = null;
+async function getDb(){
+  const uri = process.env.MONGODB_URI || "";
+  if(!uri) throw new Error("MONGODB_URI saknas");
+  if(!_mongoClient){
+    _mongoClient = new MongoClient(uri);
+    await _mongoClient.connect();
+  }
+  return _mongoClient.db();
+}
+
 
 app.get('/health', (req, res) => {
   res.json({ ok: true, name: 'beteknepet-backend', time: new Date().toISOString() });
@@ -661,6 +676,43 @@ app.post('/api/beteknepet/lure-check', upload.single('image'), (req, res) => {
     });
   } catch (e) {
     res.status(400).json({ error: e.message || 'bad request' });
+  }
+});
+
+
+
+// Steg (MongoDB) – Admin + Frontend
+app.get("/api/beteknepet/steg", async (_req, res) => {
+  try {
+    const db = await getDb();
+    const col = db.collection(process.env.MONGODB_STEPS_COLLECTION || "steg");
+    const steg = await col.find({}).sort({ order: 1 }).toArray();
+    res.json({ ok: true, steg });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.put("/api/beteknepet/steg", async (req, res) => {
+  try {
+    const steg = req.body?.steg;
+    if (!Array.isArray(steg)) {
+      return res.status(400).json({ ok: false, error: "Body måste vara { steg: [...] }" });
+    }
+    const db = await getDb();
+    const col = db.collection(process.env.MONGODB_STEPS_COLLECTION || "steg");
+    await col.deleteMany({});
+    if (steg.length) {
+      const normalized = steg.map((s, i) => ({
+        ...s,
+        order: typeof s.order === "number" ? s.order : i + 1,
+        options: Array.isArray(s.options) ? s.options : []
+      }));
+      await col.insertMany(normalized);
+    }
+    res.json({ ok: true, count: steg.length });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 });
 

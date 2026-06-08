@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="./css/trav.css">
   <link rel="stylesheet" href="./css/horse-details.css">
 </head>
-<body>
+<body class="trav-modern-view">
   <div class="page">
     <header class="topbar overview-topbar">
       <button class="btn" id="btn-back">&#8592; Tillbaka</button>
@@ -55,28 +55,57 @@
 </section>
 
 
-      <!-- Stora blocket med tre kolumner -->
-      <section class="big-block">
-        <div class="side-block" id="popular-block">
-          <!--<h2>Populärfält</h2>-->
-          <div id="popular-number-list" class="number-column">
-            <!-- nummer fylls av JS -->
+      <!-- Ny travvy: mobil/PC-design med hästlista + utdragbar analys-panel -->
+      <section class="trav-board" id="trav-board">
+        <div class="trav-main-surface">
+          <div class="trav-race-header">
+            <div class="trav-game-mark" id="trav-game-type-label">V85</div>
+            <div class="trav-race-title">Avdelning <span id="center-division-index">1</span></div>
+            <div class="trav-race-distance"><span id="center-division-distance"></span></div>
+          </div>
+
+          <div id="horse-table-container" class="horse-table-wrapper trav-horse-list">
+            <!-- Hästkort fylls av overview.js -->
           </div>
         </div>
 
-        <div class="center-block">
-          <!--<h2>
-            Hästar i avdelning
-            <span id="center-division-index">1</span>
-          </h2>-->
+        <button class="trav-side-toggle" id="trav-side-toggle" type="button" aria-expanded="true" aria-controls="trav-side-panel">Analys</button>
 
-          <div id="horse-table-container" class="horse-table-wrapper">
-            <!-- Tabell fylls av overview.js -->
-          </div>
-        </div>
+        <aside class="trav-side-panel" id="trav-side-panel">
+          <section class="trav-side-block">
+            <h2>Top 6 %</h2>
+            <ol class="trav-top-list" id="trav-top-six-list"></ol>
+          </section>
 
-        <div class="side-block" id="idea-block">
-          <!--<h2>Idéfält</h2>-->
+          <section class="trav-side-block trav-coupon-preview-block">
+            <div class="trav-side-block-head">
+              <h2>Kupong 1</h2>
+              <select id="trav-coupon-select-1" class="trav-coupon-select" aria-label="Välj kupong 1"></select>
+            </div>
+            <div id="trav-coupon-preview-1" class="trav-coupon-preview"></div>
+          </section>
+
+          <section class="trav-side-block trav-coupon-preview-block">
+            <div class="trav-side-block-head">
+              <h2>Kupong 2</h2>
+              <select id="trav-coupon-select-2" class="trav-coupon-select" aria-label="Välj kupong 2"></select>
+            </div>
+            <div id="trav-coupon-preview-2" class="trav-coupon-preview"></div>
+          </section>
+
+          <section class="trav-side-block">
+            <div class="trav-side-block-head">
+              <h2>I Fokus</h2>
+              <button class="btn small" id="trav-focus-clear" type="button">Rensa</button>
+            </div>
+            <div id="trav-focus-list" class="trav-focus-list"></div>
+            <div id="trav-focus-pick-list" class="trav-focus-pick-list"></div>
+          </section>
+        </aside>
+
+        <!-- Dolda kompatibilitetsytor: gammal logik behöver dessa id:n. -->
+        <div class="trav-legacy-number-columns" aria-hidden="true">
+          <div id="popular-number-list" class="number-column"></div>
           <div id="idea-number-list" class="number-column"></div>
         </div>
       </section>
@@ -92,6 +121,7 @@
 
   <!-- Förklaring av alla ikoner (visas bara i ikon-läge) -->
   <div class="icon-legend hidden" id="icon-legend"></div>
+    </div>
   </div>
 </section>
 

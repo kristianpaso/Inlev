@@ -160,6 +160,41 @@ let isBuildingCoupon = false;
 let couponSelections = {};        // { divisionIndex: Set([...]) }
 let stakeLevel = 'original'; // 'original' | '70' | '50' | '30'
 
+// ---- Ny travvy: sidopanel, fokus-kuskar och kupongförhandsvisning ----
+const TRAV_FOCUS_COLORS = ['#d90416', '#30d5b2', '#ffd166', '#8ec5ff', '#f78fb3', '#c77dff', '#7bd88f', '#ff9f1c'];
+let travFocusDrivers = {}; // { driverName: color }
+let travSideCouponSlots = { 1: '', 2: '' };
+
+function travFocusStorageKey() {
+  return `trav_focus_drivers_${String(currentGameId || 'local')}`;
+}
+function travSideStorageKey() {
+  return `trav_side_coupons_${String(currentGameId || 'local')}`;
+}
+function loadTravNeoState() {
+  try { travFocusDrivers = JSON.parse(localStorage.getItem(travFocusStorageKey()) || '{}') || {}; } catch (_) { travFocusDrivers = {}; }
+  try { travSideCouponSlots = { 1: '', 2: '', ...(JSON.parse(localStorage.getItem(travSideStorageKey()) || '{}') || {}) }; } catch (_) { travSideCouponSlots = { 1: '', 2: '' }; }
+}
+function saveTravFocusDrivers() {
+  try { localStorage.setItem(travFocusStorageKey(), JSON.stringify(travFocusDrivers || {})); } catch (_) {}
+}
+function saveTravSideCoupons() {
+  try { localStorage.setItem(travSideStorageKey(), JSON.stringify(travSideCouponSlots || {})); } catch (_) {}
+}
+function nextTravFocusColor() {
+  const used = new Set(Object.values(travFocusDrivers || {}));
+  return TRAV_FOCUS_COLORS.find((c) => !used.has(c)) || TRAV_FOCUS_COLORS[Object.keys(travFocusDrivers || {}).length % TRAV_FOCUS_COLORS.length];
+}
+function toggleTravFocusDriver(driverName) {
+  const name = String(driverName || '').trim();
+  if (!name) return;
+  if (travFocusDrivers[name]) delete travFocusDrivers[name];
+  else travFocusDrivers[name] = nextTravFocusColor();
+  saveTravFocusDrivers();
+  renderTravSidePanel();
+  renderCurrentDivision();
+}
+
 // ---- Redigera / kopiera kuponger till Idéfältet ("Min kupong") ----
 let editingIdeaCouponId = null;
 let editingIdeaCouponName = '';
@@ -511,6 +546,7 @@ try {
     loadIdeaSelections(currentGameId);
     setupOverview(game);
     setupCouponSidemenu();
+    initIdeaBottomDock();
     renderTrackInfo();            // 🔹 visa banblocket
       initStakePanel();
       ensureManualWinnerButton();
@@ -598,6 +634,60 @@ if (btnSimEmbedToggle && simOverlay){
   //  Kör om alignment när fönstret ändrar storlek (t.ex. text bryts om)
   setupResponsiveSync();
 });
+
+
+//
+// ---- Min kupong som fast nederdock ----
+//
+function initIdeaBottomDock() {
+  const dock = document.getElementById('idea-block');
+  const list = document.getElementById('idea-number-list');
+  if (!dock || !list || dock.dataset.bottomDockReady === '1') return;
+
+  dock.dataset.bottomDockReady = '1';
+  dock.setAttribute('aria-label', 'Min kupong');
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'idea-dock-toolbar';
+  toolbar.innerHTML = `
+    <div>
+      <div class="idea-dock-title">Min kupong</div>
+      <div class="idea-dock-subtitle">Klicka hästnummer för aktuell avdelning</div>
+    </div>
+    <button class="btn small idea-dock-toggle" id="idea-dock-toggle" type="button"></button>
+  `;
+
+  dock.insertBefore(toolbar, list);
+
+  const button = toolbar.querySelector('#idea-dock-toggle');
+  const KEY = 'trav_idea_bottom_dock_collapsed_v1';
+
+  const apply = (collapsed) => {
+    document.body.classList.toggle('idea-dock-collapsed', !!collapsed);
+    if (button) {
+      button.textContent = collapsed ? 'Visa' : 'Dölj';
+      button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    }
+    try { localStorage.setItem(KEY, collapsed ? '1' : '0'); } catch {}
+  };
+
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(KEY) === '1'; } catch {}
+  apply(collapsed);
+
+  if (button) {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      apply(!document.body.classList.contains('idea-dock-collapsed'));
+    });
+  }
+
+  dock.addEventListener('click', (event) => {
+    if (document.body.classList.contains('idea-dock-collapsed') && !event.target.closest('.idea-dock-toggle')) {
+      apply(false);
+    }
+  });
+}
 
 
  // Hämta datum från spelet 
@@ -1073,6 +1163,8 @@ function setupOverview(game) {
 
   metaEl.textContent = [dateStr, game.track].filter(Boolean).join(' • ');
   typeEl.textContent = game.gameType || '';
+  const travTypeEl = document.getElementById('trav-game-type-label');
+  if (travTypeEl) travTypeEl.textContent = game.gameType || 'V85';
 
   const parsed = game.parsedHorseInfo || {};
   const header = parsed.header || '';
@@ -1105,9 +1197,11 @@ coupons = (game.coupons || []).map(c => {
   try { if (window.game) window.game.coupons = coupons; } catch (_) {}
   try { window.__travGetCoupons = () => coupons; } catch (_) {}
 
-
+  loadTravNeoState();
+  initTravSidePanelControls();
 
   const divisionRowEl = document.getElementById('division-number-row');
+  if (divisionRowEl) divisionRowEl.style.setProperty('--trav-avd-count', String(divisions.length || 8));
   divisionRowEl.innerHTML = '';
   divisionSquares = [];
   divisionCountEls = [];
@@ -1510,6 +1604,231 @@ const codes = hourly.weathercode || [];
 }
 
 
+function initTravSidePanelControls() {
+  const board = document.getElementById('trav-board');
+  const btn = document.getElementById('trav-side-toggle');
+  if (btn && !btn.dataset.bound) {
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+      const collapsed = !board?.classList.contains('trav-side-collapsed');
+      if (board) board.classList.toggle('trav-side-collapsed', collapsed);
+      btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      btn.textContent = collapsed ? 'Visa analys' : 'Dölj analys';
+      requestAnimationFrame(syncNumberPositions);
+    });
+  }
+
+  const clear = document.getElementById('trav-focus-clear');
+  if (clear && !clear.dataset.bound) {
+    clear.dataset.bound = '1';
+    clear.addEventListener('click', () => {
+      travFocusDrivers = {};
+      saveTravFocusDrivers();
+      renderTravSidePanel();
+      renderCurrentDivision();
+    });
+  }
+
+  [1, 2].forEach((slot) => {
+    const sel = document.getElementById(`trav-coupon-select-${slot}`);
+    if (sel && !sel.dataset.bound) {
+      sel.dataset.bound = '1';
+      sel.addEventListener('change', () => {
+        travSideCouponSlots[slot] = sel.value || '';
+        saveTravSideCoupons();
+        renderTravCouponPreview(slot);
+      });
+    }
+  });
+}
+
+function getHorsePercentFromHorse(horse) {
+  if (!horse || !horse.rawLine) return null;
+  const idx = getMainPercentIndex();
+  if (idx < 0) return null;
+  const cols = parseLineColumns(horse.rawLine);
+  const raw = String(cols[idx] || '');
+  const m = raw.match(/(-?\d+(?:[,.]\d+)?)/);
+  if (!m) return null;
+  const n = parseFloat(m[1].replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
+function getHorseDisplayNameFromHorse(horse) {
+  if (!horse) return '';
+  if (!horse.rawLine) return horse.scratched ? 'Struken' : '';
+  const horseIdx = headerColumns.findIndex((h) => String(h).toUpperCase().startsWith('HÄST'));
+  const cols = parseLineColumns(horse.rawLine);
+  let name = horseIdx >= 0 ? String(cols[horseIdx] || '') : '';
+  const m = name.match(/^\s*\d+\s+(.*)$/);
+  if (m) name = m[1];
+  return name.trim() || `Häst ${horse.number || ''}`.trim();
+}
+
+function getDriverNameFromHorse(horse) {
+  if (!horse || !horse.rawLine) return '';
+  const kuskIndex = headerColumns.findIndex((h) => String(h).toUpperCase().startsWith('KUSK'));
+  if (kuskIndex < 0) return '';
+  const cols = parseLineColumns(horse.rawLine);
+  return String(cols[kuskIndex] || '').trim();
+}
+
+function renderTravTopSix() {
+  const list = document.getElementById('trav-top-six-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  // Top 6 ska gälla hela omgången, inte bara aktuell avdelning.
+  const horses = (divisions || [])
+    .flatMap((division, divIdx) => {
+      const divNumber = Number(division?.index || divIdx + 1);
+      return (division?.horses || [])
+        .filter((h) => !h.scratched)
+        .map((h) => ({
+          divisionIndex: divNumber,
+          horse: h,
+          pct: getHorsePercentFromHorse(h),
+          name: getHorseDisplayNameFromHorse(h),
+        }));
+    })
+    .filter((x) => Number.isFinite(x.pct))
+    .sort((a, b) => {
+      if (b.pct !== a.pct) return b.pct - a.pct;
+      if (a.divisionIndex !== b.divisionIndex) return a.divisionIndex - b.divisionIndex;
+      return Number(a.horse?.number || 0) - Number(b.horse?.number || 0);
+    })
+    .slice(0, 6);
+
+  if (!horses.length) {
+    const empty = document.createElement('li');
+    empty.className = 'trav-side-empty';
+    empty.textContent = 'Ingen procentdata hittades.';
+    list.appendChild(empty);
+    return;
+  }
+
+  horses.forEach(({ divisionIndex, horse, pct, name }) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="trav-top-num">A${divisionIndex}:${horse.number ?? ''}</span><span class="trav-top-name"></span><span class="trav-top-pct">${Math.round(pct)}%</span>`;
+    li.querySelector('.trav-top-name').textContent = name;
+    list.appendChild(li);
+  });
+}
+
+function couponLabel(coupon, index) {
+  return String(coupon?.name || coupon?.title || `Kupong ${index + 1}`);
+}
+
+function getCouponBySideValue(value) {
+  const idx = Number(String(value || '').replace('idx:', ''));
+  if (!Number.isFinite(idx) || idx < 0) return null;
+  return coupons[idx] || null;
+}
+
+function renderTravCouponSelects() {
+  [1, 2].forEach((slot) => {
+    const sel = document.getElementById(`trav-coupon-select-${slot}`);
+    if (!sel) return;
+    const prev = travSideCouponSlots[slot] || '';
+    sel.innerHTML = '';
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = 'Välj kupong…';
+    sel.appendChild(empty);
+
+    coupons.forEach((coupon, idx) => {
+      const opt = document.createElement('option');
+      opt.value = `idx:${idx}`;
+      opt.textContent = couponLabel(coupon, idx);
+      sel.appendChild(opt);
+    });
+
+    if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
+    else if (!prev && coupons[slot - 1]) {
+      sel.value = `idx:${slot - 1}`;
+      travSideCouponSlots[slot] = sel.value;
+      saveTravSideCoupons();
+    }
+    renderTravCouponPreview(slot);
+  });
+}
+
+function renderTravCouponPreview(slot) {
+  const box = document.getElementById(`trav-coupon-preview-${slot}`);
+  if (!box) return;
+  const coupon = getCouponBySideValue(travSideCouponSlots[slot]);
+  box.innerHTML = '';
+  if (!coupon) {
+    box.innerHTML = '<div class="trav-side-empty">Ingen kupong vald.</div>';
+    return;
+  }
+
+  const table = document.createElement('div');
+  table.className = 'trav-mini-coupon';
+  const head = document.createElement('div');
+  head.className = 'trav-mini-coupon-head';
+  head.innerHTML = '<span>Avd</span><span>Hästar</span>';
+  table.appendChild(head);
+
+  const byDiv = new Map((coupon.selections || []).map((s) => [Number(s.divisionIndex), s]));
+  divisions.forEach((div, i) => {
+    const divIndex = Number(div.index || i + 1);
+    const sel = byDiv.get(divIndex);
+    const row = document.createElement('div');
+    row.className = 'trav-mini-coupon-row';
+    const horses = (sel?.horses || []).slice().sort((a, b) => Number(a) - Number(b));
+    row.innerHTML = `<span>${divIndex}</span><span></span>`;
+    row.children[1].textContent = horses.length ? horses.join(' ') : '–';
+    table.appendChild(row);
+  });
+
+  box.appendChild(table);
+}
+
+function renderTravFocusPanel() {
+  const selectedBox = document.getElementById('trav-focus-list');
+  const pickBox = document.getElementById('trav-focus-pick-list');
+  if (!selectedBox || !pickBox) return;
+  selectedBox.innerHTML = '';
+  pickBox.innerHTML = '';
+
+  const selected = Object.entries(travFocusDrivers || {});
+  if (!selected.length) {
+    selectedBox.innerHTML = '<div class="trav-side-empty">Ingen kusk vald ännu. Klicka på ett kusknamn i hästlistan eller välj nedan.</div>';
+  } else {
+    selected.forEach(([name, color]) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'trav-focus-item';
+      item.style.setProperty('--trav-focus-color', color);
+      item.innerHTML = '<span class="trav-focus-color"></span><span></span><span class="trav-focus-remove">✕</span>';
+      item.children[1].textContent = name;
+      item.addEventListener('click', () => toggleTravFocusDriver(name));
+      selectedBox.appendChild(item);
+    });
+  }
+
+  const division = divisions[currentIndex];
+  const drivers = [...new Set((division?.horses || []).map(getDriverNameFromHorse).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'sv'));
+  drivers.forEach((name) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'trav-focus-pick';
+    if (travFocusDrivers[name]) btn.classList.add('active');
+    btn.textContent = name;
+    btn.addEventListener('click', () => toggleTravFocusDriver(name));
+    pickBox.appendChild(btn);
+  });
+}
+
+function renderTravSidePanel() {
+  initTravSidePanelControls();
+  renderTravTopSix();
+  renderTravCouponSelects();
+  renderTravFocusPanel();
+}
+
+
 function renderCurrentDivision() {
   const division = divisions[currentIndex];
   const total = divisions.length;
@@ -1518,6 +1837,7 @@ function renderCurrentDivision() {
 
   const popularity = computePopularityForDivision(division);
   buildHorseView(division, currentIndex, popularity);
+  renderTravSidePanel();
 }
 
 
@@ -1537,7 +1857,7 @@ function updateDivisionHeader(index, total) {
     const distance = getDivisionDistance(division);
     if (centerDivDistanceEl) {
       centerDivDistanceEl.textContent = distance
-        ? ` : ${distance} meter`
+        ? `${distance} meter`
         : '';
     }
   }
@@ -2223,6 +2543,13 @@ function enforceSuperskrallCount(
 
 
 
+function setHorseIdeaRowSelected(row, selected) {
+  if (!row) return;
+  row.classList.toggle('horse-row-selected', !!selected);
+  if (row._tipsRow) row._tipsRow.classList.toggle('horse-row-selected-support', !!selected);
+  if (row._detailsRow) row._detailsRow.classList.toggle('horse-row-selected-support', !!selected);
+}
+
 function buildHorseView(division, divIndex, popularity) {
   const { counts = {}, spiked = {}, maxCount = 0 } = popularity || {};
   const mainPercentIndex = getMainPercentIndex();
@@ -2342,6 +2669,10 @@ function buildHorseView(division, divIndex, popularity) {
   sortedHorses.forEach((horse) => {
     const tr = document.createElement('tr');
     tr.classList.add('horse-row');
+    tr.dataset.horseNumber = String(horse.number ?? '');
+    if (selectedSet.has(horse.number)) {
+      tr.classList.add('horse-row-selected');
+    }
      // 🔹 markera favoritens rad
     if (Number(horse.number) === Number(favouriteNumber)) {
       tr.classList.add('horse-row-favourite');
@@ -2354,6 +2685,13 @@ function buildHorseView(division, divIndex, popularity) {
     let cols = [];
     if (horse.rawLine) {
       cols = parseLineColumns(horse.rawLine);
+    }
+
+    const travDriverName = (kuskIndex >= 0 && cols[kuskIndex]) ? String(cols[kuskIndex]).trim() : '';
+    const travFocusColor = travDriverName ? travFocusDrivers[travDriverName] : '';
+    if (travFocusColor) {
+      tr.classList.add('trav-focus-horse');
+      tr.style.setProperty('--trav-focus-color', travFocusColor);
     }
 
     // vilka ikoner gäller denna häst? (från TIPSKOMMENTAR)
@@ -2389,6 +2727,8 @@ if (km != null) {
     visibleColumns.forEach(({ name, index }) => {
       const td = document.createElement('td');
       const upper = name.toUpperCase();
+      if (upper.startsWith('HÄST')) td.classList.add('trav-horse-main-cell');
+      if (index === mainPercentIndex) td.classList.add('trav-horse-pct-cell');
 
       if (!horse.rawLine) {
         // Struken häst utan rawLine: bygg samma "två-raders" höjd som övriga hästar
@@ -2419,10 +2759,7 @@ if (km != null) {
           horseText = m[2];
         }
 
-        let kuskName = '';
-        if (kuskIndex >= 0 && cols[kuskIndex]) {
-          kuskName = cols[kuskIndex];
-        }
+        let kuskName = travDriverName;
 
 
         // spara för detaljer-raden
@@ -2473,8 +2810,14 @@ if (km != null) {
 
         if (kuskName) {
           const driverEl = document.createElement('div');
-          driverEl.className = 'horse-driver';
+          driverEl.className = 'horse-driver trav-driver-focus-toggle';
           driverEl.textContent = kuskName;
+          driverEl.title = 'Klicka för att lägga kusken i Fokus';
+          if (travFocusDrivers[kuskName]) driverEl.classList.add('is-focused');
+          driverEl.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            toggleTravFocusDriver(kuskName);
+          });
           td.appendChild(driverEl);
         }
 
@@ -2540,6 +2883,9 @@ if (km != null) {
       tipsTd.appendChild(tipsBox);
       tipsTr.appendChild(tipsTd);
 
+      if (tr.classList.contains('horse-row-selected')) {
+        tipsTr.classList.add('horse-row-selected-support');
+      }
       tbody.appendChild(tipsTr);
       tr._tipsRow = tipsTr;
     }
@@ -2567,6 +2913,9 @@ if (km != null) {
     if (horse.rawLine && ((extraData && extraData.length) || snackLines.length)) {
       const detailsTr = document.createElement('tr');
       detailsTr.className = 'horse-details-row';
+      if (tr.classList.contains('horse-row-selected')) {
+        detailsTr.classList.add('horse-row-selected-support');
+      }
       detailsTr.style.display = 'none';
 
       const detailsTd = document.createElement('td');
@@ -2811,14 +3160,18 @@ if (activeCoupons && activeCoupons.length > 0 && !horse.scratched && count === 0
       }
 
       rightSquare.addEventListener('click', () => {
+        let isSelectedNow = false;
         if (selectedSet.has(horse.number)) {
           selectedSet.delete(horse.number);
           rightSquare.classList.remove('selected');
+          isSelectedNow = false;
         } else {
           selectedSet.add(horse.number);
           rightSquare.classList.add('selected');
+          isSelectedNow = true;
         }
 
+        setHorseIdeaRowSelected(tr, isSelectedNow);
         selectedIdeaNumbersByDivIndex[divKey] = selectedSet;
         updateDivisionCount(divIndex, selectedSet.size);
         saveIdeaSelections();
@@ -7073,6 +7426,7 @@ function renderCouponList() {
   const listEl = document.getElementById('coupon-list');
   if (!listEl) return;
 
+  try { renderTravSidePanel(); } catch (e) {}
   listEl.innerHTML = '';
 
   // Plus-tile (Skapa/ändra)

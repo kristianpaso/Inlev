@@ -125,7 +125,13 @@
 
 
 .calNav .btn.small{padding:6px 10px}
-</style>
+
+    .plockRow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .plockRow .mini{min-width:120px}
+    .plockRow input{width:140px}
+    .plockRow .remove{margin-left:auto}
+
+  </style>
 </head>
 <body>
   <div class="wrap">
@@ -488,6 +494,55 @@
     </div>
   </div>
 
+
+  <!-- Modal: Plockstatistik (ALMA vs Realistisk) -->
+  <div class="modalBackdrop" id="plockModal" style="display:none">
+    <div class="card modal" style="max-width:900px">
+      <div class="modalHead">
+        <div>
+          <div style="font-weight:900;font-size:18px">Plockstatistik</div>
+          <div class="hint">Fyll i plock per period (t.ex. 60 min, 20 min). Detta sparas bara för jämförelse och påverkar inte dagloggen.</div>
+        </div>
+        <button class="btn danger" id="closePlockModal">Stäng</button>
+      </div>
+
+      <div class="card" style="padding:12px">
+        <div class="split" style="align-items:flex-end">
+          <div style="flex:1">
+            <div class="hint">Avdelning</div>
+            <div id="plockDeptName" style="font-weight:900;font-size:16px">—</div>
+          </div>
+          <div style="min-width:180px">
+            <div class="hint">Mål / timme</div>
+            <div id="plockGoal" style="font-weight:900;font-size:16px">—</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px;padding:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <div style="font-weight:900">Perioder</div>
+            <button class="btn secondary" id="btnPlockAddRow" type="button">+ Lägg till period</button>
+          </div>
+          <div class="hint" style="margin-top:6px">Exempel: 60 min = första timmen. 5 min = sista delperioden.</div>
+
+          <div id="plockRows" style="margin-top:10px;display:flex;flex-direction:column;gap:8px"></div>
+
+          <div class="split" style="margin-top:12px">
+            <button class="btn good" id="btnPlockSave" type="button">Spara</button>
+            <button class="btn secondary" id="btnPlockClear" type="button">Rensa</button>
+          </div>
+
+          <div id="plockStatus" class="hint" style="margin-top:8px"></div>
+        </div>
+
+        <div class="card" style="margin-top:12px;padding:12px">
+          <div style="font-weight:900">Resultat</div>
+          <div id="plockPreview" class="hint" style="margin-top:8px">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <script>
 (() => {
   const RENDER_URL = "https://rotation-api.onrender.com";
@@ -577,6 +632,9 @@
     depts: [],
     datesByPerson: new Map(),
     selectedDates: new Map(),
+
+    plockStats: {},
+    plockEditing: { personId: null, deptId: null },
     currentPersonId: null,
     editingPersonId: null,
     entryRows: []
@@ -798,8 +856,9 @@ refreshAll(); });
       const avgMet = sumMinutes ? Math.round((sumMetWeighted/sumMinutes)*10)/10 : null;
       const avgK = sumMinutes ? Math.round((sumKWeighted/sumMinutes)*10)/10 : null;
 
-      const deptRows = Array.from(byDept.values())
-        .map(r => ({
+      const deptRows = Array.from(byDept.entries())
+        .map(([deptId, r]) => ({
+          deptId,
           name: r.name,
           minutes: r.minutes,
           timeStr: minutesToStr(r.minutes),
@@ -864,7 +923,33 @@ refreshAll(); });
       const chosenCount = sel.size ? sel.size : dates.length;
       const chosenLabel = sel.size ? `${sel.size} dagar valda` : "Alla dagar";
 
-      const rowsHtml = stats.deptRows.length ? stats.deptRows.map(r => `
+      const rowsHtml = stats.deptRows.length ? stats.deptRows.map(r => {
+        const periods = getPlockPeriods(pid, r.deptId);
+        const dept = deptMap.get(String(r.deptId));
+        const cPl = computePlockCompare(dept?.goalPerHour, periods);
+        const extra = cPl ? `
+          <tr>
+            <td colspan="6" class="hint" style="padding-top:6px;padding-bottom:10px">
+              <div style="display:flex;gap:10px;align-items:flex-start">
+                <button class="btn secondary small" type="button" data-open-plock="${esc(pid)}" data-open-plock-dept="${esc(r.deptId)}">+</button>
+                <div style="min-width:0">
+                  <div>Arbetad tid(min): <b>${esc(periods.map(x=>x.minutes).join(' | '))}</b></div>
+                  <div>Arbetad plock: <b>${esc(periods.map(x=>x.plock).join(' | '))}</b></div>
+                  <div><b>ALMA:</b> ${round1(cPl.almaRepeatRate)} – ${round1(cPl.almaRepeatPct)}%</div>
+                  <div><b>REALISTIK:</b> ${round1(cPl.realRate)} – ${round1(cPl.realPct)}%</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        ` : `
+          <tr>
+            <td colspan="6" class="hint" style="padding-top:6px;padding-bottom:10px">
+              <button class="btn secondary small" type="button" data-open-plock="${esc(pid)}" data-open-plock-dept="${esc(r.deptId)}">+</button>
+              <span class="hint" style="margin-left:8px">Lägg in plockperioder för ALMA/Realistik.</span>
+            </td>
+          </tr>
+        `;
+        return `
         <tr>
           <td style="color:rgba(251,191,36,.95);font-weight:800">${esc(r.name)}</td>
           <td>${esc(r.timeStr)}</td>
@@ -873,7 +958,9 @@ refreshAll(); });
           <td style="text-align:center">${r.k ?? "—"}</td>
           <td style="text-align:center;font-weight:900">${r.total ?? "—"}</td>
         </tr>
-      `).join("") : `<tr><td colspan="6" class="hint">Inga registrerade dagar.</td></tr>`;
+        ${extra}
+      `;
+      }).join("") : `<tr><td colspan="6" class="hint">Inga registrerade dagar.</td></tr>`;
 
       item.innerHTML = `
         <div class="personCardGrid">
@@ -1311,6 +1398,62 @@ if(els.btnDmSave) els.btnDmSave.addEventListener('click', () => dmSave().catch(e
 if(els.btnDmClear) els.btnDmClear.addEventListener('click', dmClearForm);
 
 // init
+
+loadPlockStats();
+
+// open plock modal from any + button
+document.addEventListener('click', (e)=>{
+  const b = e.target.closest('[data-open-plock]');
+  if(!b) return;
+  const personId = b.getAttribute('data-open-plock');
+  const deptId = b.getAttribute('data-open-plock-dept');
+  openPlockModal(personId, deptId);
+});
+
+els.closePlockModal.addEventListener('click', closePlockModal);
+els.plockModal.addEventListener('click', (e)=>{ if(e.target===els.plockModal) closePlockModal(); });
+
+els.btnPlockAddRow.addEventListener('click', () => {
+  const { personId, deptId } = state.plockEditing;
+  if(!personId || !deptId) return;
+  const periods = getPlockPeriods(personId, deptId);
+  periods.push({ minutes: 60, plock: 0 });
+  setPlockPeriods(personId, deptId, periods);
+  renderPlockRows();
+  updatePlockPreview();
+});
+
+els.plockRows.addEventListener('input', () => updatePlockPreview());
+
+els.plockRows.addEventListener('click', (e)=>{
+  const rm = e.target.closest('[data-plock-remove]');
+  if(!rm) return;
+  const idxRow = Number(rm.getAttribute('data-plock-remove'));
+  const { personId, deptId } = state.plockEditing;
+  const periods = getPlockPeriods(personId, deptId);
+  periods.splice(idxRow, 1);
+  setPlockPeriods(personId, deptId, periods);
+  renderPlockRows();
+  updatePlockPreview();
+});
+
+els.btnPlockSave.addEventListener('click', () => {
+  const { personId, deptId } = state.plockEditing;
+  const periods = readPlockRowsFromInputs();
+  setPlockPeriods(personId, deptId, periods);
+  els.plockStatus.textContent = 'Sparat.';
+  closePlockModal();
+  refreshAll();
+});
+
+els.btnPlockClear.addEventListener('click', () => {
+  const { personId, deptId } = state.plockEditing;
+  if(!personId || !deptId) return;
+  clearPlockPeriods(personId, deptId);
+  els.plockStatus.textContent = 'Rensat.';
+  closePlockModal();
+  refreshAll();
+});
   // Safety wiring (v29)
   try{
     const bP = document.getElementById('btnPeople');
@@ -1595,3 +1738,147 @@ closeDeptManage();
       
     
   
+
+// ---- Plockstatistik (ALMA vs Realistisk) ----
+const PLOCK_STATS_KEY = 'PLOCK_STATS_V1';
+
+function loadPlockStats(){
+  try{ state.plockStats = JSON.parse(localStorage.getItem(PLOCK_STATS_KEY) || '{}') || {}; }
+  catch(_e){ state.plockStats = {}; }
+}
+function savePlockStats(){
+  try{ localStorage.setItem(PLOCK_STATS_KEY, JSON.stringify(state.plockStats || {})); }catch(_e){}
+}
+
+function getPlockPeriods(personId, deptId){
+  const p = state.plockStats?.[String(personId)]?.[String(deptId)];
+  return Array.isArray(p?.periods) ? p.periods : [];
+}
+function setPlockPeriods(personId, deptId, periods){
+  const pid = String(personId);
+  const did = String(deptId);
+  if(!state.plockStats[pid]) state.plockStats[pid] = {};
+  state.plockStats[pid][did] = { periods, updatedAt: Date.now() };
+  savePlockStats();
+}
+function clearPlockPeriods(personId, deptId){
+  const pid = String(personId);
+  const did = String(deptId);
+  if(state.plockStats?.[pid]) delete state.plockStats[pid][did];
+  savePlockStats();
+}
+
+function round1(n){ return Math.round(Number(n)*10)/10; }
+
+function computePlockCompare(goalPerHour, periods){
+  const goal = Number(goalPerHour);
+  if(!Number.isFinite(goal) || goal <= 0) return null;
+
+  const clean = (periods || [])
+    .map(x => ({ minutes: Number(x.minutes)||0, plock: Number(x.plock)||0 }))
+    .filter(x => x.minutes > 0);
+
+  if(!clean.length) return null;
+
+  const totalMin = clean.reduce((s,x)=>s+x.minutes,0);
+  const totalPlock = clean.reduce((s,x)=>s+x.plock,0);
+
+  const realRate = totalPlock / (totalMin/60);
+  const realPct = (realRate/goal)*100;
+
+  const hoursCeil = Math.max(1, Math.ceil(totalMin/60));
+  const targetMin = hoursCeil * 60;
+
+  let almaRepeatTotal = totalPlock;
+  const missingMin = targetMin - totalMin;
+  if(missingMin > 0){
+    const last = clean[clean.length-1];
+    const lastRatePerMin = last.minutes ? (last.plock / last.minutes) : 0;
+    almaRepeatTotal += lastRatePerMin * missingMin;
+  }
+  const almaRepeatRate = almaRepeatTotal / hoursCeil;
+  const almaRepeatPct = (almaRepeatRate/goal)*100;
+
+  const almaDeltRate = totalPlock / hoursCeil;
+  const almaDeltPct = (almaDeltRate/goal)*100;
+
+  return {
+    totalMin, totalPlock,
+    hoursCeil,
+    realRate, realPct,
+    almaRepeatTotal, almaRepeatRate, almaRepeatPct,
+    almaDeltRate, almaDeltPct,
+    missingMin,
+    fakePlockRepeat: Math.max(0, almaRepeatTotal - totalPlock)
+  };
+}
+
+function openPlockModal(personId, deptId){
+  state.plockEditing = { personId: String(personId), deptId: String(deptId) };
+  const dept = state.depts.find(d => String(d.id) === String(deptId));
+  els.plockDeptName.textContent = dept?.name || '—';
+  els.plockGoal.textContent = dept?.goalPerHour ? (dept.goalPerHour + ' /h') : '—';
+  els.plockStatus.textContent = '';
+
+  renderPlockRows();
+  updatePlockPreview();
+
+  document.body.classList.add('modal-open');
+  els.plockModal.style.display = 'flex';
+}
+function closePlockModal(){
+  els.plockModal.style.display = 'none';
+  document.body.classList.remove('modal-open');
+  state.plockEditing = { personId:null, deptId:null };
+}
+
+function renderPlockRows(){
+  const { personId, deptId } = state.plockEditing;
+  const periods = getPlockPeriods(personId, deptId);
+  els.plockRows.innerHTML = '';
+  if(!periods.length){
+    els.plockRows.innerHTML = '<div class="hint">Inga perioder ännu. Lägg till en period.</div>';
+    return;
+  }
+  periods.forEach((p, idxRow) => {
+    const row = document.createElement('div');
+    row.className = 'plockRow';
+    row.innerHTML = `
+      <div class="mini hint">Period ${idxRow+1}</div>
+      <input class="inp" data-plock-minutes="${idxRow}" type="number" min="1" step="1" value="${Number(p.minutes)||0}" placeholder="minuter" />
+      <input class="inp" data-plock-count="${idxRow}" type="number" min="0" step="1" value="${Number(p.plock)||0}" placeholder="plock" />
+      <button class="btn danger small remove" type="button" data-plock-remove="${idxRow}">Ta bort</button>
+    `;
+    els.plockRows.appendChild(row);
+  });
+}
+
+function readPlockRowsFromInputs(){
+  const { personId, deptId } = state.plockEditing;
+  const old = getPlockPeriods(personId, deptId);
+  return old.map((_, idxRow) => {
+    const minEl = els.plockRows.querySelector(`[data-plock-minutes="${idxRow}"]`);
+    const cntEl = els.plockRows.querySelector(`[data-plock-count="${idxRow}"]`);
+    return { minutes: Number(minEl?.value || 0), plock: Number(cntEl?.value || 0) };
+  }).filter(x => x.minutes > 0);
+}
+
+function updatePlockPreview(){
+  const { personId, deptId } = state.plockEditing;
+  const dept = state.depts.find(d => String(d.id) === String(deptId));
+  const periods = getPlockPeriods(personId, deptId);
+  const c = computePlockCompare(dept?.goalPerHour, periods);
+  if(!c){
+    els.plockPreview.textContent = '—';
+    return;
+  }
+  const minsStr = periods.map(x => Number(x.minutes)||0).join(' | ');
+  const plStr = periods.map(x => Number(x.plock)||0).join(' | ');
+  els.plockPreview.innerHTML = `
+    <div>Arbetad tid (min): <b>${esc(minsStr)}</b></div>
+    <div>Arbetad plock: <b>${esc(plStr)}</b></div>
+    <div style="margin-top:8px"><b>REALISTISK:</b> ${round1(c.realRate)} – ${round1(c.realPct)}%</div>
+    <div><b>ALMA Repeat:</b> ${round1(c.almaRepeatRate)} – ${round1(c.almaRepeatPct)}% (påhittade plock: ${round1(c.fakePlockRepeat)})</div>
+    <div><b>ALMA Deltimme:</b> ${round1(c.almaDeltRate)} – ${round1(c.almaDeltPct)}%</div>
+  `;
+}

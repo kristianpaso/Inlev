@@ -718,6 +718,274 @@ app.put("/api/beteknepet/steg", async (req, res) => {
 });
 
 
+
+// Backend Admin UI (enkelt): överblick + lägg till steg + svar + bild (base64)
+app.get("/admin", (_req, res) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.end(`<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>BeteKnepet Backend Admin</title>
+<style>
+  body{ font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:0; background:#f3fbff; color:#08303a; }
+  header{ padding:16px 18px; background:#fff; border-bottom:1px solid rgba(0,0,0,.08); position:sticky; top:0; }
+  h1{ margin:0; font-size:18px; }
+  .wrap{ max-width:1050px; margin:0 auto; padding:16px; }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .btn{ padding:10px 12px; border-radius:12px; border:1px solid rgba(0,0,0,.12); background:#fff; cursor:pointer; font-weight:800; }
+  .btn.primary{ background:#11b78d; border-color:#11b78d; color:#fff; }
+  .card{ background:#fff; border:1px solid rgba(0,0,0,.10); border-radius:16px; overflow:hidden; margin-top:12px; }
+  .cardHead{ padding:12px; border-bottom:1px solid rgba(0,0,0,.06); }
+  .cardBody{ padding:12px; }
+  .msg{ margin-top:10px; font-weight:800; }
+  .msg.ok{ color:#0aa373; } .msg.err{ color:#d14b4b; }
+  .input{ padding:10px 12px; border-radius:12px; border:1px solid rgba(0,0,0,.14); width:100%; }
+  .wTitle{ max-width:520px; }
+  .wKey{ max-width:280px; }
+  .wOrder{ max-width:110px; }
+  .steps{ display:flex; flex-direction:column; gap:12px; margin-top:12px; }
+  .step{ border:1px solid rgba(0,0,0,.10); border-radius:16px; overflow:hidden; background:#fff; }
+  .stepTop{ padding:12px; background:#f7fbff; border-bottom:1px solid rgba(0,0,0,.06); display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .opts{ display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap:10px; padding:12px; }
+  .opt{ border:1px solid rgba(0,0,0,.10); border-radius:14px; padding:10px; background:#fff; }
+  .opt .row{ margin-bottom:8px; }
+  .preview{ height:120px; border-radius:12px; border:1px solid rgba(0,0,0,.08); background:#f3f3f3; background-size:cover; background-position:center; }
+  @media (max-width:800px){ .opts{ grid-template-columns:1fr; } }
+  small{ opacity:.7; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="row" style="justify-content:space-between;">
+      <div>
+        <h1>BeteKnepet – Backend Admin</h1>
+        <small>Överblick och redigering av steg (sparas i MongoDB collection <b>steg</b>).</small>
+      </div>
+      <div class="row">
+        <button class="btn" id="btnLoad">Hämta</button>
+        <button class="btn primary" id="btnSave">Spara</button>
+        <button class="btn" id="btnAddStep">Lägg till steg</button>
+      </div>
+    </div>
+    <div id="msg" class="msg"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <div class="cardHead"><b>Steg</b> (frontend visar ett steg i taget – endast backend kan redigera)</div>
+    <div class="cardBody">
+      <div id="steps" class="steps"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const el = (id)=>document.getElementById(id);
+const stepsWrap = el("steps");
+const msg = el("msg");
+
+function setMsg(text, kind){
+  msg.textContent = text || "";
+  msg.className = "msg " + (kind||"");
+}
+
+let model = { steg: [] };
+
+function uid(prefix="steg"){
+  return prefix + "_" + Math.random().toString(16).slice(2,10);
+}
+
+function normalize(){
+  model.steg = (model.steg||[]).map((s,i)=>({
+    id: s.id || uid("steg"),
+    title: s.title || "Nytt steg",
+    key: s.key || uid("key"),
+    order: typeof s.order==="number" ? s.order : (i+1),
+    options: Array.isArray(s.options) ? s.options : []
+  })).sort((a,b)=>(a.order||0)-(b.order||0));
+
+  model.steg.forEach(s=>{
+    s.options = (s.options||[]).map(o=>({ value:o.value||"", label:o.label||"", img:o.img||"" }));
+  });
+}
+
+async function apiGet(){
+  const r = await fetch("/api/beteknepet/steg");
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error || r.statusText);
+  return j.steg || [];
+}
+
+async function apiPut(steg){
+  const r = await fetch("/api/beteknepet/steg", {
+    method:"PUT",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ steg })
+  });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function readFileAsDataURL(file){
+  return new Promise((resolve,reject)=>{
+    const fr = new FileReader();
+    fr.onload = ()=>resolve(String(fr.result||""));
+    fr.onerror = reject;
+    fr.readAsDataURL(file);
+  });
+}
+
+function render(){
+  normalize();
+  stepsWrap.innerHTML = "";
+
+  model.steg.forEach((step)=>{
+    const box = document.createElement("div");
+    box.className = "step";
+
+    const top = document.createElement("div");
+    top.className = "stepTop";
+
+    const title = document.createElement("input");
+    title.className = "input wTitle";
+    title.placeholder = "Rubrik (t.ex. Vart fiskar du?)";
+    title.value = step.title;
+    title.oninput = ()=> step.title = title.value;
+
+    const key = document.createElement("input");
+    key.className = "input wKey";
+    key.placeholder = "key (t.ex. platform)";
+    key.value = step.key;
+    key.oninput = ()=> step.key = key.value;
+
+    const order = document.createElement("input");
+    order.className = "input wOrder";
+    order.type = "number";
+    order.value = step.order;
+    order.oninput = ()=>{ step.order = Number(order.value||0); render(); };
+
+    const addOpt = document.createElement("button");
+    addOpt.className = "btn";
+    addOpt.textContent = "Lägg till svar";
+    addOpt.onclick = ()=>{ step.options.push({value:"",label:"",img:""}); render(); };
+
+    const del = document.createElement("button");
+    del.className = "btn";
+    del.textContent = "Ta bort";
+    del.onclick = ()=>{ model.steg = model.steg.filter(x=>x!==step); render(); };
+
+    top.appendChild(title);
+    top.appendChild(key);
+    top.appendChild(order);
+    top.appendChild(addOpt);
+    top.appendChild(del);
+
+    const opts = document.createElement("div");
+    opts.className = "opts";
+
+    step.options.forEach((opt)=>{
+      const oc = document.createElement("div");
+      oc.className = "opt";
+
+      const r1 = document.createElement("div");
+      r1.className = "row";
+
+      const v = document.createElement("input");
+      v.className = "input";
+      v.placeholder = "value (t.ex. bat)";
+      v.value = opt.value;
+      v.oninput = ()=> opt.value = v.value;
+
+      const l = document.createElement("input");
+      l.className = "input";
+      l.placeholder = "Rubrik (t.ex. Från Båt)";
+      l.value = opt.label;
+      l.oninput = ()=> opt.label = l.value;
+
+      r1.appendChild(v); r1.appendChild(l);
+
+      const r2 = document.createElement("div");
+      r2.className = "row";
+
+      const file = document.createElement("input");
+      file.type = "file";
+      file.accept = "image/*";
+
+      const clear = document.createElement("button");
+      clear.className = "btn";
+      clear.textContent = "Ta bort bild";
+      clear.onclick = ()=>{ opt.img=""; prev.style.backgroundImage=""; };
+
+      const delOpt = document.createElement("button");
+      delOpt.className = "btn";
+      delOpt.textContent = "X";
+      delOpt.onclick = ()=>{ step.options = step.options.filter(x=>x!==opt); render(); };
+
+      const prev = document.createElement("div");
+      prev.className = "preview";
+      if(opt.img) prev.style.backgroundImage = "url('"+opt.img+"')";
+
+      file.onchange = async ()=>{
+        if(!file.files || !file.files[0]) return;
+        const data = await readFileAsDataURL(file.files[0]);
+        opt.img = data;
+        prev.style.backgroundImage = "url('"+opt.img+"')";
+      };
+
+      r2.appendChild(file);
+      r2.appendChild(clear);
+      r2.appendChild(delOpt);
+
+      oc.appendChild(r1);
+      oc.appendChild(r2);
+      oc.appendChild(prev);
+      opts.appendChild(oc);
+    });
+
+    box.appendChild(top);
+    box.appendChild(opts);
+    stepsWrap.appendChild(box);
+  });
+}
+
+async function load(){
+  setMsg("Hämtar steg...", "");
+  try{
+    model.steg = await apiGet();
+    render();
+    setMsg("Hämtat.", "ok");
+  }catch(e){
+    setMsg("Fel: " + e.message, "err");
+  }
+}
+
+async function save(){
+  setMsg("Sparar...", "");
+  try{
+    normalize();
+    const r = await apiPut(model.steg);
+    setMsg("Sparat. Antal steg: " + (r.count ?? model.steg.length), "ok");
+  }catch(e){
+    setMsg("Fel: " + e.message, "err");
+  }
+}
+
+el("btnLoad").onclick = load;
+el("btnSave").onclick = save;
+el("btnAddStep").onclick = ()=>{ model.steg.push({ id: uid("steg"), title:"Nytt steg", key: uid("key"), order:model.steg.length+1, options:[] }); render(); };
+
+load();
+</script>
+</body>
+</html>`);
+});
+
+
 app.listen(PORT, () => {
   console.log('BeteKnepet backend running on port', PORT);
 });
