@@ -82,28 +82,24 @@
 
         <aside class="trav-side-panel" id="trav-side-panel">
           <section class="trav-side-block trav-coupon-preview-block trav-my-coupon-side-block" id="trav-my-coupon-side-block" data-lock-key="my">
-            <div class="trav-side-block-head">
-              <h2>Min kupong</h2>
-              <div class="trav-side-head-actions">
-                <span class="trav-my-coupon-side-count" id="trav-my-coupon-side-count">0 val</span>
-              </div>
-            </div>
             <div id="trav-my-coupon-side-preview" class="trav-coupon-preview"></div>
             
           </section>
 
 
-          <section class="trav-side-block trav-coupon-preview-block" id="trav-compare-coupon-1" data-lock-key="coupon1">
-            <div class="trav-side-block-head">
-              <h2>Fokus 1</h2>
+          <div class="trav-focus-coupons-title" id="trav-focus-coupons-title">I Fokus</div>
+
+          <section class="trav-side-block trav-coupon-preview-block trav-focus-coupon-slot" id="trav-compare-coupon-1" data-lock-key="coupon1" data-focus-slot="1">
+            <div class="trav-focus-select-head">
+              <h2 class="trav-focus-slot-heading">Fokus 1</h2>
               <select id="trav-coupon-select-1" class="trav-coupon-select" aria-label="Välj fokuskupong 1"></select>
             </div>
             <div id="trav-coupon-preview-1" class="trav-coupon-preview"></div>
           </section>
 
-          <section class="trav-side-block trav-coupon-preview-block" id="trav-compare-coupon-2" data-lock-key="coupon2">
-            <div class="trav-side-block-head">
-              <h2>Fokus 2</h2>
+          <section class="trav-side-block trav-coupon-preview-block trav-focus-coupon-slot" id="trav-compare-coupon-2" data-lock-key="coupon2" data-focus-slot="2">
+            <div class="trav-focus-select-head">
+              <h2 class="trav-focus-slot-heading">Fokus 2</h2>
               <select id="trav-coupon-select-2" class="trav-coupon-select" aria-label="Välj fokuskupong 2"></select>
             </div>
             <div id="trav-coupon-preview-2" class="trav-coupon-preview"></div>
@@ -735,7 +731,7 @@
 
   <!-- Loaded as classic script (not module) to avoid "Unexpected token 'export'" in some environments -->
   <script src="./js/race-sim.js?v=20260120-fix1"></script>
-  <script type="module" src="./js/overview.js?v=20260612-v15"></script>
+  <script type="module" src="./js/overview.js?v=20260612-v51"></script>
   <script type="module" src="./js/ui-coupon-combine.js?v=20260109-combine1"></script>
 
 </body>

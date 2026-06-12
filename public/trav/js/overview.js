@@ -216,10 +216,32 @@ function travFocusTrainerStorageKey() {
 function travSideStorageKey() {
   return `trav_side_coupons_${String(currentGameId || 'local')}`;
 }
+
+function getTravSideCouponSlot(slot) {
+  const key = String(Number(slot));
+  return String((travSideCouponSlots && travSideCouponSlots[key]) || '');
+}
+
+function setTravSideCouponSlot(slot, value) {
+  const key = String(Number(slot));
+  if (key !== '1' && key !== '2') return;
+  travSideCouponSlots = { ...(travSideCouponSlots || {}) };
+  travSideCouponSlots[key] = value ? String(value) : '';
+}
+
+function normalizeTravSideCouponSlots(preferSlot = 1) {
+  travSideCouponSlots = { 1: '', 2: '', ...(travSideCouponSlots || {}) };
+  const one = getTravSideCouponSlot(1);
+  const two = getTravSideCouponSlot(2);
+  if (one && two && one === two) {
+    if (Number(preferSlot) === 2) setTravSideCouponSlot(1, '');
+    else setTravSideCouponSlot(2, '');
+  }
+}
 function loadTravNeoState() {
   try { travFocusDrivers = normalizeTravFocusDriversMap(JSON.parse(localStorage.getItem(travFocusStorageKey()) || '{}') || {}); saveTravFocusDrivers(); } catch (_) { travFocusDrivers = {}; }
   try { travFocusTrainers = normalizeTravFocusTrainersMap(JSON.parse(localStorage.getItem(travFocusTrainerStorageKey()) || '{}') || {}); saveTravFocusTrainers(); } catch (_) { travFocusTrainers = {}; }
-  try { travSideCouponSlots = { 1: '', 2: '', ...(JSON.parse(localStorage.getItem(travSideStorageKey()) || '{}') || {}) }; } catch (_) { travSideCouponSlots = { 1: '', 2: '' }; }
+  try { travSideCouponSlots = { 1: '', 2: '', ...(JSON.parse(localStorage.getItem(travSideStorageKey()) || '{}') || {}) }; normalizeTravSideCouponSlots(1); saveTravSideCoupons(); } catch (_) { travSideCouponSlots = { 1: '', 2: '' }; }
 }
 function saveTravFocusDrivers() {
   try { localStorage.setItem(travFocusStorageKey(), JSON.stringify(travFocusDrivers || {})); } catch (_) {}
@@ -1781,14 +1803,20 @@ function initTravSidePanelControls() {
       sel.dataset.bound = '1';
       sel.addEventListener('change', () => {
         const otherSlot = slot === 1 ? 2 : 1;
-        if (sel.value && sel.value === (travSideCouponSlots[otherSlot] || '')) {
-          alert('Fokus 1 och Fokus 2 kan inte innehålla samma kupong.');
-          sel.value = '';
+        const newValue = sel.value || '';
+
+        // Sätt bara den fokusplats som ändras. Om samma kupong redan ligger i
+        // den andra fokusplatsen töms den andra, så kupongen aldrig dupliceras.
+        setTravSideCouponSlot(slot, newValue);
+        if (newValue && newValue === getTravSideCouponSlot(otherSlot)) {
+          setTravSideCouponSlot(otherSlot, '');
         }
-        travSideCouponSlots[slot] = sel.value || '';
+        normalizeTravSideCouponSlots(slot);
         saveTravSideCoupons();
+
         renderTravCouponSelects();
-        renderTravCouponPreview(slot);
+        renderTravCouponPreview(1);
+        renderTravCouponPreview(2);
         try { renderTravExtraCompareCoupons(); } catch (_) {}
       });
     }
@@ -1973,15 +2001,8 @@ function showCouponInTravCompare(couponIndex) {
 
 
 function normalizeTravSideSlotSelection(slot) {
-  const otherSlot = Number(slot) === 1 ? 2 : 1;
-  const current = travSideCouponSlots[slot] || '';
-  const other = travSideCouponSlots[otherSlot] || '';
-  if (current && other && current === other) {
-    travSideCouponSlots[slot] = '';
-    saveTravSideCoupons();
-    return '';
-  }
-  return travSideCouponSlots[slot] || '';
+  normalizeTravSideCouponSlots(slot);
+  return getTravSideCouponSlot(slot);
 }
 
 function renderTravCouponSelects() {
@@ -1991,7 +2012,7 @@ function renderTravCouponSelects() {
     const sel = document.getElementById(`trav-coupon-select-${slot}`);
     if (!sel) return;
     const otherSlot = slot === 1 ? 2 : 1;
-    const otherValue = travSideCouponSlots[otherSlot] || '';
+    const otherValue = getTravSideCouponSlot(otherSlot);
     const prev = normalizeTravSideSlotSelection(slot);
     sel.innerHTML = '';
     const empty = document.createElement('option');
@@ -2013,52 +2034,94 @@ function renderTravCouponSelects() {
 
     if (prev && [...sel.options].some((o) => o.value === prev && !o.disabled)) {
       sel.value = prev;
-    } else if (!prev) {
-      const preferredIndex = slot - 1;
-      const preferredValue = coupons[preferredIndex] ? `idx:${preferredIndex}` : '';
-      if (preferredValue && preferredValue !== otherValue) {
-        sel.value = preferredValue;
-        travSideCouponSlots[slot] = preferredValue;
-        saveTravSideCoupons();
-      } else {
-        const firstAvailable = [...sel.options].find((o) => o.value && !o.disabled);
-        if (firstAvailable) {
-          sel.value = firstAvailable.value;
-          travSideCouponSlots[slot] = firstAvailable.value;
-          saveTravSideCoupons();
-        }
-      }
     } else {
-      travSideCouponSlots[slot] = '';
-      saveTravSideCoupons();
+      sel.value = '';
+      if (prev) {
+        setTravSideCouponSlot(slot, '');
+        saveTravSideCoupons();
+      }
     }
     renderTravCouponPreview(slot);
   });
 }
 
+function renderTravEmptyFocusSlot(slot) {
+  const box = document.getElementById(`trav-coupon-preview-${slot}`);
+  const block = document.getElementById(`trav-compare-coupon-${slot}`);
+  if (block) {
+    block.dataset.focusSlot = String(slot);
+    delete block.dataset.couponIndex;
+    delete block.dataset.couponName;
+    block.querySelectorAll('.trav-coupon-options').forEach((el) => el.remove());
+    block.classList.remove('trav-coupon-options-open', 'trav-focus-selecting', 'trav-focus-coupon-active', 'trav-coupon-action-target', 'trav-coupon-locked');
+    block.classList.add('trav-focus-coupon-empty');
+    try {
+      const locks = JSON.parse(localStorage.getItem('TRAV_COUPON_LOCKS_V19') || '{}') || {};
+      delete locks[`trav-compare-coupon-${slot}`];
+      localStorage.setItem('TRAV_COUPON_LOCKS_V19', JSON.stringify(locks));
+    } catch (_) {}
+  }
+  if (box) {
+    box.innerHTML = `
+      <button class="trav-focus-coupon-add trav-focus-coupon-add-compact" type="button" data-slot="${slot}" aria-label="Lägg till fokuskupong ${slot}">
+        <span class="trav-focus-empty-text"><strong>Fokus ${slot}</strong><small>- Lägg till</small></span>
+        <span class="trav-focus-coupon-plus">+</span>
+      </button>
+    `;
+  }
+}
+
+function clearTravFocusCouponSlot(slot) {
+  const n = Number(slot);
+  if (n !== 1 && n !== 2) return;
+  const key = String(n);
+
+  // Viktigt: båda fokusplatserna ska kunna vara tomma samtidigt.
+  // Nollställ både numerisk och strängnyckel och skriv tillbaka hela state-objektet.
+  setTravSideCouponSlot(n, '');
+  normalizeTravSideCouponSlots(n);
+  saveTravSideCoupons();
+
+  try {
+    const stored = { 1: '', 2: '', ...(JSON.parse(localStorage.getItem(travSideStorageKey()) || '{}') || {}) };
+    stored[key] = '';
+    localStorage.setItem(travSideStorageKey(), JSON.stringify(stored));
+  } catch (_) {}
+
+  const sel = document.getElementById(`trav-coupon-select-${n}`);
+  if (sel) {
+    sel.value = '';
+    sel.selectedIndex = 0;
+  }
+
+  renderTravEmptyFocusSlot(n);
+
+  // Skydd mot senare re-render i samma klick som annars kan bygga tillbaka gammalt innehåll.
+  setTimeout(() => {
+    if (!getTravSideCouponSlot(n)) renderTravEmptyFocusSlot(n);
+  }, 0);
+}
+
 function renderTravCouponPreview(slot) {
   const box = document.getElementById(`trav-coupon-preview-${slot}`);
   if (!box) return;
-  const couponIndex = getCouponIndexBySideValue(travSideCouponSlots[slot]);
+  const couponIndex = getCouponIndexBySideValue(getTravSideCouponSlot(slot));
   const coupon = couponIndex >= 0 ? coupons[couponIndex] : null;
   const block = document.getElementById(`trav-compare-coupon-${slot}`);
-  if (block) {
-    if (coupon) {
-      block.dataset.couponIndex = String(couponIndex);
-      block.dataset.couponName = couponLabel(coupon, couponIndex);
-      block.classList.add('trav-coupon-action-target');
-    } else {
-      delete block.dataset.couponIndex;
-      delete block.dataset.couponName;
-      block.classList.remove('trav-coupon-action-target', 'trav-coupon-options-open');
-    }
-  }
-  box.innerHTML = '';
   if (!coupon) {
-    box.innerHTML = '<div class="trav-side-empty">Ingen kupong vald.</div>';
+    renderTravEmptyFocusSlot(slot);
     return;
   }
-
+  if (block) {
+    block.dataset.focusSlot = String(slot);
+    block.dataset.couponIndex = String(couponIndex);
+    block.dataset.couponName = couponLabel(coupon, couponIndex);
+    block.querySelectorAll('.trav-coupon-options').forEach((el) => el.remove());
+    block.classList.remove('trav-coupon-options-open', 'trav-focus-selecting', 'trav-focus-coupon-empty');
+    block.classList.add('trav-coupon-action-target', 'trav-focus-coupon-active');
+    try { attachTravCouponActionMenu(block); } catch (_) {}
+  }
+  box.innerHTML = '';
   const table = buildTravMiniCouponTable(coupon);
   box.appendChild(table);
 }
@@ -2080,7 +2143,9 @@ function buildTravMiniCouponTable(coupon) {
 
   const head = document.createElement('div');
   head.className = 'trav-mini-coupon-head';
-  head.innerHTML = '<span>Avd</span><span>Hästar</span>';
+  head.innerHTML = '<span>Avd</span><span class="trav-my-coupon-horses-head"><span>Hästar</span><strong class="trav-my-coupon-inline-price"></strong></span>';
+  const inlinePrice = head.querySelector('.trav-my-coupon-inline-price');
+  if (inlinePrice) inlinePrice.textContent = '';
   table.appendChild(head);
 
   const byDiv = new Map((coupon?.selections || []).map((s) => [Number(s.divisionIndex), s]));
@@ -2111,7 +2176,7 @@ function renderTravExtraCompareCoupons() {
 
   host.innerHTML = '';
   const selectedFocusIndexes = new Set([1, 2]
-    .map((slot) => getCouponIndexBySideValue(travSideCouponSlots[slot]))
+    .map((slot) => getCouponIndexBySideValue(getTravSideCouponSlot(slot)))
     .filter((idx) => idx >= 0));
 
   const extraCoupons = (coupons || [])
@@ -2328,8 +2393,9 @@ function renderTravMyCouponDrawer() {
   const badge = document.getElementById('trav-my-coupon-badge');
   const countText = document.getElementById('trav-my-coupon-side-count');
   const count = countTravIdeaSelections();
+  const myCouponPriceText = `Pris: ${formatTravIdeaCouponPrice()} kr`;
   if (badge) badge.textContent = String(count || 0);
-  if (countText) countText.textContent = `Pris: ${formatTravIdeaCouponPrice()} kr`;
+  if (countText) countText.textContent = myCouponPriceText;
   if (!box) return;
 
   box.innerHTML = '';
@@ -2338,7 +2404,9 @@ function renderTravMyCouponDrawer() {
 
   const head = document.createElement('div');
   head.className = 'trav-mini-coupon-head';
-  head.innerHTML = '<span>Avd</span><span>Hästar</span>';
+  head.innerHTML = '<span>Avd</span><span class="trav-my-coupon-horses-head"><span>Hästar</span><strong class="trav-my-coupon-inline-price"></strong></span>';
+  const inlinePrice = head.querySelector('.trav-my-coupon-inline-price');
+  if (inlinePrice) inlinePrice.textContent = myCouponPriceText;
   table.appendChild(head);
 
   const selections = getTravIdeaSelectionsForDisplay();
@@ -2433,6 +2501,64 @@ function ensureTravCouponActionMenus() {
       return;
     }
 
+    const addFocusBtn = ev.target.closest?.('.trav-focus-coupon-add');
+    if (addFocusBtn) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const slot = Number(addFocusBtn.getAttribute('data-slot'));
+      const block = document.getElementById(`trav-compare-coupon-${slot}`);
+      block?.classList.add('trav-focus-selecting');
+      const sel = document.getElementById(`trav-coupon-select-${slot}`);
+      if (sel) {
+        sel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => sel.focus(), 80);
+      }
+      return;
+    }
+
+    const changeFocusBtn = ev.target.closest?.('.trav-coupon-options-change-focus');
+    if (changeFocusBtn) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const block = changeFocusBtn.closest('.trav-coupon-action-target');
+      const slot = Number(block?.dataset?.focusSlot);
+      closeTravCouponOptions();
+      const focusBlock = document.getElementById(`trav-compare-coupon-${slot}`);
+      focusBlock?.classList.add('trav-focus-selecting');
+      const sel = document.getElementById(`trav-coupon-select-${slot}`);
+      if (sel) {
+        sel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => sel.focus(), 80);
+      }
+      return;
+    }
+
+    const clearFocusBtn = ev.target.closest?.('.trav-coupon-options-clear-focus');
+    if (clearFocusBtn) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const block = clearFocusBtn.closest('.trav-coupon-action-target, .trav-focus-coupon-slot');
+      const slot = Number(block?.dataset?.focusSlot || clearFocusBtn.closest('[data-focus-slot]')?.dataset?.focusSlot);
+      if (slot === 1 || slot === 2) {
+        // Töm bara vald fokusplats. Båda fokusplatserna får vara tomma samtidigt.
+        closeTravCouponOptions();
+        clearTravFocusCouponSlot(slot);
+        renderTravCouponSelects();
+
+        // Efter att selectarna har byggts om: tvinga alla tomma fokusplatser att vara plus-block.
+        [1, 2].forEach((s) => {
+          if (!getTravSideCouponSlot(s)) renderTravEmptyFocusSlot(s);
+        });
+
+        try { renderTravExtraCompareCoupons(); } catch (_) {}
+        [1, 2].forEach((s) => {
+          if (!getTravSideCouponSlot(s)) renderTravEmptyFocusSlot(s);
+        });
+        try { refreshTravCouponActionMenus(); } catch (_) {}
+      }
+      return;
+    }
+
     const lockBtn = ev.target.closest?.('.trav-coupon-options-lock');
     if (lockBtn) {
       ev.preventDefault();
@@ -2495,7 +2621,8 @@ function attachTravCouponActionMenu(block) {
       menu.classList.add('trav-coupon-options-focus');
       menu.innerHTML = `
         <button class="trav-coupon-options-lock" type="button" data-lock-target="${targetId}">Lås</button>
-        <button class="trav-coupon-options-remove" type="button">Ta bort</button>
+        <button class="trav-coupon-options-change-focus" type="button">Byt kupong</button>
+        <button class="trav-coupon-options-clear-focus" type="button">Rensa fokus</button>
         <button class="trav-coupon-options-close" type="button" aria-label="Stäng">X</button>
       `;
     } else {

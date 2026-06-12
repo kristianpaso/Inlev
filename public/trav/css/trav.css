@@ -7780,3 +7780,417 @@ body.trav-modern-view #trav-compare-coupon-2 .trav-side-block-head h2 {
     letter-spacing: -0.02em !important;
   }
 }
+
+
+/* v42 - Fokus-kuponger i egen grupp */
+body.trav-modern-view .trav-focus-coupons-title {
+  padding: 8px 10px 4px !important;
+  margin: 0 !important;
+  background: #030612 !important;
+  color: #fff !important;
+  font-size: 15px !important;
+  line-height: 1.05 !important;
+  font-weight: 950 !important;
+  font-style: italic !important;
+  text-decoration: underline !important;
+  text-underline-offset: 4px !important;
+}
+body.trav-modern-view #trav-compare-coupon-1 .trav-side-block-head h2,
+body.trav-modern-view #trav-compare-coupon-2 .trav-side-block-head h2,
+body.trav-modern-view .trav-focus-slot-heading {
+  display: none !important;
+}
+body.trav-modern-view .trav-focus-coupon-slot .trav-side-block-head {
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 0 4px !important;
+  justify-content: flex-end !important;
+}
+body.trav-modern-view .trav-focus-coupon-slot .trav-coupon-select {
+  display: none !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  font-size: 10px !important;
+  padding: 6px 7px !important;
+}
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-selecting .trav-coupon-select,
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty .trav-coupon-select:focus {
+  display: block !important;
+}
+body.trav-modern-view .trav-focus-coupon-empty {
+  min-height: 72px !important;
+}
+body.trav-modern-view .trav-focus-coupon-add {
+  width: 100% !important;
+  min-height: 58px !important;
+  display: grid !important;
+  place-items: center !important;
+  gap: 3px !important;
+  border: 2px dashed rgba(125, 211, 252, .45) !important;
+  border-radius: 12px !important;
+  background: rgba(15, 56, 88, .55) !important;
+  color: #dff8ff !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  cursor: pointer !important;
+}
+body.trav-modern-view .trav-focus-coupon-plus {
+  display: grid !important;
+  place-items: center !important;
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 999px !important;
+  background: #2dd4bf !important;
+  color: #03111f !important;
+  font-size: 24px !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+}
+body.trav-modern-view .trav-coupon-options-focus {
+  grid-auto-rows: minmax(34px, auto) !important;
+}
+body.trav-modern-view .trav-coupon-options-change-focus,
+body.trav-modern-view .trav-coupon-options-clear-focus {
+  min-width: 86px !important;
+}
+
+
+/* v43 - Fokusrubrik som Skapade kuponger + säkrare tom fokusplats */
+body.trav-modern-view .trav-focus-coupons-title {
+  display: block !important;
+  padding: 12px 12px 4px !important;
+  margin: 0 !important;
+  background: #030612 !important;
+  color: rgba(255,255,255,.62) !important;
+  font-size: 12px !important;
+  line-height: 1.1 !important;
+  font-weight: 950 !important;
+  font-style: normal !important;
+  text-decoration: none !important;
+  text-transform: uppercase !important;
+  letter-spacing: .04em !important;
+}
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty .trav-coupon-preview {
+  min-height: 58px !important;
+}
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty .trav-mini-coupon,
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty .trav-coupon-options {
+  display: none !important;
+}
+
+
+/* v44 - tom fokusplats ska bara visa plus + fokuskuponger får egen bakgrund */
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty {
+  background: #061423 !important;
+  border-left: 3px solid rgba(45, 212, 191, .7) !important;
+  box-shadow: inset 0 0 0 1px rgba(45, 212, 191, .14) !important;
+}
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty .trav-side-block-head,
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty .trav-mini-coupon,
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty .trav-coupon-options {
+  display: none !important;
+}
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty .trav-coupon-preview {
+  min-height: 72px !important;
+  display: block !important;
+}
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-active {
+  background: linear-gradient(180deg, #07314b 0%, #08253e 100%) !important;
+  border-left: 3px solid #2dd4bf !important;
+  box-shadow: inset 0 0 0 1px rgba(45, 212, 191, .22), 0 10px 22px rgba(0,0,0,.28) !important;
+}
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-active .trav-mini-coupon-row {
+  background: rgba(45, 212, 191, .10) !important;
+}
+body.trav-modern-view .trav-focus-coupon-add {
+  min-height: 70px !important;
+  padding: 8px !important;
+  text-align: center !important;
+}
+body.trav-modern-view .trav-focus-coupon-add small {
+  display: block !important;
+  color: rgba(223,248,255,.68) !important;
+  font-size: 9px !important;
+  font-weight: 800 !important;
+  line-height: 1.1 !important;
+}
+
+/* v45 - uppdaterad fokusbakgrund + tydligare rubriker */
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-active {
+    background: linear-gradient(180deg, #26003d 0%, #004989 100%) !important;
+    border-left: 3px solid #2dd4bf !important;
+    box-shadow: inset 0 0 0 1px rgb(28 150 135 / 22%), 0 10px 22px rgba(0, 0, 0, .28) !important;
+}
+
+body.trav-modern-view #trav-my-coupon-side-block .trav-side-block-head,
+body.trav-modern-view .trav-focus-coupons-title,
+body.trav-modern-view .trav-extra-compare-list::before {
+  margin: 0 0 6px 0 !important;
+  padding: 7px 9px !important;
+  border-radius: 8px !important;
+  background: linear-gradient(90deg, rgba(45, 212, 191, .24), rgba(14, 116, 144, .12)) !important;
+  border-left: 3px solid #2dd4bf !important;
+  color: #eaffff !important;
+  font-size: 10px !important;
+  line-height: 1.05 !important;
+  font-weight: 950 !important;
+  font-style: normal !important;
+  text-decoration: none !important;
+  text-transform: uppercase !important;
+  letter-spacing: .08em !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.055) !important;
+}
+
+body.trav-modern-view #trav-my-coupon-side-block .trav-side-block-head h2 {
+  margin: 0 !important;
+  color: #eaffff !important;
+  font-size: 10px !important;
+  line-height: 1.05 !important;
+  font-weight: 950 !important;
+  font-style: normal !important;
+  text-decoration: none !important;
+  text-transform: uppercase !important;
+  letter-spacing: .08em !important;
+}
+
+body.trav-modern-view .trav-extra-compare-list::before {
+  display: block !important;
+  content: 'Skapade kuponger' !important;
+}
+
+body.trav-modern-view .trav-focus-coupons-title {
+  display: block !important;
+}
+
+
+/* v46 - rubrikjusteringar */
+body.trav-modern-view #trav-my-coupon-side-block .trav-side-block-head h2 {
+  display: none !important;
+}
+
+body.trav-modern-view #trav-my-coupon-side-block .trav-side-block-head {
+  justify-content: flex-end !important;
+  border-radius: 0 !important;
+  border-left: 0 !important;
+}
+
+body.trav-modern-view .trav-focus-coupons-title,
+body.trav-modern-view .trav-extra-compare-list::before {
+  border-radius: 0 !important;
+  border-left: 0 !important;
+}
+
+
+/* ---- v47: pris i Min kupong bredvid Hästar-rubriken ---- */
+body.trav-modern-view #trav-my-coupon-side-block .trav-side-head-actions {
+  display: none !important;
+}
+body.trav-modern-view #trav-my-coupon-side-block .trav-mini-coupon-head {
+  grid-template-columns: 38px minmax(0, 1fr) !important;
+}
+body.trav-modern-view #trav-my-coupon-side-block .trav-my-coupon-horses-head {
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
+}
+body.trav-modern-view #trav-my-coupon-side-block .trav-my-coupon-inline-price {
+  flex: 0 0 auto !important;
+  max-width: 92px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  color: #67e8f9 !important;
+  font-size: 10px !important;
+  font-weight: 950 !important;
+  text-align: right !important;
+}
+@media (max-width: 900px) {
+  body.trav-modern-view #trav-my-coupon-side-block .trav-my-coupon-inline-price {
+    max-width: 78px !important;
+    font-size: 9px !important;
+  }
+}
+
+
+/* ---- v49: Fokusplats ska bli helt tom efter Rensa fokus ---- */
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty {
+  padding: 6px 8px !important;
+  min-height: 54px !important;
+  background: linear-gradient(180deg, #091846 0%, #103070 100%) !important;
+  border: 1px solid rgba(125, 211, 252, .75) !important;
+  border-left: 3px solid #2dd4bf !important;
+  box-shadow: inset 0 0 0 1px rgba(45, 212, 191, .16) !important;
+}
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty .trav-coupon-preview {
+  min-height: 44px !important;
+  display: block !important;
+}
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty .trav-side-block-head,
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty .trav-mini-coupon,
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty .trav-coupon-options {
+  display: none !important;
+}
+body.trav-modern-view .trav-focus-coupon-add-compact {
+  width: 100% !important;
+  min-height: 42px !important;
+  padding: 6px 8px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #fff !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 34px !important;
+  align-items: center !important;
+  gap: 8px !important;
+  text-align: left !important;
+  cursor: pointer !important;
+}
+body.trav-modern-view .trav-focus-empty-text {
+  min-width: 0 !important;
+  display: grid !important;
+  gap: 1px !important;
+}
+body.trav-modern-view .trav-focus-empty-text strong {
+  display: block !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+  font-weight: 950 !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+body.trav-modern-view .trav-focus-empty-text small {
+  display: block !important;
+  color: rgba(255,255,255,.78) !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  font-weight: 850 !important;
+}
+body.trav-modern-view .trav-focus-coupon-add-compact .trav-focus-coupon-plus {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #fff !important;
+  font-size: 36px !important;
+  line-height: 1 !important;
+  font-weight: 950 !important;
+}
+
+
+/* ---- v50: bredare mobilpanel + ta bort trav-side-block-head från fokusplatser ---- */
+@media (max-width: 900px) {
+    body.trav-modern-view .trav-side-panel, body.trav-modern-view .trav-focus-panel, body.trav-modern-view .trav-info-panel {
+        position: fixed !important;
+        top: 0 !important;
+        right: 0 !important;
+        z-index: 120 !important;
+        width: var(--trav-mobile-panel-width) !important;
+        min-width: 196px !important;
+        max-width: var(--trav-mobile-panel-width) !important;
+        height: calc(100vh - var(--trav-bottom-nav-height, 72px)) !important;
+        padding-top: 2px !important;
+        padding-bottom: calc(var(--trav-panel-switch-height, 50px) + var(--trav-bottom-nav-height, 72px) + env(safe-area-inset-bottom)) !important;
+        transform: translateX(0) !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        box-shadow: -16px 0 32px rgba(0, 0, 0, .34) !important;
+        transition: transform .22s ease, opacity .18s ease !important;
+        background: #030612 !important;
+        overflow-y: auto !important;
+    }
+
+    body.trav-modern-view {
+      --trav-mobile-panel-width: clamp(236px, 56vw, 292px) !important;
+    }
+
+    body.trav-modern-view .trav-board:not(.trav-side-collapsed) .trav-main-surface {
+      width: calc(100vw - var(--trav-mobile-panel-width)) !important;
+      max-width: calc(100vw - var(--trav-mobile-panel-width)) !important;
+      min-width: 0 !important;
+      overflow: hidden !important;
+    }
+
+    body.trav-modern-view .trav-board:not(.trav-side-collapsed) .trav-horse-list,
+    body.trav-modern-view .trav-board:not(.trav-side-collapsed) .trav-horse-list .horse-table,
+    body.trav-modern-view .trav-board:not(.trav-side-collapsed) .trav-horse-list .horse-table tbody {
+      width: 100% !important;
+      max-width: 100% !important;
+      overflow-x: hidden !important;
+    }
+
+    body.trav-modern-view .trav-board:not(.trav-side-collapsed) .trav-horse-list .horse-table tr.horse-row {
+      width: 100% !important;
+      grid-template-columns: 30px minmax(0, 1fr) 38px !important;
+      min-height: 52px !important;
+      overflow: hidden !important;
+    }
+
+    body.trav-modern-view .trav-board:not(.trav-side-collapsed) .trav-horse-list .horse-table tr.horse-row > td.trav-horse-main-cell {
+      min-width: 0 !important;
+      overflow: hidden !important;
+      padding-left: 3px !important;
+      padding-right: 1px !important;
+    }
+
+    body.trav-modern-view .trav-board:not(.trav-side-collapsed) .trav-horse-list .horse-name,
+    body.trav-modern-view .trav-board:not(.trav-side-collapsed) .trav-horse-list .horse-driver {
+      min-width: 0 !important;
+      max-width: 100% !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+    }
+
+    body.trav-modern-view .trav-board:not(.trav-side-collapsed) .trav-horse-list .horse-table tr.horse-row > td.trav-horse-pct-cell {
+      display: grid !important;
+      grid-column: 3 !important;
+      min-width: 36px !important;
+      width: 36px !important;
+      max-width: 36px !important;
+      justify-items: end !important;
+      align-items: center !important;
+      font-size: 14px !important;
+      padding: 0 2px 0 0 !important;
+      overflow: visible !important;
+      white-space: nowrap !important;
+      z-index: 3 !important;
+    }
+}
+
+body.trav-modern-view .trav-focus-select-head {
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: block !important;
+}
+body.trav-modern-view .trav-focus-select-head .trav-focus-slot-heading {
+  display: none !important;
+}
+body.trav-modern-view .trav-focus-select-head .trav-coupon-select {
+  display: none !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  font-size: 10px !important;
+  padding: 6px 7px !important;
+}
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-selecting .trav-focus-select-head .trav-coupon-select {
+  display: block !important;
+}
+
+
+/* ---- v51: båda fokusplatserna ska kunna vara tomma + luft under lägg till-block ---- */
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty {
+  margin-bottom: 8px !important;
+}
+body.trav-modern-view .trav-focus-coupon-slot.trav-focus-coupon-empty .trav-coupon-preview {
+  margin-bottom: 4px !important;
+}
+body.trav-modern-view .trav-focus-coupon-add-compact {
+  margin-bottom: 4px !important;
+}
