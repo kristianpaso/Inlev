@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <title>Trav – Överblick</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="./css/trav.css">
+  <link rel="stylesheet" href="./css/trav.css?v=20260612-v17">
   <link rel="stylesheet" href="./css/horse-details.css">
 </head>
-<body class="trav-modern-view">
+<body class="trav-modern-view" data-trav-version="v17-mobile-layout">
   <div class="page">
     <header class="topbar overview-topbar">
       <button class="btn" id="btn-back">&#8592; Tillbaka</button>
@@ -57,6 +57,7 @@
 
       <!-- Ny travvy: mobil/PC-design med hästlista + utdragbar analys-panel -->
       <section class="trav-board" id="trav-board">
+        <div class="trav-version-badge" id="trav-version-badge">v37</div>
         <div class="trav-main-surface">
           <div class="trav-race-header">
             <div class="trav-game-mark" id="trav-game-type-label">V85</div>
@@ -69,39 +70,82 @@
           </div>
         </div>
 
-        <button class="trav-side-toggle" id="trav-side-toggle" type="button" aria-expanded="true" aria-controls="trav-side-panel">Analys</button>
+        <div class="trav-panel-switch" aria-label="Byt högerspalt">
+          <button class="trav-panel-cycle" id="trav-panel-cycle" type="button" aria-expanded="false">Visa spalt</button>
+          <button class="trav-info-mobile-btn" id="trav-info-mobile-btn" type="button" aria-expanded="false" aria-controls="trav-info-panel">Info</button>
+          <button class="trav-import-mobile-btn" id="trav-import-mobile-btn" type="button" aria-label="Importera ATG-kupong" title="Importera ATG-kupong">📥</button>
+          <button class="trav-side-toggle trav-panel-btn active" id="trav-side-toggle" type="button" aria-expanded="true" aria-controls="trav-side-panel">Jämför</button>
+          <button class="trav-focus-toggle trav-panel-btn" id="trav-focus-toggle" type="button" aria-expanded="false" aria-controls="trav-focus-panel">Filtrera</button>
+          <button class="trav-info-toggle trav-panel-btn" id="trav-info-toggle" type="button" aria-expanded="false" aria-controls="trav-info-panel">Info</button>
+          <button class="trav-panel-close" id="trav-panel-close" type="button" aria-label="Stäng högerspalt">✕</button>
+        </div>
 
         <aside class="trav-side-panel" id="trav-side-panel">
-          <section class="trav-side-block">
-            <h2>Top 6 %</h2>
-            <ol class="trav-top-list" id="trav-top-six-list"></ol>
+          <section class="trav-side-block trav-coupon-preview-block trav-my-coupon-side-block" id="trav-my-coupon-side-block" data-lock-key="my">
+            <div class="trav-side-block-head">
+              <h2>Min kupong</h2>
+              <div class="trav-side-head-actions">
+                <span class="trav-my-coupon-side-count" id="trav-my-coupon-side-count">0 val</span>
+              </div>
+            </div>
+            <div id="trav-my-coupon-side-preview" class="trav-coupon-preview"></div>
+            
           </section>
 
-          <section class="trav-side-block trav-coupon-preview-block">
+
+          <section class="trav-side-block trav-coupon-preview-block" id="trav-compare-coupon-1" data-lock-key="coupon1">
             <div class="trav-side-block-head">
-              <h2>Kupong 1</h2>
-              <select id="trav-coupon-select-1" class="trav-coupon-select" aria-label="Välj kupong 1"></select>
+              <h2>Fokus 1</h2>
+              <select id="trav-coupon-select-1" class="trav-coupon-select" aria-label="Välj fokuskupong 1"></select>
             </div>
             <div id="trav-coupon-preview-1" class="trav-coupon-preview"></div>
           </section>
 
-          <section class="trav-side-block trav-coupon-preview-block">
+          <section class="trav-side-block trav-coupon-preview-block" id="trav-compare-coupon-2" data-lock-key="coupon2">
             <div class="trav-side-block-head">
-              <h2>Kupong 2</h2>
-              <select id="trav-coupon-select-2" class="trav-coupon-select" aria-label="Välj kupong 2"></select>
+              <h2>Fokus 2</h2>
+              <select id="trav-coupon-select-2" class="trav-coupon-select" aria-label="Välj fokuskupong 2"></select>
             </div>
             <div id="trav-coupon-preview-2" class="trav-coupon-preview"></div>
           </section>
 
-          <section class="trav-side-block">
+        </aside>
+
+        <aside class="trav-info-panel" id="trav-info-panel" aria-label="Info">
+          <section class="trav-side-block trav-info-side-block">
+            <h2>Top 6 %</h2>
+            <ol class="trav-top-list" id="trav-top-six-list"></ol>
+          </section>
+        </aside>
+
+        <aside class="trav-focus-panel" id="trav-focus-panel" aria-label="Spalt 2 - I Fokus">
+          <section class="trav-side-block trav-focus-side-block">
             <div class="trav-side-block-head">
               <h2>I Fokus</h2>
               <button class="btn small" id="trav-focus-clear" type="button">Rensa</button>
             </div>
-            <div id="trav-focus-list" class="trav-focus-list"></div>
-            <div id="trav-focus-pick-list" class="trav-focus-pick-list"></div>
+
+            <div class="trav-focus-section">
+              <h3>Kuskar</h3>
+              <div id="trav-focus-driver-selected" class="trav-focus-list"></div>
+              <div id="trav-focus-driver-pick-list" class="trav-focus-pick-list"></div>
+            </div>
+
+            <div class="trav-focus-section">
+              <h3>Tränare</h3>
+              <div id="trav-focus-trainer-selected" class="trav-focus-list"></div>
+              <div id="trav-focus-trainer-pick-list" class="trav-focus-pick-list"></div>
+            </div>
+
+            <div id="trav-focus-list" class="trav-focus-list trav-focus-legacy-hidden"></div>
+            <div id="trav-focus-pick-list" class="trav-focus-pick-list trav-focus-legacy-hidden"></div>
           </section>
         </aside>
+
+        <!-- trav-my-coupon-fab borttagen: Min kupong styrs via högerspalten. -->
+
+        <!-- Min kupong visas nu i högerspalten. -->
+
 
         <!-- Dolda kompatibilitetsytor: gammal logik behöver dessa id:n. -->
         <div class="trav-legacy-number-columns" aria-hidden="true">
@@ -691,7 +735,7 @@
 
   <!-- Loaded as classic script (not module) to avoid "Unexpected token 'export'" in some environments -->
   <script src="./js/race-sim.js?v=20260120-fix1"></script>
-  <script type="module" src="./js/overview.js"></script>
+  <script type="module" src="./js/overview.js?v=20260612-v15"></script>
   <script type="module" src="./js/ui-coupon-combine.js?v=20260109-combine1"></script>
 
 </body>

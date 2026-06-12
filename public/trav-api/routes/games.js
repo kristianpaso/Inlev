@@ -905,7 +905,211 @@ router.patch('/:id/coupons/:couponId', async (req, res) => {
 
 
 
+
+function normalizeAtgCouponText(value) {
+  return String(value || '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/[\t\r]+/g, ' ')
+    .replace(/[–—]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function uniqueSortedHorseNumbers(numbers) {
+  return Array.from(new Set((numbers || [])
+    .map((n) => Number(n))
+    .filter((n) => Number.isFinite(n) && n > 0 && n <= 20)))
+    .sort((a, b) => a - b);
+}
+
+function parseAtgHorseNumbersFromRest(rest) {
+  const out = [];
+  const tokens = String(rest || '')
+    .replace(/[,;]+/g, ' ')
+    .replace(/[()\[\]]+/g, ' ')
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  for (const token of tokens) {
+    const cleaned = token.replace(/[^0-9]/g, '');
+    if (/^\d{1,2}$/.test(cleaned)) {
+      const n = Number(cleaned);
+      if (n >= 1 && n <= 20) {
+        out.push(n);
+        continue;
+      }
+    }
+
+    // När vi redan börjat läsa hästnummer och första ordet i hästnamnet kommer
+    // (t.ex. "3 FANGIO COR") ska vi sluta, annars riskerar vi att plocka datum,
+    // kvittonummer eller andra siffror från sidan.
+    if (out.length) break;
+  }
+
+  return uniqueSortedHorseNumbers(out);
+}
+
+function parseAtgSelectionsFromVisibleText(text, divisionCount = 8) {
+  const selectionsByDiv = new Map();
+  const lines = String(text || '')
+    .replace(/\u00A0/g, ' ')
+    .split(/\n+/)
+    .map((line) => normalizeAtgCouponText(line))
+    .filter(Boolean);
+
+  const add = (divisionIndex, horses) => {
+    const div = Number(divisionIndex);
+    if (!Number.isFinite(div) || div < 1 || div > divisionCount) return;
+    const nums = uniqueSortedHorseNumbers(horses);
+    if (!nums.length || nums.length > 15) return;
+    const old = selectionsByDiv.get(div) || [];
+    selectionsByDiv.set(div, uniqueSortedHorseNumbers(old.concat(nums)));
+  };
+
+  // 1) Strikt ATG-kvittoformat:
+  // AVD  HÄSTAR
+  // 1    1 3
+  // 2    1 3 6 8 9
+  // 6    3 FANGIO COR
+  const headerIndex = lines.findIndex((line) => /\bAVD\b/i.test(line) && /\bH[ÄA]STAR\b/i.test(line));
+  if (headerIndex >= 0) {
+    for (let i = headerIndex + 1; i < lines.length; i += 1) {
+      const line = lines[i];
+      const m = line.match(/^([1-8])\s+(.+)$/);
+      if (!m) {
+        // När vi redan har börjat läsa och kommer till nästa sektion, sluta.
+        if (selectionsByDiv.size) break;
+        continue;
+      }
+      const divisionIndex = Number(m[1]);
+      if (divisionIndex < 1 || divisionIndex > divisionCount) continue;
+      add(divisionIndex, parseAtgHorseNumbersFromRest(m[2]));
+      // Om vi har passerat sista avdelningen behöver vi inte fortsätta läsa kvittot.
+      if (divisionIndex === divisionCount && selectionsByDiv.size >= divisionCount) break;
+    }
+
+    if (selectionsByDiv.size) {
+      return Array.from(selectionsByDiv.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([divisionIndex, horses]) => ({ divisionIndex, horses }));
+    }
+  }
+
+  // 2) Generellt en-radsformat:
+  // "Avd 1 1 3", "V65-1 1 3", "1 1 3".
+  for (const line of lines) {
+    const match = line.match(/^(?:V\d{2}\s*[-:]\s*)?(?:Avd(?:elning)?\s*)?([1-8])\s+(.+)$/i);
+    if (!match) continue;
+
+    const divisionIndex = Number(match[1]);
+    if (!Number.isFinite(divisionIndex) || divisionIndex < 1 || divisionIndex > divisionCount) continue;
+
+    // Ignorera rader som uppenbart är datum/tid/pris/rader.
+    if (/\b(inl[äa]mnat|pris|kr|rader|andel|kvitt|detalj|visa)\b/i.test(line)) continue;
+
+    add(divisionIndex, parseAtgHorseNumbersFromRest(match[2]));
+  }
+
+  return Array.from(selectionsByDiv.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([divisionIndex, horses]) => ({ divisionIndex, horses }));
+}
+
+async function extractAtgCouponFromPage(page, divisionCount) {
+  const RECEIPT_ROW_SEL = 'tr[data-test-id="receipt-row"]';
+  const PRELIM_ROW_SEL = '[data-test-id="shop-purchase-confirm-coupon-race-row"]';
+
+  const selectionsByDiv = new Map();
+  const addSelection = (divisionIndex, horses) => {
+    const div = Number(divisionIndex);
+    if (!Number.isFinite(div) || div < 1 || div > divisionCount) return;
+    const nums = uniqueSortedHorseNumbers(horses);
+    if (!nums.length) return;
+    const old = selectionsByDiv.get(div) || [];
+    selectionsByDiv.set(div, uniqueSortedHorseNumbers(old.concat(nums)));
+  };
+
+  // 1) Nya/gamla kvitto-rader från ATG. Om detta ger träff returnerar vi direkt
+  // så att inte en senare bred DOM-scan råkar blanda in kvittonummer, datum eller andra rader.
+  const receiptRows = await page.$$(RECEIPT_ROW_SEL).catch(() => []);
+  for (const row of receiptRows) {
+    const divisionIndex = await row.evaluate(el => Number(el.getAttribute('data-test-value'))).catch(() => NaN);
+    const horses = await row.$$eval(
+      'span[data-test-id="horse-number"]',
+      spans => spans.map(s => Number((s.textContent || '').trim())).filter(n => Number.isFinite(n) && n > 0)
+    ).catch(() => []);
+    addSelection(divisionIndex, horses);
+  }
+
+  if (selectionsByDiv.size) {
+    return Array.from(selectionsByDiv.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([divisionIndex, horses]) => ({ divisionIndex, horses }));
+  }
+
+  // 2) Preliminär kupong / köpbekräftelse
+  const prelimRows = await page.$$(PRELIM_ROW_SEL).catch(() => []);
+  for (const row of prelimRows) {
+    const divisionIndex = await row.$eval(
+      '[data-test-id="race-row-number"]',
+      el => Number((el.textContent || '').trim())
+    ).catch(() => NaN);
+
+    const horses = await row.$$eval(
+      '[data-test-id="shop-purchase-confirm-coupon-race-row-selections"] span, span[data-test-id="horse-number"]',
+      (spans) => {
+        const out = [];
+        for (const s of spans) {
+          const cls = (s.className || '').toString();
+          const parentCls = (s.parentElement?.className || '').toString();
+          if (cls.includes('strike') || parentCls.includes('strike')) continue;
+          const txt = (s.textContent || '').replace(/\u00A0/g, ' ').trim();
+          const m = txt.match(/^(\d{1,2})\b/);
+          if (m) out.push(Number(m[1]));
+        }
+        return Array.from(new Set(out)).sort((a, b) => a - b);
+      }
+    ).catch(() => []);
+    addSelection(divisionIndex, horses);
+  }
+
+
+  if (selectionsByDiv.size) {
+    return Array.from(selectionsByDiv.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([divisionIndex, horses]) => ({ divisionIndex, horses }));
+  }
+
+  // 3) Strikt texttolkning av synligt ATG-kvitto. Denna tar bara rader under
+  // rubriken AVD/HÄSTAR och stoppar vid hästnamn, t.ex. "6 3 FANGIO COR" -> [3].
+  const bodyTextForReceipt = await page.locator('body').innerText({ timeout: 5000 }).catch(() => '');
+  const fromStrictText = parseAtgSelectionsFromVisibleText(bodyTextForReceipt, divisionCount);
+  if (fromStrictText.length) return fromStrictText;
+
+  // 4) Flexibel DOM-scan om ATG ändrat data-test-id. Körs bara om inget annat fungerade.
+  const domCandidates = await page.$$eval('tr, li, [class*="receipt"], [class*="coupon"], [class*="Coupon"], [data-test-id*="race"], [data-test-id*="receipt"]', (els) => {
+    return els.slice(0, 1200).map((el) => {
+      const attrs = {};
+      for (const a of Array.from(el.attributes || [])) attrs[a.name] = a.value;
+      return { text: (el.innerText || el.textContent || '').replace(/\u00A0/g, ' ').trim(), attrs };
+    }).filter(x => x.text && x.text.length <= 260);
+  }).catch(() => []);
+
+  for (const c of domCandidates) {
+    const rows = parseAtgSelectionsFromVisibleText(c.text, divisionCount);
+    // Bara kandidater som tydligt ger en eller flera kupongrader får användas.
+    for (const row of rows) addSelection(row.divisionIndex, row.horses);
+  }
+
+  return Array.from(selectionsByDiv.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([divisionIndex, horses]) => ({ divisionIndex, horses }));
+}
+
 router.post('/:id/import/atg', async (req, res) => {
+  let browser = null;
+
   try {
     const { id } = req.params;
     const { url, status } = req.body || {};
@@ -921,171 +1125,80 @@ router.post('/:id/import/atg', async (req, res) => {
     const game = await TravGame.findById(id);
     if (!game) return res.status(404).json({ error: 'Spelet hittades inte' });
 
-        let browser = null;
+    const divisionCount = getDivisionCount(game.gameType);
 
-    try {
-      browser = await chromium.launch({ headless: true, args: ["--no-sandbox","--disable-setuid-sandbox"] });
-      const page = await browser.newPage();
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled',
+      ],
+    });
 
-      // Vänta tills sidan är klar (ATG renderar kvittot med JS)
-      await page.goto(u.toString(), { waitUntil: 'networkidle', timeout: 60000 });
+    const page = await browser.newPage({
+      locale: 'sv-SE',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36',
+      viewport: { width: 1365, height: 1100 },
+    });
 
-const RECEIPT_ROW_SEL = 'tr[data-test-id="receipt-row"]';
-const PRELIM_ROW_SEL = '[data-test-id="shop-purchase-confirm-coupon-race-row"]';
+    await page.goto(u.toString(), { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForTimeout(3500);
 
-const hasAny = async (sel) => (await page.locator(sel).count()) > 0;
-
-
-
-// Hämta namnet på andelssystemet (t.ex. "NICLAS & CALLE 36")
-let shareName = null;
-try {
-  shareName = await page.locator('[data-test-id="share-details-name"]').first().innerText();
-  shareName = shareName.replace(/\u00A0/g, ' ').trim();
-} catch {
-  shareName = null;
-}
-
-
-      // Vänta på att raderna i kvittot finns
-    // Försök hitta inlämnat kvitto först, annars preliminär kupong
-let mode = null; // 'receipt' | 'prelim'
-
-// 1) Vänta kort på att nåt av dem dyker upp
-await page.waitForTimeout(1000);
-
-if (await hasAny(RECEIPT_ROW_SEL)) {
-  mode = 'receipt';
-} else if (await hasAny(PRELIM_ROW_SEL)) {
-  mode = 'prelim';
-} else {
-  // Ge sidan lite mer tid och testa igen
-  await page.waitForTimeout(2000);
-
-  if (await hasAny(RECEIPT_ROW_SEL)) mode = 'receipt';
-  else if (await hasAny(PRELIM_ROW_SEL)) mode = 'prelim';
-}
-
-// Om fortfarande inget hittas: throw
-if (!mode) {
-  const html = await page.content();
-  throw Object.assign(new Error('Kunde inte hitta varken kvitto (inlämnat) eller preliminär kupong på sidan.'), {
-    statusCode: 422,
-    debug: html.slice(0, 2000),
-  });
-}
-
-const selections = [];
-
-if (mode === 'receipt') {
-  const rows = await page.$$(RECEIPT_ROW_SEL);
-
-  for (const row of rows) {
-    const divisionIndex = await row.evaluate(el => Number(el.getAttribute('data-test-value')));
-    if (!Number.isFinite(divisionIndex) || divisionIndex <= 0) continue;
-
-    const horses = await row.$$eval(
-      'span[data-test-id="horse-number"]',
-      spans => spans
-        .map(s => Number((s.textContent || '').trim()))
-        .filter(n => Number.isFinite(n) && n > 0)
-    );
-
-    if (!horses.length) continue;
-    selections.push({ divisionIndex, horses });
-  }
-}
-
-if (mode === 'prelim') {
-  const rows = await page.$$(PRELIM_ROW_SEL);
-
-  for (const row of rows) {
-    const divisionIndex = await row.$eval(
-      '[data-test-id="race-row-number"]',
-      el => Number((el.textContent || '').trim())
-    ).catch(() => NaN);
-
-    if (!Number.isFinite(divisionIndex) || divisionIndex <= 0) continue;
-
-    // ✅ VIKTIGT: läs varje span separat (inte textContent på hela containern)
-    const horses = await row.$$eval(
-      '[data-test-id="shop-purchase-confirm-coupon-race-row-selections"] span',
-      (spans) => {
-        const out = [];
-
-        for (const s of spans) {
-          // hoppa över strukna (strike) – ibland ligger siffran i en span inuti strike-span
-          const cls = (s.className || '').toString();
-          const parentCls = (s.parentElement?.className || '').toString();
-
-          if (cls.includes('strike') || parentCls.includes('strike')) continue;
-
-          const txt = (s.textContent || '').replace(/\u00A0/g, ' ').trim();
-
-          // kan vara "9 Harriet Zet" → ta första numret
-          const m = txt.match(/^(\d{1,2})\b/);
-          if (m) out.push(Number(m[1]));
-        }
-
-        // unika + sorterade
-        return Array.from(new Set(out)).sort((a, b) => a - b);
-      }
-    );
-
-    if (!horses.length) continue;
-    selections.push({ divisionIndex, horses });
-  }
-}
-
-
-if (!selections.length) {
-  return res.status(422).json({
-    error: `Kunde inte tolka avdelningar/hästar ur ATG-${mode === 'prelim' ? 'preliminär kupong' : 'kvitto'} (DOM).`
-  });
-}
-
-
-      // Skapa kupongen (sparas i DB)
-const fallbackName = `ATG import ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
-let couponName = shareName && shareName.length ? shareName : fallbackName;
-
-if (mode === 'prelim') {
-  couponName = `Preliminär ${couponName}`;
-}
-
-
-const normalizedStatus = normalizeCouponStatus(status);
-
-game.coupons.push({
-  name: couponName,
-  source: 'atg',
-  stakeLevel: 'original',
-  selections,
-  status: normalizedStatus,
-  active: normalizedStatus === 'active',
-});
-
- 
-      await game.save();
-      const newCoupon = game.coupons[game.coupons.length - 1];
-      return res.status(201).json(newCoupon);
-
-    } catch (err) {
-      if (browser) {
-        try { await browser.close(); } catch {}
-      }
-      console.error('POST /games/:id/import/atg error', err);
-      return res.status(500).json({ error: 'Serverfel vid import av ATG-kupong.' });
+    // Försök stänga cookie/consent om den blockerar DOM/text.
+    for (const label of ['Godkänn alla', 'Acceptera alla', 'Acceptera', 'Jag förstår', 'OK']) {
+      try { await page.getByRole('button', { name: new RegExp(label, 'i') }).first().click({ timeout: 700 }); } catch {}
     }
- 
-  
 
+    await page.waitForTimeout(1500);
+
+    let shareName = null;
+    try {
+      shareName = await page.locator('[data-test-id="share-details-name"]').first().innerText({ timeout: 2500 });
+      shareName = normalizeAtgCouponText(shareName);
+    } catch {
+      shareName = null;
+    }
+
+    const selections = await extractAtgCouponFromPage(page, divisionCount);
+
+    if (!selections.length) {
+      const bodyText = await page.locator('body').innerText({ timeout: 5000 }).catch(() => '');
+      return res.status(422).json({
+        error: 'Kunde inte tolka avdelningar/hästar ur ATG-länken. Kontrollera att länken visar ett kvitto eller en kupong som är synlig utan inloggning.',
+        debug: bodyText.slice(0, 1200),
+      });
+    }
+
+    const fallbackName = `ATG import ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
+    const couponName = shareName && shareName.length ? shareName : fallbackName;
+    const normalizedStatus = normalizeCouponStatus(status);
+
+    game.coupons.push({
+      name: couponName,
+      source: 'atg',
+      stakeLevel: 'original',
+      selections,
+      status: normalizedStatus,
+      active: normalizedStatus === 'active',
+    });
+
+    await game.save();
+    const newCoupon = game.coupons[game.coupons.length - 1];
+    return res.status(201).json(newCoupon);
   } catch (err) {
     console.error('POST /games/:id/import/atg error', err);
-    res.status(500).json({ error: 'Serverfel vid import av ATG-kupong.' });
+    return res.status(err.statusCode || 500).json({
+      error: err.message || 'Serverfel vid import av ATG-kupong.',
+      detail: String(err && err.stack ? err.stack : err).slice(0, 1600),
+    });
+  } finally {
+    if (browser) {
+      try { await browser.close(); } catch {}
+    }
   }
 });
-
 
 
 module.exports = router;
