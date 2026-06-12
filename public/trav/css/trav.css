@@ -7719,3 +7719,64 @@ body.trav-modern-view .trav-focus-color {
     display: inline-flex !important;
   }
 }
+
+/* ---- v38: Avdelningsblocket ska ligga över högerspalten på mobil ---- */
+body.trav-modern-view .overview-layout > section.division-header {
+  z-index: 500 !important;
+  isolation: isolate !important;
+}
+
+@media (max-width: 900px) {
+  body.trav-modern-view .overview-layout > section.division-header {
+    z-index: 500 !important;
+  }
+  body.trav-modern-view .trav-side-panel,
+  body.trav-modern-view .trav-focus-panel {
+    z-index: 220 !important;
+  }
+  body.trav-modern-view .trav-panel-switch {
+    z-index: 360 !important;
+  }
+}
+
+/* ---- v39: knappmenyn ska ligga ovanför avdelningsblocket, men högerspalten bakom ---- */
+@media (max-width: 900px) {
+  body.trav-modern-view .overview-layout > section.division-header {
+    z-index: 500 !important;
+  }
+
+  body.trav-modern-view .trav-side-panel,
+  body.trav-modern-view .trav-focus-panel {
+    z-index: 220 !important;
+  }
+
+  body.trav-modern-view .trav-panel-switch,
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-panel-switch {
+    z-index: 650 !important;
+    bottom: var(--trav-division-footer-height, 62px) !important;
+  }
+}
+
+/* === v41: mindre kupongrubriker i Jämför === */
+body.trav-modern-view #trav-my-coupon-side-block .trav-side-block-head h2,
+body.trav-modern-view #trav-compare-coupon-1 .trav-side-block-head h2,
+body.trav-modern-view #trav-compare-coupon-2 .trav-side-block-head h2 {
+  font-size: clamp(13px, 1.75vw, 17px) !important;
+  line-height: 1.05 !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  margin-bottom: 0 !important;
+  text-underline-offset: 4px !important;
+}
+
+@media (max-width: 900px) {
+  body.trav-modern-view #trav-my-coupon-side-block .trav-side-block-head h2,
+  body.trav-modern-view #trav-compare-coupon-1 .trav-side-block-head h2,
+  body.trav-modern-view #trav-compare-coupon-2 .trav-side-block-head h2 {
+    font-size: 13px !important;
+    letter-spacing: -0.02em !important;
+  }
+}
