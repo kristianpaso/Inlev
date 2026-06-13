@@ -57,7 +57,7 @@
 
       <!-- Ny travvy: mobil/PC-design med hästlista + utdragbar analys-panel -->
       <section class="trav-board" id="trav-board">
-        <div class="trav-version-badge" id="trav-version-badge">v62</div>
+        <div class="trav-version-badge" id="trav-version-badge">v55</div>
         <div class="trav-main-surface">
           <div class="trav-race-header">
             <div class="trav-game-mark" id="trav-game-type-label">V85</div>
@@ -75,7 +75,6 @@
           <button class="trav-info-mobile-btn" id="trav-info-mobile-btn" type="button" aria-expanded="false" aria-controls="trav-info-panel">Info</button>
           <button class="trav-import-mobile-btn" id="trav-import-mobile-btn" type="button" aria-label="Importera ATG-kupong" title="Importera ATG-kupong">📥</button>
           <button class="trav-lowered-x3-btn" id="trav-lowered-x3-btn" type="button" aria-label="Sänkt insats x3" title="Sänkt insats x3">x3</button>
-          <button class="trav-favorite-x3-btn" id="trav-favorite-x3-btn" type="button" aria-label="3x favorit" title="3x favorit">3x fav</button>
           <button class="trav-side-toggle trav-panel-btn active" id="trav-side-toggle" type="button" aria-expanded="true" aria-controls="trav-side-panel">Jämför</button>
           <button class="trav-focus-toggle trav-panel-btn" id="trav-focus-toggle" type="button" aria-expanded="false" aria-controls="trav-focus-panel">Filtrera</button>
           <button class="trav-info-toggle trav-panel-btn" id="trav-info-toggle" type="button" aria-expanded="false" aria-controls="trav-info-panel">Info</button>
@@ -83,41 +82,7 @@
         </div>
 
         <aside class="trav-side-panel" id="trav-side-panel">
-          <section class="trav-lowered-x3-panel" id="trav-lowered-x3-panel" hidden>
-            <div class="trav-lowered-x3-head">
-              <strong>Sänkt insats x3</strong>
-              <button class="trav-lowered-x3-close" id="trav-lowered-x3-close" type="button" aria-label="Stäng">×</button>
-            </div>
-            <div class="trav-lowered-x3-form">
-              <label class="trav-lowered-x3-spike-field">Spikar/kupong
-                <select id="trav-lowered-x3-spikes">
-                  <option value="2">2 spikar · Top 6</option>
-                  <option value="3">3 spikar · Top 9</option>
-                  <option value="4">4 spikar · Top 12</option>
-                </select>
-              </label>
-              <label>Pris
-                <input id="trav-lowered-x3-price" type="number" min="1" step="1" value="300">
-              </label>
-              <label>Sänkt insats
-                <select id="trav-lowered-x3-stake">
-                  <option value="30">30%</option>
-                  <option value="50">50%</option>
-                  <option value="70">70%</option>
-                </select>
-              </label>
-            </div>
-            <div class="trav-lowered-x3-hint" id="trav-lowered-x3-hint"></div>
-            <div class="trav-lowered-x3-preview" id="trav-lowered-x3-preview"></div>
-            <button class="trav-lowered-x3-create" id="trav-lowered-x3-create" type="button">Skapa 3 kuponger</button>
-          </section>
-
           <section class="trav-side-block trav-coupon-preview-block trav-my-coupon-side-block" id="trav-my-coupon-side-block" data-lock-key="my">
-            <button class="trav-my-coupon-toggle" id="trav-my-coupon-toggle" type="button" aria-expanded="true">
-              <span>Min kupong</span>
-              <span class="trav-my-coupon-toggle-price" id="trav-my-coupon-toggle-price">Pris: 0,00 kr</span>
-              <span class="trav-my-coupon-toggle-icon">▾</span>
-            </button>
             <div id="trav-my-coupon-side-preview" class="trav-coupon-preview"></div>
             
           </section>

@@ -1701,7 +1701,6 @@ function openTravPanel(which) {
   const isFocus = which === 'focus';
   const isInfo = which === 'info';
   board.classList.remove('trav-side-collapsed');
-  board.classList.add('trav-mobile-panel-open');
   board.classList.toggle('trav-focus-open', isFocus);
   board.classList.toggle('trav-info-open', isInfo);
 
@@ -2155,14 +2154,6 @@ function getTravCouponDomId(coupon, fallbackIndex) {
   return raw.replace(/[^a-zA-Z0-9_-]/g, '-');
 }
 
-
-function getTravHorseNameByDivAndNumber(divIndex, horseNumber) {
-  const d = (divisions || []).find((division, i) => Number(division?.index || i + 1) === Number(divIndex));
-  const h = (d?.horses || []).find((horse) => Number(horse?.number ?? extractHorseNumberFromRawLine(horse?.rawLine || '')) === Number(horseNumber));
-  if (!h) return '';
-  return String(getHorseDisplayNameFromHorse(h) || '').trim();
-}
-
 function buildTravMiniCouponTable(coupon) {
   const table = document.createElement('div');
   table.className = 'trav-mini-coupon';
@@ -2181,27 +2172,8 @@ function buildTravMiniCouponTable(coupon) {
     const row = document.createElement('div');
     row.className = 'trav-mini-coupon-row';
     const horses = (sel?.horses || []).slice().sort((a, b) => Number(a) - Number(b));
-    const spikeDivisions = new Set((coupon?.spikeDivisions || []).map((n) => Number(n)));
-    const isExplicitSpik = spikeDivisions.has(Number(divIndex));
-    const isSingleHorseSpik = horses.length === 1;
-    if (isExplicitSpik || isSingleHorseSpik) row.classList.add('trav-mini-coupon-row-spik');
     row.innerHTML = `<span>${divIndex}</span><span></span>`;
     appendTravCouponHorseNumbers(row.children[1], divIndex, horses);
-    if (isSingleHorseSpik) {
-      const horseName = getTravHorseNameByDivAndNumber(divIndex, horses[0]);
-      if (horseName) {
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'trav-mini-coupon-spik-name';
-        nameSpan.textContent = ` ${horseName}`;
-        row.children[1].appendChild(nameSpan);
-      }
-    }
-    if (isExplicitSpik) {
-      const badge = document.createElement('span');
-      badge.className = 'trav-mini-coupon-spik-badge';
-      badge.textContent = 'SPIK';
-      row.children[1].appendChild(badge);
-    }
     table.appendChild(row);
   });
 
@@ -2393,19 +2365,6 @@ function initTravMyCouponControls() {
   const fab = document.getElementById('trav-my-coupon-fab');
   const clear = document.getElementById('trav-my-coupon-clear');
   const save = document.getElementById('trav-my-coupon-save');
-  const toggle = document.getElementById('trav-my-coupon-toggle');
-
-  if (toggle && !toggle.dataset.bound) {
-    toggle.dataset.bound = '1';
-    toggle.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      const block = document.getElementById('trav-my-coupon-side-block');
-      const collapsed = !block?.classList.contains('trav-my-coupon-collapsed');
-      block?.classList.toggle('trav-my-coupon-collapsed', collapsed);
-      toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-    });
-  }
 
   if (fab && !fab.dataset.bound) {
     fab.dataset.bound = '1';
@@ -2454,8 +2413,6 @@ function renderTravMyCouponDrawer() {
   const myCouponPriceText = `Pris: ${formatTravIdeaCouponPrice()} kr`;
   if (badge) badge.textContent = String(count || 0);
   if (countText) countText.textContent = myCouponPriceText;
-  const togglePrice = document.getElementById('trav-my-coupon-toggle-price');
-  if (togglePrice) togglePrice.textContent = myCouponPriceText;
   if (!box) return;
 
   box.innerHTML = '';
@@ -2708,7 +2665,6 @@ function renderTravSidePanel() {
   initTravSidePanelControls();
   initTravMyCouponControls();
   initTravLoweredStakeX3Controls();
-  initTravFavoriteX3Controls();
   renderTravTopSix();
   renderTravCouponSelects();
   renderTravExtraCompareCoupons();
@@ -2834,128 +2790,41 @@ function expandTravLoweredX3ToTarget(selectionMap, stakeLevelForCoupon, targetPr
   }
 }
 
-function buildTravLoweredStakeX3Coupons(totalPrice, stakeLevelForCoupon, spikeCountWanted = 2) {
-  const rankedAll = getTravAllRankedHorsesForLoweredX3();
-  const spikeCount = Math.max(2, Math.min(4, Number(spikeCountWanted || 2)));
-  const neededTopCount = spikeCount === 4 ? 12 : (spikeCount === 3 ? 9 : 6);
-  const top = rankedAll.slice(0, neededTopCount);
-  if (top.length < Math.min(6, neededTopCount)) return [];
+function buildTravLoweredStakeX3Coupons(totalPrice, stakeLevelForCoupon) {
+  const top = getTravAllRankedHorsesForLoweredX3().slice(0, 6);
+  if (top.length < 6) return [];
 
+  const pairs = [[top[0], top[5]], [top[1], top[4]], [top[2], top[3]]];
   const targetPerCoupon = Math.max(1, Number(totalPrice || 300) / 3);
 
-  const addHorseToMap = (map, divIndex, number) => {
-    if (!Number.isFinite(Number(divIndex)) || !Number.isFinite(Number(number))) return;
-    const set = map.get(Number(divIndex)) || new Set();
-    set.add(Number(number));
-    map.set(Number(divIndex), set);
-  };
-
-  const findDifferentDivisionHorse = (wanted, lockedDivisions, usedKeys) => {
-    if (wanted && !lockedDivisions.has(Number(wanted.divisionIndex)) && !usedKeys.has(`${wanted.divisionIndex}:${wanted.number}`)) {
-      return wanted;
-    }
-    return rankedAll.find((h) => {
-      const key = `${h.divisionIndex}:${h.number}`;
-      return h && !lockedDivisions.has(Number(h.divisionIndex)) && !usedKeys.has(key);
-    }) || wanted;
-  };
-
-  // Tre kuponger enligt rutinen. Hästarna i varje grupp ska vara spikar
-  // och därför får deras avdelningar inte fyllas på med fler hästar.
-  const rankGroups = spikeCount === 4
-    ? [[1, 5, 9, 12], [2, 6, 8, 11], [3, 4, 7, 10]]
-    : (spikeCount === 3
-      ? [[1, 5, 9], [2, 6, 7], [3, 4, 8]]
-      : [[1, 6], [2, 5], [3, 4]]);
-  const wantedPairs = rankGroups.map((group) => group.map((rank) => top[rank - 1]).filter(Boolean));
-
-  return wantedPairs.map((wantedPair, idx) => {
+  return pairs.map((pair, idx) => {
     const map = new Map();
-    const lockedSpikeDivisions = new Set();
-    const usedSpikeKeys = new Set();
-    const finalPair = [];
 
-    wantedPair.forEach((wanted) => {
-      const h = findDifferentDivisionHorse(wanted, lockedSpikeDivisions, usedSpikeKeys);
+    // Starta med favoriten i varje avdelning så kupongen blir komplett.
+    (divisions || []).forEach((division, i) => {
+      const divIndex = Number(division?.index || i + 1);
+      const sorted = getTravLoweredX3DivisionCandidates(divIndex);
+      if (sorted.length) map.set(divIndex, new Set([sorted[0].number]));
+    });
+
+    // Lägg in paret från Top 6: 1+6, 2+5, 3+4.
+    pair.forEach((h) => {
       if (!h) return;
-      addHorseToMap(map, h.divisionIndex, h.number);
-      lockedSpikeDivisions.add(Number(h.divisionIndex));
-      usedSpikeKeys.add(`${h.divisionIndex}:${h.number}`);
-      finalPair.push(h);
+      const set = map.get(h.divisionIndex) || new Set();
+      set.add(Number(h.number));
+      map.set(h.divisionIndex, set);
     });
 
-    // Om parningen av någon anledning bara gav en spik, fyll med bästa möjliga
-    // procenthäst från en annan avdelning.
-    while (finalPair.length < spikeCount) {
-      const h = rankedAll.find((cand) => cand && !lockedSpikeDivisions.has(Number(cand.divisionIndex)) && !usedSpikeKeys.has(`${cand.divisionIndex}:${cand.number}`));
-      if (!h) break;
-      addHorseToMap(map, h.divisionIndex, h.number);
-      lockedSpikeDivisions.add(Number(h.divisionIndex));
-      usedSpikeKeys.add(`${h.divisionIndex}:${h.number}`);
-      finalPair.push(h);
-    }
-
-    // Gör kupongen komplett. Låsta spikavdelningar lämnas helt ensamma.
-    (divisions || []).forEach((division, i) => {
-      const divIndex = Number(division?.index || i + 1);
-      if (lockedSpikeDivisions.has(divIndex)) return;
-      if ((map.get(divIndex) || new Set()).size) return;
-      const sorted = getTravLoweredX3DivisionCandidates(divIndex);
-      if (!sorted.length) return;
-      const preferred = sorted[Math.min(idx, sorted.length - 1)] || sorted[0];
-      addHorseToMap(map, divIndex, preferred.number);
-    });
-
-    // Försök få med andrahandsfavoriten i icke-spikade avdelningar om det är nära.
-    (divisions || []).forEach((division, i) => {
-      const divIndex = Number(division?.index || i + 1);
-      if (lockedSpikeDivisions.has(divIndex)) return;
-      const set = map.get(divIndex);
-      if (!set || !set.size) return;
-      const sorted = getTravLoweredX3DivisionCandidates(divIndex);
-      if (sorted.length < 2) return;
-      const fav = sorted[0];
-      const second = sorted[1];
-      const diff = Math.abs(Number(fav.pct || 0) - Number(second.pct || 0));
-      if (set.has(fav.number) && diff <= 5) set.add(second.number);
-      if (set.has(second.number) && !set.has(fav.number)) set.add(fav.number);
-    });
-
-    // Fyll mot målpriset utan att röra spikavdelningarna.
-    for (let guard = 0; guard < 80; guard++) {
-      const current = getTravLoweredX3Cost(getTravSelectionsFromMap(map), stakeLevelForCoupon).total;
-      if (current >= targetPerCoupon * 0.92) break;
-      let best = null;
-      (divisions || []).forEach((division, i) => {
-        const divIndex = Number(division?.index || i + 1);
-        if (lockedSpikeDivisions.has(divIndex)) return;
-        const set = map.get(divIndex) || new Set();
-        const candidates = getTravLoweredX3DivisionCandidates(divIndex);
-        candidates.forEach((cand, candIndex) => {
-          if (set.has(cand.number)) return;
-          const nextMap = new Map(map);
-          nextMap.set(divIndex, new Set([...set, cand.number]));
-          const cost = getTravLoweredX3Cost(getTravSelectionsFromMap(nextMap), stakeLevelForCoupon).total;
-          const over = cost > targetPerCoupon ? 1 : 0;
-          const variation = Math.abs(((candIndex + idx) % Math.max(1, candidates.length)) - idx) / 100;
-          const score = (over * 1000000) + Math.abs(targetPerCoupon - cost) - (cand.pct || 0) / 1000 + variation;
-          if (!best || score < best.score) best = { divIndex, number: cand.number, score, cost };
-        });
-      });
-      if (!best) break;
-      addHorseToMap(map, best.divIndex, best.number);
-      if (best.cost > targetPerCoupon * 1.35) break;
-    }
+    addTravLoweredX3SmartSecondFavourites(map);
+    expandTravLoweredX3ToTarget(map, stakeLevelForCoupon, targetPerCoupon);
 
     const selections = getTravSelectionsFromMap(map);
     const cost = getTravLoweredX3Cost(selections, stakeLevelForCoupon);
-    const label = finalPair.map((h) => `A${h.divisionIndex}:${h.number}`).join(' + ');
+    const label = pair.map((h) => `A${h.divisionIndex}:${h.number}`).join(' + ');
     return {
       name: `Sänkt insats x3 ${idx + 1}`,
       label,
-      exampleTitle: `Spik: ${rankGroups[idx].map((rank) => `Top ${rank}`).join(' + ')}`,
-      topPair: finalPair,
-      spikeDivisions: Array.from(lockedSpikeDivisions),
+      topPair: pair,
       selections,
       rows: cost.rows,
       price: cost.total,
@@ -2968,19 +2837,17 @@ function buildTravLoweredStakeX3Coupons(totalPrice, stakeLevelForCoupon, spikeCo
 function renderTravLoweredX3Preview() {
   const priceInput = document.getElementById('trav-lowered-x3-price');
   const stakeSelect = document.getElementById('trav-lowered-x3-stake');
-  const spikeSelect = document.getElementById('trav-lowered-x3-spikes');
   const preview = document.getElementById('trav-lowered-x3-preview');
   const hint = document.getElementById('trav-lowered-x3-hint');
   if (!preview) return [];
 
   const totalPrice = Math.max(1, Number(priceInput?.value || 300));
   const stake = String(stakeSelect?.value || '30');
-  const spikeCount = Math.max(2, Math.min(4, Number(spikeSelect?.value || 2)));
-  const built = buildTravLoweredStakeX3Coupons(totalPrice, stake, spikeCount);
+  const built = buildTravLoweredStakeX3Coupons(totalPrice, stake);
   preview.innerHTML = '';
 
   if (hint) {
-    hint.textContent = `Mål: ${formatMoney(totalPrice / 3)} kr per kupong. Insats: ${stake}%. Spikar: ${spikeCount} per kupong.`;
+    hint.textContent = `Mål: ${formatMoney(totalPrice / 3)} kr per kupong. Insats: ${stake}%.`;
   }
 
   if (!built.length) {
@@ -2991,7 +2858,7 @@ function renderTravLoweredX3Preview() {
   built.forEach((item, index) => {
     const card = document.createElement('div');
     card.className = 'trav-lowered-x3-card';
-    card.innerHTML = `<div class="trav-lowered-x3-card-head"><strong>${item.name}</strong><span>${formatMoney(item.price)} kr</span></div><div class="trav-lowered-x3-pair"><b>${item.exampleTitle || ''}</b> · ${item.label}</div>`;
+    card.innerHTML = `<div class="trav-lowered-x3-card-head"><strong>${item.name}</strong><span>${formatMoney(item.price)} kr</span></div><div class="trav-lowered-x3-pair">${item.label}</div>`;
     card.appendChild(buildTravMiniCouponTable({ selections: item.selections, stakeLevel: item.stakeLevel }));
     preview.appendChild(card);
   });
@@ -3000,35 +2867,10 @@ function renderTravLoweredX3Preview() {
 
 function initTravLoweredStakeX3Controls() {
   const openBtn = document.getElementById('trav-lowered-x3-btn');
-  let panel = document.getElementById('trav-lowered-x3-panel');
-  if (!panel) {
-    const sidePanel = document.getElementById('trav-side-panel');
-    if (sidePanel) {
-      panel = document.createElement('section');
-      panel.className = 'trav-lowered-x3-panel';
-      panel.id = 'trav-lowered-x3-panel';
-      panel.hidden = true;
-      panel.innerHTML = `
-        <div class="trav-lowered-x3-head">
-          <strong>Sänkt insats x3</strong>
-          <button class="trav-lowered-x3-close" id="trav-lowered-x3-close" type="button" aria-label="Stäng">×</button>
-        </div>
-        <div class="trav-lowered-x3-form">
-          <label class="trav-lowered-x3-spike-field">Spikar/kupong<select id="trav-lowered-x3-spikes"><option value="2">2 spikar · Top 6</option><option value="3">3 spikar · Top 9</option><option value="4">4 spikar · Top 12</option></select></label>
-          <label>Pris<input id="trav-lowered-x3-price" type="number" min="1" step="1" value="300"></label>
-          <label>Sänkt insats<select id="trav-lowered-x3-stake"><option value="30">30%</option><option value="50">50%</option><option value="70">70%</option></select></label>
-        </div>
-        <div class="trav-lowered-x3-hint" id="trav-lowered-x3-hint"></div>
-        <div class="trav-lowered-x3-preview" id="trav-lowered-x3-preview"></div>
-        <button class="trav-lowered-x3-create" id="trav-lowered-x3-create" type="button">Skapa 3 kuponger</button>
-      `;
-      sidePanel.insertBefore(panel, sidePanel.firstChild);
-    }
-  }
+  const panel = document.getElementById('trav-lowered-x3-panel');
   const closeBtn = document.getElementById('trav-lowered-x3-close');
   const priceInput = document.getElementById('trav-lowered-x3-price');
   const stakeSelect = document.getElementById('trav-lowered-x3-stake');
-  const spikeSelect = document.getElementById('trav-lowered-x3-spikes');
   const createBtn = document.getElementById('trav-lowered-x3-create');
   if (!openBtn || !panel) return;
 
@@ -3049,7 +2891,7 @@ function initTravLoweredStakeX3Controls() {
     closeBtn.dataset.boundX3 = '1';
     closeBtn.addEventListener('click', () => { panel.hidden = true; });
   }
-  [priceInput, stakeSelect, spikeSelect].forEach((el) => {
+  [priceInput, stakeSelect].forEach((el) => {
     if (!el || el.dataset.boundX3) return;
     el.dataset.boundX3 = '1';
     el.addEventListener('input', renderTravLoweredX3Preview);
@@ -3061,8 +2903,7 @@ function initTravLoweredStakeX3Controls() {
       if (!currentGameId) return alert('Öppna ett spel först.');
       const totalPrice = Math.max(1, Number(priceInput?.value || 300));
       const stake = String(stakeSelect?.value || '30');
-      const spikeCount = Math.max(2, Math.min(4, Number(spikeSelect?.value || 2)));
-      const built = buildTravLoweredStakeX3Coupons(totalPrice, stake, spikeCount);
+      const built = buildTravLoweredStakeX3Coupons(totalPrice, stake);
       if (!built.length) return alert('Kunde inte skapa tre exempel. Saknar procentdata.');
       if (!confirm(`Skapa 3 kuponger med mål ca ${formatMoney(totalPrice / 3)} kr per kupong?`)) return;
 
@@ -3076,8 +2917,7 @@ function initTravLoweredStakeX3Controls() {
             status: (typeof getNewCouponStatus === 'function') ? getNewCouponStatus() : 'waiting',
             stakeLevel: stake,
             targetPrice: totalPrice / 3,
-            notes: `Sänkt insats x3. Spikar: ${item.label}. Rader: ${item.rows}. Pris: ${formatMoney(item.price)} kr.`,
-            spikeDivisions: Array.isArray(item.spikeDivisions) ? item.spikeDivisions : [],
+            notes: `Sänkt insats x3. Top 6-par: ${item.label}. Rader: ${item.rows}. Pris: ${formatMoney(item.price)} kr.`,
             selections: item.selections,
           };
           const created = await createCoupon(currentGameId, payload);
@@ -3093,325 +2933,6 @@ function initTravLoweredStakeX3Controls() {
       } catch (err) {
         console.error(err);
         alert(err?.message || 'Kunde inte skapa Sänkt insats x3-kuponger.');
-      } finally {
-        createBtn.disabled = false;
-      }
-    });
-  }
-}
-
-
-// ---- 3x favorit ----
-function getTravFavoriteX3RankGroups(spikeCountWanted) {
-  const n = Math.max(2, Math.min(4, Number(spikeCountWanted || 3)));
-  if (n === 4) {
-    return [
-      [1, 2, 3, 4],       // favoritbetonad
-      [1, 2, 6, 8],       // mellan
-      [3, 5, 7, 9],       // skrällbetonad men med några favoriter kvar
-    ];
-  }
-  if (n === 3) {
-    return [
-      [1, 2, 3],          // top 3 som spikar
-      [1, 2, 6],          // hälften/majoritet av topp + mellan
-      [3, 5, 7],          // favorit + nedåt, med mer skrällfyllnad
-    ];
-  }
-  return [
-    [1, 2],
-    [1, 4],
-    [2, 5],
-  ];
-}
-
-function buildTravFavoriteX3Coupons(totalPrice, stakeLevelForCoupon, spikeCountWanted = 3) {
-  const rankedAll = getTravAllRankedHorsesForLoweredX3();
-  const spikeCount = Math.max(2, Math.min(4, Number(spikeCountWanted || 3)));
-  const rankGroups = getTravFavoriteX3RankGroups(spikeCount);
-  const needed = Math.max(...rankGroups.flat());
-  const top = rankedAll.slice(0, Math.max(needed, spikeCount * 2));
-  if (top.length < spikeCount) return [];
-  const targetPerCoupon = Math.max(1, Number(totalPrice || 300) / 3);
-
-  const addHorseToMap = (map, divIndex, number) => {
-    if (!Number.isFinite(Number(divIndex)) || !Number.isFinite(Number(number))) return;
-    const set = map.get(Number(divIndex)) || new Set();
-    set.add(Number(number));
-    map.set(Number(divIndex), set);
-  };
-
-  const pickRankedDifferentDivision = (wantedRank, lockedDivisions, usedKeys) => {
-    const wanted = top[wantedRank - 1] || rankedAll[wantedRank - 1];
-    if (wanted) {
-      const key = `${wanted.divisionIndex}:${wanted.number}`;
-      if (!lockedDivisions.has(Number(wanted.divisionIndex)) && !usedKeys.has(key)) return wanted;
-    }
-    return rankedAll.find((h) => {
-      const key = `${h.divisionIndex}:${h.number}`;
-      return h && !lockedDivisions.has(Number(h.divisionIndex)) && !usedKeys.has(key);
-    }) || wanted;
-  };
-
-  const fillBaseByStyle = (map, lockedSpikeDivisions, styleIndex) => {
-    (divisions || []).forEach((division, i) => {
-      const divIndex = Number(division?.index || i + 1);
-      if (lockedSpikeDivisions.has(divIndex)) return;
-      if ((map.get(divIndex) || new Set()).size) return;
-      const sorted = getTravLoweredX3DivisionCandidates(divIndex);
-      if (!sorted.length) return;
-      const pickIndex = styleIndex === 0 ? 0 : (styleIndex === 1 ? Math.min(1, sorted.length - 1) : Math.min(2, sorted.length - 1));
-      addHorseToMap(map, divIndex, sorted[pickIndex].number);
-    });
-  };
-
-  const addFavoriteSecondAndSupersForUpsetCoupon = (map, lockedSpikeDivisions) => {
-    const divInfos = (divisions || []).map((division, i) => {
-      const divIndex = Number(division?.index || i + 1);
-      const sorted = getTravLoweredX3DivisionCandidates(divIndex);
-      return { divIndex, sorted, favPct: Number(sorted?.[0]?.pct || 0) };
-    }).filter((d) => d.sorted && d.sorted.length && !lockedSpikeDivisions.has(d.divIndex));
-
-    // Jobba mest i de 3 mest favoritbetonade loppen: där är skrällarna mest intressanta att gardera med.
-    divInfos.sort((a, b) => b.favPct - a.favPct);
-    divInfos.slice(0, 3).forEach(({ divIndex, sorted }) => {
-      const set = map.get(divIndex) || new Set();
-      if (sorted[0]) set.add(Number(sorted[0].number));       // favorit
-      if (sorted[1]) set.add(Number(sorted[1].number));       // andrahandsfavorit
-      const supers = sorted
-        .filter((h) => Number(h?.pct || 0) > 0 && Number(h?.pct || 0) <= 6)
-        .slice(-2);
-      supers.forEach((h) => set.add(Number(h.number)));       // superskräll/ar
-      map.set(divIndex, set);
-    });
-
-    // Lägg även andrahandsfavorit i några övriga lopp där den inte redan finns.
-    divInfos.slice(3, 6).forEach(({ divIndex, sorted }) => {
-      const set = map.get(divIndex) || new Set();
-      if (sorted[0]) set.add(Number(sorted[0].number));
-      if (sorted[1]) set.add(Number(sorted[1].number));
-      map.set(divIndex, set);
-    });
-  };
-
-  const fillToTargetByStyle = (map, lockedSpikeDivisions, styleIndex) => {
-    for (let guard = 0; guard < 80; guard++) {
-      const current = getTravLoweredX3Cost(getTravSelectionsFromMap(map), stakeLevelForCoupon).total;
-      if (current >= targetPerCoupon * 0.92) break;
-      let best = null;
-      (divisions || []).forEach((division, i) => {
-        const divIndex = Number(division?.index || i + 1);
-        if (lockedSpikeDivisions.has(divIndex)) return;
-        const set = map.get(divIndex) || new Set();
-        const candidates = getTravLoweredX3DivisionCandidates(divIndex);
-        candidates.forEach((cand, candIndex) => {
-          if (set.has(cand.number)) return;
-          const nextMap = new Map(map);
-          nextMap.set(divIndex, new Set([...set, cand.number]));
-          const cost = getTravLoweredX3Cost(getTravSelectionsFromMap(nextMap), stakeLevelForCoupon).total;
-          const over = cost > targetPerCoupon ? 1 : 0;
-          const favoriteBias = styleIndex === 0 ? -(cand.pct || 0) / 50 : (styleIndex === 1 ? Math.abs(candIndex - 1) / 10 : (cand.pct || 0) / 80);
-          const score = (over * 1000000) + Math.abs(targetPerCoupon - cost) + favoriteBias;
-          if (!best || score < best.score) best = { divIndex, number: cand.number, score, cost };
-        });
-      });
-      if (!best) break;
-      addHorseToMap(map, best.divIndex, best.number);
-      if (best.cost > targetPerCoupon * 1.35) break;
-    }
-  };
-
-  return rankGroups.map((group, idx) => {
-    const map = new Map();
-    const lockedSpikeDivisions = new Set();
-    const usedSpikeKeys = new Set();
-    const finalSpikes = [];
-
-    group.forEach((rank) => {
-      const h = pickRankedDifferentDivision(rank, lockedSpikeDivisions, usedSpikeKeys);
-      if (!h) return;
-      addHorseToMap(map, h.divisionIndex, h.number);
-      lockedSpikeDivisions.add(Number(h.divisionIndex));
-      usedSpikeKeys.add(`${h.divisionIndex}:${h.number}`);
-      finalSpikes.push({ ...h, rank });
-    });
-
-    while (finalSpikes.length < spikeCount) {
-      const h = rankedAll.find((cand) => cand && !lockedSpikeDivisions.has(Number(cand.divisionIndex)) && !usedSpikeKeys.has(`${cand.divisionIndex}:${cand.number}`));
-      if (!h) break;
-      addHorseToMap(map, h.divisionIndex, h.number);
-      lockedSpikeDivisions.add(Number(h.divisionIndex));
-      usedSpikeKeys.add(`${h.divisionIndex}:${h.number}`);
-      finalSpikes.push({ ...h, rank: finalSpikes.length + 1 });
-    }
-
-    fillBaseByStyle(map, lockedSpikeDivisions, idx);
-
-    // I favoritkupongen tar vi gärna med nära andrahandsfavoriter i icke-spikade lopp.
-    // I mellan-kupongen gör vi det mer sparsamt. Skrällkupongen lämnas friare.
-    if (idx <= 1) {
-      (divisions || []).forEach((division, i) => {
-        const divIndex = Number(division?.index || i + 1);
-        if (lockedSpikeDivisions.has(divIndex)) return;
-        const set = map.get(divIndex);
-        if (!set || !set.size) return;
-        const sorted = getTravLoweredX3DivisionCandidates(divIndex);
-        if (sorted.length < 2) return;
-        const fav = sorted[0];
-        const second = sorted[1];
-        const diff = Math.abs(Number(fav.pct || 0) - Number(second.pct || 0));
-        if (idx === 0 && diff <= 5 && set.has(fav.number)) set.add(second.number);
-        if (idx === 1 && diff <= 3 && set.has(fav.number)) set.add(second.number);
-      });
-    }
-
-    if (idx === 2) {
-      addFavoriteSecondAndSupersForUpsetCoupon(map, lockedSpikeDivisions);
-    }
-
-    fillToTargetByStyle(map, lockedSpikeDivisions, idx);
-
-    const selections = getTravSelectionsFromMap(map);
-    const cost = getTravLoweredX3Cost(selections, stakeLevelForCoupon);
-    const label = finalSpikes.map((h) => `A${h.divisionIndex}:${h.number}`).join(' + ');
-    const title = idx === 0 ? 'Favorit' : (idx === 1 ? 'Mellan' : 'Skräll');
-    return {
-      name: `3x favorit ${idx + 1}`,
-      label,
-      exampleTitle: `${title}: ${group.map((rank) => `Top ${rank}`).join(' + ')}`,
-      topPair: finalSpikes,
-      spikeDivisions: Array.from(lockedSpikeDivisions),
-      selections,
-      rows: cost.rows,
-      price: cost.total,
-      radPris: cost.radPris,
-      stakeLevel: String(stakeLevelForCoupon || '30'),
-    };
-  });
-}
-
-function renderTravFavoriteX3Preview() {
-  const priceInput = document.getElementById('trav-favorite-x3-price');
-  const stakeSelect = document.getElementById('trav-favorite-x3-stake');
-  const spikeSelect = document.getElementById('trav-favorite-x3-spikes');
-  const preview = document.getElementById('trav-favorite-x3-preview');
-  const hint = document.getElementById('trav-favorite-x3-hint');
-  if (!preview) return [];
-  const totalPrice = Math.max(1, Number(priceInput?.value || 300));
-  const stake = String(stakeSelect?.value || '30');
-  const spikeCount = Math.max(2, Math.min(4, Number(spikeSelect?.value || 3)));
-  const built = buildTravFavoriteX3Coupons(totalPrice, stake, spikeCount);
-  preview.innerHTML = '';
-  if (hint) hint.textContent = `Mål: ${formatMoney(totalPrice / 3)} kr per kupong. Insats: ${stake}%. Spikar: ${spikeCount} per kupong.`;
-  if (!built.length) {
-    preview.innerHTML = '<div class="trav-side-empty">Kunde inte hitta tillräckligt många procenthästar i omgången.</div>';
-    return [];
-  }
-  built.forEach((item) => {
-    const card = document.createElement('div');
-    card.className = 'trav-lowered-x3-card trav-favorite-x3-card';
-    card.innerHTML = `<div class="trav-lowered-x3-card-head"><strong>${item.name}</strong><span>${formatMoney(item.price)} kr</span></div><div class="trav-lowered-x3-pair"><b>${item.exampleTitle || ''}</b> · ${item.label}</div>`;
-    card.appendChild(buildTravMiniCouponTable({ selections: item.selections, stakeLevel: item.stakeLevel, spikeDivisions: item.spikeDivisions }));
-    preview.appendChild(card);
-  });
-  return built;
-}
-
-function initTravFavoriteX3Controls() {
-  const openBtn = document.getElementById('trav-favorite-x3-btn');
-  let panel = document.getElementById('trav-favorite-x3-panel');
-  if (!panel) {
-    const sidePanel = document.getElementById('trav-side-panel');
-    if (sidePanel) {
-      panel = document.createElement('section');
-      panel.className = 'trav-lowered-x3-panel trav-favorite-x3-panel';
-      panel.id = 'trav-favorite-x3-panel';
-      panel.hidden = true;
-      panel.innerHTML = `
-        <div class="trav-lowered-x3-head">
-          <strong>3x favorit</strong>
-          <button class="trav-lowered-x3-close" id="trav-favorite-x3-close" type="button" aria-label="Stäng">×</button>
-        </div>
-        <div class="trav-lowered-x3-form">
-          <label class="trav-lowered-x3-spike-field">Spikar/kupong<select id="trav-favorite-x3-spikes"><option value="2">2 spikar</option><option value="3" selected>3 spikar</option><option value="4">4 spikar</option></select></label>
-          <label>Pris<input id="trav-favorite-x3-price" type="number" min="1" step="1" value="300"></label>
-          <label>Sänkt insats<select id="trav-favorite-x3-stake"><option value="30">30%</option><option value="50">50%</option><option value="70">70%</option></select></label>
-        </div>
-        <div class="trav-lowered-x3-hint" id="trav-favorite-x3-hint"></div>
-        <div class="trav-lowered-x3-preview" id="trav-favorite-x3-preview"></div>
-        <button class="trav-lowered-x3-create" id="trav-favorite-x3-create" type="button">Skapa 3 kuponger</button>
-      `;
-      sidePanel.insertBefore(panel, sidePanel.firstChild);
-    }
-  }
-  const closeBtn = document.getElementById('trav-favorite-x3-close');
-  const priceInput = document.getElementById('trav-favorite-x3-price');
-  const stakeSelect = document.getElementById('trav-favorite-x3-stake');
-  const spikeSelect = document.getElementById('trav-favorite-x3-spikes');
-  const createBtn = document.getElementById('trav-favorite-x3-create');
-  if (!openBtn || !panel) return;
-  if (!openBtn.dataset.boundFavX3) {
-    openBtn.dataset.boundFavX3 = '1';
-    openBtn.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      try { if (typeof openTravPanel === 'function') openTravPanel('side'); } catch (_) {}
-      const lowered = document.getElementById('trav-lowered-x3-panel');
-      if (lowered) lowered.hidden = true;
-      panel.hidden = !panel.hidden;
-      if (!panel.hidden) {
-        renderTravFavoriteX3Preview();
-        setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'center' }), 40);
-      }
-    });
-  }
-  if (closeBtn && !closeBtn.dataset.boundFavX3) {
-    closeBtn.dataset.boundFavX3 = '1';
-    closeBtn.addEventListener('click', () => { panel.hidden = true; });
-  }
-  [priceInput, stakeSelect, spikeSelect].forEach((el) => {
-    if (!el || el.dataset.boundFavX3) return;
-    el.dataset.boundFavX3 = '1';
-    el.addEventListener('input', renderTravFavoriteX3Preview);
-    el.addEventListener('change', renderTravFavoriteX3Preview);
-  });
-  if (createBtn && !createBtn.dataset.boundFavX3) {
-    createBtn.dataset.boundFavX3 = '1';
-    createBtn.addEventListener('click', async () => {
-      if (!currentGameId) return alert('Öppna ett spel först.');
-      const totalPrice = Math.max(1, Number(priceInput?.value || 300));
-      const stake = String(stakeSelect?.value || '30');
-      const spikeCount = Math.max(2, Math.min(4, Number(spikeSelect?.value || 3)));
-      const built = buildTravFavoriteX3Coupons(totalPrice, stake, spikeCount);
-      if (!built.length) return alert('Kunde inte skapa tre exempel. Saknar procentdata.');
-      if (!confirm(`Skapa 3 favorit-kuponger med mål ca ${formatMoney(totalPrice / 3)} kr per kupong?`)) return;
-      createBtn.disabled = true;
-      try {
-        const saved = [];
-        for (const item of built) {
-          const payload = {
-            name: `${item.name} (${stake}%)`,
-            source: 'favorite_x3',
-            status: (typeof getNewCouponStatus === 'function') ? getNewCouponStatus() : 'waiting',
-            stakeLevel: stake,
-            targetPrice: totalPrice / 3,
-            notes: `3x favorit. Spikar: ${item.label}. Rader: ${item.rows}. Pris: ${formatMoney(item.price)} kr.`,
-            spikeDivisions: Array.isArray(item.spikeDivisions) ? item.spikeDivisions : [],
-            selections: item.selections,
-          };
-          const created = await createCoupon(currentGameId, payload);
-          saved.push(created);
-        }
-        coupons.push(...saved);
-        panel.hidden = true;
-        renderCouponList();
-        renderCurrentDivision();
-        try { renderTravCouponSelects(); } catch (_) {}
-        try { renderTravExtraCompareCoupons(); } catch (_) {}
-        alert('3 favorit-kuponger skapade.');
-      } catch (err) {
-        console.error(err);
-        alert(err?.message || 'Kunde inte skapa 3x favorit-kuponger.');
       } finally {
         createBtn.disabled = false;
       }
@@ -4320,11 +3841,7 @@ if (km != null) {
       const td = document.createElement('td');
       const upper = name.toUpperCase();
       if (upper.startsWith('HÄST')) td.classList.add('trav-horse-main-cell');
-      if (index === mainPercentIndex) {
-        td.classList.add('trav-horse-pct-cell');
-        const _travPctText = String((horse.rawLine ? (cols[index] ?? '') : '') || '').trim();
-        if (_travPctText) tr.setAttribute('data-trav-pct', _travPctText);
-      }
+      if (index === mainPercentIndex) td.classList.add('trav-horse-pct-cell');
 
       if (!horse.rawLine) {
         // Struken häst utan rawLine: bygg samma "två-raders" höjd som övriga hästar
@@ -4386,8 +3903,8 @@ if (km != null) {
 	          // tyst
 	        }
 
-        // Ikoner används inte i den här miljön.
-        if (false && iconIds && iconIds.length) {
+        // Ikoner (från tipskommentar) – visas till höger om hästnamnet
+        if (iconIds && iconIds.length) {
           const iconBar = document.createElement('span');
           iconBar.className = 'horse-icon-bar horse-icon-bar-name';
           iconIds.forEach((id) => {
@@ -4419,8 +3936,8 @@ if (km != null) {
         // övriga kolumner
         const cellValue = horse.rawLine ? cols[index] ?? '' : '';
 
-        // Ikon-läge är avstängt i den här miljön.
-        if (false && listMode === 'icons' && index === mainPercentIndex) {
+        // ikon-läge: bara huvudprocent + ikoner
+        if (listMode === 'icons' && index === mainPercentIndex) {
           const pctSpan = document.createElement('span');
           pctSpan.textContent = cellValue || '';
           td.appendChild(pctSpan);
@@ -10821,9 +10338,9 @@ function fmtNum(n) {
 
 // V11 diagnostic marker: verifies that the deployed overview script is the new file.
 try {
-  window.TRAV_BUILD_VERSION = 'v70-3x-fav-menu-skrall';
+  window.TRAV_BUILD_VERSION = 'v37-import-only-compare';
   window.addEventListener('DOMContentLoaded', () => {
-    document.documentElement.setAttribute('data-trav-build', 'v70-3x-fav-menu-skrall');
+    document.documentElement.setAttribute('data-trav-build', 'v37-import-only-compare');
   });
 } catch (_) {}
 
@@ -11023,25 +10540,4 @@ try {
   window.travInitCouponLocksV19 = boot;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
-})();
-
-
-// ---- v60: säker klass när valfri mobilpanel är öppen/stängd ----
-(function initTravPanelOpenClassV60(){
-  function sync(){
-    const board = document.getElementById('trav-board');
-    if (!board) return;
-    const open = !board.classList.contains('trav-side-collapsed');
-    board.classList.toggle('trav-mobile-panel-open', open);
-  }
-  function boot(){
-    const board = document.getElementById('trav-board');
-    if (!board || board.dataset.v60PanelObserver) { sync(); return; }
-    board.dataset.v60PanelObserver = '1';
-    new MutationObserver(sync).observe(board, { attributes: true, attributeFilter: ['class'] });
-    sync();
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-  else boot();
-  window.addEventListener('resize', sync);
 })();

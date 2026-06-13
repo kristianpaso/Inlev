@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <title>Trav – Spelöversikt</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="./css/trav.css?v=20260612-v17">
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div>
+        <h1>Trav – Spelöversikt</h1>
+        <p class="subtitle">Hitta minst spelade hästar mellan dina kuponger</p>
+      </div>
+      <div class="topbar-actions">
+        <button id="btn-new-game" class="btn primary">Skapa spel</button>
+       <button id="btn-toggle-track-panel" class="btn">Skapa bana</button>
+        <button id="btn-new-analysis" class="btn">Skapa analys</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <!-- Vänster: formulär för nytt spel -->
+      <section class="panel panel-form" id="game-form-panel" hidden>
+        <h2 id="game-form-title">Skapa nytt spel</h2>
+        <form id="game-form" autocomplete="off">
+          <div class="form-row">
+            <label for="game-title">Rubrik</label>
+            <input id="game-title" name="title" type="text" required placeholder="Ex: V86 Åby – Onsdagsspel">
+          </div>
+
+          <div class="form-row">
+            <label for="game-date">Datum</label>
+            <input id="game-date" name="date" type="date" required>
+          </div>
+
+        <div class="form-row">
+  <label for="game-track">Bana</label>
+  <select id="game-track" name="track">
+    <option value="">Välj bana...</option>
+    <!-- JS fyller på alternativen -->
+  </select>
+  <div id="game-track-info" class="hint"></div>
+</div>
+
+
+          <div class="form-row">
+            <label for="game-type">Spelform</label>
+            <select id="game-type" name="gameType" required>
+              <option value="">Välj spelform</option>
+              <option value="V64">V64</option>
+              <option value="V65">V65</option>
+              <option value="V75">V75</option>
+              <option value="V85">V85</option>
+              <option value="V86">V86</option>
+              <option value="GS75">GS75</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <label for="horse-text">
+              Hästinformation (klistra in från listan)
+            </label>
+            <textarea id="horse-text" name="horseText" rows="8"
+              placeholder="Klistra in något i stil med:
+
+HÄST	KUSK	V85%	TREND%	DISTANS & SPÅR	STARTER I ÅR	VAGN	V-ODDS
+10 Celiaz	Alessandro Gocciadoro	10%	-5.38	2140 : 10	6 2-1-0	Am.	22,27
+1 Guided Tour	Örjan Kihlström	17%	+2.62	2640 : 1	9 3-2-1	Va.	4,84"></textarea>
+            <small class="hint">
+              Första raden är rubriker. Om hästnumret på raden under är lägre än ovanför betyder det ny avdelning.
+              Hästar som saknas i ordningen (t.ex. 1,2,4 – då saknas 3) markeras som strukna i databasen.
+            </small>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn primary" id="btn-save-game">
+        Spara spel
+      </button>
+      <button type="button" class="btn" id="btn-cancel-game">Avbryt</button>
+    </div>
+          <p class="form-error" id="game-form-error" hidden></p>
+        </form>
+      </section>
+<section class="panel" id="track-panel" hidden>
+  <div class="panel-header">
+    <h2>Banor</h2>
+    <span class="badge" id="track-count">0 banor</span>
+  </div>
+
+  <form id="track-form" class="stack">
+    <div class="form-row">
+      <label for="track-name">Namn</label>
+      <input id="track-name" type="text" placeholder="Solvalla" required />
+    </div>
+
+    <div class="form-row">
+      <label for="track-code">Banförkortning</label>
+      <input id="track-code" type="text" placeholder="S" maxlength="3" required />
+    </div>
+
+    <div class="form-row">
+      <label for="track-length">Längd</label>
+      <input id="track-length" type="text" placeholder="1000 m" />
+    </div>
+
+    <div class="form-row">
+      <label for="track-width">Bredd</label>
+      <input
+        id="track-width"
+        type="text"
+        placeholder="20,7 m (2140 m), 21,7 m (1640 m)"
+      />
+    </div>
+    <label class="small-label">Bana URL (slug)</label>
+<input id="track-slug" class="input" placeholder="ex: orebro">
+
+
+    <div class="form-row">
+      <label for="track-homeStretch">Upplopp</label>
+      <input id="track-homeStretch" type="text" placeholder="200 m" />
+    </div>
+
+    <div class="form-row">
+      <label for="track-openStretch">Open stretch</label>
+      <input id="track-openStretch" type="text" placeholder="Ja / Nej" />
+    </div>
+
+    <div class="form-row">
+      <label for="track-angledGate">Vinklad startbilsvinge</label>
+      <input id="track-angledGate" type="text" placeholder="Ja / Nej" />
+    </div>
+<div class="form-row">
+  <label for="track-lat">Latitud</label>
+  <input id="track-lat" type="text" placeholder="t.ex. 59.342" />
+</div>
+
+<div class="form-row">
+  <label for="track-lon">Longitud</label>
+  <input id="track-lon" type="text" placeholder="t.ex. 18.008" />
+</div>
+
+    <button class="btn primary" type="submit">Spara bana</button>
+  </form>
+
+  <div class="track-list-wrapper">
+    <h3>Sparade banor</h3>
+    <ul id="track-list" class="track-list">
+      <!-- Fylls av JS -->
+    </ul>
+  </div>
+</section>
+
+<section class="panel" id="analysis-panel" hidden>
+  <div class="panel-header">
+    <h2>Analyserade lopp</h2>
+    <span class="badge" id="analysis-count">0 analyser</span>
+  </div>
+
+  <div id="analysis-list" class="analysis-list"></div>
+</section>
+
+
+      <!-- Höger: lista med spel -->
+      <section class="panel panel-list">
+        <div class="panel-header">
+          <h2>Skapade spel</h2>
+          <span id="game-count" class="badge">0 spel</span>
+        </div>
+        <div id="game-list-empty" class="empty-state">
+          Inga spel skapade ännu. Klicka på <strong>Skapa spel</strong> för att lägga till ditt första spel.
+        </div>
+
+        <div id="games-split" class="games-split" hidden>
+          <div class="games-section">
+            <div class="games-section-header">
+              <h3 class="games-section-title">Aktiva spel</h3>
+              <span class="count-pill" id="count-active">0</span>
+            </div>
+            <div id="games-active" class="games-grid"></div>
+          </div>
+
+          <div class="games-section" style="margin-top:14px;">
+            <div class="games-section-header">
+              <h3 class="games-section-title">Avslutade spel</h3>
+              <div class="games-section-actions">
+                <span class="count-pill muted" id="count-archived">0</span>
+                <button class="btn small" id="btn-toggle-archived" type="button">Dölj</button>
+              </div>
+            </div>
+            <div id="games-archived" class="games-grid archived"></div>
+          </div>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  
+<div class="modal-overlay" id="analysis-modal" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <div style="font-weight:800;font-size:16px;">Skapa analys</div>
+        <div style="opacity:.7;font-size:12px;">Simuleringen kan använda analyser för att bli mer ban-rättvis</div>
+      </div>
+      <button class="btn small" id="analysis-modal-close" type="button">✕</button>
+    </div>
+
+    <div class="modal-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <input class="input" id="a-name" placeholder="Namn (t.ex. Romme – 2640 Volt – Fangio)">
+      <input class="input" id="a-date" type="date">
+
+      <input class="input" id="a-track" placeholder="Bana (t.ex. Romme)">
+      <input class="input" id="a-trackType" placeholder="Typ av bana (t.ex. Lätt bana)">
+
+      <input class="input" id="a-group" placeholder="Grupp/Klass (t.ex. STL Klass III → STL Klass II)">
+      <select class="input" id="a-start">
+        <option value="">Starttyp…</option>
+        <option value="voltstart">Voltstart</option>
+        <option value="autostart">Autostart</option>
+      </select>
+
+      <input class="input" id="a-distance" placeholder="Distans (m) (t.ex. 2640)">
+      <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;">
+        <button class="btn small" id="btn-paste-analysis" type="button">Klistra in analys</button>
+        <button class="btn small" id="btn-clear-analysis" type="button">Rensa</button>
+      </div>
+
+      <textarea class="input" id="a-comment" placeholder="Kommentar/analys (simuleringen läser nyckelord här)"
+        style="grid-column:1 / -1;min-height:180px;"></textarea>
+
+      <div style="grid-column:1 / -1;display:flex;justify-content:flex-end;gap:8px;">
+        <button class="btn primary" id="btn-save-analysis" type="button">Spara</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
