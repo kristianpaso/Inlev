@@ -2784,6 +2784,19 @@ function getTravSelectionsFromMap(map) {
   }).filter((sel) => sel.horses.length > 0);
 }
 
+function travX3RandomInt(max) {
+  const n = Math.max(0, Number(max || 0));
+  if (!n) return 0;
+  return Math.floor(Math.random() * n);
+}
+
+function travX3PickFromTop(scoredItems, topCount = 4) {
+  const arr = (scoredItems || []).filter(Boolean).sort((a, b) => a.score - b.score);
+  if (!arr.length) return null;
+  const slice = arr.slice(0, Math.max(1, Math.min(Number(topCount || 4), arr.length)));
+  return slice[travX3RandomInt(slice.length)] || slice[0];
+}
+
 function addTravLoweredX3SmartSecondFavourites(selectionMap) {
   (divisions || []).forEach((division, i) => {
     const divIndex = Number(division?.index || i + 1);
@@ -2902,7 +2915,10 @@ function buildTravLoweredStakeX3Coupons(totalPrice, stakeLevelForCoupon, spikeCo
       if ((map.get(divIndex) || new Set()).size) return;
       const sorted = getTravLoweredX3DivisionCandidates(divIndex);
       if (!sorted.length) return;
-      const preferred = sorted[Math.min(idx, sorted.length - 1)] || sorted[0];
+      const baseIndex = Math.min(idx, sorted.length - 1);
+      const windowSize = Math.min(3 + idx, sorted.length);
+      const pickIndex = Math.min(sorted.length - 1, (baseIndex + travX3RandomInt(windowSize)) % sorted.length);
+      const preferred = sorted[pickIndex] || sorted[baseIndex] || sorted[0];
       addHorseToMap(map, divIndex, preferred.number);
     });
 
@@ -2925,7 +2941,7 @@ function buildTravLoweredStakeX3Coupons(totalPrice, stakeLevelForCoupon, spikeCo
     for (let guard = 0; guard < 80; guard++) {
       const current = getTravLoweredX3Cost(getTravSelectionsFromMap(map), stakeLevelForCoupon).total;
       if (current >= targetPerCoupon * 0.92) break;
-      let best = null;
+      const options = [];
       (divisions || []).forEach((division, i) => {
         const divIndex = Number(division?.index || i + 1);
         if (lockedSpikeDivisions.has(divIndex)) return;
@@ -2937,11 +2953,12 @@ function buildTravLoweredStakeX3Coupons(totalPrice, stakeLevelForCoupon, spikeCo
           nextMap.set(divIndex, new Set([...set, cand.number]));
           const cost = getTravLoweredX3Cost(getTravSelectionsFromMap(nextMap), stakeLevelForCoupon).total;
           const over = cost > targetPerCoupon ? 1 : 0;
-          const variation = Math.abs(((candIndex + idx) % Math.max(1, candidates.length)) - idx) / 100;
-          const score = (over * 1000000) + Math.abs(targetPerCoupon - cost) - (cand.pct || 0) / 1000 + variation;
-          if (!best || score < best.score) best = { divIndex, number: cand.number, score, cost };
+          const variation = Math.abs(((candIndex + idx + travX3RandomInt(3)) % Math.max(1, candidates.length)) - idx) / 100;
+          const score = (over * 1000000) + Math.abs(targetPerCoupon - cost) - (cand.pct || 0) / 1000 + variation + Math.random() * 0.8;
+          options.push({ divIndex, number: cand.number, score, cost });
         });
       });
+      const best = travX3PickFromTop(options, 5);
       if (!best) break;
       addHorseToMap(map, best.divIndex, best.number);
       if (best.cost > targetPerCoupon * 1.35) break;
@@ -2988,6 +3005,7 @@ function renderTravLoweredX3Preview() {
     return [];
   }
 
+  window.travLoweredX3CurrentPreview = built;
   built.forEach((item, index) => {
     const card = document.createElement('div');
     card.className = 'trav-lowered-x3-card';
@@ -3019,6 +3037,7 @@ function initTravLoweredStakeX3Controls() {
           <label>Sänkt insats<select id="trav-lowered-x3-stake"><option value="30">30%</option><option value="50">50%</option><option value="70">70%</option></select></label>
         </div>
         <div class="trav-lowered-x3-hint" id="trav-lowered-x3-hint"></div>
+        <button class="trav-lowered-x3-reroll" id="trav-lowered-x3-reroll" type="button">Reroll – slumpa om</button>
         <div class="trav-lowered-x3-preview" id="trav-lowered-x3-preview"></div>
         <button class="trav-lowered-x3-create" id="trav-lowered-x3-create" type="button">Skapa 3 kuponger</button>
       `;
@@ -3030,6 +3049,7 @@ function initTravLoweredStakeX3Controls() {
   const stakeSelect = document.getElementById('trav-lowered-x3-stake');
   const spikeSelect = document.getElementById('trav-lowered-x3-spikes');
   const createBtn = document.getElementById('trav-lowered-x3-create');
+  const rerollBtn = document.getElementById('trav-lowered-x3-reroll');
   if (!openBtn || !panel) return;
 
   if (!openBtn.dataset.boundX3) {
@@ -3055,6 +3075,10 @@ function initTravLoweredStakeX3Controls() {
     el.addEventListener('input', renderTravLoweredX3Preview);
     el.addEventListener('change', renderTravLoweredX3Preview);
   });
+  if (rerollBtn && !rerollBtn.dataset.boundX3) {
+    rerollBtn.dataset.boundX3 = '1';
+    rerollBtn.addEventListener('click', (ev) => { ev.preventDefault(); renderTravLoweredX3Preview(); });
+  }
   if (createBtn && !createBtn.dataset.boundX3) {
     createBtn.dataset.boundX3 = '1';
     createBtn.addEventListener('click', async () => {
@@ -3062,7 +3086,9 @@ function initTravLoweredStakeX3Controls() {
       const totalPrice = Math.max(1, Number(priceInput?.value || 300));
       const stake = String(stakeSelect?.value || '30');
       const spikeCount = Math.max(2, Math.min(4, Number(spikeSelect?.value || 2)));
-      const built = buildTravLoweredStakeX3Coupons(totalPrice, stake, spikeCount);
+      const built = Array.isArray(window.travLoweredX3CurrentPreview) && window.travLoweredX3CurrentPreview.length
+        ? window.travLoweredX3CurrentPreview
+        : buildTravLoweredStakeX3Coupons(totalPrice, stake, spikeCount);
       if (!built.length) return alert('Kunde inte skapa tre exempel. Saknar procentdata.');
       if (!confirm(`Skapa 3 kuponger med mål ca ${formatMoney(totalPrice / 3)} kr per kupong?`)) return;
 
@@ -3160,7 +3186,9 @@ function buildTravFavoriteX3Coupons(totalPrice, stakeLevelForCoupon, spikeCountW
       if ((map.get(divIndex) || new Set()).size) return;
       const sorted = getTravLoweredX3DivisionCandidates(divIndex);
       if (!sorted.length) return;
-      const pickIndex = styleIndex === 0 ? 0 : (styleIndex === 1 ? Math.min(1, sorted.length - 1) : Math.min(2, sorted.length - 1));
+      const basePickIndex = styleIndex === 0 ? 0 : (styleIndex === 1 ? Math.min(1, sorted.length - 1) : Math.min(2, sorted.length - 1));
+      const maxShift = styleIndex === 0 ? 2 : (styleIndex === 1 ? 3 : 5);
+      const pickIndex = Math.min(sorted.length - 1, (basePickIndex + travX3RandomInt(Math.min(maxShift, sorted.length))) % sorted.length);
       addHorseToMap(map, divIndex, sorted[pickIndex].number);
     });
   };
@@ -3198,7 +3226,7 @@ function buildTravFavoriteX3Coupons(totalPrice, stakeLevelForCoupon, spikeCountW
     for (let guard = 0; guard < 80; guard++) {
       const current = getTravLoweredX3Cost(getTravSelectionsFromMap(map), stakeLevelForCoupon).total;
       if (current >= targetPerCoupon * 0.92) break;
-      let best = null;
+      const options = [];
       (divisions || []).forEach((division, i) => {
         const divIndex = Number(division?.index || i + 1);
         if (lockedSpikeDivisions.has(divIndex)) return;
@@ -3211,10 +3239,11 @@ function buildTravFavoriteX3Coupons(totalPrice, stakeLevelForCoupon, spikeCountW
           const cost = getTravLoweredX3Cost(getTravSelectionsFromMap(nextMap), stakeLevelForCoupon).total;
           const over = cost > targetPerCoupon ? 1 : 0;
           const favoriteBias = styleIndex === 0 ? -(cand.pct || 0) / 50 : (styleIndex === 1 ? Math.abs(candIndex - 1) / 10 : (cand.pct || 0) / 80);
-          const score = (over * 1000000) + Math.abs(targetPerCoupon - cost) + favoriteBias;
-          if (!best || score < best.score) best = { divIndex, number: cand.number, score, cost };
+          const score = (over * 1000000) + Math.abs(targetPerCoupon - cost) + favoriteBias + Math.random() * (styleIndex === 2 ? 1.4 : .7);
+          options.push({ divIndex, number: cand.number, score, cost });
         });
       });
+      const best = travX3PickFromTop(options, styleIndex === 2 ? 7 : 4);
       if (!best) break;
       addHorseToMap(map, best.divIndex, best.number);
       if (best.cost > targetPerCoupon * 1.35) break;
@@ -3307,6 +3336,7 @@ function renderTravFavoriteX3Preview() {
     preview.innerHTML = '<div class="trav-side-empty">Kunde inte hitta tillräckligt många procenthästar i omgången.</div>';
     return [];
   }
+  window.travFavoriteX3CurrentPreview = built;
   built.forEach((item) => {
     const card = document.createElement('div');
     card.className = 'trav-lowered-x3-card trav-favorite-x3-card';
@@ -3338,6 +3368,7 @@ function initTravFavoriteX3Controls() {
           <label>Sänkt insats<select id="trav-favorite-x3-stake"><option value="30">30%</option><option value="50">50%</option><option value="70">70%</option></select></label>
         </div>
         <div class="trav-lowered-x3-hint" id="trav-favorite-x3-hint"></div>
+        <button class="trav-lowered-x3-reroll" id="trav-favorite-x3-reroll" type="button">Reroll – slumpa om</button>
         <div class="trav-lowered-x3-preview" id="trav-favorite-x3-preview"></div>
         <button class="trav-lowered-x3-create" id="trav-favorite-x3-create" type="button">Skapa 3 kuponger</button>
       `;
@@ -3349,6 +3380,7 @@ function initTravFavoriteX3Controls() {
   const stakeSelect = document.getElementById('trav-favorite-x3-stake');
   const spikeSelect = document.getElementById('trav-favorite-x3-spikes');
   const createBtn = document.getElementById('trav-favorite-x3-create');
+  const rerollBtn = document.getElementById('trav-favorite-x3-reroll');
   if (!openBtn || !panel) return;
   if (!openBtn.dataset.boundFavX3) {
     openBtn.dataset.boundFavX3 = '1';
@@ -3375,6 +3407,10 @@ function initTravFavoriteX3Controls() {
     el.addEventListener('input', renderTravFavoriteX3Preview);
     el.addEventListener('change', renderTravFavoriteX3Preview);
   });
+  if (rerollBtn && !rerollBtn.dataset.boundFavX3) {
+    rerollBtn.dataset.boundFavX3 = '1';
+    rerollBtn.addEventListener('click', (ev) => { ev.preventDefault(); renderTravFavoriteX3Preview(); });
+  }
   if (createBtn && !createBtn.dataset.boundFavX3) {
     createBtn.dataset.boundFavX3 = '1';
     createBtn.addEventListener('click', async () => {
@@ -3382,7 +3418,9 @@ function initTravFavoriteX3Controls() {
       const totalPrice = Math.max(1, Number(priceInput?.value || 300));
       const stake = String(stakeSelect?.value || '30');
       const spikeCount = Math.max(2, Math.min(4, Number(spikeSelect?.value || 3)));
-      const built = buildTravFavoriteX3Coupons(totalPrice, stake, spikeCount);
+      const built = Array.isArray(window.travFavoriteX3CurrentPreview) && window.travFavoriteX3CurrentPreview.length
+        ? window.travFavoriteX3CurrentPreview
+        : buildTravFavoriteX3Coupons(totalPrice, stake, spikeCount);
       if (!built.length) return alert('Kunde inte skapa tre exempel. Saknar procentdata.');
       if (!confirm(`Skapa 3 favorit-kuponger med mål ca ${formatMoney(totalPrice / 3)} kr per kupong?`)) return;
       createBtn.disabled = true;
@@ -10821,9 +10859,9 @@ function fmtNum(n) {
 
 // V11 diagnostic marker: verifies that the deployed overview script is the new file.
 try {
-  window.TRAV_BUILD_VERSION = 'v70-3x-fav-menu-skrall';
+  window.TRAV_BUILD_VERSION = 'v73-x3-reroll-menu';
   window.addEventListener('DOMContentLoaded', () => {
-    document.documentElement.setAttribute('data-trav-build', 'v70-3x-fav-menu-skrall');
+    document.documentElement.setAttribute('data-trav-build', 'v73-x3-reroll-menu');
   });
 } catch (_) {}
 

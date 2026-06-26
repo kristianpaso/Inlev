@@ -10076,3 +10076,230 @@ body.trav-modern-view .trav-favorite-x3-card {
     z-index: 120 !important;
   }
 }
+
+/* ---- v73: snyggare mobilmeny + rerollknapp för x3 ---- */
+@media (max-width: 900px) {
+  body.trav-modern-view .trav-panel-switch,
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-panel-switch {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: var(--trav-division-footer-height, 62px) !important;
+    z-index: 900 !important;
+    display: grid !important;
+    grid-auto-rows: 1fr !important;
+    width: 100vw !important;
+    min-width: 100vw !important;
+    max-width: 100vw !important;
+    height: var(--trav-panel-switch-height, 48px) !important;
+    min-height: var(--trav-panel-switch-height, 48px) !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+    overflow: hidden !important;
+    background: linear-gradient(90deg, #075da6 0%, #0877c2 100%) !important;
+    border: 0 !important;
+    border-top: 1px solid rgba(255,255,255,.16) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 -7px 18px rgba(0,0,0,.18) !important;
+  }
+
+  body.trav-modern-view .trav-panel-switch {
+    grid-template-columns: minmax(0, 1fr) 34px 38px 48px 48px 76px 40px !important;
+  }
+
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-panel-switch {
+    grid-template-columns: minmax(0, 1fr) 52px 86px !important;
+  }
+
+  body.trav-modern-view .trav-import-mobile-btn,
+  body.trav-modern-view .trav-lowered-x3-btn,
+  body.trav-modern-view .trav-favorite-x3-btn,
+  body.trav-modern-view .trav-info-mobile-btn,
+  body.trav-modern-view .trav-panel-cycle,
+  body.trav-modern-view .trav-panel-close {
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    align-self: stretch !important;
+    justify-self: stretch !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 4px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #fff !important;
+    box-shadow: inset 1px 0 0 rgba(255,255,255,.12), inset -1px 0 0 rgba(0,0,0,.18) !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  body.trav-modern-view .trav-import-mobile-btn { grid-column: 2 !important; font-size: 14px !important; }
+  body.trav-modern-view .trav-lowered-x3-btn { grid-column: 3 !important; font-size: 11px !important; }
+  body.trav-modern-view .trav-favorite-x3-btn { grid-column: 4 !important; font-size: 10px !important; }
+  body.trav-modern-view .trav-info-mobile-btn { grid-column: 5 !important; font-size: 14px !important; letter-spacing: .02em !important; }
+  body.trav-modern-view .trav-panel-cycle { grid-column: 6 !important; font-size: 12px !important; }
+  body.trav-modern-view .trav-panel-close { grid-column: 7 !important; font-size: 31px !important; font-weight: 300 !important; }
+
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-info-mobile-btn { grid-column: 2 !important; }
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-panel-cycle { grid-column: 3 !important; font-size: 13px !important; }
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-panel-close { display: none !important; }
+
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-import-mobile-btn,
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-lowered-x3-btn,
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-favorite-x3-btn,
+  body.trav-modern-view .trav-board.trav-focus-open .trav-import-mobile-btn,
+  body.trav-modern-view .trav-board.trav-focus-open .trav-lowered-x3-btn,
+  body.trav-modern-view .trav-board.trav-focus-open .trav-favorite-x3-btn,
+  body.trav-modern-view .trav-board.trav-info-open .trav-import-mobile-btn,
+  body.trav-modern-view .trav-board.trav-info-open .trav-lowered-x3-btn,
+  body.trav-modern-view .trav-board.trav-info-open .trav-favorite-x3-btn {
+    display: none !important;
+  }
+}
+
+body.trav-modern-view .trav-lowered-x3-reroll {
+  width: 100% !important;
+  margin: 5px 0 7px !important;
+  padding: 7px 8px !important;
+  border: 1px solid rgba(45, 212, 191, .55) !important;
+  border-radius: 10px !important;
+  background: rgba(45, 212, 191, .16) !important;
+  color: #dffcff !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  cursor: pointer !important;
+}
+
+body.trav-modern-view .trav-lowered-x3-reroll:active {
+  transform: translateY(1px) !important;
+}
+
+/* ---- v74: fixera x3/3x fav i samma rad som övriga mobilknappar ---- */
+@media (max-width: 900px) {
+  body.trav-modern-view .trav-panel-switch,
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-panel-switch {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: var(--trav-division-footer-height, 62px) !important;
+    z-index: 900 !important;
+    display: grid !important;
+    grid-auto-flow: column !important;
+    grid-auto-rows: var(--trav-panel-switch-height, 48px) !important;
+    align-items: stretch !important;
+    justify-items: stretch !important;
+    width: 100vw !important;
+    min-width: 100vw !important;
+    max-width: 100vw !important;
+    height: var(--trav-panel-switch-height, 48px) !important;
+    min-height: var(--trav-panel-switch-height, 48px) !important;
+    max-height: var(--trav-panel-switch-height, 48px) !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+    overflow: hidden !important;
+    background: linear-gradient(90deg, #075da6 0%, #0877c2 100%) !important;
+    border: 0 !important;
+    border-top: 1px solid rgba(255,255,255,.16) !important;
+  }
+
+  /* Öppen Jämför: alla knappar i en och samma rad. */
+  body.trav-modern-view .trav-board:not(.trav-side-collapsed):not(.trav-focus-open):not(.trav-info-open) .trav-panel-switch {
+    grid-template-columns: minmax(0, 1fr) 34px 36px 52px 52px 76px 42px !important;
+  }
+
+  /* Filtrera/Info: x3/import dolda, men raden behåller snygg layout. */
+  body.trav-modern-view .trav-board.trav-focus-open .trav-panel-switch,
+  body.trav-modern-view .trav-board.trav-info-open .trav-panel-switch {
+    grid-template-columns: minmax(0, 1fr) 54px 84px 42px !important;
+  }
+
+  /* Stängd panel: inget kryss och inga import/x3-knappar. */
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-panel-switch {
+    grid-template-columns: minmax(0, 1fr) 54px 86px !important;
+  }
+
+  body.trav-modern-view .trav-panel-switch .trav-panel-btn,
+  body.trav-modern-view .trav-side-toggle.trav-panel-btn,
+  body.trav-modern-view .trav-focus-toggle.trav-panel-btn,
+  body.trav-modern-view .trav-info-toggle.trav-panel-btn {
+    display: none !important;
+  }
+
+  body.trav-modern-view .trav-import-mobile-btn,
+  body.trav-modern-view .trav-lowered-x3-btn,
+  body.trav-modern-view .trav-favorite-x3-btn,
+  body.trav-modern-view .trav-info-mobile-btn,
+  body.trav-modern-view .trav-panel-cycle,
+  body.trav-modern-view .trav-panel-close {
+    position: static !important;
+    inset: auto !important;
+    grid-row: 1 !important;
+    align-self: stretch !important;
+    justify-self: stretch !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: var(--trav-panel-switch-height, 48px) !important;
+    min-height: var(--trav-panel-switch-height, 48px) !important;
+    max-height: var(--trav-panel-switch-height, 48px) !important;
+    padding: 0 4px !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #fff !important;
+    box-shadow: inset 1px 0 0 rgba(255,255,255,.12), inset -1px 0 0 rgba(0,0,0,.18) !important;
+    transform: none !important;
+    line-height: 1 !important;
+    font-weight: 950 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    vertical-align: middle !important;
+  }
+
+  body.trav-modern-view .trav-import-mobile-btn { grid-column: 2 !important; font-size: 14px !important; }
+  body.trav-modern-view .trav-lowered-x3-btn { grid-column: 3 !important; font-size: 11px !important; }
+  body.trav-modern-view .trav-favorite-x3-btn { grid-column: 4 !important; font-size: 10px !important; }
+  body.trav-modern-view .trav-info-mobile-btn { grid-column: 5 !important; font-size: 14px !important; letter-spacing: .02em !important; }
+  body.trav-modern-view .trav-panel-cycle { grid-column: 6 !important; font-size: 12px !important; }
+  body.trav-modern-view .trav-panel-close { grid-column: 7 !important; font-size: 31px !important; font-weight: 300 !important; }
+
+  body.trav-modern-view .trav-board.trav-focus-open .trav-info-mobile-btn,
+  body.trav-modern-view .trav-board.trav-info-open .trav-info-mobile-btn { grid-column: 2 !important; }
+  body.trav-modern-view .trav-board.trav-focus-open .trav-panel-cycle,
+  body.trav-modern-view .trav-board.trav-info-open .trav-panel-cycle { grid-column: 3 !important; font-size: 13px !important; }
+  body.trav-modern-view .trav-board.trav-focus-open .trav-panel-close,
+  body.trav-modern-view .trav-board.trav-info-open .trav-panel-close { grid-column: 4 !important; display: flex !important; }
+
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-info-mobile-btn { grid-column: 2 !important; }
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-panel-cycle { grid-column: 3 !important; font-size: 13px !important; }
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-panel-close { display: none !important; }
+
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-import-mobile-btn,
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-lowered-x3-btn,
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-favorite-x3-btn,
+  body.trav-modern-view .trav-board.trav-focus-open .trav-import-mobile-btn,
+  body.trav-modern-view .trav-board.trav-focus-open .trav-lowered-x3-btn,
+  body.trav-modern-view .trav-board.trav-focus-open .trav-favorite-x3-btn,
+  body.trav-modern-view .trav-board.trav-info-open .trav-import-mobile-btn,
+  body.trav-modern-view .trav-board.trav-info-open .trav-lowered-x3-btn,
+  body.trav-modern-view .trav-board.trav-info-open .trav-favorite-x3-btn {
+    display: none !important;
+  }
+}
