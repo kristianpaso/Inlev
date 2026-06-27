@@ -10303,3 +10303,887 @@ body.trav-modern-view .trav-lowered-x3-reroll:active {
     display: none !important;
   }
 }
+
+/* ---- v75: 3x favorit layout + procent på spikar ---- */
+body.trav-modern-view .trav-mini-coupon-row-spik > span:nth-child(2) {
+  display: flex !important;
+  align-items: center !important;
+  min-width: 0 !important;
+  gap: 2px !important;
+}
+body.trav-modern-view .trav-mini-coupon-row-spik .trav-mini-coupon-spik-pct {
+  margin-left: auto !important;
+  color: rgba(255,255,255,.92) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  padding-left: 4px !important;
+}
+body.trav-modern-view .trav-favorite-x3-panel {
+  padding: 8px !important;
+  background: linear-gradient(180deg, #06335f 0%, #08284d 48%, #041a35 100%) !important;
+}
+body.trav-modern-view .trav-favorite-x3-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, .85fr) !important;
+  gap: 8px !important;
+  align-items: start !important;
+}
+body.trav-modern-view .trav-favorite-x3-preview {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  align-items: start !important;
+}
+body.trav-modern-view .trav-favorite-x3-preview .trav-favorite-x3-card:nth-child(3) {
+  grid-column: 1 / span 1 !important;
+}
+body.trav-modern-view .trav-favorite-x3-card {
+  background: linear-gradient(180deg, #0b4c73 0%, #082b53 100%) !important;
+  border: 1px solid rgba(45,212,191,.30) !important;
+  border-left: 3px solid #a78bfa !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 18px rgba(0,0,0,.26) !important;
+}
+body.trav-modern-view .trav-favorite-x3-card .trav-lowered-x3-card-head {
+  font-size: 11px !important;
+  margin-bottom: 2px !important;
+}
+body.trav-modern-view .trav-favorite-x3-card .trav-lowered-x3-pair {
+  font-size: 10px !important;
+  line-height: 1.25 !important;
+  color: #2dd4bf !important;
+}
+body.trav-modern-view .trav-favorite-x3-controls {
+  display: grid !important;
+  gap: 8px !important;
+  align-content: start !important;
+  padding: 2px 0 !important;
+}
+body.trav-modern-view .trav-favorite-x3-control-title {
+  color: #fff !important;
+  font-size: 13px !important;
+  font-weight: 950 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .03em !important;
+}
+body.trav-modern-view .trav-favorite-x3-form {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 8px !important;
+}
+body.trav-modern-view .trav-favorite-x3-form .trav-lowered-x3-spike-field {
+  grid-column: 1 / -1 !important;
+}
+body.trav-modern-view .trav-favorite-x3-panel .trav-lowered-x3-create {
+  height: 44px !important;
+  margin-top: 10px !important;
+  border-radius: 12px !important;
+  font-size: 18px !important;
+  letter-spacing: .02em !important;
+  box-shadow: inset 0 0 0 2px rgba(0,0,0,.22), 0 8px 20px rgba(0,0,0,.30) !important;
+}
+@media (max-width: 560px) {
+  body.trav-modern-view .trav-favorite-x3-layout {
+    grid-template-columns: 1fr !important;
+  }
+  body.trav-modern-view .trav-favorite-x3-preview {
+    grid-template-columns: 1fr !important;
+  }
+  body.trav-modern-view .trav-favorite-x3-preview .trav-favorite-x3-card:nth-child(3) {
+    grid-column: auto !important;
+  }
+  body.trav-modern-view .trav-favorite-x3-panel .trav-lowered-x3-create {
+    font-size: 15px !important;
+    height: 40px !important;
+  }
+}
+
+/* ---- v76: 3x favorit fullbredd över mobilvyn ---- */
+@media (max-width: 900px) {
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 0 !important;
+    bottom: calc(var(--trav-bottom-nav-height, 72px) + var(--trav-panel-switch-height, 50px) + env(safe-area-inset-bottom)) !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+    height: auto !important;
+    z-index: 118 !important;
+    padding: 10px 10px 14px !important;
+    overflow-y: auto !important;
+    background: linear-gradient(180deg, #06335f 0%, #08284d 48%, #041a35 100%) !important;
+    box-shadow: 0 18px 40px rgba(0,0,0,.45) !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-layout {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    align-items: start !important;
+    width: 100% !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-preview {
+    display: contents !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-card:nth-child(1) {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-card:nth-child(2) {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-card:nth-child(3) {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-controls {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    align-self: start !important;
+    min-width: 0 !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-lowered-x3-create {
+    width: 100% !important;
+    margin-top: 10px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-layout {
+    grid-template-columns: 1fr !important;
+  }
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-card:nth-child(1),
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-card:nth-child(2),
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-card:nth-child(3),
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-controls {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+  }
+}
+
+/* ---- v77: andrahandsfavorit utan fet stil + rak skrällmarkering ---- */
+body.trav-modern-view .trav-mini-coupon .second-favourite-number {
+    color: #ff4de7 !important;
+    font-weight: inherit !important;
+    text-shadow: 0 0 10px rgba(255, 77, 231, .35) !important;
+}
+
+body.trav-modern-view .trav-mini-coupon .superskrall-number,
+body.trav-modern-view .superskrall-number {
+    color: inherit;
+    border-bottom: 2px solid #ffd24a !important;
+    border-radius: 0 !important;
+    padding-bottom: 1px !important;
+    text-decoration: none !important;
+    box-shadow: none !important;
+    background-image: none !important;
+}
+
+body.trav-modern-view .trav-mini-coupon .superskrall-number::before,
+body.trav-modern-view .trav-mini-coupon .superskrall-number::after,
+body.trav-modern-view .superskrall-number::before,
+body.trav-modern-view .superskrall-number::after {
+    content: none !important;
+    display: none !important;
+}
+
+/* ---- v78: 3x favorit som eget fullbredds-overlay över hela vyn ---- */
+@media (max-width: 900px) {
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) {
+    position: fixed !important;
+    inset: 0 0 calc(var(--trav-bottom-nav-height, 72px) + var(--trav-panel-switch-height, 50px) + env(safe-area-inset-bottom)) 0 !important;
+    width: 100vw !important;
+    min-width: 100vw !important;
+    max-width: 100vw !important;
+    height: auto !important;
+    max-height: none !important;
+    z-index: 170 !important;
+    display: block !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 10px 10px 14px !important;
+    background: linear-gradient(180deg, #06335f 0%, #08284d 48%, #041a35 100%) !important;
+    box-shadow: 0 18px 46px rgba(0,0,0,.55) !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    transform: none !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-layout {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    align-items: start !important;
+    width: 100% !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-preview {
+    display: contents !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-card:nth-child(1) {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-card:nth-child(2) {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-card:nth-child(3) {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-controls {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 360px) {
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-layout {
+    grid-template-columns: 1fr !important;
+  }
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-card:nth-child(1),
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-card:nth-child(2),
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-card:nth-child(3),
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) .trav-favorite-x3-controls {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+  }
+}
+
+/* ---- v79: skrällar orange text + orange understreck ---- */
+body.trav-modern-view .trav-mini-coupon .superskrall-number,
+body.trav-modern-view .superskrall-number {
+  color: #fd8700 !important;
+  border-bottom: 2px solid #fd8700 !important;
+  text-decoration: none !important;
+  box-shadow: none !important;
+  background-image: none !important;
+}
+
+/* v81: superskrällar orange med rakt understreck */
+body.trav-modern-view .trav-mini-coupon .superskrall-number,
+body.trav-modern-view .superskrall-number {
+    color: #ff8513 !important;
+    border-bottom: 1px solid #fd8700 !important;
+    text-decoration: none !important;
+    box-shadow: none !important;
+    background-image: none !important;
+}
+
+/* ---- v82: återställ synlig mobilmeny + avdelningsöverblick ---- */
+@media (max-width: 900px) {
+  body.trav-modern-view {
+    --trav-bottom-nav-height: 72px;
+    --trav-panel-switch-height: 48px;
+    --trav-division-footer-height: var(--trav-bottom-nav-height, 72px);
+  }
+
+  body.trav-modern-view .overview-layout > section.division-header,
+  body.trav-modern-view section.division-header {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    z-index: 980 !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    height: var(--trav-bottom-nav-height, 72px) !important;
+    min-height: var(--trav-bottom-nav-height, 72px) !important;
+    max-height: var(--trav-bottom-nav-height, 72px) !important;
+    overflow: hidden !important;
+    background: #075da6 !important;
+    transform: none !important;
+    pointer-events: auto !important;
+  }
+
+  body.trav-modern-view .division-number-row {
+    display: grid !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    grid-template-columns: repeat(var(--trav-avd-count, 8), minmax(0, 1fr)) !important;
+    align-items: center !important;
+    justify-items: center !important;
+    height: 100% !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+  }
+
+  body.trav-modern-view .trav-panel-switch,
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-panel-switch,
+  body.trav-modern-view .trav-board.trav-focus-open .trav-panel-switch,
+  body.trav-modern-view .trav-board.trav-info-open .trav-panel-switch {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: var(--trav-bottom-nav-height, 72px) !important;
+    z-index: 1100 !important;
+    display: grid !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    width: 100vw !important;
+    min-width: 100vw !important;
+    max-width: 100vw !important;
+    height: var(--trav-panel-switch-height, 48px) !important;
+    min-height: var(--trav-panel-switch-height, 48px) !important;
+    max-height: var(--trav-panel-switch-height, 48px) !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+    overflow: hidden !important;
+    background: linear-gradient(90deg, #075da6 0%, #0877c2 100%) !important;
+    border: 0 !important;
+    border-top: 1px solid rgba(255,255,255,.16) !important;
+    transform: none !important;
+  }
+
+  body.trav-modern-view .trav-board:not(.trav-side-collapsed):not(.trav-focus-open):not(.trav-info-open) .trav-panel-switch {
+    grid-template-columns: minmax(0, 1fr) 34px 38px 50px 52px 76px 42px !important;
+  }
+
+  body.trav-modern-view .trav-board.trav-focus-open .trav-panel-switch,
+  body.trav-modern-view .trav-board.trav-info-open .trav-panel-switch {
+    grid-template-columns: minmax(0, 1fr) 58px 88px 42px !important;
+  }
+
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-panel-switch {
+    grid-template-columns: minmax(0, 1fr) 58px 88px !important;
+  }
+
+  body.trav-modern-view .trav-import-mobile-btn,
+  body.trav-modern-view .trav-lowered-x3-btn,
+  body.trav-modern-view .trav-favorite-x3-btn,
+  body.trav-modern-view .trav-info-mobile-btn,
+  body.trav-modern-view .trav-panel-cycle,
+  body.trav-modern-view .trav-panel-close {
+    position: static !important;
+    inset: auto !important;
+    grid-row: 1 !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    align-self: stretch !important;
+    justify-self: stretch !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: var(--trav-panel-switch-height, 48px) !important;
+    min-height: var(--trav-panel-switch-height, 48px) !important;
+    max-height: var(--trav-panel-switch-height, 48px) !important;
+    padding: 0 4px !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #fff !important;
+    box-shadow: inset 1px 0 0 rgba(255,255,255,.12), inset -1px 0 0 rgba(0,0,0,.18) !important;
+    line-height: 1 !important;
+    font-weight: 950 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    transform: none !important;
+  }
+
+  body.trav-modern-view .trav-import-mobile-btn { grid-column: 2 !important; font-size: 14px !important; }
+  body.trav-modern-view .trav-lowered-x3-btn { grid-column: 3 !important; font-size: 11px !important; }
+  body.trav-modern-view .trav-favorite-x3-btn { grid-column: 4 !important; font-size: 10px !important; }
+  body.trav-modern-view .trav-info-mobile-btn { grid-column: 5 !important; font-size: 14px !important; }
+  body.trav-modern-view .trav-panel-cycle { grid-column: 6 !important; font-size: 12px !important; }
+  body.trav-modern-view .trav-panel-close { grid-column: 7 !important; font-size: 31px !important; font-weight: 300 !important; }
+
+  body.trav-modern-view .trav-board.trav-focus-open .trav-info-mobile-btn,
+  body.trav-modern-view .trav-board.trav-info-open .trav-info-mobile-btn,
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-info-mobile-btn { grid-column: 2 !important; }
+  body.trav-modern-view .trav-board.trav-focus-open .trav-panel-cycle,
+  body.trav-modern-view .trav-board.trav-info-open .trav-panel-cycle,
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-panel-cycle { grid-column: 3 !important; font-size: 13px !important; }
+  body.trav-modern-view .trav-board.trav-focus-open .trav-panel-close,
+  body.trav-modern-view .trav-board.trav-info-open .trav-panel-close { grid-column: 4 !important; display: flex !important; }
+
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-panel-close,
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-import-mobile-btn,
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-lowered-x3-btn,
+  body.trav-modern-view .trav-board.trav-side-collapsed .trav-favorite-x3-btn,
+  body.trav-modern-view .trav-board.trav-focus-open .trav-import-mobile-btn,
+  body.trav-modern-view .trav-board.trav-focus-open .trav-lowered-x3-btn,
+  body.trav-modern-view .trav-board.trav-focus-open .trav-favorite-x3-btn,
+  body.trav-modern-view .trav-board.trav-info-open .trav-import-mobile-btn,
+  body.trav-modern-view .trav-board.trav-info-open .trav-lowered-x3-btn,
+  body.trav-modern-view .trav-board.trav-info-open .trav-favorite-x3-btn {
+    display: none !important;
+  }
+
+  body.trav-modern-view .trav-favorite-x3-panel:not([hidden]) {
+    z-index: 850 !important;
+    bottom: calc(var(--trav-bottom-nav-height, 72px) + var(--trav-panel-switch-height, 48px) + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* v83: Dölj gamla kupong-/banblock under den nya travvyn.
+   Importpanelen behålls synlig när den öppnas via nya mobilknappen. */
+body.trav-modern-view .coupon-section {
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: visible !important;
+  max-width: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.trav-modern-view .coupon-section > .coupon-section-header,
+body.trav-modern-view .coupon-section > .coupon-layout > .coupon-sidemenu-backdrop,
+body.trav-modern-view .coupon-section > .coupon-layout > .coupon-sidemenu,
+body.trav-modern-view .coupon-section #coupon-list,
+body.trav-modern-view .coupon-section .coupon-main > :not(#import-atg-panel) {
+  display: none !important;
+}
+
+body.trav-modern-view .coupon-section > .coupon-layout,
+body.trav-modern-view .coupon-section .coupon-main {
+  display: block !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: visible !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.trav-modern-view .track-info-section {
+  display: none !important;
+}
+
+
+/* ---- Trav v84: x3 overlay + Ej valda-funktion ---- */
+body.trav-modern-view .trav-unselected-coupon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  height: 100%;
+  border: 0;
+  border-left: 1px solid rgba(255,255,255,.16);
+  border-radius: 0;
+  background: rgba(0,95,165,.35);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+}
+body.trav-modern-view .trav-unselected-coupon-btn:hover,
+body.trav-modern-view .trav-unselected-coupon-btn:focus-visible {
+  background: rgba(45,212,191,.25);
+  outline: none;
+}
+body.trav-modern-view .trav-board.trav-side-collapsed .trav-unselected-coupon-btn,
+body.trav-modern-view .trav-board.trav-focus-open .trav-unselected-coupon-btn,
+body.trav-modern-view .trav-board.trav-info-open .trav-unselected-coupon-btn {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  body.trav-modern-view .trav-panel-switch {
+    grid-template-columns: minmax(0, 1fr) 34px 34px 44px 58px 64px 78px 48px !important;
+  }
+  body.trav-modern-view .trav-import-mobile-btn { grid-column: 2 !important; }
+  body.trav-modern-view .trav-lowered-x3-btn { grid-column: 3 !important; }
+  body.trav-modern-view .trav-favorite-x3-btn { grid-column: 4 !important; }
+  body.trav-modern-view .trav-unselected-coupon-btn { grid-column: 5 !important; }
+  body.trav-modern-view .trav-info-mobile-btn { grid-column: 6 !important; }
+  body.trav-modern-view .trav-panel-cycle { grid-column: 7 !important; }
+  body.trav-modern-view .trav-panel-close { grid-column: 8 !important; }
+}
+
+/* Gör även vanliga x3 till samma fullbredds-overlay-känsla som 3x favorit */
+@media (max-width: 900px) {
+  body.trav-modern-view .trav-lowered-x3-panel,
+  body.trav-modern-view .trav-unselected-panel {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 0 !important;
+    bottom: calc(var(--trav-bottom-nav-height, 72px) + var(--trav-panel-switch-height, 50px) + env(safe-area-inset-bottom)) !important;
+    z-index: 260 !important;
+    width: 100vw !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: auto !important;
+    overflow: auto !important;
+    padding: 14px 12px 18px !important;
+    background: #062b4b !important;
+    box-shadow: 0 -16px 44px rgba(0,0,0,.45) !important;
+    border: 0 !important;
+    border-top: 2px solid rgba(45,212,191,.45) !important;
+  }
+  body.trav-modern-view .trav-lowered-x3-panel[hidden],
+  body.trav-modern-view .trav-unselected-panel[hidden] { display: none !important; }
+  body.trav-modern-view .trav-lowered-x3-panel .trav-lowered-x3-preview,
+  body.trav-modern-view .trav-unselected-preview-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+  body.trav-modern-view .trav-lowered-x3-panel .trav-lowered-x3-card:nth-child(3),
+  body.trav-modern-view .trav-unselected-proposal-card {
+    grid-column: span 1;
+  }
+  body.trav-modern-view .trav-lowered-x3-panel .trav-lowered-x3-form,
+  body.trav-modern-view .trav-unselected-form {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin: 10px 0 !important;
+  }
+  body.trav-modern-view .trav-lowered-x3-panel .trav-lowered-x3-create,
+  body.trav-modern-view .trav-unselected-create {
+    width: 100% !important;
+    min-height: 48px !important;
+    margin-top: 12px !important;
+    border-radius: 14px !important;
+    background: #31d0c0 !important;
+    color: #02131f !important;
+    font-size: 18px !important;
+    font-weight: 950 !important;
+  }
+}
+
+body.trav-modern-view .trav-unselected-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #fff;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  margin-bottom: 10px;
+}
+body.trav-modern-view .trav-unselected-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.35);
+  background: rgba(255,255,255,.12);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+}
+body.trav-modern-view .trav-unselected-slots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+body.trav-modern-view .trav-unselected-slot {
+  background: rgba(3,6,18,.55);
+  border: 1px solid rgba(45,212,191,.35);
+  border-radius: 10px;
+  padding: 8px;
+}
+body.trav-modern-view .trav-unselected-slot label {
+  display: grid;
+  gap: 5px;
+  color: rgba(255,255,255,.72);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+body.trav-modern-view .trav-unselected-slot select,
+body.trav-modern-view .trav-unselected-form select,
+body.trav-modern-view .trav-unselected-form input {
+  min-width: 0;
+  width: 100%;
+  background: #061425;
+  color: #fff;
+  border: 1px solid rgba(45,212,191,.45);
+  border-radius: 9px;
+  padding: 8px;
+  font-weight: 800;
+}
+body.trav-modern-view .trav-unselected-option {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #fff;
+  background: rgba(45,212,191,.12);
+  border: 1px solid rgba(45,212,191,.35);
+  border-radius: 12px;
+  padding: 9px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 850;
+}
+body.trav-modern-view .trav-unselected-proposal-card {
+  background: #0b4b70;
+  border: 1px solid #2dd4bf;
+  border-radius: 14px;
+  padding: 8px;
+  color: #fff;
+  box-shadow: 0 12px 28px rgba(0,0,0,.28);
+}
+body.trav-modern-view .trav-unselected-proposal-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 950;
+  margin-bottom: 6px;
+}
+body.trav-modern-view .trav-unselected-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+body.trav-modern-view .trav-unselected-preview-btn,
+body.trav-modern-view .trav-unselected-reroll {
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(45,212,191,.55);
+  background: rgba(0,122,190,.35);
+  color: #fff;
+  font-weight: 900;
+}
+
+
+/* ---- Trav v85: Ej valda - fler kuponger + bästa 3 spikarna ---- */
+body.trav-modern-view .trav-unselected-options {
+  display: grid !important;
+  gap: 8px !important;
+  margin: 10px 0 12px !important;
+}
+body.trav-modern-view .trav-unselected-add-slot {
+  width: 100% !important;
+  border: 1px solid rgba(255,255,255,.18) !important;
+  border-radius: 10px !important;
+  background: rgba(45, 212, 191, .12) !important;
+  color: #eaffff !important;
+  font-weight: 800 !important;
+  padding: 8px 10px !important;
+  margin: 8px 0 2px !important;
+}
+body.trav-modern-view .trav-unselected-option {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 8px 10px !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  border-radius: 10px !important;
+  background: rgba(255,255,255,.055) !important;
+}
+body.trav-modern-view .trav-unselected-option span {
+  font-size: 12px !important;
+  line-height: 1.15 !important;
+}
+
+/* ---- Trav v86: Sänkt insats x3 med samma overlay-layout som 3x favorit + tydligare systemnamn ---- */
+body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay {
+  padding: 8px !important;
+  background: linear-gradient(180deg, #06335f 0%, #08284d 48%, #041a35 100%) !important;
+}
+body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay .trav-lowered-x3-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, .85fr) !important;
+  gap: 8px !important;
+  align-items: start !important;
+}
+body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay .trav-lowered-x3-preview {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  align-items: start !important;
+}
+body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay .trav-lowered-x3-card:nth-child(3) {
+  grid-column: 1 / span 1 !important;
+}
+body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay .trav-lowered-x3-controls {
+  display: grid !important;
+  gap: 8px !important;
+  align-content: start !important;
+  padding: 2px 0 !important;
+}
+body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay .trav-lowered-x3-form {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 8px !important;
+  margin: 0 !important;
+}
+body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay .trav-lowered-x3-form .trav-lowered-x3-spike-field {
+  grid-column: 1 / -1 !important;
+}
+body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay .trav-lowered-x3-create {
+  height: 44px !important;
+  margin-top: 10px !important;
+  border-radius: 12px !important;
+  font-size: 18px !important;
+  letter-spacing: .02em !important;
+  box-shadow: inset 0 0 0 2px rgba(0,0,0,.22), 0 8px 20px rgba(0,0,0,.30) !important;
+}
+@media (max-width: 900px) {
+  body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay:not([hidden]) {
+    position: fixed !important;
+    inset: 0 0 calc(var(--trav-bottom-nav-height, 72px) + var(--trav-panel-switch-height, 50px) + env(safe-area-inset-bottom)) 0 !important;
+    width: 100vw !important;
+    min-width: 100vw !important;
+    max-width: 100vw !important;
+    height: auto !important;
+    z-index: 850 !important;
+    display: block !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 10px 10px 14px !important;
+    background: linear-gradient(180deg, #06335f 0%, #08284d 48%, #041a35 100%) !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    transform: none !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay:not([hidden]) .trav-lowered-x3-layout {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    align-items: start !important;
+    width: 100% !important;
+  }
+  body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay:not([hidden]) .trav-lowered-x3-preview {
+    display: contents !important;
+  }
+  body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay:not([hidden]) .trav-lowered-x3-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+  body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay:not([hidden]) .trav-lowered-x3-card:nth-child(1) { grid-column: 1 !important; grid-row: 1 !important; }
+  body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay:not([hidden]) .trav-lowered-x3-card:nth-child(2) { grid-column: 2 !important; grid-row: 1 !important; }
+  body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay:not([hidden]) .trav-lowered-x3-card:nth-child(3) { grid-column: 1 !important; grid-row: 2 !important; }
+  body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay:not([hidden]) .trav-lowered-x3-controls { grid-column: 2 !important; grid-row: 2 !important; min-width: 0 !important; }
+  body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay:not([hidden]) .trav-lowered-x3-create { width: 100% !important; margin-top: 10px !important; }
+}
+@media (max-width: 360px) {
+  body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay:not([hidden]) .trav-lowered-x3-layout { grid-template-columns: 1fr !important; }
+  body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay:not([hidden]) .trav-lowered-x3-card:nth-child(1),
+  body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay:not([hidden]) .trav-lowered-x3-card:nth-child(2),
+  body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay:not([hidden]) .trav-lowered-x3-card:nth-child(3),
+  body.trav-modern-view .trav-lowered-x3-panel.trav-lowered-x3-overlay:not([hidden]) .trav-lowered-x3-controls { grid-column: 1 !important; grid-row: auto !important; }
+}
+
+
+/* v89: kopiera kupong till ATG AI */
+body.trav-modern-view .trav-coupon-options-copy {
+  background: #0ea5e9 !important;
+  color: #fff !important;
+}
+.trav-copy-coupon-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0,0,0,.55);
+}
+.trav-copy-coupon-modal.open { display: flex; }
+.trav-copy-coupon-card {
+  width: min(560px, 96vw);
+  max-height: min(720px, 86vh);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 16px;
+  background: #06111f;
+  color: #fff;
+  box-shadow: 0 20px 60px rgba(0,0,0,.45);
+  padding: 14px;
+}
+.trav-copy-coupon-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.trav-copy-coupon-head strong { font-size: 15px; }
+.trav-copy-coupon-close {
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255,255,255,.12);
+  color: #fff;
+  padding: 8px 10px;
+  font-weight: 800;
+}
+.trav-copy-coupon-text {
+  width: 100%;
+  min-height: 260px;
+  resize: vertical;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 12px;
+  background: #020817;
+  color: #fff;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre;
+}
+.trav-copy-coupon-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.trav-copy-coupon-actions button {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 850;
+  background: #0ea5e9;
+  color: #fff;
+}
+.trav-copy-coupon-actions button.secondary { background: rgba(255,255,255,.12); }
+@media (max-width: 560px) {
+  .trav-copy-coupon-modal { align-items: flex-end; padding: 8px; }
+  .trav-copy-coupon-card { width: 100%; max-height: 78vh; border-radius: 16px 16px 8px 8px; }
+  .trav-copy-coupon-text { min-height: 280px; font-size: 12px; }
+}
