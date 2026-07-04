@@ -2981,8 +2981,6 @@ function buildTravLoweredStakeX3Coupons(totalPrice, stakeLevelForCoupon, spikeCo
   const top = rankedAll.slice(0, neededTopCount);
   if (top.length < Math.min(6, neededTopCount)) return [];
 
-  const targetPerCoupon = Math.max(1, Number(totalPrice || 300) / 3);
-
   const addHorseToMap = (map, divIndex, number) => {
     if (!Number.isFinite(Number(divIndex)) || !Number.isFinite(Number(number))) return;
     const set = map.get(Number(divIndex)) || new Set();
@@ -3007,6 +3005,7 @@ function buildTravLoweredStakeX3Coupons(totalPrice, stakeLevelForCoupon, spikeCo
     : (spikeCount === 3
       ? [[1, 5, 9], [2, 6, 7], [3, 4, 8]]
       : [[1, 6], [2, 5], [3, 4]]);
+  const targetPerCoupon = Math.max(1, Number(totalPrice || 300) / Math.max(1, rankGroups.length));
   const wantedPairs = rankGroups.map((group) => group.map((rank) => top[rank - 1]).filter(Boolean));
 
   return wantedPairs.map((wantedPair, idx) => {
@@ -3232,7 +3231,7 @@ function initTravLoweredStakeX3Controls() {
       const built = Array.isArray(window.travLoweredX3CurrentPreview) && window.travLoweredX3CurrentPreview.length
         ? window.travLoweredX3CurrentPreview
         : buildTravLoweredStakeX3Coupons(totalPrice, stake, spikeCount);
-      if (!built.length) return alert('Kunde inte skapa tre exempel. Saknar procentdata.');
+      if (!built.length) return alert('Kunde inte skapa exempel. Saknar procentdata.');
       if (!confirm(`Skapa 3 kuponger med mål ca ${formatMoney(totalPrice / 3)} kr per kupong?`)) return;
 
       createBtn.disabled = true;
@@ -3244,7 +3243,7 @@ function initTravLoweredStakeX3Controls() {
             source: 'lowered_x3',
             status: (typeof getNewCouponStatus === 'function') ? getNewCouponStatus() : 'waiting',
             stakeLevel: stake,
-            targetPrice: totalPrice / 3,
+            targetPrice: totalPrice / Math.max(1, built.length),
             notes: `Sänkt insats x3. Spikar: ${item.label}. Rader: ${item.rows}. Pris: ${formatMoney(item.price)} kr.`,
             spikeDivisions: Array.isArray(item.spikeDivisions) ? item.spikeDivisions : [],
             selections: item.selections,
@@ -3313,37 +3312,87 @@ function travAutoCouponName(prefix, variant, index, stake, spikes) {
 }
 
 // ---- 3x favorit ----
-function getTravFavoriteX3RankGroups(spikeCountWanted) {
+function getTravFavoriteX3RankGroups(spikeCountWanted, couponCountWanted = 3) {
   const n = Math.max(2, Math.min(4, Number(spikeCountWanted || 3)));
+  const couponCount = Math.max(1, Math.min(3, Number(couponCountWanted || 3)));
+  let groups;
   if (n === 4) {
-    return [
+    groups = [
       [1, 2, 3, 4],       // favoritbetonad
       [1, 2, 6, 8],       // mellan
       [3, 5, 7, 9],       // skrällbetonad men med några favoriter kvar
     ];
-  }
-  if (n === 3) {
-    return [
+  } else if (n === 3) {
+    groups = [
       [1, 2, 3],          // top 3 som spikar
       [1, 2, 6],          // hälften/majoritet av topp + mellan
       [3, 5, 7],          // favorit + nedåt, med mer skrällfyllnad
     ];
+  } else {
+    groups = [
+      [1, 2],             // favorit
+      [1, 4],             // mellan
+      [2, 5],             // skräll
+    ];
   }
-  return [
-    [1, 2],
-    [1, 4],
-    [2, 5],
-  ];
+  if (couponCount === 1) return [groups[0]];                 // en kupong = favorit
+  if (couponCount === 2) return [groups[0], groups[2]];      // två kuponger = favorit + skräll
+  return groups.slice(0, 3);                                 // tre kuponger = favorit + mellan + skräll
 }
 
-function buildTravFavoriteX3Coupons(totalPrice, stakeLevelForCoupon, spikeCountWanted = 3) {
+function getTravFavoriteX3RandomRankGroups(spikeCountWanted, couponCountWanted = 3) {
+  const n = Math.max(2, Math.min(4, Number(spikeCountWanted || 3)));
+  const couponCount = Math.max(1, Math.min(3, Number(couponCountWanted || 3)));
+  const styles = couponCount === 1 ? [0] : (couponCount === 2 ? [0, 2] : [0, 1, 2]);
+  const poolMax = n === 4 ? 12 : (n === 3 ? 10 : 8);
+  const allRanks = Array.from({ length: poolMax }, (_, i) => i + 1);
+
+  const pickWeightedRanks = (styleIndex) => {
+    const chosen = [];
+    const available = allRanks.slice();
+    for (let i = 0; i < n && available.length; i++) {
+      const weighted = available.map((rank) => {
+        let weight;
+        if (styleIndex === 0) {
+          // Favoritkupong: klart störst chans på topprankade spikar, men inte helt låst.
+          weight = Math.pow(poolMax - rank + 2, 2.4);
+        } else if (styleIndex === 1) {
+          // Mellan: blandar topp och mitten.
+          const mid = Math.max(2, Math.round(poolMax * 0.45));
+          weight = Math.max(1, poolMax - Math.abs(rank - mid) * 1.25);
+        } else {
+          // Skräll: fler längre ned, men fortfarande några favoriter/andrahandsfavoriter.
+          weight = rank <= 2 ? 10 : (rank <= 5 ? 8 : Math.pow(rank, 1.35));
+        }
+        return { rank, weight: Math.max(0.1, weight) };
+      });
+      const total = weighted.reduce((sum, item) => sum + item.weight, 0);
+      let r = Math.random() * total;
+      let picked = weighted[0].rank;
+      for (const item of weighted) {
+        r -= item.weight;
+        if (r <= 0) { picked = item.rank; break; }
+      }
+      chosen.push(picked);
+      const idx = available.indexOf(picked);
+      if (idx >= 0) available.splice(idx, 1);
+    }
+    chosen.sort((a, b) => a - b);
+    return chosen;
+  };
+
+  return styles.map(pickWeightedRanks);
+}
+
+function buildTravFavoriteX3Coupons(totalPrice, stakeLevelForCoupon, spikeCountWanted = 3, couponCountWanted = 3, mixSpikes = false) {
   const rankedAll = getTravAllRankedHorsesForLoweredX3();
   const spikeCount = Math.max(2, Math.min(4, Number(spikeCountWanted || 3)));
-  const rankGroups = getTravFavoriteX3RankGroups(spikeCount);
+  const couponCount = Math.max(1, Math.min(3, Number(couponCountWanted || 3)));
+  const rankGroups = mixSpikes ? getTravFavoriteX3RandomRankGroups(spikeCount, couponCount) : getTravFavoriteX3RankGroups(spikeCount, couponCount);
   const needed = Math.max(...rankGroups.flat());
   const top = rankedAll.slice(0, Math.max(needed, spikeCount * 2));
   if (top.length < spikeCount) return [];
-  const targetPerCoupon = Math.max(1, Number(totalPrice || 300) / 3);
+  const targetPerCoupon = Math.max(1, Number(totalPrice || 300) / Math.max(1, rankGroups.length));
 
   const addHorseToMap = (map, divIndex, number) => {
     if (!Number.isFinite(Number(divIndex)) || !Number.isFinite(Number(number))) return;
@@ -3549,15 +3598,19 @@ function renderTravFavoriteX3Preview() {
   const priceInput = document.getElementById('trav-favorite-x3-price');
   const stakeSelect = document.getElementById('trav-favorite-x3-stake');
   const spikeSelect = document.getElementById('trav-favorite-x3-spikes');
+  const couponCountSelect = document.getElementById('trav-favorite-x3-count');
+  const mixSpikesInput = document.getElementById('trav-favorite-x3-mix-spikes');
   const preview = document.getElementById('trav-favorite-x3-preview');
   const hint = document.getElementById('trav-favorite-x3-hint');
   if (!preview) return [];
   const totalPrice = Math.max(1, Number(priceInput?.value || 300));
   const stake = String(stakeSelect?.value || '30');
   const spikeCount = Math.max(2, Math.min(4, Number(spikeSelect?.value || 3)));
-  const built = buildTravFavoriteX3Coupons(totalPrice, stake, spikeCount);
+  const couponCount = Math.max(1, Math.min(3, Number(couponCountSelect?.value || 3)));
+  const mixSpikes = !!document.getElementById('trav-favorite-x3-mix-spikes')?.checked;
+  const built = buildTravFavoriteX3Coupons(totalPrice, stake, spikeCount, couponCount, mixSpikes);
   preview.innerHTML = '';
-  if (hint) hint.textContent = `Mål: ${formatMoney(totalPrice / 3)} kr per kupong. Insats: ${stake}%. Spikar: ${spikeCount} per kupong.`;
+  if (hint) hint.textContent = `Mål: ${formatMoney(totalPrice / Math.max(1, couponCount))} kr per kupong. Insats: ${stake}%. Spikar: ${spikeCount} per kupong.${mixSpikes ? ' Blandade spikar: på.' : ''}`;
   if (!built.length) {
     preview.innerHTML = '<div class="trav-side-empty">Kunde inte hitta tillräckligt många procenthästar i omgången.</div>';
     return [];
@@ -3598,15 +3651,17 @@ function initTravFavoriteX3Controls() {
           <div class="trav-favorite-x3-controls">
             <div class="trav-favorite-x3-control-title">3x favorit</div>
             <div class="trav-lowered-x3-form trav-favorite-x3-form">
+              <label>Antal kuponger<select id="trav-favorite-x3-count"><option value="1">1 kupong</option><option value="2">2 kuponger</option><option value="3" selected>3 kuponger</option></select></label>
               <label class="trav-lowered-x3-spike-field">Spikar/kupong<select id="trav-favorite-x3-spikes"><option value="2">2 spikar</option><option value="3" selected>3 spikar</option><option value="4">4 spikar</option></select></label>
               <label>Pris<input id="trav-favorite-x3-price" type="number" min="1" step="1" value="300"></label>
               <label>Sänkt insats<select id="trav-favorite-x3-stake"><option value="30">30%</option><option value="50">50%</option><option value="70">70%</option></select></label>
+              <label class="trav-favorite-x3-mix-field"><input id="trav-favorite-x3-mix-spikes" type="checkbox"> Blanda spikar</label>
             </div>
             <div class="trav-lowered-x3-hint" id="trav-favorite-x3-hint"></div>
             <button class="trav-lowered-x3-reroll" id="trav-favorite-x3-reroll" type="button">Reroll – slumpa om</button>
           </div>
         </div>
-        <button class="trav-lowered-x3-create" id="trav-favorite-x3-create" type="button">Skapa 3 kuponger</button>
+        <button class="trav-lowered-x3-create" id="trav-favorite-x3-create" type="button">Skapa kuponger</button>
       `;
       panelHost.appendChild(panel);
     }
@@ -3620,6 +3675,8 @@ function initTravFavoriteX3Controls() {
   const priceInput = document.getElementById('trav-favorite-x3-price');
   const stakeSelect = document.getElementById('trav-favorite-x3-stake');
   const spikeSelect = document.getElementById('trav-favorite-x3-spikes');
+  const couponCountSelect = document.getElementById('trav-favorite-x3-count');
+  const mixSpikesInput = document.getElementById('trav-favorite-x3-mix-spikes');
   const createBtn = document.getElementById('trav-favorite-x3-create');
   const rerollBtn = document.getElementById('trav-favorite-x3-reroll');
   if (!openBtn || !panel) return;
@@ -3646,7 +3703,7 @@ function initTravFavoriteX3Controls() {
     closeBtn.dataset.boundFavX3 = '1';
     closeBtn.addEventListener('click', () => { panel.hidden = true; document.body.classList.remove('trav-favorite-x3-open'); });
   }
-  [priceInput, stakeSelect, spikeSelect].forEach((el) => {
+  [priceInput, stakeSelect, spikeSelect, couponCountSelect, mixSpikesInput].forEach((el) => {
     if (!el || el.dataset.boundFavX3) return;
     el.dataset.boundFavX3 = '1';
     el.addEventListener('input', renderTravFavoriteX3Preview);
@@ -3663,11 +3720,13 @@ function initTravFavoriteX3Controls() {
       const totalPrice = Math.max(1, Number(priceInput?.value || 300));
       const stake = String(stakeSelect?.value || '30');
       const spikeCount = Math.max(2, Math.min(4, Number(spikeSelect?.value || 3)));
+      const couponCount = Math.max(1, Math.min(3, Number(couponCountSelect?.value || 3)));
+      const mixSpikes = !!document.getElementById('trav-favorite-x3-mix-spikes')?.checked;
       const built = Array.isArray(window.travFavoriteX3CurrentPreview) && window.travFavoriteX3CurrentPreview.length
         ? window.travFavoriteX3CurrentPreview
-        : buildTravFavoriteX3Coupons(totalPrice, stake, spikeCount);
-      if (!built.length) return alert('Kunde inte skapa tre exempel. Saknar procentdata.');
-      if (!confirm(`Skapa 3 favorit-kuponger med mål ca ${formatMoney(totalPrice / 3)} kr per kupong?`)) return;
+        : buildTravFavoriteX3Coupons(totalPrice, stake, spikeCount, couponCount, mixSpikes);
+      if (!built.length) return alert('Kunde inte skapa exempel. Saknar procentdata.');
+      if (!confirm(`Skapa ${built.length} favorit-kupong${built.length === 1 ? '' : 'er'} med mål ca ${formatMoney(totalPrice / Math.max(1, built.length))} kr per kupong?`)) return;
       createBtn.disabled = true;
       try {
         const saved = [];
@@ -3678,7 +3737,7 @@ function initTravFavoriteX3Controls() {
             source: 'favorite_x3',
             status: (typeof getNewCouponStatus === 'function') ? getNewCouponStatus() : 'waiting',
             stakeLevel: stake,
-            targetPrice: totalPrice / 3,
+            targetPrice: totalPrice / Math.max(1, built.length),
             notes: `3x favorit. Spikar: ${item.label}. Rader: ${item.rows}. Pris: ${formatMoney(item.price)} kr.`,
             spikeDivisions: Array.isArray(item.spikeDivisions) ? item.spikeDivisions : [],
             selections: item.selections,
@@ -3692,7 +3751,7 @@ function initTravFavoriteX3Controls() {
         renderCurrentDivision();
         try { renderTravCouponSelects(); } catch (_) {}
         try { renderTravExtraCompareCoupons(); } catch (_) {}
-        alert('3 favorit-kuponger skapade.');
+        alert(`${saved.length} favorit-kupong${saved.length === 1 ? '' : 'er'} skapade.`);
       } catch (err) {
         console.error(err);
         alert(err?.message || 'Kunde inte skapa 3x favorit-kuponger.');
@@ -11409,9 +11468,19 @@ try {
           <input id="trav-unselected-mode" type="checkbox" checked>
           <span>Välj alla hästar som inte blivit valda</span>
         </label>
-        <label class="trav-unselected-option">
-          <input id="trav-unselected-best3" type="checkbox">
-          <span>Bästa 3 spikarna</span>
+        <label class="trav-unselected-option trav-unselected-best-spikes-option">
+          <span>Bästa spikar</span>
+          <select id="trav-unselected-best-spikes-count" aria-label="Antal bästa spikar">
+            <option value="0">0 spikar</option>
+            <option value="1">1 spik</option>
+            <option value="2">2 spikar</option>
+            <option value="3" selected>3 spikar</option>
+            <option value="4">4 spikar</option>
+            <option value="5">5 spikar</option>
+            <option value="6">6 spikar</option>
+            <option value="7">7 spikar</option>
+            <option value="8">8 spikar</option>
+          </select>
         </label>
       </div>
       <div class="trav-unselected-preview-grid">
@@ -11462,31 +11531,80 @@ try {
       .filter((idx, pos, arr) => arr.indexOf(idx) === pos);
   }
 
-  function getTravUnselectedBestThreeSpikes(){
+  function getTravUnselectedBestSpikes(count, sourceIndexes){
+    const wanted = Math.max(0, Math.min(8, Number(count || 0)));
+    if (!wanted) return [];
+
+    const byKey = new Map();
+    const selectedIndexes = Array.isArray(sourceIndexes) ? sourceIndexes : [];
+
+    selectedIndexes.forEach((idx) => {
+      const coupon = coupons[idx];
+      (coupon?.selections || []).forEach((sel) => {
+        const divIndex = Number(sel.divisionIndex);
+        const horses = Array.isArray(sel.horses) ? sel.horses.map(Number).filter(Number.isFinite) : [];
+        if (!Number.isFinite(divIndex) || horses.length !== 1) return;
+        const number = Number(horses[0]);
+        const key = `${divIndex}:${number}`;
+        const prev = byKey.get(key) || {
+          divisionIndex: divIndex,
+          number,
+          name: getTravHorseNameByDivAndNumber(divIndex, number) || `Häst ${number}`,
+          pct: Number(getTravHorsePercentByDivAndNumber(divIndex, number) || 0),
+          count: 0,
+          sourceNames: [],
+        };
+        prev.count += 1;
+        const nm = couponOptionLabel(coupon, idx);
+        if (nm && !prev.sourceNames.includes(nm)) prev.sourceNames.push(nm);
+        byKey.set(key, prev);
+      });
+    });
+
+    const fromCoupons = Array.from(byKey.values())
+      .sort((a, b) => (b.count - a.count) || (b.pct - a.pct) || (a.divisionIndex - b.divisionIndex));
+
+    const picked = [];
+    const usedDivs = new Set();
+    for (const h of fromCoupons) {
+      if (picked.length >= wanted) break;
+      if (usedDivs.has(Number(h.divisionIndex))) continue;
+      usedDivs.add(Number(h.divisionIndex));
+      picked.push(h);
+    }
+
+    // Fallback: om de valda kupongerna inte innehåller tillräckligt med spikar,
+    // fyll på med högst procent från omgången, fortfarande max en spik per avdelning.
     const ranked = (typeof getTravAllRankedHorsesForLoweredX3 === 'function')
       ? getTravAllRankedHorsesForLoweredX3()
       : [];
-    const usedDivs = new Set();
-    const spikes = [];
     for (const h of ranked) {
+      if (picked.length >= wanted) break;
       const divIndex = Number(h?.divisionIndex);
       const number = Number(h?.number);
       if (!Number.isFinite(divIndex) || !Number.isFinite(number)) continue;
       if (usedDivs.has(divIndex)) continue;
       usedDivs.add(divIndex);
-      spikes.push({ divisionIndex: divIndex, number, name: h?.name || `Häst ${number}`, pct: Number(h?.pct || 0) });
-      if (spikes.length >= 3) break;
+      picked.push({
+        divisionIndex: divIndex,
+        number,
+        name: h?.name || getTravHorseNameByDivAndNumber(divIndex, number) || `Häst ${number}`,
+        pct: Number(h?.pct || getTravHorsePercentByDivAndNumber(divIndex, number) || 0),
+        count: 0,
+        sourceNames: [],
+      });
     }
-    return spikes;
+    return picked;
   }
 
   function buildUnselectedCouponProposal(){
     const panel = ensureUnselectedPanel();
     const includeUnselected = !!panel.querySelector('#trav-unselected-mode')?.checked;
-    const includeBest3 = !!panel.querySelector('#trav-unselected-best3')?.checked;
+    const bestSpikeCount = Math.max(0, Math.min(8, Number(panel.querySelector('#trav-unselected-best-spikes-count')?.value || 0)));
+    const includeBestSpikes = bestSpikeCount > 0;
     const indexes = getSelectedCouponIndexesForUnselected();
-    if (!includeUnselected && !includeBest3) return null;
-    if (includeUnselected && !indexes.length && !includeBest3) return null;
+    if (!includeUnselected && !includeBestSpikes) return null;
+    if (includeUnselected && !indexes.length && !includeBestSpikes) return null;
 
     const usedByDiv = new Map();
     indexes.forEach((idx) => {
@@ -11502,7 +11620,7 @@ try {
       });
     });
 
-    const bestSpikes = includeBest3 ? getTravUnselectedBestThreeSpikes() : [];
+    const bestSpikes = includeBestSpikes ? getTravUnselectedBestSpikes(bestSpikeCount, indexes) : [];
     const spikeByDiv = new Map(bestSpikes.map((h) => [Number(h.divisionIndex), Number(h.number)]));
 
     const selections = (divisions || []).map((div, i) => {
@@ -11522,9 +11640,9 @@ try {
     const sourceNames = indexes.map((idx) => couponOptionLabel(coupons[idx], idx));
     const modes = [];
     if (includeUnselected) modes.push('Ej valda hästar');
-    if (includeBest3) modes.push('Bästa 3 spikarna');
+    if (includeBestSpikes) modes.push(`Bästa ${bestSpikeCount} spik${bestSpikeCount === 1 ? '' : 'ar'}`);
     const proposal = {
-      name: travAutoCouponName('Ej valda', modes.join(' + ') || 'Förslag', null, '', includeBest3 ? 3 : ''),
+      name: travAutoCouponName('Ej valda', modes.join(' + ') || 'Förslag', null, '', includeBestSpikes ? bestSpikeCount : ''),
       source: 'unselected_from_coupons',
       selections,
       sourceNames,
@@ -11639,7 +11757,7 @@ try {
         bindUnselectedPanel();
       });
     }
-    ['trav-unselected-mode', 'trav-unselected-best3'].forEach((id) => {
+    ['trav-unselected-mode', 'trav-unselected-best-spikes-count'].forEach((id) => {
       const cb = document.getElementById(id);
       if (cb && !cb.dataset.v85Bound) {
         cb.dataset.v85Bound = '1';
@@ -11679,5 +11797,227 @@ try {
   window.addEventListener('resize', () => setTimeout(boot, 80));
 })();
 
-window.TRAV_BUILD_VERSION = 'v86-x3-layout-namn';
-try { document.documentElement.setAttribute('data-trav-build', 'v86-x3-layout-namn'); } catch (_) {}
+window.TRAV_BUILD_VERSION = 'v91-skapa-basta-spikar';
+try { document.documentElement.setAttribute('data-trav-build', 'v91-skapa-basta-spikar'); } catch (_) {}
+
+// ---- v90 Skapa kupong: första planeringsblock ----
+(function(){
+  function couponDisplayName(c, idx){
+    return String(c?.name || c?.title || c?.label || `Kupong ${idx + 1}`);
+  }
+
+  function getAvailableCouponOptions(){
+    try {
+      if (Array.isArray(coupons)) return coupons;
+    } catch (_) {}
+    return [];
+  }
+
+  function ensureCreateBuilderButton(){
+    let btn = document.getElementById('trav-create-builder-btn');
+    if (btn) return btn;
+    const row = document.querySelector('.trav-panel-switch');
+    if (!row) return null;
+    btn = document.createElement('button');
+    btn.className = 'trav-create-builder-btn';
+    btn.id = 'trav-create-builder-btn';
+    btn.type = 'button';
+    btn.title = 'Skapa kupong';
+    btn.setAttribute('aria-label', 'Skapa kupong');
+    btn.textContent = 'Skapa';
+    const before = document.getElementById('trav-side-toggle') || document.getElementById('trav-panel-close');
+    row.insertBefore(btn, before || null);
+    return btn;
+  }
+
+  function ensureCreateBuilderPanel(){
+    let panel = document.getElementById('trav-create-builder-panel');
+    if (panel) return panel;
+    panel = document.createElement('section');
+    panel.className = 'trav-lowered-x3-panel trav-favorite-x3-panel trav-create-builder-panel';
+    panel.id = 'trav-create-builder-panel';
+    panel.hidden = true;
+    panel.innerHTML = `
+      <div class="trav-lowered-x3-head trav-favorite-x3-head trav-create-builder-head">
+        <strong>Skapa kupong</strong>
+        <button class="trav-lowered-x3-close trav-create-builder-close" id="trav-create-builder-close" type="button" aria-label="Stäng">×</button>
+      </div>
+      <div class="trav-favorite-x3-layout trav-create-builder-layout">
+        <div class="trav-create-builder-card trav-create-builder-main-card">
+          <div class="trav-create-builder-step">Steg 1</div>
+          <label class="trav-create-builder-label">Budget
+            <input id="trav-create-builder-budget" type="number" min="1" step="1" value="50">
+          </label>
+          <div class="trav-create-builder-note">Skriv total budget för kupongerna. Standard är 50 kr.</div>
+        </div>
+        <div class="trav-create-builder-card">
+          <div class="trav-create-builder-step">Steg 2</div>
+          <div class="trav-create-builder-label">Antal kuponger</div>
+          <div class="trav-create-builder-counter">
+            <button id="trav-create-builder-count-minus" type="button">−</button>
+            <span id="trav-create-builder-count">1</span>
+            <button id="trav-create-builder-count-plus" type="button">+</button>
+          </div>
+          <div class="trav-create-builder-note" id="trav-create-builder-budget-per">Ca 50 kr per kupong.</div>
+        </div>
+        <div class="trav-create-builder-card">
+          <div class="trav-create-builder-step">Steg 3</div>
+          <label class="trav-create-builder-check">
+            <input id="trav-create-builder-use-coupons" type="checkbox">
+            <span>Utgå från redan skapade/importerade kuponger</span>
+          </label>
+          <div class="trav-create-builder-source-list" id="trav-create-builder-source-list"></div>
+          <button class="trav-create-builder-add-source" id="trav-create-builder-add-source" type="button">+ Lägg till kupong</button>
+        </div>
+        <div class="trav-create-builder-card trav-create-builder-controls">
+          <div class="trav-create-builder-step">Steg 4</div>
+          <div class="trav-create-builder-label">Hur många spikar?</div>
+          <div class="trav-create-builder-counter">
+            <button id="trav-create-builder-spikes-minus" type="button">−</button>
+            <span id="trav-create-builder-spikes">3</span>
+            <button id="trav-create-builder-spikes-plus" type="button">+</button>
+          </div>
+          <div class="trav-create-builder-note">Nästa steg blir att välja hur spikarna ska tas fram.</div>
+          <button class="trav-create-builder-next" id="trav-create-builder-next" type="button">Nästa: välj spikar</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(panel);
+    return panel;
+  }
+
+  function renderSourceSelects(){
+    const wrap = document.getElementById('trav-create-builder-source-list');
+    const use = document.getElementById('trav-create-builder-use-coupons');
+    if (!wrap) return;
+    const enabled = !!use?.checked;
+    wrap.hidden = !enabled;
+    const addBtn = document.getElementById('trav-create-builder-add-source');
+    if (addBtn) addBtn.hidden = !enabled;
+    if (!enabled) return;
+    const count = Math.max(1, Number(window.travCreateBuilderSourceCount || 1));
+    const selected = Array.from(wrap.querySelectorAll('select')).map(s => s.value);
+    const list = getAvailableCouponOptions();
+    wrap.innerHTML = '';
+    for (let i = 0; i < count; i += 1) {
+      const row = document.createElement('label');
+      row.className = 'trav-create-builder-source-row';
+      row.innerHTML = `<span>Kupong ${i + 1}</span><select data-source-index="${i}"><option value="">Välj kupong</option></select>`;
+      const sel = row.querySelector('select');
+      list.forEach((c, idx) => {
+        const id = String(c?._id || c?.id || idx);
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = couponDisplayName(c, idx);
+        sel.appendChild(opt);
+      });
+      if (selected[i]) sel.value = selected[i];
+      wrap.appendChild(row);
+    }
+  }
+
+  function updateCreateBuilderSummary(){
+    const budget = Math.max(1, Number(document.getElementById('trav-create-builder-budget')?.value || 50));
+    const count = Math.max(1, Number(window.travCreateBuilderCouponCount || 1));
+    const per = document.getElementById('trav-create-builder-budget-per');
+    const countEl = document.getElementById('trav-create-builder-count');
+    const spEl = document.getElementById('trav-create-builder-spikes');
+    if (countEl) countEl.textContent = String(count);
+    if (spEl) spEl.textContent = String(Math.max(0, Number(window.travCreateBuilderSpikeCount ?? 3)));
+    if (per) per.textContent = `Ca ${formatMoney(budget / count)} kr per kupong.`;
+  }
+
+  function closeOtherBuilderPanels(){
+    ['trav-favorite-x3-panel','trav-lowered-x3-panel','trav-unselected-panel'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.hidden = true;
+    });
+    try { document.body.classList.remove('trav-favorite-x3-open'); } catch (_) {}
+  }
+
+  function bindCreateBuilder(){
+    const btn = ensureCreateBuilderButton();
+    const panel = ensureCreateBuilderPanel();
+    if (!btn || !panel) return;
+    if (!btn.dataset.v90Bound) {
+      btn.dataset.v90Bound = '1';
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        try { if (typeof openTravPanel === 'function') openTravPanel('side'); } catch (_) {}
+        closeOtherBuilderPanels();
+        panel.hidden = !panel.hidden;
+        if (!panel.hidden) {
+          document.body.classList.add('trav-create-builder-open');
+          window.travCreateBuilderCouponCount = Math.max(1, Number(window.travCreateBuilderCouponCount || 1));
+          window.travCreateBuilderSpikeCount = Math.max(0, Number(window.travCreateBuilderSpikeCount ?? 3));
+          window.travCreateBuilderSourceCount = Math.max(1, Number(window.travCreateBuilderSourceCount || 1));
+          renderSourceSelects();
+          updateCreateBuilderSummary();
+        } else {
+          document.body.classList.remove('trav-create-builder-open');
+        }
+      });
+    }
+    const close = document.getElementById('trav-create-builder-close');
+    if (close && !close.dataset.v90Bound) {
+      close.dataset.v90Bound = '1';
+      close.addEventListener('click', () => { panel.hidden = true; document.body.classList.remove('trav-create-builder-open'); });
+    }
+    const budget = document.getElementById('trav-create-builder-budget');
+    if (budget && !budget.dataset.v90Bound) {
+      budget.dataset.v90Bound = '1';
+      budget.addEventListener('input', updateCreateBuilderSummary);
+    }
+    const use = document.getElementById('trav-create-builder-use-coupons');
+    if (use && !use.dataset.v90Bound) {
+      use.dataset.v90Bound = '1';
+      use.addEventListener('change', renderSourceSelects);
+    }
+    const addSource = document.getElementById('trav-create-builder-add-source');
+    if (addSource && !addSource.dataset.v90Bound) {
+      addSource.dataset.v90Bound = '1';
+      addSource.addEventListener('click', () => {
+        window.travCreateBuilderSourceCount = Math.min(30, Math.max(1, Number(window.travCreateBuilderSourceCount || 1)) + 1);
+        renderSourceSelects();
+      });
+    }
+    const cm = document.getElementById('trav-create-builder-count-minus');
+    const cp = document.getElementById('trav-create-builder-count-plus');
+    if (cm && !cm.dataset.v90Bound) {
+      cm.dataset.v90Bound = '1';
+      cm.addEventListener('click', () => { window.travCreateBuilderCouponCount = Math.max(1, Number(window.travCreateBuilderCouponCount || 1) - 1); updateCreateBuilderSummary(); });
+    }
+    if (cp && !cp.dataset.v90Bound) {
+      cp.dataset.v90Bound = '1';
+      cp.addEventListener('click', () => { window.travCreateBuilderCouponCount = Math.min(20, Number(window.travCreateBuilderCouponCount || 1) + 1); updateCreateBuilderSummary(); });
+    }
+    const sm = document.getElementById('trav-create-builder-spikes-minus');
+    const sp = document.getElementById('trav-create-builder-spikes-plus');
+    if (sm && !sm.dataset.v90Bound) {
+      sm.dataset.v90Bound = '1';
+      sm.addEventListener('click', () => { window.travCreateBuilderSpikeCount = Math.max(0, Number(window.travCreateBuilderSpikeCount ?? 3) - 1); updateCreateBuilderSummary(); });
+    }
+    if (sp && !sp.dataset.v90Bound) {
+      sp.dataset.v90Bound = '1';
+      sp.addEventListener('click', () => { window.travCreateBuilderSpikeCount = Math.min(8, Number(window.travCreateBuilderSpikeCount ?? 3) + 1); updateCreateBuilderSummary(); });
+    }
+    const next = document.getElementById('trav-create-builder-next');
+    if (next && !next.dataset.v90Bound) {
+      next.dataset.v90Bound = '1';
+      next.addEventListener('click', () => alert('Nästa steg blir att välja hur spikarna ska tas fram. Vi bygger den logiken i nästa version.'));
+    }
+  }
+
+  function boot(){
+    bindCreateBuilder();
+    setTimeout(bindCreateBuilder, 250);
+  }
+  if (typeof onReady === 'function') onReady(boot);
+  else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+  window.addEventListener('resize', () => setTimeout(bindCreateBuilder, 80));
+})();
+
+window.TRAV_BUILD_VERSION = 'v91-skapa-basta-spikar';
+try { document.documentElement.setAttribute('data-trav-build', 'v91-skapa-basta-spikar'); } catch (_) {}
