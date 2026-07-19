@@ -12,8 +12,10 @@
       <div>
         <h1>Trav – Spelöversikt</h1>
         <p class="subtitle">Hitta minst spelade hästar mellan dina kuponger</p>
+        <div id="api-mode-indicator" class="api-mode-indicator" aria-live="polite"></div>
       </div>
       <div class="topbar-actions">
+        <button id="btn-discover-active-games" class="btn primary" type="button">Uppdatera spel</button>
         <button id="btn-new-game" class="btn primary">Skapa spel</button>
        <button id="btn-toggle-track-panel" class="btn">Skapa bana</button>
         <button id="btn-new-analysis" class="btn">Skapa analys</button>
@@ -168,6 +170,7 @@ HÄST	KUSK	V85%	TREND%	DISTANS & SPÅR	STARTER I ÅR	VAGN	V-ODDS
           <h2>Skapade spel</h2>
           <span id="game-count" class="badge">0 spel</span>
         </div>
+        <p id="discover-games-status" class="hint discover-games-status" aria-live="polite"></p>
         <div id="game-list-empty" class="empty-state">
           Inga spel skapade ännu. Klicka på <strong>Skapa spel</strong> för att lägga till ditt första spel.
         </div>

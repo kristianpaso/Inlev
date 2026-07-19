@@ -1,0 +1,203 @@
+﻿<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bigplus</title>
+    <link rel="stylesheet" href="/bigplus/css/bigplus.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">Bigplus</p>
+          <h1>Mät fångsten med det du har med dig.</h1>
+        </div>
+        <div class="status-pill" id="connectionStatus">Redo</div>
+      </section>
+
+      <section class="workspace">
+        <aside class="panel controls-panel">
+          <div class="field hidden-menu">
+            <label for="referenceSelect">Referens</label>
+            <select id="referenceSelect"></select>
+          </div>
+
+          <div class="field custom-size hidden-menu" id="customReferenceWrap">
+            <label for="customReference">Referenslängd i cm</label>
+            <input id="customReference" type="number" min="1" step="0.1" value="10">
+          </div>
+
+          <div class="virtual-reference">
+            <h2>Referens i bild</h2>
+            <button class="secondary-button compact-button" id="placeReferenceButton" type="button">Placera vald referens</button>
+            <button class="secondary-button compact-button" id="placeGlassesReferenceButton" type="button">Placera på ansikte</button>
+            <button class="secondary-button compact-button" id="placeHandReferenceButton" type="button">Placera vid hand</button>
+            <input id="referenceScaleRange" type="hidden" value="150">
+            <input id="referenceRotationRange" type="hidden" value="0">
+            <div class="field">
+              <label for="calibrationRange">Skaljustering <span id="calibrationValue">100%</span></label>
+              <input id="calibrationRange" type="range" min="70" max="110" step="1" value="100">
+              <small class="field-note">100% använder referensen exakt. Sänk om fisken räknas för lång, höj om den räknas för kort.</small>
+            </div>
+            <label class="check-field" for="autoPerspectiveToggle">
+              <input id="autoPerspectiveToggle" type="checkbox" checked>
+              Auto-perspektiv
+            </label>
+            <label class="check-field" for="showReferenceMarkersToggle">
+              <input id="showReferenceMarkersToggle" type="checkbox">
+              Visa gula markeringar
+            </label>
+            <div class="field">
+              <label for="depthModeSelect">Avstånd</label>
+              <select id="depthModeSelect">
+                <option value="fish" selected>Samma avstånd som fisken</option>
+                <option value="image">Följ bildens djup</option>
+                <option value="manual">Manuell storlek</option>
+              </select>
+            </div>
+            <div class="field conditional-field hidden" id="faceDepthWrap">
+              <label>Fisk framför kroppen</label>
+              <button class="secondary-button compact-button" id="faceDepthToolButton" type="button">Mät avstånd</button>
+              <small class="field-note" id="faceDepthResult">Dra en linje från glasögon till fisk.</small>
+            </div>
+            <div class="hint">Placera automatiskt eller dra referensen för att flytta. Dra rutan för storlek och pricken för rotation.</div>
+          </div>
+          <div class="add-reference hidden-menu">
+            <h2>Lägg till referens</h2>
+            <div class="field">
+              <label for="newReferenceName">Föremål</label>
+              <input id="newReferenceName" type="text" maxlength="32" placeholder="T.ex. Colaburk">
+            </div>
+            <div class="field inline-field">
+              <label for="newReferenceSize">Längd i cm</label>
+              <input id="newReferenceSize" type="number" min="1" step="0.1" placeholder="11.5">
+            </div>
+            <button class="secondary-button compact-button" id="addReferenceButton" type="button">Lägg till</button>
+            <button class="secondary-button compact-button" id="removeReferenceButton" type="button">Ta bort vald egen</button>
+          </div>
+
+          <div class="field">
+            <label for="speciesSelect">Art</label>
+            <select id="speciesSelect"></select>
+          </div>
+
+          <div class="field inline-field">
+            <label for="minSize">Minimimått</label>
+            <input id="minSize" type="number" min="0" step="1">
+          </div>
+
+          <div class="tool-grid" role="group" aria-label="Markeringsverktyg">
+            <button class="tool-button active" id="refTool" type="button">Referens</button>
+            <button class="tool-button" id="fishTool" type="button">Längd</button>
+            <button class="tool-button" id="bodyTool" type="button">Tjocklek</button>
+          </div>
+
+          <div class="hint">
+            Lägg referensen parallellt med fisken. Markera först längd från nos till stjärt, sedan tjocklek där fisken är som högst. Dra en punkt för att justera.
+          </div>
+        </aside>
+
+        <section class="measure-area">
+          <div class="simple-toolbar" aria-label="Snabbval">
+            <input class="simple-file-input" id="photoInput" type="file" accept="image/*">
+            <label class="primary-button simple-upload-button" for="photoInput">Välj bild</label>
+            <div class="simple-reference-switch" role="group" aria-label="Välj referens">
+              <button class="simple-choice active" id="simpleGlassesButton" type="button">1 Glasögon</button>
+              <button class="simple-choice" id="simpleCanButton" type="button">+ Burk</button>
+            </div>
+            <button class="secondary-button simple-lock-button" id="lockReferenceButton" type="button" disabled>Lås referens</button>
+            <button class="secondary-button simple-reset-button" id="resetButton" type="button">Rensa</button>
+          </div>
+          <div class="measure-stage">
+            <div class="canvas-wrap">
+              <div class="zoom-toolbar" aria-label="Zooma bild">
+                <button class="zoom-button" id="zoomOutButton" type="button" aria-label="Zooma ut">-</button>
+                <span class="zoom-value" id="zoomValue">100%</span>
+                <button class="zoom-button" id="zoomInButton" type="button" aria-label="Zooma in">+</button>
+                <button class="zoom-button reset-zoom" id="zoomResetButton" type="button">100%</button>
+              </div>
+              <canvas id="measureCanvas" width="1000" height="680"></canvas>
+              <div class="empty-state" id="emptyState">
+                <strong>Ladda upp en bild</strong>
+                <span>Börja med glasögon. Lägg till burk om du vill få två referenser.</span>
+              </div>
+            </div>
+            <aside class="checklist-panel" aria-label="Bigplus checklista">
+              <h2>Checklista</h2>
+              <ol class="bigplus-checklist">
+                <li id="checkPhoto"><span></span>Bild</li>
+                <li id="checkGlasses"><span></span>Glasögon</li>
+                <li id="checkLock"><span></span>Lås referens</li>
+                <li id="checkCan" class="optional"><span></span>Burk extra</li>
+                <li id="checkLength"><span></span>Längd</li>
+                <li id="checkHeight"><span></span>Höjd</li>
+                <li id="checkResult"><span></span>Bigplus</li>
+              </ol>
+            </aside>
+            <div class="reference-readout" id="referenceReadout">
+              <span>Referens</span>
+              <strong id="referenceNameResult">Ingen placerad</strong>
+              <small id="referenceSizeResult">Välj och placera ett föremål.</small>
+              <small id="referenceAngleResult">Vinkel 0°</small>
+            </div>
+          </div>
+          <div class="measure-actions">
+            <button class="primary-button measure-calculate-button" id="calculateButton" type="button">Räkna Bigplus</button>
+          </div>
+        </section>
+
+        <aside class="panel result-panel is-empty">
+          <div class="big-status pending" id="bigStatus">
+            <span>Status</span>
+            <strong>Väntar</strong>
+          </div>
+
+          <div class="result-grid">
+            <div>
+              <span>Längd</span>
+              <strong id="lengthResult">-- cm</strong>
+            </div>
+            <div>
+              <span>Vikt</span>
+              <strong id="weightResult">-- kg</strong>
+            </div>
+            <div>
+              <span>Höjd</span>
+              <strong id="bodyDepthResult">-- cm</strong>
+            </div>
+            <div>
+              <span>Gräns</span>
+              <strong id="limitResult">-- cm</strong>
+            </div>
+            <div>
+              <span>Säkerhet</span>
+              <strong id="confidenceResult">--</strong>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="catchNote">Anteckning</label>
+            <textarea id="catchNote" rows="3" placeholder="Plats, bete, väder..."></textarea>
+          </div>
+
+          <button class="primary-button" id="saveButton" type="button" disabled>Spara fångst</button>
+          <p class="small-print" id="disclaimer">
+            Kontrollera alltid lokala regler, fredningstider och undantag.
+          </p>
+
+          <div class="log">
+            <h2>Senaste fångster</h2>
+            <div id="catchLog" class="catch-log"></div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <script>
+      window.BIGPLUS_API_TARGET = window.BIGPLUS_API_TARGET || "";
+      window.BIGPLUS_RENDER_API_ROOT = window.BIGPLUS_RENDER_API_ROOT || "https://bigplus-api.onrender.com/api/bigplus";
+    </script>
+    <script type="module" src="/bigplus/js/main.js"></script>
+  </body>
+</html>

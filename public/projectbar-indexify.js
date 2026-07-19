@@ -3,7 +3,7 @@
 (function(){
   function fix(){
     var bar=document.getElementById('projectBar'); if(!bar) return;
-    var map={ 'Sändningar':'sandningar/index.html','Sandningar':'sandningar/index.html','Trav':'trav/index.html','Plock':'plock/index.html','Schema':'schema/index.html','Statistik':'statistik/index.html','Users':'users/index.html' };
+    var map={ 'Sändningar':'sandningar/index.html','Sandningar':'sandningar/index.html','Trav':'trav/index.html','Bigplus':'bigplus/index.html','Plock':'plock/index.html','Schema':'schema/index.html','Statistik':'statistik/index.html','Users':'users/index.html' };
     Array.from(bar.querySelectorAll('a')).forEach(a=>{
       var t=(a.textContent||'').trim(); if(!map[t]) return;
       var href=a.getAttribute('href')||'';

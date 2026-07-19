@@ -37,6 +37,65 @@ body {
   color: #a8b3cf;
 }
 
+.api-mode-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 24px;
+  margin-top: 8px;
+  padding: 4px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.api-mode-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #94a3b8;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.15);
+}
+
+.api-mode-main {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.api-mode-detail {
+  color: #cbd5e1;
+}
+
+.api-mode-link {
+  color: inherit;
+  opacity: 0.72;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.api-mode-indicator.dev .api-mode-dot {
+  background: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16);
+}
+
+.api-mode-indicator.prod .api-mode-dot {
+  background: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.16);
+}
+
+.api-mode-indicator.fallback {
+  border-color: rgba(250, 204, 21, 0.35);
+  background: rgba(113, 63, 18, 0.28);
+}
+
+.api-mode-indicator.fallback .api-mode-dot {
+  background: #facc15;
+  box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.16);
+}
+
 .topbar-actions {
   display: flex;
   gap: 8px;
@@ -89,6 +148,11 @@ body {
   opacity: 0.9;
 }
 
+.btn:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
 .form-row {
   display: flex;
   flex-direction: column;
@@ -122,6 +186,23 @@ textarea:focus {
 .hint {
   font-size: 0.75rem;
   color: #9ca3af;
+}
+
+.discover-games-status {
+  min-height: 1rem;
+  margin: 6px 0 12px;
+}
+
+.discover-games-status[data-tone="ok"] {
+  color: #86efac;
+}
+
+.discover-games-status[data-tone="error"] {
+  color: #fecaca;
+}
+
+.discover-games-status[data-tone="loading"] {
+  color: #bfdbfe;
 }
 
 .form-actions {
@@ -8526,28 +8607,12 @@ body.trav-modern-view .trav-lowered-x3-create:disabled {
   }
 
   body.trav-modern-view .trav-board:not(.trav-side-collapsed) .trav-horse-list .horse-table tr.horse-row > td.trav-horse-pct-cell {
-    display: none !important;
+    display: grid !important;
   }
 
   body.trav-modern-view .trav-board:not(.trav-side-collapsed) .trav-horse-list .horse-table tr.horse-row::after {
-    content: attr(data-trav-pct) !important;
-    position: absolute !important;
-    right: 3px !important;
-    top: 0 !important;
-    bottom: 0 !important;
-    width: 31px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-end !important;
-    color: #000 !important;
-    font-size: 13px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-    white-space: nowrap !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    z-index: 90 !important;
-    pointer-events: none !important;
+    content: none !important;
+    display: none !important;
   }
 }
 body.trav-modern-view .trav-lowered-x3-panel[hidden] { display: none !important; }

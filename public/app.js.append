@@ -5,7 +5,7 @@
   function indexify(a){
     const map={
       'Sändningar':'sandningar/index.html','Sandningar':'sandningar/index.html',
-      'Trav':'trav/index.html','Plock':'plock/index.html','Schema':'schema/index.html',
+      'Trav':'trav/index.html','Bigplus':'bigplus/index.html','Plock':'plock/index.html','Schema':'schema/index.html',
       'Statistik':'statistik/index.html','Users':'users/index.html'
     };
     const t=(a.textContent||'').trim();

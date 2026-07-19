@@ -1,4 +1,11 @@
 node_modules
 
+# Local environment files may contain credentials.
+.env
+**/.env
+
 # Local Netlify folder
 .netlify
+
+# Local Codex runtime files
+.codex-runtime/

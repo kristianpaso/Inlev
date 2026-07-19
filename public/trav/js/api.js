@@ -1,15 +1,103 @@
 // public/trav/js/api.js
 
-const API_ROOT =
-  window.location.hostname === 'localhost'
-    ? 'http://localhost:4000/api/trav'
-    : 'https://trav-api.onrender.com/api/trav';
+const LOCAL_API_ROOT = 'http://localhost:4000/api/trav';
+const RENDER_API_ROOT = 'https://trav-api.onrender.com/api/trav';
+
+function resolveApiRoot() {
+  const params = new URLSearchParams(window.location.search);
+  const apiTarget = params.get('api');
+
+  if (apiTarget === 'local' || apiTarget === 'render') {
+    localStorage.setItem('trav_api_target', apiTarget);
+  }
+
+  const savedTarget = localStorage.getItem('trav_api_target');
+  if (savedTarget === 'local') return LOCAL_API_ROOT;
+  if (savedTarget === 'render') return RENDER_API_ROOT;
+
+  const isLocalFrontend = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  return isLocalFrontend ? LOCAL_API_ROOT : RENDER_API_ROOT;
+}
+
+const API_ROOT = resolveApiRoot();
+
+export function getApiMode() {
+  const isLocal = API_ROOT === LOCAL_API_ROOT;
+
+  return {
+    mode: isLocal ? 'dev' : 'prod',
+    label: isLocal ? 'DEV' : 'PROD',
+    apiRoot: API_ROOT,
+    target: isLocal ? 'local' : 'render',
+    fallbackReadsToRender: isLocal,
+  };
+}
 
 const API_GAMES = `${API_ROOT}/games`;
 const API_TRACKS = `${API_ROOT}/tracks`;
 const API_ANALYSES = `${API_ROOT}/analyses`;
 
 const API_ATG_LINKS = `${API_GAMES}/atg-links`;
+
+async function fetchJson(url, errorMessage, { allowRenderFallback = false } = {}) {
+  try {
+    const res = await fetch(url);
+    if (res.ok) return res.json();
+
+    if (!allowRenderFallback || API_ROOT !== LOCAL_API_ROOT) {
+      throw new Error(errorMessage);
+    }
+  } catch (err) {
+    if (!allowRenderFallback || API_ROOT !== LOCAL_API_ROOT) {
+      throw err instanceof Error ? err : new Error(errorMessage);
+    }
+  }
+
+  const renderUrl = url.replace(LOCAL_API_ROOT, RENDER_API_ROOT);
+  const fallbackRes = await fetch(renderUrl);
+  if (!fallbackRes.ok) throw new Error(errorMessage);
+  return fallbackRes.json();
+}
+
+const nativeFetch = window.fetch.bind(window);
+
+function setApiFallbackUsed(used) {
+  const next = Boolean(used);
+  if (Boolean(window.__travApiFallbackUsed) === next) return;
+
+  window.__travApiFallbackUsed = next;
+  window.dispatchEvent(
+    new CustomEvent('trav-api-fallback', {
+      detail: next
+        ? { from: 'local', to: 'render' }
+        : { from: 'render', to: 'local' },
+    })
+  );
+}
+
+window.fetch = async function travFetchWithReadFallback(input, init = {}) {
+  const url = typeof input === 'string' ? input : input?.url;
+  const method = String(init?.method || 'GET').toUpperCase();
+  const canFallback =
+    method === 'GET' &&
+    API_ROOT === LOCAL_API_ROOT &&
+    typeof url === 'string' &&
+    url.startsWith(LOCAL_API_ROOT);
+
+  try {
+    const res = await nativeFetch(input, init);
+    if (res.ok || !canFallback) {
+      if (res.ok && canFallback) setApiFallbackUsed(false);
+      return res;
+    }
+    setApiFallbackUsed(true);
+    return nativeFetch(url.replace(LOCAL_API_ROOT, RENDER_API_ROOT), init);
+  } catch (err) {
+    if (!canFallback) throw err;
+    setApiFallbackUsed(true);
+    return nativeFetch(url.replace(LOCAL_API_ROOT, RENDER_API_ROOT), init);
+  }
+};
 
 export async function getGames() {
   const res = await fetch(API_GAMES);
@@ -36,6 +124,19 @@ export async function deleteGame(id) {
   });
   if (!res.ok) throw new Error('Kunde inte ta bort spel');
   return res.json();
+}
+
+export async function discoverActiveGames() {
+  const res = await fetch(`${API_GAMES}/discover/active`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ forceHorseInfo: true }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'Kunde inte uppdatera aktiva spel');
+  }
+  return data;
 }
 
 // 🔹 NY: uppdatera ett spel

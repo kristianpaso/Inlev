@@ -5,6 +5,8 @@ import {
   getGames,
   createGame,
   deleteGame,
+  discoverActiveGames,
+  getApiMode,
   updateGame,
   getTracks,
   createTrack,
@@ -30,6 +32,45 @@ function rerenderList() {
   });
 }
 
+function setDiscoverStatus(message, tone = '') {
+  const el = document.getElementById('discover-games-status');
+  if (!el) return;
+  el.textContent = message || '';
+  el.dataset.tone = tone || '';
+}
+
+function initApiModeIndicator() {
+  const wrap = document.getElementById('api-mode-indicator');
+  if (!wrap) return;
+
+  const mode = getApiMode();
+  const isDev = mode.mode === 'dev';
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.set('api', isDev ? 'render' : 'local');
+
+  const render = () => {
+    const fallbackUsed = Boolean(window.__travApiFallbackUsed);
+    wrap.className = `api-mode-indicator ${isDev ? 'dev' : 'prod'} ${fallbackUsed ? 'fallback' : ''}`;
+    wrap.innerHTML = `
+      <span class="api-mode-dot" aria-hidden="true"></span>
+      <span class="api-mode-main">${mode.label}</span>
+      <span class="api-mode-detail">${
+        isDev
+          ? fallbackUsed
+            ? 'Lokal backend saknas · läser från Render'
+            : 'Lokal backend'
+          : 'Render / publicerad backend'
+      }</span>
+      <a class="api-mode-link" href="${nextUrl.pathname}${nextUrl.search}">${
+        isDev ? 'Byt till PROD' : 'Byt till DEV'
+      }</a>
+    `;
+  };
+
+  render();
+  window.addEventListener('trav-api-fallback', render);
+}
+
 async function loadGames() {
   try {
     games = await getGames();
@@ -41,6 +82,46 @@ async function loadGames() {
 }
 
 // onSubmit från formuläret – både skapa & redigera
+async function handleDiscoverActiveGames() {
+  const btn = document.getElementById('btn-discover-active-games');
+  if (!btn) return;
+
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Letar...';
+  setDiscoverStatus('Hämtar aktiva spel och hästinfo från ATG...', 'loading');
+
+  try {
+    const result = await discoverActiveGames();
+    games = await getGames();
+    rerenderList();
+
+    const horseInfoStatus = result.horseImport?.requested
+      ? ` · hästinfo ${result.horseImport.imported || 0} hämtade${
+          result.horseImport.failed ? ` (${result.horseImport.failed} misslyckades)` : ''
+        }`
+      : '';
+
+    if (result.horseImport?.failed) {
+      console.warn('Hästinfo kunde inte hämtas för alla spel:', result.horseImport.games);
+    }
+
+    setDiscoverStatus(
+      `${result.found || 0} hittade · ${result.created || 0} nya · ${result.updated || 0} uppdaterade${horseInfoStatus}${
+        result.diagnostics?.method ? ` · ${result.diagnostics.method}` : ''
+      }`,
+      'ok'
+    );
+  } catch (err) {
+    console.error(err);
+    setDiscoverStatus(err.message || 'Kunde inte uppdatera spel från ATG.', 'error');
+    alert(err.message || 'Kunde inte uppdatera spel från ATG.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+}
+
 async function handleSubmitFromForm(gameData, mode, existingGame) {
   if (mode === 'create') {
     const created = await createGame(gameData);
@@ -85,6 +166,8 @@ function handleEditGame(game) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initApiModeIndicator();
+
   gameFormApi = initGameForm({
     onSubmit: handleSubmitFromForm,
     onCancel: () => {},
@@ -93,6 +176,9 @@ document.addEventListener('DOMContentLoaded', () => {
  
 
   loadGames();
+  document
+    .getElementById('btn-discover-active-games')
+    ?.addEventListener('click', handleDiscoverActiveGames);
   initTrackPanel();
   initAnalysisUI({
     getAnalyses,

@@ -4,7 +4,7 @@
 
 // var innan: import { getGame } from './api.js';
 
-import { getGame, createCoupon, deleteCoupon, getTracks, getAtgLinks, saveAtgLink, updateCouponActive, updateCouponStatus, fetchWinners, fetchStallsnack, updateCouponContent, getAnalyses, importAtgCoupon } from './api.js';
+import { getGame, createCoupon, deleteCoupon, getTracks, getAtgLinks, saveAtgLink, updateCouponActive, updateCouponStatus, fetchWinners, fetchStallsnack, updateCouponContent, getAnalyses, importAtgCoupon, getApiMode } from './api.js';
 
 // race-sim.js is loaded as a classic script to avoid module parsing issues in some environments.
 // It exposes initRaceSim on window.
@@ -18,6 +18,38 @@ let allTracks = [];
 let currentTrackMatch = null;  
 let manualWinners = {};  // { '1': 3, '2': 11, ... } manuella vinnare per avdelning
 function normStr(s){ return String(s||'').trim().toLowerCase(); }
+
+function initApiModeIndicator() {
+  const wrap = document.getElementById('api-mode-indicator');
+  if (!wrap) return;
+
+  const mode = getApiMode();
+  const isDev = mode.mode === 'dev';
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.set('api', isDev ? 'render' : 'local');
+
+  const render = () => {
+    const fallbackUsed = Boolean(window.__travApiFallbackUsed);
+    wrap.className = `api-mode-indicator ${isDev ? 'dev' : 'prod'} ${fallbackUsed ? 'fallback' : ''}`;
+    wrap.innerHTML = `
+      <span class="api-mode-dot" aria-hidden="true"></span>
+      <span class="api-mode-main">${mode.label}</span>
+      <span class="api-mode-detail">${
+        isDev
+          ? fallbackUsed
+            ? 'Lokal backend saknas · läser från Render'
+            : 'Lokal backend'
+          : 'Render / publicerad backend'
+      }</span>
+      <a class="api-mode-link" href="${nextUrl.pathname}${nextUrl.search}">${
+        isDev ? 'Byt till PROD' : 'Byt till DEV'
+      }</a>
+    `;
+  };
+
+  render();
+  window.addEventListener('trav-api-fallback', render);
+}
 
 function extractGroupFromGame(game){
   const t = (game?.horseText || '') + '\n' + (game?.title || '');
@@ -595,6 +627,8 @@ ICON_DEFS.forEach((def) => {
 const IDEAS_STORAGE_PREFIX = 'trav_ideas_v1_';
 
 document.addEventListener('DOMContentLoaded', async () => {
+  initApiModeIndicator();
+
   const params = new URLSearchParams(window.location.search);
   const gameId = params.get('id');
 
@@ -4620,6 +4654,11 @@ function buildHorseView(division, divIndex, popularity) {
     if (horse.rawLine) {
       cols = parseLineColumns(horse.rawLine);
     }
+    const travPctText =
+      mainPercentIndex >= 0 && horse.rawLine
+        ? String(cols[mainPercentIndex] ?? '').trim()
+        : '';
+    if (travPctText) tr.setAttribute('data-trav-pct', travPctText);
 
     const travDriverName = (kuskIndex >= 0 && cols[kuskIndex]) ? cleanTravDriverName(cols[kuskIndex]) : '';
     const travTrainerName = (kuskIndex >= 0 && cols[kuskIndex]) ? extractTravTrainerName(cols[kuskIndex]) : '';
@@ -4665,8 +4704,6 @@ if (km != null) {
       if (upper.startsWith('HÄST')) td.classList.add('trav-horse-main-cell');
       if (index === mainPercentIndex) {
         td.classList.add('trav-horse-pct-cell');
-        const _travPctText = String((horse.rawLine ? (cols[index] ?? '') : '') || '').trim();
-        if (_travPctText) tr.setAttribute('data-trav-pct', _travPctText);
       }
 
       if (!horse.rawLine) {
@@ -4756,7 +4793,6 @@ if (km != null) {
           if (travFocusDrivers[kuskName]) driverEl.classList.add('is-focused');
           td.appendChild(driverEl);
         }
-
 
       } else {
         // övriga kolumner

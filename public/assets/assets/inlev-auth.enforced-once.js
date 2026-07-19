@@ -19,7 +19,7 @@
   function remember(){ try{ sessionStorage.setItem(POST, location.pathname+location.search+location.hash);}catch(e){} }
   function consume(){ try{ const v=sessionStorage.getItem(POST); sessionStorage.removeItem(POST); return v||'/statistik/'; }catch(e){ return '/statistik/'; } }
   function guard(){
-    const protectedDirs=['/plock','/trav','/statistik','/schema','/sandningar','/sandningar'];
+    const protectedDirs=['/plock','/trav','/bigplus','/statistik','/schema','/sandningar','/sandningar'];
     const p=location.pathname;
     const needs=protectedDirs.some(d=> p===d || p.startsWith(d+'/'));
     if (needs && !isAuthed()){

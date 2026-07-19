@@ -2,7 +2,8 @@
   "name": "inlev-full-package",
   "private": true,
   "scripts": {
-    "dev": "netlify dev --dir=public"
+    "dev": "node public-server.js",
+    "dev:netlify": "netlify dev --dir=public --port=4173"
   },
   "devDependencies": {
     "netlify-cli": "^17.0.0"
