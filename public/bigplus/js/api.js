@@ -90,8 +90,13 @@ export function calculateMeasurement(payload) {
   );
 }
 
-export function getCatches() {
-  return fetchJson(`${API_ROOT}/catches`, {}, "Kunde inte hämta fångster");
+function userQuery(userId) {
+  const clean = String(userId || "").trim();
+  return clean ? `?user=${encodeURIComponent(clean)}` : "";
+}
+
+export function getCatches(userId = "") {
+  return fetchJson(`${API_ROOT}/catches${userQuery(userId)}`, {}, "Kunde inte hämta fångster");
 }
 
 export function saveCatch(payload) {
@@ -171,9 +176,11 @@ export function calculateMeasurementOffline(input, speciesList = DEFAULT_SPECIES
   };
 }
 
-export function getLocalCatches() {
+export function getLocalCatches(userId = "") {
   try {
-    return JSON.parse(localStorage.getItem("bigplus_catches") || "[]");
+    const catches = JSON.parse(localStorage.getItem("bigplus_catches") || "[]");
+    const clean = String(userId || "").trim();
+    return clean ? catches.filter((item) => item.userId === clean) : catches;
   } catch {
     return [];
   }
@@ -184,6 +191,7 @@ export function saveLocalCatch(payload, result) {
   const item = {
     id: `local-${Date.now()}`,
     createdAt: new Date().toISOString(),
+    userId: String(payload.userId || "").slice(0, 80),
     note: String(payload.note || "").slice(0, 240),
     photo: typeof payload.photo === "string" ? payload.photo : "",
     measurement: result || calculateMeasurementOffline(payload.measurement || payload)

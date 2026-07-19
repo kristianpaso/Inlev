@@ -5,8 +5,15 @@ const { calculateMeasurement } = require("../services/measurement");
 
 const router = express.Router();
 
+function cleanUserId(value) {
+  return String(value || "").trim().slice(0, 80);
+}
+
 router.get("/catches", (req, res) => {
-  res.json(readCatches().slice(-30).reverse());
+  const userId = cleanUserId(req.query.user);
+  const catches = readCatches();
+  const visible = userId ? catches.filter((item) => item.userId === userId) : catches;
+  res.json(visible.slice(-30).reverse());
 });
 
 router.post("/catches", (req, res, next) => {
@@ -14,9 +21,11 @@ router.post("/catches", (req, res, next) => {
     const input = req.body || {};
     const result = calculateMeasurement(input.measurement || input);
     const catches = readCatches();
+    const userId = cleanUserId(input.userId);
     const item = {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
+      userId,
       note: String(input.note || "").slice(0, 240),
       photo: typeof input.photo === "string" ? input.photo.slice(0, 4_000_000) : "",
       measurement: result

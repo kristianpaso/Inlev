@@ -41,7 +41,7 @@ textarea {
 
 .topbar {
   display: flex;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 10px;
@@ -281,6 +281,7 @@ button:disabled {
 
 .simple-upload-button,
 .simple-reset-button,
+.simple-clear-button,
 .simple-lock-button {
   display: inline-flex;
   align-items: center;
@@ -298,6 +299,10 @@ button:disabled {
 
 .simple-upload-button {
   cursor: pointer;
+}
+
+.simple-clear-button {
+  color: var(--blue);
 }
 
 .simple-reference-switch {
@@ -367,6 +372,51 @@ button:disabled {
   font-size: 0.95rem;
 }
 
+.reference-palette {
+  display: grid;
+  gap: 8px;
+}
+
+.reference-palette-item {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  align-items: center;
+  gap: 10px;
+  min-height: 76px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+  touch-action: none;
+}
+
+.reference-palette-item:hover,
+.reference-palette-item.is-dragging {
+  border-color: var(--blue);
+  box-shadow: 0 8px 22px rgba(36, 107, 143, 0.16);
+}
+
+.reference-palette-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.reference-palette-item img {
+  display: block;
+  width: 72px;
+  max-height: 58px;
+  object-fit: contain;
+}
+
+.reference-palette-item span {
+  color: var(--ink);
+  font-size: 0.83rem;
+  line-height: 1.25;
+  font-weight: 900;
+}
+
 .bigplus-checklist {
   display: grid;
   gap: 8px;
@@ -377,8 +427,9 @@ button:disabled {
 
 .bigplus-checklist li {
   display: grid;
-  grid-template-columns: 24px 1fr;
+  grid-template-columns: 24px minmax(0, 1fr) 34px;
   align-items: center;
+  gap: 6px;
   min-height: 38px;
   padding: 8px;
   border: 1px solid var(--line);
@@ -389,7 +440,7 @@ button:disabled {
   font-weight: 900;
 }
 
-.bigplus-checklist li span {
+.bigplus-checklist li > span {
   width: 18px;
   height: 18px;
   border: 2px solid var(--line);
@@ -402,7 +453,7 @@ button:disabled {
   color: var(--ink);
 }
 
-.bigplus-checklist li.is-active span {
+.bigplus-checklist li.is-active > span {
   border-color: var(--blue);
   box-shadow: inset 0 0 0 4px #fff;
   background: var(--blue);
@@ -414,20 +465,79 @@ button:disabled {
   color: #1f6d4a;
 }
 
-.bigplus-checklist li.is-done span {
+.bigplus-checklist li.is-done > span {
   display: grid;
   place-items: center;
   border-color: var(--green);
   background: var(--green);
 }
 
-.bigplus-checklist li.is-done span::after {
+.bigplus-checklist li.is-done > span::after {
   content: "";
   width: 8px;
   height: 5px;
   border-left: 2px solid #fff;
   border-bottom: 2px solid #fff;
   transform: rotate(-45deg) translate(1px, -1px);
+}
+
+.check-label {
+  min-height: 28px;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.check-lock {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.check-lock:hover {
+  border-color: var(--blue);
+}
+
+.lock-icon {
+  position: relative;
+  width: 15px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+  color: var(--muted);
+}
+
+.lock-icon::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: -10px;
+  width: 7px;
+  height: 8px;
+  border: 2px solid currentColor;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+}
+
+.check-lock.is-locked {
+  border-color: #bfe7d2;
+  background: #ddf6e9;
+}
+
+.check-lock.is-locked .lock-icon {
+  color: #1f6d4a;
+}
+
+.check-lock:not(.is-locked) .lock-icon::before {
+  left: 5px;
+  transform: rotate(28deg);
+  transform-origin: left bottom;
 }
 
 #checkLength,
@@ -441,6 +551,30 @@ button:disabled {
 
 .bigplus-checklist li.optional:not(.is-done):not(.is-active) {
   opacity: 0.72;
+}
+
+.checklist-next-button {
+  min-height: 42px;
+}
+
+.checklist-help {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid #d9e8e0;
+  border-radius: 8px;
+  background: #f6fbf8;
+}
+
+.checklist-help strong {
+  font-size: 0.9rem;
+}
+
+.checklist-help p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
 }
 
 .zoom-toolbar {
@@ -633,7 +767,14 @@ canvas {
 .result-panel > #saveButton,
 .result-panel > .small-print,
 .result-panel > .log {
-  display: none;
+  grid-column: 1 / -1;
+}
+
+.result-panel > #saveButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
 }
 
 .log {

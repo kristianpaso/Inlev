@@ -11,7 +11,6 @@
       <section class="topbar">
         <div>
           <p class="eyebrow">Bigplus</p>
-          <h1>Mät fångsten med det du har med dig.</h1>
         </div>
         <div class="status-pill" id="connectionStatus">Redo</div>
       </section>
@@ -90,11 +89,11 @@
           <div class="tool-grid" role="group" aria-label="Markeringsverktyg">
             <button class="tool-button active" id="refTool" type="button">Referens</button>
             <button class="tool-button" id="fishTool" type="button">Längd</button>
-            <button class="tool-button" id="bodyTool" type="button">Tjocklek</button>
+            <button class="tool-button" id="bodyTool" type="button">Höjd</button>
           </div>
 
           <div class="hint">
-            Lägg referensen parallellt med fisken. Markera först längd från nos till stjärt, sedan tjocklek där fisken är som högst. Dra en punkt för att justera.
+            Lägg referensen parallellt med fisken. Markera först längd från nos till stjärt, sedan höjd där fisken är som högst. Dra en punkt för att justera.
           </div>
         </aside>
 
@@ -102,12 +101,9 @@
           <div class="simple-toolbar" aria-label="Snabbval">
             <input class="simple-file-input" id="photoInput" type="file" accept="image/*">
             <label class="primary-button simple-upload-button" for="photoInput">Välj bild</label>
-            <div class="simple-reference-switch" role="group" aria-label="Välj referens">
-              <button class="simple-choice active" id="simpleGlassesButton" type="button">1 Glasögon</button>
-              <button class="simple-choice" id="simpleCanButton" type="button">+ Burk</button>
-            </div>
             <button class="secondary-button simple-lock-button" id="lockReferenceButton" type="button" disabled>Lås referens</button>
-            <button class="secondary-button simple-reset-button" id="resetButton" type="button">Rensa</button>
+            <button class="secondary-button simple-clear-button" id="clearButton" type="button">Rensa</button>
+            <button class="secondary-button simple-reset-button" id="resetButton" type="button">Börja om</button>
           </div>
           <div class="measure-stage">
             <div class="canvas-wrap">
@@ -124,16 +120,39 @@
               </div>
             </div>
             <aside class="checklist-panel" aria-label="Bigplus checklista">
+              <div class="reference-palette" aria-label="Dra referens till bilden">
+                <button class="reference-palette-item" id="paletteGlasses" type="button" draggable="true" data-reference-id="glasses">
+                  <img src="/bigplus/assets/glasses-reference.png" alt="">
+                  <span>Dra och placera glasögonen.</span>
+                </button>
+                <button class="reference-palette-item" id="paletteCan" type="button" draggable="true" data-reference-id="can-330">
+                  <img src="/bigplus/assets/can-classic.png" alt="">
+                  <span>Dra in burken som extra referens.</span>
+                </button>
+              </div>
               <h2>Checklista</h2>
               <ol class="bigplus-checklist">
                 <li id="checkPhoto"><span></span>Bild</li>
                 <li id="checkGlasses"><span></span>Glasögon</li>
                 <li id="checkLock"><span></span>Lås referens</li>
                 <li id="checkCan" class="optional"><span></span>Burk extra</li>
-                <li id="checkLength"><span></span>Längd</li>
-                <li id="checkHeight"><span></span>Höjd</li>
+                <li id="checkLength">
+                  <span></span>
+                  <button class="check-label" id="editLengthButton" type="button">Längd</button>
+                  <button class="check-lock" id="lockLengthButton" type="button" aria-label="Lås längd"><span class="lock-icon" aria-hidden="true"></span></button>
+                </li>
+                <li id="checkHeight">
+                  <span></span>
+                  <button class="check-label" id="editHeightButton" type="button">Höjd</button>
+                  <button class="check-lock" id="lockHeightButton" type="button" aria-label="Lås höjd"><span class="lock-icon" aria-hidden="true"></span></button>
+                </li>
                 <li id="checkResult"><span></span>Bigplus</li>
               </ol>
+              <button class="primary-button checklist-next-button" id="checklistNextButton" type="button">Klar</button>
+              <div class="checklist-help">
+                <strong>Så gör du</strong>
+                <p>Referensen används för fiskens längd och höjd. Markera längd från nos till stjärt och höjd över fiskens tjockaste ställe. Klicka på Längd eller Höjd om du vill lägga om strecket.</p>
+              </div>
             </aside>
             <div class="reference-readout" id="referenceReadout">
               <span>Referens</span>
@@ -181,7 +200,7 @@
             <textarea id="catchNote" rows="3" placeholder="Plats, bete, väder..."></textarea>
           </div>
 
-          <button class="primary-button" id="saveButton" type="button" disabled>Spara fångst</button>
+          <button class="primary-button" id="saveButton" type="button" disabled>Spara Bigplus</button>
           <p class="small-print" id="disclaimer">
             Kontrollera alltid lokala regler, fredningstider och undantag.
           </p>

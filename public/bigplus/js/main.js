@@ -42,6 +42,11 @@ const state = {
     dragOffsetY: 0,
     startBaseHeight: 150,
     startAngleDeg: 0,
+    scaleStartCenterX: 0,
+    scaleStartCenterY: 0,
+    scaleStartAngle: 0,
+    scaleStartAxis: 0,
+    scaleStartLength: 150,
     autoPerspective: true,
     depthMode: "fish",
     showMarkers: false,
@@ -118,6 +123,9 @@ const els = {
   simpleCanButton: document.querySelector("#simpleCanButton"),
   simpleGlassesButton: document.querySelector("#simpleGlassesButton"),
   lockReferenceButton: document.querySelector("#lockReferenceButton"),
+  clearButton: document.querySelector("#clearButton"),
+  paletteGlasses: document.querySelector("#paletteGlasses"),
+  paletteCan: document.querySelector("#paletteCan"),
   checkPhoto: document.querySelector("#checkPhoto"),
   checkGlasses: document.querySelector("#checkGlasses"),
   checkLock: document.querySelector("#checkLock"),
@@ -125,6 +133,11 @@ const els = {
   checkLength: document.querySelector("#checkLength"),
   checkHeight: document.querySelector("#checkHeight"),
   checkResult: document.querySelector("#checkResult"),
+  editLengthButton: document.querySelector("#editLengthButton"),
+  editHeightButton: document.querySelector("#editHeightButton"),
+  lockLengthButton: document.querySelector("#lockLengthButton"),
+  lockHeightButton: document.querySelector("#lockHeightButton"),
+  checklistNextButton: document.querySelector("#checklistNextButton"),
   calculateButton: document.querySelector("#calculateButton"),
   resetButton: document.querySelector("#resetButton"),
   saveButton: document.querySelector("#saveButton"),
@@ -199,6 +212,10 @@ function getStoredReferences() {
 
 function storeReferences(references) {
   localStorage.setItem("bigplus_references", JSON.stringify(references));
+}
+
+function currentUserId() {
+  return String(localStorage.getItem("inlev_user") || "").trim();
 }
 
 function updateReferenceSpecificControls() {
@@ -327,6 +344,16 @@ function updateSimpleReferenceButtons() {
   const canReady = Boolean(state.referenceSlots.can) || state.referenceSlots.active === "can";
   els.simpleGlassesButton?.classList.toggle("active", glassesReady);
   els.simpleCanButton?.classList.toggle("active", canReady);
+  if (els.paletteCan) {
+    const canEnabled = Boolean(state.referenceSlots.glasses);
+    els.paletteCan.disabled = !canEnabled;
+    els.paletteCan.draggable = canEnabled;
+    els.paletteCan.title = canEnabled ? "Dra in burken som extra referens" : "Placera glasögonen först";
+  }
+  if (els.paletteGlasses) {
+    els.paletteGlasses.disabled = false;
+    els.paletteGlasses.draggable = true;
+  }
   if (els.simpleGlassesButton) {
     els.simpleGlassesButton.textContent = state.referenceSlots.glasses ? "Glasögon klar" : "1 Glasögon";
   }
@@ -343,11 +370,52 @@ function updateReferenceLockButton() {
   els.lockReferenceButton.textContent = state.virtualReference.locked ? "Lås upp" : "Lås referens";
 }
 
+function isAnyReferenceLocked() {
+  return Boolean(
+    state.referenceSlots.glasses?.virtual?.locked ||
+    state.referenceSlots.can?.virtual?.locked ||
+    state.virtualReference.locked
+  );
+}
+
+function updateMeasurementLockButtons() {
+  const updateButton = (button, tool, label) => {
+    if (!button) return;
+    const locked = Boolean(state.measurementLocks[tool]);
+    const canLock = state.points[tool].length === 2;
+    button.disabled = !canLock && !locked;
+    button.classList.toggle("is-locked", locked);
+    button.setAttribute("aria-label", locked ? `Lås upp ${label}` : `Lås ${label}`);
+    button.title = locked ? `Lås upp ${label}` : `Lås ${label}`;
+  };
+
+  updateButton(els.lockLengthButton, "fish", "längd");
+  updateButton(els.lockHeightButton, "body", "höjd");
+}
+
+function checklistNextLabel() {
+  if (!state.image) return "Välj bild";
+  if (!state.referenceSlots.glasses) return "Placera glasögon";
+  if (!isAnyReferenceLocked()) return "Lås referens";
+  if (state.points.fish.length < 2) return "Markera längd";
+  if (!state.measurementLocks.fish) return "Lås längd";
+  if (state.points.body.length < 2) return "Markera höjd";
+  if (!state.measurementLocks.body) return "Lås höjd";
+  if (!state.lastResult) return "Räkna Bigplus";
+  return "Spara Bigplus";
+}
+
+function updateChecklistNextButton() {
+  if (!els.checklistNextButton) return;
+  els.checklistNextButton.textContent = checklistNextLabel();
+  els.checklistNextButton.disabled = !state.image;
+}
+
 function updateChecklist() {
   const items = [
     [els.checkPhoto, Boolean(state.image)],
     [els.checkGlasses, Boolean(state.referenceSlots.glasses)],
-    [els.checkLock, Boolean(state.referenceSlots.glasses?.virtual?.locked || state.referenceSlots.can?.virtual?.locked || state.virtualReference.locked)],
+    [els.checkLock, isAnyReferenceLocked()],
     [els.checkCan, Boolean(state.referenceSlots.can)],
     [els.checkLength, state.points.fish.length === 2],
     [els.checkHeight, state.points.body.length === 2],
@@ -362,6 +430,15 @@ function updateChecklist() {
   }
   els.checkLength?.classList.toggle("is-locked", state.measurementLocks.fish);
   els.checkHeight?.classList.toggle("is-locked", state.measurementLocks.body);
+  updateMeasurementLockButtons();
+  updateChecklistNextButton();
+}
+
+function invalidateResult() {
+  state.lastResult = null;
+  state.lastPayload = null;
+  els.saveButton.disabled = true;
+  renderResult(null);
 }
 
 function lockMeasurement(tool) {
@@ -373,13 +450,26 @@ function lockMeasurement(tool) {
 function unlockMeasurement(tool) {
   if (tool !== "fish" && tool !== "body") return;
   state.measurementLocks[tool] = false;
-  state.points[tool] = [];
-  state.lastResult = null;
-  state.lastPayload = null;
-  els.saveButton.disabled = true;
+  invalidateResult();
   setTool(tool);
-  renderResult(null);
-  setStatus(tool === "fish" ? "Markera längd" : "Markera höjd");
+  setStatus(tool === "fish" ? "Justera längd" : "Justera höjd");
+  draw();
+}
+
+function toggleMeasurementLock(tool) {
+  if (tool !== "fish" && tool !== "body") return;
+  if (state.points[tool].length < 2) {
+    unlockMeasurement(tool);
+    return;
+  }
+
+  if (state.measurementLocks[tool]) {
+    unlockMeasurement(tool);
+    return;
+  }
+
+  lockMeasurement(tool);
+  setStatus(tool === "fish" ? "Längd låst" : "Höjd låst");
   draw();
 }
 
@@ -701,8 +791,23 @@ function nextToolAfterComplete(tool) {
   return "body";
 }
 
+function isActiveUnlockedMeasurementTool() {
+  return (state.activeTool === "fish" || state.activeTool === "body") && !state.measurementLocks[state.activeTool];
+}
+
 function hitMeasurementPoint(point) {
   const hitRadius = 18 / state.view.zoom;
+  // The active measurement owns pointer hits while it is being placed.
+  // This allows height endpoints to sit directly on length endpoints.
+  if (isActiveUnlockedMeasurementTool()) {
+    const points = state.points[state.activeTool];
+    for (let index = 0; index < points.length; index += 1) {
+      if (pointDistance(point, points[index]) <= hitRadius) {
+        return { tool: state.activeTool, index };
+      }
+    }
+    return null;
+  }
   const tools = [state.activeTool, "fish", "body", "ref"].filter((tool, index, all) => all.indexOf(tool) === index);
 
   for (const tool of tools) {
@@ -1038,6 +1143,58 @@ function drawCanReferenceAsset(x, y, rect, radius) {
   ctx.restore();
 }
 
+function drawRotateControl(point) {
+  ctx.save();
+  ctx.translate(point.x, point.y);
+  ctx.fillStyle = "#ffffff";
+  ctx.strokeStyle = "#24a0c8";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(0, 0, 13, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = "#17201b";
+  ctx.lineWidth = 2.2;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.arc(0, 1, 6.2, -0.2, Math.PI * 1.42);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-5.8, 4.8);
+  ctx.lineTo(-10.2, 5.4);
+  ctx.lineTo(-7.4, 1.9);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawScaleControl(point) {
+  ctx.save();
+  ctx.translate(point.x, point.y);
+  ctx.fillStyle = "#ffffff";
+  ctx.strokeStyle = "#17201b";
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.roundRect(-12, -12, 24, 24, 6);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(-5.5, 5.5);
+  ctx.lineTo(5.5, -5.5);
+  ctx.moveTo(5.5, -5.5);
+  ctx.lineTo(0.5, -5.5);
+  ctx.moveTo(5.5, -5.5);
+  ctx.lineTo(5.5, -0.5);
+  ctx.moveTo(-5.5, 5.5);
+  ctx.lineTo(-0.5, 5.5);
+  ctx.moveTo(-5.5, 5.5);
+  ctx.lineTo(-5.5, 0.5);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawVirtualReference() {
   if (!state.virtualReference.enabled) return;
 
@@ -1091,23 +1248,8 @@ function drawVirtualReference() {
     ctx.stroke();
   }
   ctx.beginPath();
-  ctx.arc(handles.rotate.x, handles.rotate.y, 12, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "#17201b";
-  ctx.font = "900 14px system-ui, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("R", handles.rotate.x, handles.rotate.y + 1);
-
-  ctx.fillStyle = "#ffffff";
-  ctx.strokeStyle = "#17201b";
-  ctx.beginPath();
-  ctx.rect(handles.scale.x - 11, handles.scale.y - 11, 22, 22);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "#17201b";
-  ctx.fillText("S", handles.scale.x, handles.scale.y + 1);
+  drawRotateControl(handles.rotate);
+  drawScaleControl(handles.scale);
   ctx.restore();
 }
 
@@ -1179,7 +1321,18 @@ function setTool(tool) {
   els.bodyTool.classList.toggle("active", tool === "body");
 }
 
-function resetPoints() {
+function resetPoints(options = {}) {
+  const clearImage = Boolean(options.clearImage);
+  if (clearImage) {
+    state.image = null;
+    state.imageDataUrl = "";
+    els.photoInput.value = "";
+    els.emptyState.classList.remove("hidden");
+    resetZoom();
+    setStatus("Redo");
+  } else {
+    setStatus("Rensad");
+  }
   state.virtualReference.enabled = false;
   state.virtualReference.selected = false;
   state.virtualReference.dragging = false;
@@ -1303,6 +1456,7 @@ async function persistCatch() {
     setStatus("Sparar");
     const payload = {
       measurement: state.lastPayload,
+      userId: currentUserId(),
       note: els.catchNote.value,
       photo: state.imageDataUrl
     };
@@ -1343,11 +1497,12 @@ function renderCatches(items) {
 }
 
 async function loadCatches() {
+  const userId = currentUserId();
   try {
-    const catches = await getCatches();
+    const catches = await getCatches(userId);
     renderCatches(catches);
   } catch {
-    renderCatches(getLocalCatches().slice(-30).reverse());
+    renderCatches(getLocalCatches(userId).slice(-30).reverse());
   }
 }
 
@@ -1400,7 +1555,7 @@ function removeSelectedReference() {
   state.points.ref = [];
   state.points.body = [];
   els.customReferenceWrap.style.display = els.referenceSelect.value === "custom" ? "flex" : "none";
-  els.saveButton.disabled = true;
+  invalidateResult();
   setStatus("Referens borttagen");
   draw();
 }
@@ -1450,8 +1605,8 @@ function placeVirtualReference(options = {}) {
   state.virtualReference.y = state.virtualReference.groundY - rect.height;
   updateVirtualReferencePoints();
   syncActiveReferenceSlot();
-  setTool("fish");
-  els.saveButton.disabled = true;
+  setTool(options.nextTool || "ref");
+  invalidateResult();
   setStatus(options.status || "Dra referens");
   draw();
 }
@@ -1491,6 +1646,26 @@ function placeGlassesAtPoint(point, width, status = "Glasögon placerade") {
   });
 }
 
+function defaultPalettePoint(referenceId) {
+  const frame = getImageFrame();
+  if (referenceId === "glasses") {
+    return {
+      x: frame.offsetX + frame.drawWidth * 0.5,
+      y: frame.offsetY + frame.drawHeight * 0.32
+    };
+  }
+
+  return {
+    x: frame.offsetX + frame.drawWidth * 0.18,
+    y: frame.offsetY + frame.drawHeight * 0.58
+  };
+}
+
+function placeDefaultGlassesReference(status = "Dra och placera glasögonen") {
+  prepareGlassesReference();
+  placeGlassesAtPoint(defaultPalettePoint("glasses"), undefined, status);
+}
+
 async function placeGlassesReference() {
   if (!state.image) {
     setStatus("Ladda bild först");
@@ -1514,10 +1689,7 @@ async function placeGlassesReference() {
     return;
   }
 
-  state.glassesPlacement.active = true;
-  state.virtualReference.selected = false;
-  setStatus("Klicka på ansiktet");
-  draw();
+  placeDefaultGlassesReference("Dra och placera glasögonen");
 }
 
 function startFaceDepthLine() {
@@ -1596,6 +1768,49 @@ function placeSelectedSimpleReference(status) {
   placeVirtualReference({ status: status || "Burk placerad" });
 }
 
+function placePaletteReference(referenceId, point = null) {
+  if (!state.image) {
+    setStatus("Välj bild först");
+    return;
+  }
+
+  if (referenceId === "can-330" && !state.referenceSlots.glasses) {
+    setStatus("Placera glasögon först");
+    return;
+  }
+
+  syncActiveReferenceSlot();
+  const slotName = referenceSlotNameForId(referenceId);
+  if (slotName) state.referenceSlots.active = slotName;
+  els.referenceSelect.value = referenceId;
+  els.customReferenceWrap.style.display = "none";
+
+  if (referenceId === "glasses") {
+    prepareGlassesReference();
+    placeGlassesAtPoint(point || defaultPalettePoint("glasses"), undefined, "Dra och placera glasögonen");
+    updateSimpleReferenceButtons();
+    return;
+  }
+
+  els.autoPerspectiveToggle.checked = true;
+  els.depthModeSelect.value = "fish";
+  els.referenceScaleRange.value = "150";
+  els.referenceRotationRange.value = "0";
+  setCalibrationPercent(100);
+  updateReferenceSpecificControls();
+  updateSimpleReferenceButtons();
+
+  const center = point || defaultPalettePoint(referenceId);
+  const height = Number(els.referenceScaleRange.value) || 150;
+  const width = height * selectedReferenceWidthRatio();
+  placeVirtualReference({
+    x: center.x - width / 2,
+    groundY: center.y + height / 2,
+    rotationDeg: 0,
+    status: "Burk placerad"
+  });
+}
+
 function chooseSimpleReference(referenceId) {
   if (referenceId === "can-330" && !state.referenceSlots.glasses) {
     els.referenceSelect.value = "glasses";
@@ -1631,13 +1846,101 @@ function toggleReferenceLock() {
     state.virtualReference.dragging = false;
     state.virtualReference.pointerAction = "";
     setStatus("Referens låst");
+    setTool("fish");
   } else {
     state.virtualReference.selected = true;
+    setTool("ref");
     setStatus("Referens upplåst");
   }
   syncActiveReferenceSlot();
   updateReferenceLockButton();
   draw();
+}
+
+async function finishChecklistStep() {
+  if (!state.image) {
+    setStatus("Välj bild");
+    return;
+  }
+
+  if (!state.referenceSlots.glasses) {
+    placePaletteReference("glasses");
+    return;
+  }
+
+  if (!isAnyReferenceLocked()) {
+    if (!state.virtualReference.enabled) {
+      loadReferenceSlot(state.referenceSlots.active || "glasses", true);
+    }
+    if (state.virtualReference.enabled) {
+      state.virtualReference.locked = true;
+      state.virtualReference.selected = false;
+      state.virtualReference.dragging = false;
+      state.virtualReference.pointerAction = "";
+      syncActiveReferenceSlot();
+      setTool("fish");
+      setStatus("Referens låst");
+      draw();
+    }
+    return;
+  }
+
+  if (state.points.fish.length < 2) {
+    unlockMeasurement("fish");
+    setStatus("Markera längd");
+    return;
+  }
+
+  if (!state.measurementLocks.fish) {
+    lockMeasurement("fish");
+    setTool("body");
+    setStatus("Längd låst");
+    draw();
+    return;
+  }
+
+  if (state.points.body.length < 2) {
+    unlockMeasurement("body");
+    setStatus("Markera höjd");
+    return;
+  }
+
+  if (!state.measurementLocks.body) {
+    lockMeasurement("body");
+    setStatus("Höjd låst");
+    draw();
+    return;
+  }
+
+  if (!state.lastResult) {
+    await calculate();
+    return;
+  }
+
+  await persistCatch();
+}
+
+function bindReferencePaletteItem(element, referenceId) {
+  if (!element) return;
+
+  element.addEventListener("click", () => placePaletteReference(referenceId));
+  element.addEventListener("dragstart", (event) => {
+    element.classList.add("is-dragging");
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("text/plain", referenceId);
+    event.dataTransfer.setData("application/x-bigplus-reference", referenceId);
+  });
+  element.addEventListener("dragend", () => {
+    element.classList.remove("is-dragging");
+  });
+}
+
+function referenceIdFromDrop(event) {
+  return (
+    event.dataTransfer.getData("application/x-bigplus-reference") ||
+    event.dataTransfer.getData("text/plain") ||
+    ""
+  );
 }
 
 async function boot() {
@@ -1660,7 +1963,7 @@ async function boot() {
   els.customReferenceWrap.style.display = "none";
   updateReferenceSpecificControls();
   updateSimpleReferenceButtons();
-  renderCatches(getLocalCatches().slice(-30).reverse());
+  renderCatches(getLocalCatches(currentUserId()).slice(-30).reverse());
 
   try {
     const [references, species] = await Promise.all([getReferences(), getSpecies()]);
@@ -1727,17 +2030,18 @@ els.canvas.addEventListener("click", (event) => {
     return;
   }
   const point = getCanvasPoint(event);
+  const measuring = isActiveUnlockedMeasurementTool();
   if (state.glassesPlacement.active) {
     placeGlassesAtPoint(point, undefined, "Glasögon placerade");
     return;
   }
-  if (isInsideVirtualReference(point)) {
+  if (!measuring && isInsideVirtualReference(point)) {
     if (state.virtualReference.locked) return;
     state.virtualReference.selected = true;
     draw();
     return;
   }
-  if (state.virtualReference.enabled && state.virtualReference.selected) {
+  if (!measuring && state.virtualReference.enabled && state.virtualReference.selected) {
     state.virtualReference.selected = false;
     draw();
     return;
@@ -1754,10 +2058,14 @@ els.canvas.addEventListener("click", (event) => {
   points.push(point);
   if (points.length === 2) {
     const completedTool = state.activeTool;
-    lockMeasurement(completedTool);
-    setTool(nextToolAfterComplete(completedTool));
+    if (completedTool === "fish" || completedTool === "body") {
+      state.measurementLocks[completedTool] = false;
+      setStatus(completedTool === "fish" ? "Längd markerad" : "Höjd markerad");
+    } else {
+      setTool(nextToolAfterComplete(completedTool));
+    }
   }
-  els.saveButton.disabled = true;
+  invalidateResult();
   draw();
 });
 
@@ -1765,6 +2073,7 @@ els.canvas.addEventListener("pointerdown", (event) => {
   if (!state.image) return;
   const screenPoint = getCanvasScreenPoint(event);
   const point = getCanvasPoint(event);
+  const measuring = isActiveUnlockedMeasurementTool();
   const faceDepthHit = hitFaceDepthPoint(point);
   if (isGlassesReference() && (state.faceDepthLine.active || faceDepthHit >= 0)) {
     state.faceDepthLine.dragging = true;
@@ -1780,14 +2089,6 @@ els.canvas.addEventListener("pointerdown", (event) => {
     return;
   }
 
-  if (state.virtualReference.enabled && !state.virtualReference.selected && isInsideVirtualReference(point)) {
-    if (state.virtualReference.locked) return;
-    state.virtualReference.selected = true;
-    state.virtualReference.suppressNextClick = true;
-    draw();
-    return;
-  }
-
   const pointHit = hitMeasurementPoint(point);
   if (pointHit) {
     state.pointDrag.dragging = true;
@@ -1798,7 +2099,15 @@ els.canvas.addEventListener("pointerdown", (event) => {
     return;
   }
 
-  const action = hitVirtualReferenceControl(point);
+  if (!measuring && state.virtualReference.enabled && !state.virtualReference.selected && isInsideVirtualReference(point)) {
+    if (state.virtualReference.locked) return;
+    state.virtualReference.selected = true;
+    state.virtualReference.suppressNextClick = true;
+    draw();
+    return;
+  }
+
+  const action = measuring ? "" : hitVirtualReferenceControl(point);
   if (!action) {
     if (state.view.zoom <= 1) return;
     state.view.dragging = true;
@@ -1819,6 +2128,15 @@ els.canvas.addEventListener("pointerdown", (event) => {
   state.virtualReference.dragOffsetY = point.y - (rect.y + rect.height);
   state.virtualReference.startBaseHeight = state.virtualReference.baseHeight;
   state.virtualReference.startAngleDeg = state.virtualReference.rotationDeg - angleFromCenter(point);
+  if (action === "scale") {
+    const geometry = virtualReferenceGeometry();
+    const local = localReferencePoint(point, geometry);
+    state.virtualReference.scaleStartCenterX = geometry.centerX;
+    state.virtualReference.scaleStartCenterY = geometry.centerY;
+    state.virtualReference.scaleStartAngle = geometry.angle;
+    state.virtualReference.scaleStartAxis = isGlassesReference() ? local.x : local.y;
+    state.virtualReference.scaleStartLength = state.virtualReference.height;
+  }
   els.canvas.setPointerCapture(event.pointerId);
 });
 
@@ -1827,7 +2145,7 @@ els.canvas.addEventListener("pointermove", (event) => {
     const point = getCanvasPoint(event);
     state.faceDepthLine.points[state.faceDepthLine.index] = point;
     state.virtualReference.faceDepthOffset = selectedFaceDepthOffset();
-    els.saveButton.disabled = true;
+    invalidateResult();
     els.canvas.style.cursor = "grabbing";
     draw();
     return;
@@ -1839,7 +2157,7 @@ els.canvas.addEventListener("pointermove", (event) => {
     if (points?.[state.pointDrag.index]) {
       points[state.pointDrag.index] = point;
       state.pointDrag.moved = true;
-      els.saveButton.disabled = true;
+      invalidateResult();
       els.canvas.style.cursor = "grabbing";
       draw();
     }
@@ -1862,7 +2180,7 @@ els.canvas.addEventListener("pointermove", (event) => {
   if (!state.virtualReference.dragging) {
     const faceDepthHit = hitFaceDepthPoint(point);
     const pointHit = hitMeasurementPoint(point);
-    const hoverAction = hitVirtualReferenceControl(point);
+    const hoverAction = isActiveUnlockedMeasurementTool() ? "" : hitVirtualReferenceControl(point);
     let cursor = "crosshair";
     if (faceDepthHit >= 0 || pointHit || hoverAction === "rotate") {
       cursor = "grab";
@@ -1882,25 +2200,33 @@ els.canvas.addEventListener("pointermove", (event) => {
     state.virtualReference.rotationDeg = normalizeAngle(angleFromCenter(point) + state.virtualReference.startAngleDeg);
     els.referenceRotationRange.value = String(state.virtualReference.rotationDeg);
   } else if (state.virtualReference.pointerAction === "scale") {
-    const geometry = virtualReferenceGeometry();
-    const local = localReferencePoint(point, geometry);
-    const visualLength = isGlassesReference()
-      ? clamp((Math.abs(local.x) - 16) * 2, 42, 360)
-      : clamp((Math.abs(local.y) - 16) * 2, 42, 360);
+    const start = {
+      centerX: state.virtualReference.scaleStartCenterX,
+      centerY: state.virtualReference.scaleStartCenterY,
+      angle: state.virtualReference.scaleStartAngle
+    };
+    const local = localReferencePoint(point, start);
+    const axis = isGlassesReference() ? local.x : local.y;
+    const visualLength = clamp(
+      state.virtualReference.scaleStartLength + (axis - state.virtualReference.scaleStartAxis) * 2,
+      42,
+      360
+    );
     const anchorY = getPerspectiveAnchorY();
     const perspective = state.virtualReference.autoPerspective && anchorY !== null && state.virtualReference.depthMode !== "manual"
       ? perspectiveScaleForY(anchorY)
       : 1;
     state.virtualReference.baseHeight = clamp(visualLength / Math.max(0.1, perspective), 60, 320);
     els.referenceScaleRange.value = String(Math.round(state.virtualReference.baseHeight));
-    state.virtualReference.height = visualLength;
-    const visualHeight = referenceVisualHeight(visualLength);
-    state.virtualReference.groundY = geometry.centerY + visualHeight / 2;
+    state.virtualReference.height = state.virtualReference.baseHeight * perspective;
+    const visualHeight = referenceVisualHeight(state.virtualReference.height);
+    state.virtualReference.x = state.virtualReference.scaleStartCenterX
+      - (state.virtualReference.height * selectedReferenceWidthRatio()) / 2;
+    state.virtualReference.groundY = state.virtualReference.scaleStartCenterY + visualHeight / 2;
     if (state.virtualReference.depthMode === "fish") {
       state.virtualReference.lockedAnchorY = state.virtualReference.groundY;
     }
     state.virtualReference.y = state.virtualReference.groundY - visualHeight;
-    updateVirtualReferenceHeightFromPerspective();
   } else {
     const nextGroundY = Math.min(
       Math.max(rect.height + 8, point.y - state.virtualReference.dragOffsetY),
@@ -1919,7 +2245,7 @@ els.canvas.addEventListener("pointermove", (event) => {
   }
 
   updateVirtualReferencePoints();
-  els.saveButton.disabled = true;
+  invalidateResult();
   draw();
 });
 
@@ -2003,7 +2329,7 @@ els.referenceScaleRange.addEventListener("input", () => {
   if (state.virtualReference.enabled) {
     updateVirtualReferenceHeightFromPerspective();
     updateVirtualReferencePoints();
-    els.saveButton.disabled = true;
+    invalidateResult();
     draw();
   }
 });
@@ -2012,7 +2338,7 @@ els.referenceRotationRange.addEventListener("input", () => {
   state.virtualReference.rotationDeg = Number(els.referenceRotationRange.value) || 0;
   if (state.virtualReference.enabled) {
     updateVirtualReferencePoints();
-    els.saveButton.disabled = true;
+    invalidateResult();
     draw();
   } else {
     renderReferenceReadout();
@@ -2022,7 +2348,7 @@ els.referenceRotationRange.addEventListener("input", () => {
 els.calibrationRange.addEventListener("input", () => {
   state.virtualReference.calibrationFactor = Number(els.calibrationRange.value) / 100 || 1;
   els.calibrationValue.textContent = `${Math.round(state.virtualReference.calibrationFactor * 100)}%`;
-  els.saveButton.disabled = true;
+  invalidateResult();
   renderReferenceReadout();
   enhanceReferenceReadout();
 });
@@ -2040,7 +2366,7 @@ els.depthModeSelect.addEventListener("change", () => {
       updateVirtualReferenceHeightFromPerspective();
     }
     updateVirtualReferencePoints();
-    els.saveButton.disabled = true;
+    invalidateResult();
     draw();
   } else {
     renderReferenceReadout();
@@ -2069,7 +2395,7 @@ els.autoPerspectiveToggle.addEventListener("change", () => {
       updateVirtualReferenceHeightFromPerspective();
     }
     updateVirtualReferencePoints();
-    els.saveButton.disabled = true;
+    invalidateResult();
     draw();
   }
 });
@@ -2096,18 +2422,34 @@ els.canvas.addEventListener("wheel", (event) => {
 els.refTool.addEventListener("click", () => setTool("ref"));
 els.fishTool.addEventListener("click", () => setTool("fish"));
 els.bodyTool.addEventListener("click", () => setTool("body"));
-els.checkLength?.addEventListener("click", () => unlockMeasurement("fish"));
-els.checkHeight?.addEventListener("click", () => unlockMeasurement("body"));
-els.simpleCanButton.addEventListener("click", () => chooseSimpleReference("can-330"));
-els.simpleGlassesButton.addEventListener("click", () => chooseSimpleReference("glasses"));
+els.editLengthButton?.addEventListener("click", () => unlockMeasurement("fish"));
+els.editHeightButton?.addEventListener("click", () => unlockMeasurement("body"));
+els.lockLengthButton?.addEventListener("click", () => toggleMeasurementLock("fish"));
+els.lockHeightButton?.addEventListener("click", () => toggleMeasurementLock("body"));
+els.simpleCanButton?.addEventListener("click", () => chooseSimpleReference("can-330"));
+els.simpleGlassesButton?.addEventListener("click", () => chooseSimpleReference("glasses"));
 els.lockReferenceButton.addEventListener("click", toggleReferenceLock);
+els.checklistNextButton?.addEventListener("click", finishChecklistStep);
+bindReferencePaletteItem(els.paletteGlasses, "glasses");
+bindReferencePaletteItem(els.paletteCan, "can-330");
+els.canvasWrap.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+});
+els.canvasWrap.addEventListener("drop", (event) => {
+  const referenceId = referenceIdFromDrop(event);
+  if (!["glasses", "can-330"].includes(referenceId)) return;
+  event.preventDefault();
+  placePaletteReference(referenceId, getCanvasPoint(event));
+});
 els.placeReferenceButton.addEventListener("click", placeVirtualReference);
 els.placeGlassesReferenceButton.addEventListener("click", placeGlassesReference);
 els.faceDepthToolButton.addEventListener("click", startFaceDepthLine);
 els.placeHandReferenceButton.addEventListener("click", placeHandReference);
 els.addReferenceButton.addEventListener("click", addReference);
 els.removeReferenceButton.addEventListener("click", removeSelectedReference);
-els.resetButton.addEventListener("click", resetPoints);
+els.clearButton?.addEventListener("click", () => resetPoints());
+els.resetButton.addEventListener("click", () => resetPoints({ clearImage: true }));
 els.calculateButton.addEventListener("click", calculate);
 els.saveButton.addEventListener("click", persistCatch);
 window.addEventListener("resize", draw);
