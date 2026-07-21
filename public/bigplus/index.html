@@ -43,10 +43,6 @@
               <input id="autoPerspectiveToggle" type="checkbox" checked>
               Auto-perspektiv
             </label>
-            <label class="check-field" for="showReferenceMarkersToggle">
-              <input id="showReferenceMarkersToggle" type="checkbox">
-              Visa gula markeringar
-            </label>
             <div class="field">
               <label for="depthModeSelect">Avstånd</label>
               <select id="depthModeSelect">
@@ -93,14 +89,14 @@
           </div>
 
           <div class="hint">
-            Lägg referensen parallellt med fisken. Markera först längd från nos till stjärt, sedan höjd där fisken är som högst. Dra en punkt för att justera.
+            Lägg referensen parallellt med fisken. Markera först längd från nos till stjärt, sedan höjd där fisken är som högst. Klicka på längdlinjen för att lägga till en böjning och följ fiskens form.
           </div>
         </aside>
 
         <section class="measure-area">
           <div class="simple-toolbar" aria-label="Snabbval">
             <input class="simple-file-input" id="photoInput" type="file" accept="image/*">
-            <label class="primary-button simple-upload-button" for="photoInput">Välj bild</label>
+            <label class="primary-button simple-upload-button" id="photoInputLabel" for="photoInput">Välj bild</label>
             <button class="secondary-button simple-lock-button" id="lockReferenceButton" type="button" disabled>Lås referens</button>
             <button class="secondary-button simple-clear-button" id="clearButton" type="button">Rensa</button>
             <button class="secondary-button simple-reset-button" id="resetButton" type="button">Börja om</button>
@@ -114,6 +110,9 @@
                 <button class="zoom-button reset-zoom" id="zoomResetButton" type="button">100%</button>
               </div>
               <canvas id="measureCanvas" width="1000" height="680"></canvas>
+              <div class="guided-overlay hidden" id="guidedOverlay" aria-live="polite">
+                <div class="guided-bubble" id="guidedBubble">Dra in glasögonen.</div>
+              </div>
               <div class="empty-state" id="emptyState">
                 <strong>Ladda upp en bild</strong>
                 <span>Börja med glasögon. Lägg till burk om du vill få två referenser.</span>
@@ -123,36 +122,42 @@
               <div class="reference-palette" aria-label="Dra referens till bilden">
                 <button class="reference-palette-item" id="paletteGlasses" type="button" draggable="true" data-reference-id="glasses">
                   <img src="/bigplus/assets/glasses-reference.png" alt="">
-                  <span>Dra och placera glasögonen.</span>
+                  <span>Dra in Glasögonen.</span>
                 </button>
                 <button class="reference-palette-item" id="paletteCan" type="button" draggable="true" data-reference-id="can-330">
                   <img src="/bigplus/assets/can-classic.png" alt="">
                   <span>Dra in burken som extra referens.</span>
                 </button>
               </div>
-              <h2>Checklista</h2>
-              <ol class="bigplus-checklist">
-                <li id="checkPhoto"><span></span>Bild</li>
-                <li id="checkGlasses"><span></span>Glasögon</li>
-                <li id="checkLock"><span></span>Lås referens</li>
-                <li id="checkCan" class="optional"><span></span>Burk extra</li>
-                <li id="checkLength">
+  <h2>Checklista</h2>
+  <ol class="bigplus-checklist">
+    <li id="checkPhoto"><span></span>Bild</li>
+    <li id="checkReference" class="checklist-section">
+      <span></span>
+      <strong>Referens</strong>
+      <button class="check-lock" id="lockReferenceChecklist" type="button" aria-label="Lås referenser"><span class="lock-icon" aria-hidden="true"></span></button>
+    </li>
+    <li id="checkGlasses" class="checklist-subitem"><span></span><button class="check-label" type="button">Glasögon</button></li>
+    <li id="checkCan" class="checklist-subitem"><span></span><button class="check-label" type="button">Burk</button></li>
+                <li id="checkSize" class="checklist-section">
+                  <span></span>
+                  <strong>Storlek</strong>
+                  <button class="check-lock" id="lockSizeChecklist" type="button" aria-label="Lås storlek"><span class="lock-icon" aria-hidden="true"></span></button>
+                </li>
+                <li id="checkLength" class="checklist-subitem">
                   <span></span>
                   <button class="check-label" id="editLengthButton" type="button">Längd</button>
-                  <button class="check-lock" id="lockLengthButton" type="button" aria-label="Lås längd"><span class="lock-icon" aria-hidden="true"></span></button>
                 </li>
-                <li id="checkHeight">
+                <li id="checkHeight" class="checklist-subitem">
                   <span></span>
                   <button class="check-label" id="editHeightButton" type="button">Höjd</button>
-                  <button class="check-lock" id="lockHeightButton" type="button" aria-label="Lås höjd"><span class="lock-icon" aria-hidden="true"></span></button>
                 </li>
-                <li id="checkResult"><span></span>Bigplus</li>
               </ol>
               <button class="primary-button checklist-next-button" id="checklistNextButton" type="button">Klar</button>
-              <div class="checklist-help">
-                <strong>Så gör du</strong>
-                <p>Referensen används för fiskens längd och höjd. Markera längd från nos till stjärt och höjd över fiskens tjockaste ställe. Klicka på Längd eller Höjd om du vill lägga om strecket.</p>
-              </div>
+  <div class="checklist-help" id="checklistStepHelp" aria-live="polite">
+    <strong id="checklistStepTitle">Nästa steg</strong>
+    <p id="checklistStepText">Ladda upp en bild för att börja.</p>
+  </div>
             </aside>
             <div class="reference-readout" id="referenceReadout">
               <span>Referens</span>

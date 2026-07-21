@@ -1,5 +1,7 @@
 const express = require("express");
 const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
 
 const catalogRouter = require("./routes/catalog");
 const measurementsRouter = require("./routes/measurements");
@@ -20,6 +22,12 @@ app.get("/health", (req, res) => {
     api: "up",
     service: "bigplus-api"
   });
+});
+
+app.get("/api/bigplus/test-image", (req, res, next) => {
+  const imagePath = path.join(process.env.USERPROFILE || "", "Downloads", "6420gram_83cm.jpg");
+  if (!fs.existsSync(imagePath)) return res.status(404).json({ error: "Testbilden saknas i Downloads" });
+  res.sendFile(imagePath, (error) => error && next(error));
 });
 
 app.use("/api/bigplus", catalogRouter);

@@ -28,6 +28,7 @@ const state = {
     body: false
   },
   virtualReference: {
+    referenceId: "glasses",
     enabled: false,
     selected: false,
     dragging: false,
@@ -92,9 +93,14 @@ const state = {
   lastPayload: null
 };
 
+let draggedReferenceId = "";
+let palettePointerDrag = null;
+let suppressPaletteClick = false;
+
 const els = {
   connectionStatus: document.querySelector("#connectionStatus"),
   photoInput: document.querySelector("#photoInput"),
+  photoInputLabel: document.querySelector("#photoInputLabel"),
   referenceSelect: document.querySelector("#referenceSelect"),
   customReferenceWrap: document.querySelector("#customReferenceWrap"),
   customReference: document.querySelector("#customReference"),
@@ -127,9 +133,12 @@ const els = {
   paletteGlasses: document.querySelector("#paletteGlasses"),
   paletteCan: document.querySelector("#paletteCan"),
   checkPhoto: document.querySelector("#checkPhoto"),
+  checkReference: document.querySelector("#checkReference"),
   checkGlasses: document.querySelector("#checkGlasses"),
-  checkLock: document.querySelector("#checkLock"),
+  lockReferenceChecklist: document.querySelector("#lockReferenceChecklist"),
   checkCan: document.querySelector("#checkCan"),
+  checkSize: document.querySelector("#checkSize"),
+  lockSizeChecklist: document.querySelector("#lockSizeChecklist"),
   checkLength: document.querySelector("#checkLength"),
   checkHeight: document.querySelector("#checkHeight"),
   checkResult: document.querySelector("#checkResult"),
@@ -138,6 +147,8 @@ const els = {
   lockLengthButton: document.querySelector("#lockLengthButton"),
   lockHeightButton: document.querySelector("#lockHeightButton"),
   checklistNextButton: document.querySelector("#checklistNextButton"),
+  checklistStepTitle: document.querySelector("#checklistStepTitle"),
+  checklistStepText: document.querySelector("#checklistStepText"),
   calculateButton: document.querySelector("#calculateButton"),
   resetButton: document.querySelector("#resetButton"),
   saveButton: document.querySelector("#saveButton"),
@@ -148,6 +159,8 @@ const els = {
   canvasWrap: document.querySelector(".canvas-wrap"),
   canvas: document.querySelector("#measureCanvas"),
   emptyState: document.querySelector("#emptyState"),
+  guidedOverlay: document.querySelector("#guidedOverlay"),
+  guidedBubble: document.querySelector("#guidedBubble"),
   referenceNameResult: document.querySelector("#referenceNameResult"),
   referenceSizeResult: document.querySelector("#referenceSizeResult"),
   referenceAngleResult: document.querySelector("#referenceAngleResult"),
@@ -164,10 +177,6 @@ const els = {
 };
 
 const ctx = els.canvas.getContext("2d");
-const canReferenceImage = new Image();
-canReferenceImage.decoding = "async";
-canReferenceImage.src = "/bigplus/assets/soda-can.svg";
-canReferenceImage.addEventListener("load", draw);
 const classicCanReferenceImage = new Image();
 classicCanReferenceImage.decoding = "async";
 classicCanReferenceImage.src = "/bigplus/assets/can-classic.png?v=20260719";
@@ -180,7 +189,7 @@ const CLASSIC_CAN_IMAGE_BOUNDS = {
 };
 const glassesReferenceImage = new Image();
 glassesReferenceImage.decoding = "async";
-glassesReferenceImage.src = "/bigplus/assets/glasses-reference.png";
+glassesReferenceImage.src = "/bigplus/assets/glasses-reference.png?v=20260720";
 glassesReferenceImage.addEventListener("load", draw);
 
 function setStatus(text) {
@@ -345,14 +354,19 @@ function updateSimpleReferenceButtons() {
   els.simpleGlassesButton?.classList.toggle("active", glassesReady);
   els.simpleCanButton?.classList.toggle("active", canReady);
   if (els.paletteCan) {
-    const canEnabled = Boolean(state.referenceSlots.glasses);
+    const canEnabled = Boolean(state.referenceSlots.glasses?.virtual?.locked);
     els.paletteCan.disabled = !canEnabled;
-    els.paletteCan.draggable = canEnabled;
-    els.paletteCan.title = canEnabled ? "Dra in burken som extra referens" : "Placera glasögonen först";
+    els.paletteCan.draggable = true;
+    els.paletteCan.title = canEnabled ? "Dra in burken" : "Lås glasögonen först";
+    els.paletteCan.classList.toggle("is-next-step", Boolean(state.image && canEnabled && !state.referenceSlots.can));
   }
   if (els.paletteGlasses) {
     els.paletteGlasses.disabled = false;
     els.paletteGlasses.draggable = true;
+    els.paletteGlasses.classList.toggle("is-next-step", Boolean(state.image && !state.referenceSlots.glasses));
+    els.paletteGlasses.title = state.image && !state.referenceSlots.glasses
+      ? "Dra in glasögonen till bilden"
+      : "Dra och placera glasögonen";
   }
   if (els.simpleGlassesButton) {
     els.simpleGlassesButton.textContent = state.referenceSlots.glasses ? "Glasögon klar" : "1 Glasögon";
@@ -370,6 +384,46 @@ function updateReferenceLockButton() {
   els.lockReferenceButton.textContent = state.virtualReference.locked ? "Lås upp" : "Lås referens";
 }
 
+function editReferenceSlot(slotName) {
+  const slot = state.referenceSlots[slotName];
+  if (!slot) return;
+  slot.virtual.locked = false;
+  state.referenceSlots.active = slotName;
+  loadReferenceSlot(slotName, true);
+  state.virtualReference.locked = false;
+  state.virtualReference.selected = true;
+  setTool("ref");
+  setStatus(slotName === "glasses" ? "Glasögon upplåsta" : "Burk upplåst");
+  updateReferenceLockButton();
+  updateReferenceChecklistLockButton();
+  updateSimpleReferenceButtons();
+  draw();
+}
+
+function guidedStepText() {
+  if (!state.image) return "Välj bild.";
+  const glasses = state.referenceSlots.glasses;
+  const can = state.referenceSlots.can;
+  if (!glasses) return "Dra in Glasögonen.";
+  if (!glasses.virtual?.locked) return "Placera glasögonen och lås dem.";
+  if (!can) return "Dra in burken.";
+  if (!can.virtual?.locked) return "Placera burken och lås den.";
+  if (state.points.fish.length < 2) return "Dra längdlinjen från nos till stjärt.";
+  if (!state.measurementLocks.fish) return "Kontrollera längden och lås markeringen.";
+  if (state.points.body.length < 2) return "Markera höjden där fisken är som tjockast.";
+  if (!state.measurementLocks.body) return "Kontrollera höjden och lås markeringen.";
+  return "";
+}
+
+function updateGuidedOverlay() {
+  if (!els.guidedOverlay || !els.guidedBubble || !els.canvasWrap) return;
+  const text = guidedStepText();
+  const visible = Boolean(text);
+  els.guidedOverlay.classList.toggle("hidden", !visible);
+  els.canvasWrap.classList.toggle("is-guided", visible);
+  if (visible) els.guidedBubble.textContent = text;
+}
+
 function isAnyReferenceLocked() {
   return Boolean(
     state.referenceSlots.glasses?.virtual?.locked ||
@@ -378,11 +432,68 @@ function isAnyReferenceLocked() {
   );
 }
 
+function areAllReferencesLocked() {
+  const slots = [state.referenceSlots.glasses, state.referenceSlots.can].filter(Boolean);
+  return slots.length > 0 && slots.every((slot) => Boolean(slot.virtual?.locked));
+}
+
+function updateReferenceChecklistLockButton() {
+  const button = els.lockReferenceChecklist;
+  if (!button) return;
+  const hasReference = Boolean(state.referenceSlots.glasses || state.referenceSlots.can || state.virtualReference.enabled);
+  const locked = areAllReferencesLocked();
+  button.disabled = !hasReference;
+  button.classList.toggle("is-locked", locked);
+  button.setAttribute("aria-label", locked ? "Lås upp referenser" : "Lås referenser");
+  button.title = locked ? "Lås upp referenser" : "Lås referenser";
+}
+
+function setReferencePlacementLock(locked) {
+  ["glasses", "can"].forEach((slotName) => {
+    const slot = state.referenceSlots[slotName];
+    if (!slot?.virtual) return;
+    slot.virtual.locked = locked;
+    slot.virtual.selected = false;
+    slot.virtual.dragging = false;
+    slot.virtual.pointerAction = "";
+  });
+
+  if (state.virtualReference.enabled) {
+    state.virtualReference.locked = locked;
+    state.virtualReference.selected = true;
+    state.virtualReference.dragging = false;
+    state.virtualReference.pointerAction = "";
+  }
+}
+
+function toggleReferencePlacementLock() {
+  if (!state.image || !state.virtualReference.enabled) {
+    setStatus("Placera referens först");
+    return;
+  }
+
+  const shouldUnlock = areAllReferencesLocked();
+  setReferencePlacementLock(!shouldUnlock);
+  if (shouldUnlock) {
+    state.virtualReference.selected = true;
+    setTool("ref");
+    setStatus("Referenser upplåsta");
+  } else {
+    setTool("fish");
+    setStatus("Referenser låsta");
+  }
+  syncActiveReferenceSlot();
+  updateReferenceLockButton();
+  updateReferenceChecklistLockButton();
+  updateChecklist();
+  draw();
+}
+
 function updateMeasurementLockButtons() {
   const updateButton = (button, tool, label) => {
     if (!button) return;
     const locked = Boolean(state.measurementLocks[tool]);
-    const canLock = state.points[tool].length === 2;
+    const canLock = state.points[tool].length >= 2;
     button.disabled = !canLock && !locked;
     button.classList.toggle("is-locked", locked);
     button.setAttribute("aria-label", locked ? `Lås upp ${label}` : `Lås ${label}`);
@@ -393,10 +504,42 @@ function updateMeasurementLockButtons() {
   updateButton(els.lockHeightButton, "body", "höjd");
 }
 
+function updateSizeChecklistLockButton() {
+  const button = els.lockSizeChecklist;
+  if (!button) return;
+  const hasSize = state.points.fish.length >= 2 && state.points.body.length >= 2;
+  const locked = Boolean(state.measurementLocks.fish && state.measurementLocks.body);
+  button.disabled = !hasSize;
+  button.classList.toggle("is-locked", locked);
+  button.setAttribute("aria-label", locked ? "Lås upp storlek" : "Lås storlek");
+  button.title = locked ? "Lås upp storlek" : "Lås storlek";
+}
+
+function toggleSizeChecklistLock() {
+  if (state.points.fish.length < 2 || state.points.body.length < 2) {
+    setStatus("Markera längd och höjd först");
+    return;
+  }
+  const locked = state.measurementLocks.fish && state.measurementLocks.body;
+  if (locked) {
+    unlockMeasurement("fish");
+    unlockMeasurement("body");
+    setStatus("Storlek upplåst");
+  } else {
+    state.measurementLocks.fish = true;
+    state.measurementLocks.body = true;
+    setTool("ref");
+    setStatus("Storlek låst");
+    updateChecklist();
+    draw();
+  }
+}
+
 function checklistNextLabel() {
   if (!state.image) return "Välj bild";
   if (!state.referenceSlots.glasses) return "Placera glasögon";
-  if (!isAnyReferenceLocked()) return "Lås referens";
+  if (!state.referenceSlots.can) return "Placera burk";
+  if (!areAllReferencesLocked()) return "Lås referenser";
   if (state.points.fish.length < 2) return "Markera längd";
   if (!state.measurementLocks.fish) return "Lås längd";
   if (state.points.body.length < 2) return "Markera höjd";
@@ -407,18 +550,40 @@ function checklistNextLabel() {
 
 function updateChecklistNextButton() {
   if (!els.checklistNextButton) return;
-  els.checklistNextButton.textContent = checklistNextLabel();
+  const nextStep = checklistNextLabel();
+  els.checklistNextButton.textContent = nextStep;
   els.checklistNextButton.disabled = !state.image;
+  if (els.checklistStepTitle && els.checklistStepText) {
+    const help = {
+      "Välj bild": ["Börja här", "Ladda upp en bild på fisken."],
+      "Placera glasögon": ["Nästa steg", "Dra glasögonen till huvudet så att de passar."],
+      "Placera burk": ["Nästa steg", "Dra in burken som nästa referens."],
+      "Lås referenser": ["Nästa steg", "Kontrollera glasögon och burk. Lås sedan Referens när placeringen känns bra."],
+      "Markera längd": ["Nästa steg", "Markera nos och stjärt. Klicka sedan på längdlinjen för att lägga till en böjning."],
+      "Lås längd": ["Nästa steg", "Kontrollera längdlinjen och lås den när den ligger rätt."],
+      "Markera höjd": ["Nästa steg", "Markera fiskens tjockaste ställe från rygg till buk."],
+      "Lås höjd": ["Nästa steg", "Kontrollera höjdlinjen och lås den när den ligger rätt."],
+      "Räkna Bigplus": ["Nästa steg", "Tryck på Räkna Bigplus när markeringarna är klara."],
+      "Spara Bigplus": ["Klart", "Din Bigplus är redo att sparas."],
+    }[nextStep] || ["Nästa steg", "Följ checklistan för att gå vidare."];
+    els.checklistStepTitle.textContent = help[0];
+    els.checklistStepText.textContent = help[1];
+  }
 }
 
 function updateChecklist() {
+  const referencesLocked = Boolean(
+    state.referenceSlots.glasses?.virtual?.locked &&
+    state.referenceSlots.can?.virtual?.locked
+  );
   const items = [
     [els.checkPhoto, Boolean(state.image)],
+    [els.checkReference, referencesLocked],
     [els.checkGlasses, Boolean(state.referenceSlots.glasses)],
-    [els.checkLock, isAnyReferenceLocked()],
     [els.checkCan, Boolean(state.referenceSlots.can)],
-    [els.checkLength, state.points.fish.length === 2],
-    [els.checkHeight, state.points.body.length === 2],
+    [els.checkSize, state.points.fish.length >= 2 && state.points.body.length >= 2],
+    [els.checkLength, state.points.fish.length >= 2],
+    [els.checkHeight, state.points.body.length >= 2],
     [els.checkResult, state.lastResult?.status === "BIGPLUS"]
   ];
   const firstOpen = items.find(([element, done]) => element && !done && !element.classList.contains("optional"))?.[0] || null;
@@ -430,6 +595,8 @@ function updateChecklist() {
   }
   els.checkLength?.classList.toggle("is-locked", state.measurementLocks.fish);
   els.checkHeight?.classList.toggle("is-locked", state.measurementLocks.body);
+  updateSizeChecklistLockButton();
+  updateReferenceChecklistLockButton();
   updateMeasurementLockButtons();
   updateChecklistNextButton();
 }
@@ -509,6 +676,7 @@ function updateFaceDepthResult() {
 
 function currentVirtualReferenceSnapshot() {
   return {
+    referenceId: els.referenceSelect.value,
     enabled: state.virtualReference.enabled,
     x: state.virtualReference.x,
     y: state.virtualReference.y,
@@ -596,6 +764,10 @@ function referenceScalesForCalculation() {
 function combinedReferenceScaleCmPerPixel() {
   const scales = referenceScalesForCalculation();
   if (!scales.length) return null;
+  // A can placed in the hand is a physical-size anchor at the fish's depth.
+  // Prefer it over the glasses reference, which is normally farther back.
+  const canScale = scales.find((item) => item.referenceId === "can-330");
+  if (canScale) return canScale.scaleCmPerPixel;
   return scales.reduce((sum, item) => sum + item.scaleCmPerPixel, 0) / scales.length;
 }
 
@@ -612,9 +784,7 @@ function referenceVisualHeight(measureLength) {
 }
 
 function selectedCanReferenceImage() {
-  return els.referenceSelect.value === "can-330"
-    ? classicCanReferenceImage
-    : canReferenceImage;
+  return classicCanReferenceImage;
 }
 
 function renderReferenceReadout() {
@@ -707,7 +877,7 @@ function updateVirtualReferenceHeightFromPerspective() {
   const anchorY = getPerspectiveAnchorY();
   state.virtualReference.height = anchorY === null
     ? state.virtualReference.baseHeight
-    : Math.max(42, state.virtualReference.baseHeight * perspectiveScaleForY(anchorY));
+    : Math.max(5, state.virtualReference.baseHeight * perspectiveScaleForY(anchorY));
   state.virtualReference.y = groundY - referenceVisualHeight(state.virtualReference.height);
 }
 
@@ -773,16 +943,64 @@ function isInsideVirtualReference(point) {
   return Math.abs(localX) <= rect.width / 2 + 10 && Math.abs(localY) <= rect.height / 2 + 10;
 }
 
+function referenceSlotContainsPoint(slotName, point) {
+  const slot = state.referenceSlots[slotName];
+  if (!slot) return false;
+
+  const savedReferenceId = els.referenceSelect.value;
+  const savedVirtualReference = { ...state.virtualReference };
+  const savedPoints = clonePoints(state.points.ref);
+  els.referenceSelect.value = slot.referenceId;
+  state.virtualReference = {
+    ...state.virtualReference,
+    ...slot.virtual,
+    enabled: true
+  };
+  state.points.ref = clonePoints(slot.points);
+  const inside = isInsideVirtualReference(point);
+  els.referenceSelect.value = savedReferenceId;
+  state.virtualReference = savedVirtualReference;
+  state.points.ref = savedPoints;
+  return inside;
+}
+
+function referenceSlotAtPoint(point) {
+  const slotNames = ["glasses", "can"];
+  return slotNames.find((slotName) => referenceSlotContainsPoint(slotName, point)) || "";
+}
+
 function virtualReferenceHandles() {
   const rect = virtualReferenceGeometry();
   return {
     rotate: rotateLocalPoint(rect.centerX, rect.centerY, 0, -rect.height / 2 - 34, rect.angle),
-    scale: rotateLocalPoint(rect.centerX, rect.centerY, rect.width / 2 + 16, rect.height / 2 + 16, rect.angle)
+    scale: rotateLocalPoint(rect.centerX, rect.centerY, rect.width / 2 + 16, rect.height / 2 + 16, rect.angle),
+    lock: rotateLocalPoint(rect.centerX, rect.centerY, rect.width / 2 + 50, rect.height / 2 + 16, rect.angle)
   };
 }
 
 function pointDistance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function polylineDistance(points) {
+  if (!Array.isArray(points) || points.length < 2) return 0;
+  let total = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    total += pointDistance(points[index - 1], points[index]);
+  }
+  return total;
+}
+
+function distanceToSegment(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (!lengthSquared) return pointDistance(point, start);
+  const projection = clamp(((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared, 0, 1);
+  return pointDistance(point, {
+    x: start.x + projection * dx,
+    y: start.y + projection * dy
+  });
 }
 
 function nextToolAfterComplete(tool) {
@@ -824,6 +1042,16 @@ function hitMeasurementPoint(point) {
   return null;
 }
 
+function hitMeasurementSegment(point, tool = state.activeTool) {
+  if (tool !== "fish" || state.measurementLocks.fish) return -1;
+  const points = state.points.fish;
+  const hitRadius = 18 / state.view.zoom;
+  for (let index = 1; index < points.length; index += 1) {
+    if (distanceToSegment(point, points[index - 1], points[index]) <= hitRadius) return index - 1;
+  }
+  return -1;
+}
+
 function hitFaceDepthPoint(point) {
   if (!isGlassesReference() || !state.faceDepthLine.points.length) return -1;
   const hitRadius = 18 / state.view.zoom;
@@ -836,8 +1064,9 @@ function hitFaceDepthPoint(point) {
 function hitVirtualReferenceControl(point) {
   if (!state.virtualReference.enabled) return "";
   if (!state.virtualReference.selected) return "";
-  if (state.virtualReference.locked) return "";
   const handles = virtualReferenceHandles();
+  if (pointDistance(point, handles.lock) <= 20) return "lock";
+  if (state.virtualReference.locked) return "";
   if (pointDistance(point, handles.rotate) <= 20) return "rotate";
   if (pointDistance(point, handles.scale) <= 20) return "scale";
   if (isInsideVirtualReference(point)) return "move";
@@ -1007,25 +1236,45 @@ function drawMeasurementArrowLine(points, color, label) {
     return;
   }
 
-  const [start, end] = points;
-  const angle = Math.atan2(end.y - start.y, end.x - start.x);
+  const start = points[0];
+  const end = points[points.length - 1];
+  const endPrevious = points[points.length - 2];
+  const startNext = points[1];
+  const startAngle = Math.atan2(startNext.y - start.y, startNext.x - start.x);
+  const endAngle = Math.atan2(end.y - endPrevious.y, end.x - endPrevious.x);
   ctx.beginPath();
   ctx.moveTo(start.x, start.y);
-  ctx.lineTo(end.x, end.y);
+  for (let index = 1; index < points.length; index += 1) {
+    ctx.lineTo(points[index].x, points[index].y);
+  }
   ctx.stroke();
-  drawArrowHead(end, angle, color);
-  drawArrowHead(start, angle + Math.PI, color);
+
+  drawArrowHead(end, endAngle, color);
+  drawArrowHead(start, startAngle + Math.PI, color);
+
+  if (points.length > 2) {
+    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    for (let index = 1; index < points.length - 1; index += 1) {
+      ctx.beginPath();
+      ctx.arc(points[index].x, points[index].y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
 
   if (label) {
-    const midX = (start.x + end.x) / 2;
+    const labelPoint = points[Math.floor((points.length - 1) / 2)];
+    const midX = labelPoint.x;
     ctx.font = "800 16px system-ui, sans-serif";
     const paddingX = 8;
     const width = ctx.measureText(label).width + paddingX * 2;
     const height = 26;
     const isHeightLabel = label === "höjd";
     const labelY = isHeightLabel
-      ? Math.min(start.y, end.y) - height - 14
-      : Math.max(start.y, end.y) + 14;
+      ? labelPoint.y - height - 14
+      : labelPoint.y + 14;
     const boxX = clamp(midX - width / 2, 6, els.canvas.width - width - 6);
     const boxY = clamp(labelY, 6, els.canvas.height - height - 6);
     const textX = boxX + width / 2;
@@ -1119,11 +1368,11 @@ function drawCanReferenceAsset(x, y, rect, radius) {
     }
   } else {
     const gradient = ctx.createLinearGradient(x, y, x + rect.width, y);
-    gradient.addColorStop(0, "#941b20");
-    gradient.addColorStop(0.22, "#de3440");
-    gradient.addColorStop(0.55, "#f36b6d");
-    gradient.addColorStop(0.82, "#c9202c");
-    gradient.addColorStop(1, "#7a161b");
+    gradient.addColorStop(0, "#737c7b");
+    gradient.addColorStop(0.22, "#eef1ef");
+    gradient.addColorStop(0.55, "#b8c0be");
+    gradient.addColorStop(0.82, "#f4f6f5");
+    gradient.addColorStop(1, "#737c7b");
 
     ctx.fillStyle = gradient;
     ctx.beginPath();
@@ -1195,7 +1444,54 @@ function drawScaleControl(point) {
   ctx.restore();
 }
 
-function drawVirtualReference() {
+function drawReferenceLockControl(point, locked) {
+  ctx.save();
+  ctx.translate(point.x, point.y);
+  ctx.fillStyle = locked ? "#ddf6e9" : "#ffffff";
+  ctx.strokeStyle = locked ? "#1f6d4a" : "#17201b";
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.roundRect(-12, -12, 24, 24, 6);
+  ctx.fill();
+  ctx.stroke();
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(-6, -1, 12, 9, 2);
+  ctx.stroke();
+  ctx.beginPath();
+  if (locked) ctx.arc(0, -1, 5, Math.PI, 0);
+  else ctx.arc(0, -1, 5, Math.PI * 1.2, Math.PI * 0.05);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawMoveHandControl(point) {
+  ctx.save();
+  ctx.translate(point.x, point.y);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.96)";
+  ctx.strokeStyle = "#263c49";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, 16, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#263c49";
+  ctx.beginPath();
+  ctx.roundRect(-5, -1, 10, 9, 4);
+  ctx.fill();
+  ctx.lineWidth = 2.3;
+  ctx.lineCap = "round";
+  ctx.strokeStyle = "#263c49";
+  for (const fingerX of [-6, -2, 2, 6]) {
+    ctx.beginPath();
+    ctx.moveTo(fingerX, 2);
+    ctx.lineTo(fingerX, -8);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawVirtualReference(referenceId = state.virtualReference.referenceId || els.referenceSelect.value) {
   if (!state.virtualReference.enabled) return;
 
   const rect = virtualReferenceGeometry();
@@ -1203,7 +1499,8 @@ function drawVirtualReference() {
   const x = -rect.width / 2;
   const y = -rect.height / 2;
 
-  if (isGlassesReference()) {
+  const glassesReference = referenceId === "glasses";
+  if (glassesReference) {
     if (!drawGlassesReferenceAsset(x, y, rect)) {
       ctx.save();
       ctx.translate(rect.centerX, rect.centerY);
@@ -1233,7 +1530,7 @@ function drawVirtualReference() {
     drawCanReferenceAsset(x, y, rect, radius);
   }
 
-  if (!state.virtualReference.selected || state.virtualReference.locked) return;
+  if (!state.virtualReference.selected) return;
 
   const handles = virtualReferenceHandles();
   const topPoint = state.points.ref[0];
@@ -1241,15 +1538,19 @@ function drawVirtualReference() {
   ctx.lineWidth = 3;
   ctx.strokeStyle = "#24a0c8";
   ctx.fillStyle = "#ffffff";
-  if (topPoint) {
+  if (topPoint && !state.virtualReference.locked) {
     ctx.beginPath();
     ctx.moveTo(topPoint.x, topPoint.y);
     ctx.lineTo(handles.rotate.x, handles.rotate.y);
     ctx.stroke();
   }
   ctx.beginPath();
-  drawRotateControl(handles.rotate);
-  drawScaleControl(handles.scale);
+  if (!state.virtualReference.locked) {
+    drawRotateControl(handles.rotate);
+    drawScaleControl(handles.scale);
+    drawMoveHandControl({ x: rect.centerX, y: rect.centerY });
+  }
+  drawReferenceLockControl(handles.lock, state.virtualReference.locked);
   ctx.restore();
 }
 
@@ -1273,7 +1574,7 @@ function drawReferenceSlot(slotName) {
     showMarkers: false
   };
   state.points.ref = clonePoints(slot.points);
-  drawVirtualReference();
+  drawVirtualReference(slot.referenceId);
 
   els.referenceSelect.value = savedReferenceId;
   state.virtualReference = savedVirtualReference;
@@ -1285,6 +1586,7 @@ function draw() {
   ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
   updateReferenceLockButton();
   updateChecklist();
+  updateGuidedOverlay();
 
   if (!state.image) return;
 
@@ -1305,12 +1607,10 @@ function draw() {
   drawReferenceSlot("can");
   drawVirtualReference();
   drawFaceDepthLine();
-  if (!state.virtualReference.enabled) {
-    drawLine(state.points.ref, "#f0b429", state.virtualReference.enabled ? "" : "referens");
-  }
   drawMeasurementArrowLine(state.points.fish, "#24a0c8", "längd");
   drawMeasurementArrowLine(state.points.body, "#d97706", "höjd");
   updateChecklist();
+  updateGuidedOverlay();
   ctx.restore();
 }
 
@@ -1334,6 +1634,7 @@ function resetPoints(options = {}) {
     setStatus("Rensad");
   }
   state.virtualReference.enabled = false;
+  state.virtualReference.referenceId = "glasses";
   state.virtualReference.selected = false;
   state.virtualReference.dragging = false;
   state.virtualReference.pointerAction = "";
@@ -1397,7 +1698,7 @@ function renderResult(result) {
 }
 
 async function calculate() {
-  const fishPixels = distance(state.points.fish);
+  const fishPixels = polylineDistance(state.points.fish);
   const bodyPixels = distance(state.points.body);
   const referenceScaleCmPerPixel = combinedReferenceScaleCmPerPixel();
 
@@ -1423,11 +1724,13 @@ async function calculate() {
   const payload = {
     refPixels: 1,
     fishPixels,
-    bodyPixels: state.points.body.length === 2 ? bodyPixels : null,
+    bodyPixels: state.points.body.length >= 2 ? bodyPixels : null,
     refCm: referenceScaleCmPerPixel,
     calibrationFactor: 1,
     speciesId: els.speciesSelect.value,
-    minCm: Number(els.minSize.value)
+    minCm: Number(els.minSize.value),
+    referenceMode: state.referenceSlots.can ? "can-hand" : "glasses-depth",
+    faceDepthCm: faceDepthDistanceCm()
   };
 
   try {
@@ -1577,6 +1880,7 @@ function placeVirtualReference(options = {}) {
     ? options.groundY
     : Math.max(20 + height, els.canvas.height * 0.55);
   state.virtualReference.enabled = true;
+  state.virtualReference.referenceId = els.referenceSelect.value;
   state.virtualReference.selected = true;
   state.virtualReference.autoPerspective = els.autoPerspectiveToggle.checked;
   state.virtualReference.depthMode = els.depthModeSelect.value;
@@ -1771,6 +2075,7 @@ function placeSelectedSimpleReference(status) {
 function placePaletteReference(referenceId, point = null) {
   if (!state.image) {
     setStatus("Välj bild först");
+    updateGuidedOverlay();
     return;
   }
 
@@ -1786,9 +2091,16 @@ function placePaletteReference(referenceId, point = null) {
   els.customReferenceWrap.style.display = "none";
 
   if (referenceId === "glasses") {
+    // The first reference is always glasses. Clear a stale can slot so it
+    // cannot be rendered over the newly dropped glasses.
+    if (!state.referenceSlots.glasses) state.referenceSlots.can = null;
     prepareGlassesReference();
+    state.referenceSlots.active = "glasses";
+    state.virtualReference.referenceId = "glasses";
+    state.virtualReference.locked = false;
     placeGlassesAtPoint(point || defaultPalettePoint("glasses"), undefined, "Dra och placera glasögonen");
     updateSimpleReferenceButtons();
+    updateGuidedOverlay();
     return;
   }
 
@@ -1835,26 +2147,7 @@ function chooseSimpleReference(referenceId) {
 }
 
 function toggleReferenceLock() {
-  if (!state.image || !state.virtualReference.enabled) {
-    setStatus("Placera referens först");
-    return;
-  }
-
-  state.virtualReference.locked = !state.virtualReference.locked;
-  if (state.virtualReference.locked) {
-    state.virtualReference.selected = false;
-    state.virtualReference.dragging = false;
-    state.virtualReference.pointerAction = "";
-    setStatus("Referens låst");
-    setTool("fish");
-  } else {
-    state.virtualReference.selected = true;
-    setTool("ref");
-    setStatus("Referens upplåst");
-  }
-  syncActiveReferenceSlot();
-  updateReferenceLockButton();
-  draw();
+  toggleReferencePlacementLock();
 }
 
 async function finishChecklistStep() {
@@ -1868,18 +2161,31 @@ async function finishChecklistStep() {
     return;
   }
 
-  if (!isAnyReferenceLocked()) {
+  if (!state.referenceSlots.glasses.virtual?.locked) {
+    if (state.virtualReference.enabled) toggleReferencePlacementLock();
+    return;
+  }
+
+  if (!state.referenceSlots.can) {
+    setStatus("Dra in burken");
+    els.paletteCan?.focus();
+    updateSimpleReferenceButtons();
+    draw();
+    return;
+  }
+
+  if (!areAllReferencesLocked()) {
     if (!state.virtualReference.enabled) {
       loadReferenceSlot(state.referenceSlots.active || "glasses", true);
     }
     if (state.virtualReference.enabled) {
-      state.virtualReference.locked = true;
-      state.virtualReference.selected = false;
-      state.virtualReference.dragging = false;
-      state.virtualReference.pointerAction = "";
+      setReferencePlacementLock(true);
       syncActiveReferenceSlot();
       setTool("fish");
-      setStatus("Referens låst");
+      setStatus("Referenser låsta");
+      updateReferenceLockButton();
+      updateReferenceChecklistLockButton();
+      updateChecklist();
       draw();
     }
     return;
@@ -1923,8 +2229,35 @@ async function finishChecklistStep() {
 function bindReferencePaletteItem(element, referenceId) {
   if (!element) return;
 
-  element.addEventListener("click", () => placePaletteReference(referenceId));
+  element.addEventListener("pointerdown", (event) => {
+    if (element.disabled) return;
+    if (event.pointerType !== "mouse") event.preventDefault();
+    // Keep native HTML drag available for mouse users; pointer tracking covers touch and pen.
+    if (event.pointerType !== "mouse" && element.setPointerCapture) {
+      element.setPointerCapture(event.pointerId);
+    }
+    palettePointerDrag = {
+      referenceId,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false
+    };
+    element.classList.add("is-dragging");
+  });
+  element.addEventListener("pointercancel", () => {
+    palettePointerDrag = null;
+    element.classList.remove("is-dragging");
+  });
+  element.addEventListener("click", () => {
+    if (suppressPaletteClick) {
+      suppressPaletteClick = false;
+      return;
+    }
+    placePaletteReference(referenceId);
+  });
   element.addEventListener("dragstart", (event) => {
+    draggedReferenceId = referenceId;
     element.classList.add("is-dragging");
     event.dataTransfer.effectAllowed = "copy";
     event.dataTransfer.setData("text/plain", referenceId);
@@ -1932,11 +2265,44 @@ function bindReferencePaletteItem(element, referenceId) {
   });
   element.addEventListener("dragend", () => {
     element.classList.remove("is-dragging");
+    window.setTimeout(() => {
+      draggedReferenceId = "";
+    }, 0);
   });
 }
 
+window.addEventListener("pointermove", (event) => {
+  if (!palettePointerDrag || event.pointerId !== palettePointerDrag.pointerId) return;
+  if (Math.hypot(event.clientX - palettePointerDrag.startX, event.clientY - palettePointerDrag.startY) > 6) {
+    palettePointerDrag.moved = true;
+  }
+}, true);
+
+window.addEventListener("pointerup", (event) => {
+  if (!palettePointerDrag || event.pointerId !== palettePointerDrag.pointerId) return;
+  const drag = palettePointerDrag;
+  palettePointerDrag = null;
+  document.querySelectorAll(".reference-palette-item.is-dragging").forEach((item) => item.classList.remove("is-dragging"));
+  if (!drag.moved) {
+    suppressPaletteClick = true;
+    placePaletteReference(drag.referenceId);
+    return;
+  }
+  suppressPaletteClick = true;
+  const rect = els.canvas.getBoundingClientRect();
+  const overCanvas = event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+  if (!overCanvas) return;
+  if (!state.image) {
+    setStatus("Välj bild först");
+    updateGuidedOverlay();
+    return;
+  }
+  placePaletteReference(drag.referenceId, getCanvasPoint(event));
+}, true);
+
 function referenceIdFromDrop(event) {
   return (
+    draggedReferenceId ||
     event.dataTransfer.getData("application/x-bigplus-reference") ||
     event.dataTransfer.getData("text/plain") ||
     ""
@@ -1991,6 +2357,35 @@ async function boot() {
   draw();
 }
 
+async function loadTestImage() {
+  try {
+    const response = await fetch("http://localhost:4100/api/bigplus/test-image");
+    if (!response.ok) throw new Error("Testbild saknas");
+    const blob = await response.blob();
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    const image = new Image();
+    image.onload = () => {
+      state.image = image;
+      state.imageDataUrl = dataUrl;
+      els.emptyState.classList.add("hidden");
+      els.photoInputLabel.textContent = "Mät ny fisk";
+      resetZoom();
+      resetPoints();
+      els.referenceSelect.value = "glasses";
+      state.referenceSlots.active = "glasses";
+      draw();
+    };
+    image.src = dataUrl;
+  } catch {
+    setStatus("Välj bild");
+  }
+}
+
 els.photoInput.addEventListener("change", () => {
   const file = els.photoInput.files?.[0];
   if (!file) return;
@@ -2002,10 +2397,12 @@ els.photoInput.addEventListener("change", () => {
       state.image = image;
       state.imageDataUrl = reader.result;
       els.emptyState.classList.add("hidden");
+      els.photoInputLabel.textContent = "Mät ny fisk";
       resetZoom();
       resetPoints();
+      els.referenceSelect.value = "glasses";
+      state.referenceSlots.active = "glasses";
       draw();
-      window.setTimeout(() => placeSelectedSimpleReference(), 0);
     };
     image.src = reader.result;
   };
@@ -2089,6 +2486,17 @@ els.canvas.addEventListener("pointerdown", (event) => {
     return;
   }
 
+  if (!measuring && !state.virtualReference.locked) {
+    const slotName = referenceSlotAtPoint(point);
+    if (slotName && slotName !== state.referenceSlots.active) {
+      loadReferenceSlot(slotName, true);
+      setTool("ref");
+      setStatus(slotName === "glasses" ? "Glasögon valda" : "Burk vald");
+      draw();
+      return;
+    }
+  }
+
   const pointHit = hitMeasurementPoint(point);
   if (pointHit) {
     state.pointDrag.dragging = true;
@@ -2096,6 +2504,20 @@ els.canvas.addEventListener("pointerdown", (event) => {
     state.pointDrag.index = pointHit.index;
     state.pointDrag.moved = false;
     els.canvas.setPointerCapture(event.pointerId);
+    return;
+  }
+
+  const segmentIndex = hitMeasurementSegment(point);
+  if (segmentIndex >= 0) {
+    state.points.fish.splice(segmentIndex + 1, 0, point);
+    state.pointDrag.dragging = true;
+    state.pointDrag.tool = "fish";
+    state.pointDrag.index = segmentIndex + 1;
+    state.pointDrag.moved = false;
+    state.view.suppressNextClick = true;
+    invalidateResult();
+    els.canvas.setPointerCapture(event.pointerId);
+    draw();
     return;
   }
 
@@ -2108,6 +2530,11 @@ els.canvas.addEventListener("pointerdown", (event) => {
   }
 
   const action = measuring ? "" : hitVirtualReferenceControl(point);
+  if (action === "lock") {
+    toggleReferencePlacementLock();
+    state.view.suppressNextClick = true;
+    return;
+  }
   if (!action) {
     if (state.view.zoom <= 1) return;
     state.view.dragging = true;
@@ -2207,16 +2634,17 @@ els.canvas.addEventListener("pointermove", (event) => {
     };
     const local = localReferencePoint(point, start);
     const axis = isGlassesReference() ? local.x : local.y;
+    const maxReferenceSize = 5000;
     const visualLength = clamp(
       state.virtualReference.scaleStartLength + (axis - state.virtualReference.scaleStartAxis) * 2,
-      42,
-      360
+      5,
+      5000
     );
     const anchorY = getPerspectiveAnchorY();
     const perspective = state.virtualReference.autoPerspective && anchorY !== null && state.virtualReference.depthMode !== "manual"
       ? perspectiveScaleForY(anchorY)
       : 1;
-    state.virtualReference.baseHeight = clamp(visualLength / Math.max(0.1, perspective), 60, 320);
+    state.virtualReference.baseHeight = clamp(visualLength / Math.max(0.1, perspective), 5, maxReferenceSize);
     els.referenceScaleRange.value = String(Math.round(state.virtualReference.baseHeight));
     state.virtualReference.height = state.virtualReference.baseHeight * perspective;
     const visualHeight = referenceVisualHeight(state.virtualReference.height);
@@ -2373,12 +2801,6 @@ els.depthModeSelect.addEventListener("change", () => {
   }
 });
 
-els.showReferenceMarkersToggle.addEventListener("change", () => {
-  state.virtualReference.showMarkers = false;
-  els.showReferenceMarkersToggle.checked = false;
-  draw();
-});
-
 els.autoPerspectiveToggle.addEventListener("change", () => {
   state.virtualReference.autoPerspective = els.autoPerspectiveToggle.checked;
   state.virtualReference.lockedAnchorY = state.virtualReference.autoPerspective && state.virtualReference.depthMode === "fish"
@@ -2426,9 +2848,13 @@ els.editLengthButton?.addEventListener("click", () => unlockMeasurement("fish"))
 els.editHeightButton?.addEventListener("click", () => unlockMeasurement("body"));
 els.lockLengthButton?.addEventListener("click", () => toggleMeasurementLock("fish"));
 els.lockHeightButton?.addEventListener("click", () => toggleMeasurementLock("body"));
+els.lockSizeChecklist?.addEventListener("click", toggleSizeChecklistLock);
 els.simpleCanButton?.addEventListener("click", () => chooseSimpleReference("can-330"));
 els.simpleGlassesButton?.addEventListener("click", () => chooseSimpleReference("glasses"));
 els.lockReferenceButton.addEventListener("click", toggleReferenceLock);
+els.lockReferenceChecklist?.addEventListener("click", toggleReferencePlacementLock);
+els.checkGlasses?.querySelector(".check-label")?.addEventListener("click", () => editReferenceSlot("glasses"));
+els.checkCan?.querySelector(".check-label")?.addEventListener("click", () => editReferenceSlot("can"));
 els.checklistNextButton?.addEventListener("click", finishChecklistStep);
 bindReferencePaletteItem(els.paletteGlasses, "glasses");
 bindReferencePaletteItem(els.paletteCan, "can-330");
@@ -2437,9 +2863,14 @@ els.canvasWrap.addEventListener("dragover", (event) => {
   if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
 });
 els.canvasWrap.addEventListener("drop", (event) => {
+  event.preventDefault();
+  if (!state.image) {
+    setStatus("Välj bild först");
+    updateGuidedOverlay();
+    return;
+  }
   const referenceId = referenceIdFromDrop(event);
   if (!["glasses", "can-330"].includes(referenceId)) return;
-  event.preventDefault();
   placePaletteReference(referenceId, getCanvasPoint(event));
 });
 els.placeReferenceButton.addEventListener("click", placeVirtualReference);
