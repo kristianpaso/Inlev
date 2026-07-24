@@ -1,4 +1,7 @@
-﻿const LOCAL_API_ROOT = "http://localhost:4100/api/bigplus";
+﻿const LOCAL_API_HOST = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+  ? window.location.hostname
+  : "localhost";
+const LOCAL_API_ROOT = `http://${LOCAL_API_HOST}:4100/api/bigplus`;
 const RENDER_API_ROOT = window.BIGPLUS_RENDER_API_ROOT || "https://bigplus-api.onrender.com/api/bigplus";
 
 function resolveApiRoot() {
@@ -59,6 +62,7 @@ async function fetchJson(url, options = {}, fallbackMessage = "API-fel") {
   try {
     response = await fetch(url, {
       ...fetchOptions,
+      credentials: "include",
       headers: { "Content-Type": "application/json", ...(fetchOptions.headers || {}) },
       signal: fetchOptions.signal || controller.signal
     });
@@ -194,6 +198,10 @@ export function saveLocalCatch(payload, result) {
     userId: String(payload.userId || "").slice(0, 80),
     note: String(payload.note || "").slice(0, 240),
     photo: typeof payload.photo === "string" ? payload.photo : "",
+    location: payload.location && Number.isFinite(Number(payload.location.latitude)) && Number.isFinite(Number(payload.location.longitude))
+      ? { latitude: Number(payload.location.latitude), longitude: Number(payload.location.longitude) }
+      : null,
+    competitionIds: Array.isArray(payload.competitionIds) ? payload.competitionIds.map((id) => String(id).slice(0, 100)).slice(0, 20) : [],
     measurement: result || calculateMeasurementOffline(payload.measurement || payload)
   };
   catches.push(item);

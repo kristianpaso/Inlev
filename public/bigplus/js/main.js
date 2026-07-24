@@ -10,7 +10,7 @@
   getSpecies,
   saveCatch,
   saveLocalCatch
-} from "./api.js";
+} from "./api.js?v=20260724-30";
 
 const state = {
   references: [],
@@ -182,6 +182,14 @@ const els = {
   referenceSizeResult: document.querySelector("#referenceSizeResult"),
   referenceAngleResult: document.querySelector("#referenceAngleResult"),
   resultPanel: document.querySelector(".result-panel"),
+  resultPhoto: document.querySelector("#resultPhoto"),
+  resultSpecies: document.querySelector("#resultSpecies"),
+  resultSpeciesLatin: document.querySelector("#resultSpeciesLatin"),
+  resultMeasureAgain: document.querySelector("#resultMeasureAgain"),
+  measureTargetSummary: document.querySelector("#measureTargetSummary"),
+  measureTargetSummaryText: document.querySelector("#measureTargetSummaryText"),
+  measureStatusSummary: document.querySelector("#measureStatusSummary"),
+  measureStatusSummaryText: document.querySelector("#measureStatusSummaryText"),
   bigStatus: document.querySelector("#bigStatus"),
   lengthResult: document.querySelector("#lengthResult"),
   weightResult: document.querySelector("#weightResult"),
@@ -189,11 +197,19 @@ const els = {
   limitResult: document.querySelector("#limitResult"),
   confidenceResult: document.querySelector("#confidenceResult"),
   catchNote: document.querySelector("#catchNote"),
+  chooseCatchLocation: document.querySelector("#chooseCatchLocation"),
+  catchLocationPicker: document.querySelector("#catchLocationPicker"),
+  catchLocationMap: document.querySelector("#catchLocationMap"),
+  catchLocationLabel: document.querySelector("#catchLocationLabel"),
+  clearCatchLocation: document.querySelector("#clearCatchLocation"),
   disclaimer: document.querySelector("#disclaimer"),
   catchLog: document.querySelector("#catchLog")
 };
 
 const ctx = els.canvas.getContext("2d");
+let catchLocationPickerMap = null;
+let catchLocationPickerMarker = null;
+let selectedCatchLocation = null;
 const classicCanReferenceImage = new Image();
 classicCanReferenceImage.decoding = "async";
 classicCanReferenceImage.src = "/bigplus/assets/can-classic.png?v=20260719";
@@ -213,8 +229,16 @@ function setStatus(text) {
   els.connectionStatus.textContent = text;
 }
 
+function preferredUnit() {
+  return localStorage.getItem("bigplus_unit") === "inch" ? "inch" : "cm";
+}
+
 function formatCm(value) {
-  return `${value.toFixed(1)} cm`;
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return "--";
+  return preferredUnit() === "inch"
+    ? `${(numericValue / 2.54).toFixed(1)} inch`
+    : `${numericValue.toFixed(1)} cm`;
 }
 
 function formatKgRange(weight) {
@@ -242,6 +266,16 @@ function storeReferences(references) {
 
 function currentUserId() {
   return String(localStorage.getItem("inlev_user") || "").trim();
+}
+
+function currentMemberships() {
+  const key = `bigplus_competition_memberships:${currentUserId() || "guest"}`;
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
 }
 
 function updateReferenceSpecificControls() {
@@ -302,9 +336,15 @@ function renderReferenceOptions() {
 }
 
 function renderSpeciesOptions() {
-  els.speciesSelect.innerHTML = state.species
+  els.speciesSelect.innerHTML = `<option value="">Välj art</option>` + state.species
     .map((item) => `<option value="${item.id}">${item.name}</option>`)
     .join("");
+}
+
+function updateMeasureTargetSummary() {
+  const selected = state.species.find((item) => item.id === els.speciesSelect.value);
+  if (els.measureTargetSummary) els.measureTargetSummary.textContent = selected?.minCm ? formatCm(selected.minCm) : "–";
+  if (els.measureTargetSummaryText) els.measureTargetSummaryText.textContent = selected?.minCm ? "Minimimått" : "Ej valt";
 }
 
 function getSelectedReferenceCm() {
@@ -324,7 +364,7 @@ function distance(points) {
 }
 
 function requiredMeasurementPoints(tool) {
-  return tool === "body" ? 6 : 2;
+  return 2;
 }
 
 function bodyMeasurementValues(points = state.points.body) {
@@ -409,8 +449,14 @@ function selectedReferenceName() {
   return selected?.name || "Referens";
 }
 
+function activeReferenceId() {
+  return state.virtualReference.enabled
+    ? state.virtualReference.referenceId
+    : els.referenceSelect.value;
+}
+
 function isGlassesReference() {
-  return els.referenceSelect.value === "glasses";
+  return activeReferenceId() === "glasses";
 }
 
 function referenceSlotNameForId(referenceId = els.referenceSelect.value) {
@@ -477,9 +523,28 @@ function togglePaletteReferenceLock(slotName) {
     state.virtualReference.locked = true;
     state.virtualReference.selected = false;
   }
-  setTool("ref");
-  setStatus(slotName === "glasses" ? "Glasögon klara" : "Burk klar");
+  if (slotName === "glasses") {
+    state.referenceSlots.active = "glasses";
+    state.virtualReference.referenceId = "glasses";
+    // Keep the workflow in reference mode until the can is created explicitly.
+    setTool("ref");
+    setStatus("Glasögon klara. Skapa burk.");
+  } else {
+    state.referenceSlots.active = "can";
+    state.virtualReference.referenceId = "can-330";
+    if (areAllReferencesLocked()) {
+      setTool("fish");
+      setStatus("Referenser klara. Markera längd.");
+    } else {
+      setTool("ref");
+      setStatus("Burk klar");
+    }
+  }
   updateSimpleReferenceButtons();
+  updateGuidedOverlay();
+  if (slotName === "glasses" && !state.referenceSlots.can) {
+    els.paletteCan?.focus();
+  }
   draw();
 }
 
@@ -517,7 +582,7 @@ function guidedStepText() {
   if (!can.virtual?.locked) return "Placera burken och lås den.";
   if (state.points.fish.length < 2) return "Dra längdlinjen från nos till stjärt.";
   if (!state.measurementLocks.fish) return "Kontrollera längden och lås markeringen.";
-  if (state.points.body.length < 6) return "Markera höjden på tre ställen.";
+  if (state.points.body.length < 2) return "Markera höjden från rygg till buk.";
   if (!state.measurementLocks.body) return "Kontrollera höjden och lås markeringen.";
   return "";
 }
@@ -540,9 +605,9 @@ function updateGuidedOverlay() {
   } else if (state.points.fish.length < 2 || !state.measurementLocks.fish) {
     els.lengthCard?.classList.add("process-target");
     els.lengthCard?.setAttribute("data-guidance", state.points.fish.length < 2 ? "Markera fiskens längd." : "Kontrollera längden och lås den.");
-  } else if (state.points.body.length < 6 || !state.measurementLocks.body) {
+  } else if (state.points.body.length < 2 || !state.measurementLocks.body) {
     els.heightCard?.classList.add("process-target");
-    els.heightCard?.setAttribute("data-guidance", state.points.body.length < 6 ? `Markera höjd ${Math.min(3, Math.floor(state.points.body.length / 2))} av 3.` : "Kontrollera höjden och lås den.");
+    els.heightCard?.setAttribute("data-guidance", state.points.body.length < 2 ? "Markera höjden från rygg till buk." : "Kontrollera höjden och lås den.");
   }
 }
 
@@ -594,17 +659,39 @@ function toggleReferencePlacementLock() {
     return;
   }
 
-  const shouldUnlock = areAllReferencesLocked();
-  setReferencePlacementLock(!shouldUnlock);
+  const slotName = state.referenceSlots.active || referenceSlotNameForId(state.virtualReference.referenceId);
+  const slot = slotName ? state.referenceSlots[slotName] : null;
+  const shouldUnlock = Boolean(slot?.virtual?.locked || state.virtualReference.locked);
+
+  // Canvas lock and palette lock must operate on the same active object.
+  // Do not lock every reference here: the can is intentionally a separate step.
+  if (slot?.virtual) {
+    slot.virtual.locked = !shouldUnlock;
+    slot.virtual.selected = shouldUnlock;
+    slot.virtual.dragging = false;
+    slot.virtual.pointerAction = "";
+    els.referenceSelect.value = slot.referenceId;
+  }
+  state.virtualReference.locked = !shouldUnlock;
+  state.virtualReference.selected = shouldUnlock;
+  state.virtualReference.dragging = false;
+  state.virtualReference.pointerAction = "";
+
   if (shouldUnlock) {
-    state.virtualReference.selected = true;
     setTool("ref");
-    setStatus("Referenser upplåsta");
-  } else {
+    setStatus(slotName === "can" ? "Burk upplåst" : "Glasögon upplåsta");
+  } else if (slotName === "glasses") {
+    setTool("ref");
+    setStatus("Glasögon klara. Skapa burk.");
+  } else if (slotName === "can" && areAllReferencesLocked()) {
     setTool("fish");
-    setStatus("Referenser låsta");
+    setStatus("Referenser klara. Markera längd.");
+  } else {
+    setTool("ref");
+    setStatus("Referens låst");
   }
   syncActiveReferenceSlot();
+  updateSimpleReferenceButtons();
   updateReferenceLockButton();
   updateReferenceChecklistLockButton();
   updateChecklist();
@@ -629,13 +716,13 @@ function updateMeasurementLockButtons() {
   updateButton(els.lockLengthButton, "fish", "längd");
   updateButton(els.lockHeightButton, "body", "höjd");
   if (els.lengthCardValue) els.lengthCardValue.textContent = state.points.fish.length >= 2 ? "Klar" : "Ej klar";
-  if (els.heightCardValue) els.heightCardValue.textContent = state.points.body.length >= 6 ? "3 mätningar" : `${Math.min(3, Math.floor(state.points.body.length / 2))}/3`;
+  if (els.heightCardValue) els.heightCardValue.textContent = state.points.body.length >= 2 ? "Klar" : "Ej klar";
 }
 
 function updateSizeChecklistLockButton() {
   const button = els.lockSizeChecklist;
   if (!button) return;
-  const hasSize = state.points.fish.length >= 2 && state.points.body.length >= 6;
+  const hasSize = state.points.fish.length >= 2 && state.points.body.length >= 2;
   const locked = Boolean(state.measurementLocks.fish && state.measurementLocks.body);
   button.disabled = !hasSize;
   button.classList.toggle("is-locked", locked);
@@ -644,7 +731,7 @@ function updateSizeChecklistLockButton() {
 }
 
 function toggleSizeChecklistLock() {
-  if (state.points.fish.length < 2 || state.points.body.length < 6) {
+  if (state.points.fish.length < 2 || state.points.body.length < 2) {
     setStatus("Markera längd och höjd först");
     return;
   }
@@ -670,7 +757,7 @@ function checklistNextLabel() {
   if (!areAllReferencesLocked()) return "Lås referenser";
   if (state.points.fish.length < 2) return "Markera längd";
   if (!state.measurementLocks.fish) return "Lås längd";
-  if (state.points.body.length < 6) return "Markera höjd";
+  if (state.points.body.length < 2) return "Markera höjd";
   if (!state.measurementLocks.body) return "Lås höjd";
   if (!state.lastResult) return "Räkna Bigplus";
   return "Spara Bigplus";
@@ -709,9 +796,9 @@ function updateChecklist() {
     [els.checkReference, referencesLocked],
     [els.checkGlasses, Boolean(state.referenceSlots.glasses)],
     [els.checkCan, Boolean(state.referenceSlots.can)],
-    [els.checkSize, state.points.fish.length >= 2 && state.points.body.length >= 6],
+    [els.checkSize, state.points.fish.length >= 2 && state.points.body.length >= 2],
     [els.checkLength, state.points.fish.length >= 2],
-    [els.checkHeight, state.points.body.length >= 6],
+    [els.checkHeight, state.points.body.length >= 2],
     [els.checkResult, state.lastResult?.status === "BIGPLUS"]
   ];
   const firstOpen = items.find(([element, done]) => element && !done && !element.classList.contains("optional"))?.[0] || null;
@@ -764,7 +851,12 @@ function toggleMeasurementLock(tool) {
   }
 
   lockMeasurement(tool);
-  setStatus(tool === "fish" ? "Längd låst" : "Höjd låst");
+  if (tool === "fish") {
+    setTool("body");
+    setStatus("Längd låst. Markera höjd.");
+  } else {
+    setStatus("Höjd låst");
+  }
   draw();
 }
 
@@ -804,7 +896,7 @@ function updateFaceDepthResult() {
 
 function currentVirtualReferenceSnapshot() {
   return {
-    referenceId: els.referenceSelect.value,
+    referenceId: state.virtualReference.referenceId || els.referenceSelect.value,
     enabled: state.virtualReference.enabled,
     x: state.virtualReference.x,
     y: state.virtualReference.y,
@@ -823,11 +915,12 @@ function currentVirtualReferenceSnapshot() {
 }
 
 function syncActiveReferenceSlot() {
-  const slotName = referenceSlotNameForId();
+  const activeId = state.virtualReference.referenceId || els.referenceSelect.value;
+  const slotName = referenceSlotNameForId(activeId);
   if (!slotName || !state.virtualReference.enabled || state.points.ref.length < 2) return;
   state.referenceSlots.active = slotName;
   state.referenceSlots[slotName] = {
-    referenceId: els.referenceSelect.value,
+    referenceId: activeId,
     refCm: getSelectedReferenceCm(),
     points: clonePoints(state.points.ref),
     virtual: currentVirtualReferenceSnapshot()
@@ -899,16 +992,16 @@ function combinedReferenceScaleCmPerPixel() {
   return scales.reduce((sum, item) => sum + item.scaleCmPerPixel, 0) / scales.length;
 }
 
-function selectedReferenceWidthRatio() {
-  if (isGlassesReference()) return 1;
-  if (els.referenceSelect.value === "can-330") return 0.57;
-  if (els.referenceSelect.value === "can-330-slim") return 0.4;
-  if (els.referenceSelect.value === "can-500") return 0.39;
+function selectedReferenceWidthRatio(referenceId = activeReferenceId()) {
+  if (referenceId === "glasses") return 1;
+  if (referenceId === "can-330") return 0.57;
+  if (referenceId === "can-330-slim") return 0.4;
+  if (referenceId === "can-500") return 0.39;
   return 0.42;
 }
 
-function referenceVisualHeight(measureLength) {
-  return isGlassesReference() ? measureLength * 0.36 : measureLength;
+function referenceVisualHeight(measureLength, referenceId = activeReferenceId()) {
+  return referenceId === "glasses" ? measureLength * 0.36 : measureLength;
 }
 
 function selectedCanReferenceImage() {
@@ -923,6 +1016,7 @@ function renderReferenceReadout() {
     return;
   }
 
+  const referenceId = state.virtualReference.referenceId || els.referenceSelect.value;
   const refCm = getSelectedReferenceCm();
   let scale = state.virtualReference.autoPerspective
     ? ` · ${Math.round(perspectiveScaleForY(state.virtualReference.groundY) * 100)}% perspektiv`
@@ -1328,7 +1422,7 @@ function drawLine(points, color, label) {
 }
 
 function drawArrowHead(point, angle, color) {
-  const size = 13;
+  const size = 8;
   ctx.save();
   ctx.translate(point.x, point.y);
   ctx.rotate(angle);
@@ -1359,7 +1453,7 @@ function drawMeasurementArrowLine(points, color, label) {
   ctx.save();
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 3;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
@@ -1406,21 +1500,21 @@ function drawMeasurementArrowLine(points, color, label) {
   if (label) {
     const labelPoint = points[Math.floor((points.length - 1) / 2)];
     const midX = labelPoint.x;
-    ctx.font = "800 16px system-ui, sans-serif";
-    const paddingX = 8;
+    ctx.font = "800 13px system-ui, sans-serif";
+    const paddingX = 6;
     const width = ctx.measureText(label).width + paddingX * 2;
-    const height = 26;
+    const height = 21;
     const isHeightLabel = label === "höjd";
     const labelY = isHeightLabel
-      ? labelPoint.y - height - 14
-      : labelPoint.y + 14;
+      ? labelPoint.y - height - 9
+      : labelPoint.y + 9;
     const boxX = clamp(midX - width / 2, 6, els.canvas.width - width - 6);
     const boxY = clamp(labelY, 6, els.canvas.height - height - 6);
     const textX = boxX + width / 2;
     const textY = boxY + height / 2;
     ctx.fillStyle = "rgba(255, 255, 255, 0.86)";
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.roundRect(boxX, boxY, width, height, 7);
     ctx.fill();
@@ -1428,7 +1522,7 @@ function drawMeasurementArrowLine(points, color, label) {
     ctx.fillStyle = color;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(label, textX, textY);
+    ctx.fillText(label, textX, textY + 0.5);
   }
 
   ctx.restore();
@@ -1815,6 +1909,9 @@ function resetPoints(options = {}) {
   state.points.fish = [];
   state.points.body = [];
   els.referenceSelect.value = "glasses";
+  els.speciesSelect.value = "";
+  els.minSize.value = 0;
+  updateMeasureTargetSummary();
   state.lastResult = null;
   state.lastPayload = null;
   els.saveButton.disabled = true;
@@ -1833,11 +1930,16 @@ function renderResult(result) {
 
   if (!result) {
     els.bigStatus.querySelector("strong").textContent = "Väntar";
-    els.lengthResult.textContent = "-- cm";
+    els.lengthResult.textContent = `-- ${preferredUnit()}`;
     els.weightResult.textContent = "-- kg";
-    els.bodyDepthResult.textContent = "-- cm";
-    els.limitResult.textContent = "-- cm";
+    els.bodyDepthResult.textContent = `-- ${preferredUnit()}`;
+    els.limitResult.textContent = `-- ${preferredUnit()}`;
     els.confidenceResult.textContent = "--";
+    if (els.resultPhoto) els.resultPhoto.removeAttribute("src");
+    if (els.resultSpecies) els.resultSpecies.textContent = "--";
+    if (els.resultSpeciesLatin) els.resultSpeciesLatin.textContent = "--";
+    if (els.measureStatusSummary) els.measureStatusSummary.textContent = "–";
+    if (els.measureStatusSummaryText) els.measureStatusSummaryText.textContent = "Ej mätt";
     return;
   }
 
@@ -1846,10 +1948,18 @@ function renderResult(result) {
   els.bigStatus.querySelector("strong").textContent = result.status;
   els.lengthResult.textContent = formatCm(result.lengthCm);
   els.weightResult.textContent = formatKgRange(result.weightKg);
-  els.bodyDepthResult.textContent = result.bodyCm ? formatCm(result.bodyCm) : "-- cm";
+  els.bodyDepthResult.textContent = result.bodyCm ? formatCm(result.bodyCm) : `-- ${preferredUnit()}`;
   els.limitResult.textContent = result.minCm > 0 ? formatCm(result.minCm) : "Kolla";
   els.confidenceResult.textContent = result.confidence === "body" ? "Bättre" : result.confidence === "high" ? "Hög" : result.confidence === "local" ? "Lokal" : "Mellan";
   els.disclaimer.textContent = result.disclaimer;
+  const selectedSpecies = state.species.find((item) => item.id === els.speciesSelect.value);
+  if (els.resultPhoto && state.imageDataUrl) els.resultPhoto.src = state.imageDataUrl;
+  if (els.resultSpecies) els.resultSpecies.textContent = selectedSpecies?.name || "Annan art";
+  const latinNames = { pike: "Esox lucius", perch: "Perca fluviatilis", zander: "Sander lucioperca", trout: "Salmo trutta", salmon: "Salmo salar", char: "Salvelinus alpinus", cod: "Gadus morhua" };
+  if (els.resultSpeciesLatin) els.resultSpeciesLatin.textContent = selectedSpecies?.latinName || latinNames[selectedSpecies?.id] || "Fisk";
+  if (els.measureStatusSummary) els.measureStatusSummary.textContent = result.status === "BIGPLUS" ? "BIGPLUS" : result.status;
+  if (els.measureStatusSummaryText) els.measureStatusSummaryText.textContent = result.status === "BIGPLUS" ? "Fångsten är godkänd" : "Kontrollera måttet";
+  updateMeasureTargetSummary();
 }
 
 async function calculate() {
@@ -1861,6 +1971,11 @@ async function calculate() {
     setStatus("Välj bild");
     return;
   }
+  if (!els.speciesSelect.value) {
+    setStatus("Välj art");
+    els.speciesSelect.focus();
+    return;
+  }
   if (!referenceScaleCmPerPixel) {
     setStatus("Placera referens");
     return;
@@ -1869,7 +1984,7 @@ async function calculate() {
     setStatus("Markera längd");
     return;
   }
-  if (state.points.body.length < 6) {
+  if (state.points.body.length < 2) {
     setStatus("Markera höjd");
     return;
   }
@@ -1879,7 +1994,7 @@ async function calculate() {
   const payload = {
     refPixels: 1,
     fishPixels,
-    bodyPixels: state.points.body.length >= 6 ? bodyPixels : null,
+    bodyPixels: state.points.body.length >= 2 ? bodyPixels : null,
     refCm: referenceScaleCmPerPixel,
     calibrationFactor: 1,
     speciesId: els.speciesSelect.value,
@@ -1907,24 +2022,73 @@ async function calculate() {
   }
 }
 
+function updateSelectedCatchLocation(location) {
+  selectedCatchLocation = location;
+  if (catchLocationPickerMap && !catchLocationPickerMarker) catchLocationPickerMarker = window.L.marker([location.latitude, location.longitude]).addTo(catchLocationPickerMap);
+  if (catchLocationPickerMarker) catchLocationPickerMarker.setLatLng([location.latitude, location.longitude]);
+  if (els.catchLocationLabel) els.catchLocationLabel.textContent = `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`;
+}
+
+function initCatchLocationMap() {
+  if (!els.catchLocationMap || !window.L) return;
+  if (!catchLocationPickerMap) {
+    catchLocationPickerMap = window.L.map(els.catchLocationMap, { zoomControl: true }).setView([62.0, 15.0], 4);
+    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap-bidragsgivare" }).addTo(catchLocationPickerMap);
+    catchLocationPickerMap.on("click", (event) => updateSelectedCatchLocation({ latitude: Number(event.latlng.lat.toFixed(6)), longitude: Number(event.latlng.lng.toFixed(6)) }));
+  }
+  window.setTimeout(() => catchLocationPickerMap.invalidateSize(), 50);
+  if (selectedCatchLocation) updateSelectedCatchLocation(selectedCatchLocation);
+}
+
+async function chooseCatchLocation() {
+  if (!els.catchLocationPicker) return;
+  els.catchLocationPicker.hidden = !els.catchLocationPicker.hidden;
+  if (!els.catchLocationPicker.hidden) initCatchLocationMap();
+}
+
+function clearCatchLocation() {
+  selectedCatchLocation = null;
+  if (catchLocationPickerMarker) { catchLocationPickerMap.removeLayer(catchLocationPickerMarker); catchLocationPickerMarker = null; }
+  if (els.catchLocationLabel) els.catchLocationLabel.textContent = "Välj plats på kartan";
+}
+
+function getCatchLocation() {
+  if (selectedCatchLocation) return Promise.resolve(selectedCatchLocation);
+  if (!navigator.geolocation) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ latitude: Number(position.coords.latitude.toFixed(6)), longitude: Number(position.coords.longitude.toFixed(6)) }),
+      () => resolve(null),
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
+    );
+  });
+}
+
 async function persistCatch() {
   if (!state.lastPayload) return;
 
   try {
     setStatus("Sparar");
+    let competitionIds = [];
+    competitionIds = currentMemberships();
+    const location = await getCatchLocation();
     const payload = {
       measurement: state.lastPayload,
       userId: currentUserId(),
       note: els.catchNote.value,
-      photo: state.imageDataUrl
+      photo: state.imageDataUrl,
+      competitionIds,
+      ...(location ? { location } : {})
     };
     try {
       await saveCatch(payload);
     } catch {
-      saveLocalCatch(payload, state.lastResult);
+      // Keep a local copy as well so competition rankings work offline.
     }
+    saveLocalCatch(payload, state.lastResult);
     els.catchNote.value = "";
     await loadCatches();
+    window.dispatchEvent(new CustomEvent("bigplus:catch-saved"));
     setStatus("Sparad");
   } catch (error) {
     setStatus("Fel");
@@ -2024,6 +2188,8 @@ function placeVirtualReference(options = {}) {
     return;
   }
 
+  const referenceId = options.referenceId || els.referenceSelect.value;
+  els.referenceSelect.value = referenceId;
   const refCm = getSelectedReferenceCm();
   if (!Number.isFinite(refCm) || refCm <= 0) {
     setStatus("Välj referens");
@@ -2035,7 +2201,7 @@ function placeVirtualReference(options = {}) {
     ? options.groundY
     : Math.max(20 + height, els.canvas.height * 0.55);
   state.virtualReference.enabled = true;
-  state.virtualReference.referenceId = els.referenceSelect.value;
+  state.virtualReference.referenceId = referenceId;
   state.virtualReference.selected = true;
   state.virtualReference.autoPerspective = els.autoPerspectiveToggle.checked;
   state.virtualReference.depthMode = els.depthModeSelect.value;
@@ -2090,7 +2256,7 @@ function placeGlassesAtPoint(point, width, status = "Glasögon placerade") {
   const targetWidth = Number.isFinite(width)
     ? clamp(width, 70, 230)
     : clamp(frame.drawWidth * 0.24, 82, 180);
-  const targetHeight = referenceVisualHeight(targetWidth);
+  const targetHeight = referenceVisualHeight(targetWidth, "glasses");
   const groundY = point.y + targetHeight / 2;
   const baseHeight = targetWidth / Math.max(0.1, perspectiveScaleForY(groundY));
 
@@ -2098,6 +2264,7 @@ function placeGlassesAtPoint(point, width, status = "Glasögon placerade") {
   els.referenceScaleRange.value = String(Math.round(baseHeight));
 
   placeVirtualReference({
+    referenceId: "glasses",
     x: point.x - targetWidth / 2,
     groundY,
     rotationDeg: 0,
@@ -2234,6 +2401,12 @@ function placePaletteReference(referenceId, point = null) {
     return;
   }
 
+  const existingSlotName = referenceSlotNameForId(referenceId);
+  if (existingSlotName && state.referenceSlots[existingSlotName]) {
+    editReferenceSlot(existingSlotName);
+    return;
+  }
+
   if (referenceId === "can-330" && !state.referenceSlots.glasses) {
     setStatus("Placera glasögon först");
     return;
@@ -2254,6 +2427,7 @@ function placePaletteReference(referenceId, point = null) {
     state.virtualReference.referenceId = "glasses";
     state.virtualReference.locked = false;
     placeGlassesAtPoint(point || defaultPalettePoint("glasses"), undefined, "Dra och placera glasögonen");
+    state.virtualReference.referenceId = "glasses";
     updateSimpleReferenceButtons();
     updateGuidedOverlay();
     return;
@@ -2269,8 +2443,9 @@ function placePaletteReference(referenceId, point = null) {
 
   const center = point || defaultPalettePoint(referenceId);
   const height = Number(els.referenceScaleRange.value) || 150;
-  const width = height * selectedReferenceWidthRatio();
+  const width = height * selectedReferenceWidthRatio(referenceId);
   placeVirtualReference({
+    referenceId,
     x: center.x - width / 2,
     groundY: center.y + height / 2,
     rotationDeg: 0,
@@ -2360,7 +2535,7 @@ async function finishChecklistStep() {
     return;
   }
 
-  if (state.points.body.length < 6) {
+  if (state.points.body.length < 2) {
     unlockMeasurement("body");
     setStatus("Markera höjd");
     return;
@@ -2404,7 +2579,8 @@ function bindReferencePaletteItem(element, referenceId) {
     palettePointerDrag = null;
     element.classList.remove("is-dragging");
   });
-  element.addEventListener("click", () => {
+  element.addEventListener("click", (event) => {
+    if (event.target.closest(".reference-palette-lock")) return;
     if (suppressPaletteClick) {
       suppressPaletteClick = false;
       return;
@@ -2439,8 +2615,10 @@ window.addEventListener("pointerup", (event) => {
   palettePointerDrag = null;
   document.querySelectorAll(".reference-palette-item.is-dragging").forEach((item) => item.classList.remove("is-dragging"));
   if (!drag.moved) {
-    suppressPaletteClick = true;
-    placePaletteReference(drag.referenceId);
+    if (event.pointerType !== "mouse") {
+      suppressPaletteClick = true;
+      placePaletteReference(drag.referenceId);
+    }
     return;
   }
   suppressPaletteClick = true;
@@ -2479,8 +2657,8 @@ async function boot() {
   renderSpeciesOptions();
   els.referenceSelect.value = "glasses";
   state.referenceSlots.active = "glasses";
-  els.speciesSelect.value = "pike";
-  els.minSize.value = state.species.find((item) => item.id === "pike")?.minCm ?? 0;
+  els.speciesSelect.value = "";
+  els.minSize.value = 0;
   els.customReferenceWrap.style.display = "none";
   updateReferenceSpecificControls();
   updateSimpleReferenceButtons();
@@ -2500,8 +2678,9 @@ async function boot() {
     renderSpeciesOptions();
     els.referenceSelect.value = "glasses";
     state.referenceSlots.active = "glasses";
-    els.speciesSelect.value = "pike";
-    els.minSize.value = state.species.find((item) => item.id === "pike")?.minCm ?? 0;
+    els.speciesSelect.value = "";
+    els.minSize.value = 0;
+    updateMeasureTargetSummary();
     updateReferenceSpecificControls();
     updateSimpleReferenceButtons();
   } catch {
@@ -2613,12 +2792,12 @@ els.canvas.addEventListener("click", (event) => {
     const completedTool = state.activeTool;
     if (completedTool === "fish" || completedTool === "body") {
       state.measurementLocks[completedTool] = false;
-      setStatus(completedTool === "fish" ? "Längd markerad" : "Tre höjder markerade");
+      setStatus(completedTool === "fish" ? "Längd markerad" : "Höjd markerad");
     } else {
       setTool(nextToolAfterComplete(completedTool));
     }
   } else if (state.activeTool === "body" && points.length % 2 === 0) {
-    setStatus(`Höjd ${points.length / 2} av 3 markerad`);
+    setStatus("Höjdens första punkt markerad");
   }
   invalidateResult();
   draw();
@@ -3029,6 +3208,7 @@ els.autoPerspectiveToggle.addEventListener("change", () => {
 els.speciesSelect.addEventListener("change", () => {
   const selected = state.species.find((item) => item.id === els.speciesSelect.value);
   els.minSize.value = selected?.minCm ?? 0;
+  updateMeasureTargetSummary();
 });
 
 els.zoomOutButton.addEventListener("click", () => setZoom(state.view.zoom / 1.25));
@@ -3064,7 +3244,7 @@ els.lockCanPalette?.addEventListener("click", (event) => {
 });
 [els.lockGlassesPalette, els.lockCanPalette].forEach((button) => {
   button?.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
+    // Do not prevent the native click: the lock action is handled on click.
     event.stopPropagation();
   });
 });
@@ -3107,7 +3287,16 @@ els.clearButton?.addEventListener("click", () => resetPoints());
 els.resetButton.addEventListener("click", () => resetPoints({ clearImage: true }));
 els.calculateButton.addEventListener("click", calculate);
 els.saveButton.addEventListener("click", persistCatch);
+els.resultMeasureAgain?.addEventListener("click", () => resetPoints());
+els.chooseCatchLocation?.addEventListener("click", chooseCatchLocation);
+els.clearCatchLocation?.addEventListener("click", clearCatchLocation);
+els.resetButton.addEventListener("click", clearCatchLocation);
 window.addEventListener("resize", draw);
+window.addEventListener("bigplus:settings-changed", () => {
+  updateMeasureTargetSummary();
+  renderResult(state.lastResult || null);
+  draw();
+});
 
 boot().catch((error) => {
   setStatus("Fel");
