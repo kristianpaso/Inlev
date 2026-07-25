@@ -205,6 +205,21 @@ export function saveLocalCatch(payload, result) {
     measurement: result || calculateMeasurementOffline(payload.measurement || payload)
   };
   catches.push(item);
-  localStorage.setItem("bigplus_catches", JSON.stringify(catches.slice(-100)));
+
+  const key = "bigplus_catches";
+  const save = (items) => localStorage.setItem(key, JSON.stringify(items));
+  try {
+    save(catches.slice(-100));
+  } catch (error) {
+    // Photos are also stored in MongoDB. If localStorage is full, keep a
+    // compact offline log without photo data so saving the catch still works.
+    if (error?.name !== "QuotaExceededError" && error?.code !== 22) throw error;
+    const compact = catches.slice(-100).map((entry) => ({ ...entry, photo: "" }));
+    try {
+      save(compact);
+    } catch {
+      save(compact.slice(-25));
+    }
+  }
   return item;
 }

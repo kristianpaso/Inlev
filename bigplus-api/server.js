@@ -1,15 +1,35 @@
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
+
 const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
-const path = require("path");
+const dns = require("dns");
+require("./mongodb-dns-fallback");
+const { MongoClient } = require("mongodb");
 
 const catalogRouter = require("./routes/catalog");
 const measurementsRouter = require("./routes/measurements");
 const catchesRouter = require("./routes/catches");
+const authRouter = require("./routes/auth");
+const groupsRouter = require("./routes/groups");
+const { ensureDefaultGroup } = require("./routes/auth");
 
 const app = express();
+let mongoState = process.env.MONGODB_URI ? "connecting" : "not_configured";
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
+// Atlas SRV records can fail with a local DNS resolver even when the cluster is healthy.
+// Keep the resolver configurable so local development can use a reliable DNS service.
+if (process.env.DNS_SERVERS) {
+  dns.setServers(process.env.DNS_SERVERS.split(",").map((server) => server.trim()).filter(Boolean));
+}
+if (typeof dns.setDefaultResultOrder === "function") dns.setDefaultResultOrder("ipv4first");
+
+const allowedOrigins = (process.env.CORS_ORIGIN || process.env.CORS_ORIGINS || "http://127.0.0.1:4173,http://localhost:4173")
+  .split(",")
+  .map((origin) => origin.trim().replace(/\/$/, ""))
+  .filter(Boolean);
+app.use(cors({ origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)), credentials: true }));
 app.use(express.json({ limit: "6mb" }));
 
 app.get("/", (req, res) => {
@@ -20,7 +40,8 @@ app.get("/health", (req, res) => {
   res.json({
     ok: true,
     api: "up",
-    service: "bigplus-api"
+    service: "bigplus-api",
+    database: mongoState
   });
 });
 
@@ -33,6 +54,8 @@ app.get("/api/bigplus/test-image", (req, res, next) => {
 app.use("/api/bigplus", catalogRouter);
 app.use("/api/bigplus", measurementsRouter);
 app.use("/api/bigplus", catchesRouter);
+app.use("/api/bigplus", authRouter);
+app.use("/api/bigplus", groupsRouter);
 
 app.use((error, req, res, next) => {
   const status = error.status || 500;
@@ -40,6 +63,44 @@ app.use((error, req, res, next) => {
     error: error.message || "Serverfel"
   });
 });
+
+let mongoClient = null;
+let mongoAttempts = 0;
+
+async function connectMongo() {
+  if (!process.env.MONGODB_URI) return;
+  mongoState = "connecting";
+  const client = new MongoClient(process.env.MONGODB_URI, {
+    serverSelectionTimeoutMS: 12000,
+    connectTimeoutMS: 12000,
+    family: 4,
+    retryReads: true,
+    retryWrites: true
+  });
+
+  try {
+    await client.connect();
+    const db = client.db();
+    await db.command({ ping: 1 });
+    await ensureDefaultGroup(db);
+    mongoClient = client;
+    app.locals.mongo = db;
+    mongoAttempts = 0;
+    mongoState = "connected";
+    console.log("MongoDB ansluten");
+  } catch (error) {
+    await client.close().catch(() => {});
+    app.locals.mongo = null;
+    mongoState = "connecting";
+    mongoAttempts += 1;
+    const retryBase = Math.max(1000, Number(process.env.MONGODB_CONNECT_RETRY_MS) || 3000);
+    const delay = Math.min(30000, retryBase * (2 ** Math.min(mongoAttempts - 1, 3)));
+    console.error(`MongoDB kunde inte ansluta (försök ${mongoAttempts}). Nästa försök om ${Math.round(delay / 1000)} s:`, error.message);
+    setTimeout(connectMongo, delay);
+  }
+}
+
+connectMongo();
 
 const PORT = process.env.PORT || 4100;
 app.listen(PORT, () => {

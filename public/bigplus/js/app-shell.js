@@ -964,12 +964,15 @@ async function handleAuth(event) {
   const email = $("#authEmail").value.trim().toLowerCase();
   const password = $("#authPassword").value;
   const message = $("#authMessage");
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 20000);
   try {
     const response = await fetch(`${AUTH_API_ROOT}/auth/${mode}`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: mode === "register" ? $("#authName").value.trim() : undefined, email, password })
+      body: JSON.stringify({ name: mode === "register" ? $("#authName").value.trim() : undefined, email, password }),
+      signal: controller.signal
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Kunde inte logga in.");
@@ -979,8 +982,12 @@ async function handleAuth(event) {
     localStorage.setItem(SESSION_KEY, account.id);
     localStorage.setItem("inlev_user", account.id);
   } catch (error) {
-    message.textContent = error.message || "Kunde inte ansluta till servern.";
+    message.textContent = error.name === "AbortError"
+      ? "Servern tar längre tid än vanligt att vakna. Försök igen om en stund."
+      : (error.message || "Kunde inte ansluta till servern.");
     return;
+  } finally {
+    window.clearTimeout(timeout);
   }
   $("#authModal").hidden = true;
   document.body.classList.remove("auth-required");

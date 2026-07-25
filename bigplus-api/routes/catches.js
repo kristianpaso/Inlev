@@ -2,38 +2,36 @@ const crypto = require("crypto");
 const express = require("express");
 const { readCatches, writeCatches } = require("../services/catchStore");
 const { calculateMeasurement } = require("../services/measurement");
+const { requireAuth } = require("./auth");
 
 const router = express.Router();
 
-function cleanUserId(value) {
-  return String(value || "").trim().slice(0, 80);
-}
-
-router.get("/catches", (req, res) => {
-  const userId = cleanUserId(req.query.user);
-  const catches = readCatches();
-  const visible = userId ? catches.filter((item) => item.userId === userId) : catches;
-  res.json(visible.slice(-30).reverse());
+router.get("/catches", requireAuth, async (req, res, next) => {
+  try {
+    const catches = await req.db.collection("catches").find({ userId: req.user._id }).sort({ createdAt: -1 }).limit(100).toArray();
+    res.json(catches);
+  } catch (error) {
+    next(error);
+  }
 });
 
-router.post("/catches", (req, res, next) => {
+router.post("/catches", requireAuth, async (req, res, next) => {
   try {
     const input = req.body || {};
     const result = calculateMeasurement(input.measurement || input);
-    const catches = readCatches();
-    const userId = cleanUserId(input.userId);
     const item = {
-      id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
-      userId,
+      userId: req.user._id,
       note: String(input.note || "").slice(0, 240),
       photo: typeof input.photo === "string" ? input.photo.slice(0, 4_000_000) : "",
+      location: input.location && Number.isFinite(Number(input.location.latitude)) && Number.isFinite(Number(input.location.longitude))
+        ? { latitude: Number(input.location.latitude), longitude: Number(input.location.longitude) }
+        : null,
       measurement: result
     };
 
-    catches.push(item);
-    writeCatches(catches.slice(-100));
-    res.status(201).json(item);
+    const saved = await req.db.collection("catches").insertOne(item);
+    res.status(201).json({ ...item, id: String(saved.insertedId) });
   } catch (error) {
     next(error);
   }
