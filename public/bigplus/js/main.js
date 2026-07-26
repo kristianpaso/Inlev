@@ -10,7 +10,7 @@
   getSpecies,
   saveCatch,
   saveLocalCatch
-} from "./api.js?v=20260724-30";
+} from "./api.js?v=20260726-31";
 
 const state = {
   references: [],
@@ -198,6 +198,7 @@ const els = {
   confidenceResult: document.querySelector("#confidenceResult"),
   catchNote: document.querySelector("#catchNote"),
   chooseCatchLocation: document.querySelector("#chooseCatchLocation"),
+  useCurrentCatchLocation: document.querySelector("#useCurrentCatchLocation"),
   catchLocationPicker: document.querySelector("#catchLocationPicker"),
   catchLocationMap: document.querySelector("#catchLocationMap"),
   catchLocationLabel: document.querySelector("#catchLocationLabel"),
@@ -269,6 +270,7 @@ function currentUserId() {
 }
 
 function currentMemberships() {
+  if (Array.isArray(window.bigplusCompetitionIds)) return window.bigplusCompetitionIds;
   const key = `bigplus_competition_memberships:${currentUserId() || "guest"}`;
   try {
     const value = JSON.parse(localStorage.getItem(key) || "[]");
@@ -1827,6 +1829,7 @@ function drawReferenceSlot(slotName) {
 }
 
 function draw() {
+  document.body.classList.toggle("measure-has-photo", Boolean(state.image));
   resizeCanvasToDisplay();
   ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
   syncMobileReferenceControls();
@@ -2049,19 +2052,46 @@ async function chooseCatchLocation() {
 function clearCatchLocation() {
   selectedCatchLocation = null;
   if (catchLocationPickerMarker) { catchLocationPickerMap.removeLayer(catchLocationPickerMarker); catchLocationPickerMarker = null; }
-  if (els.catchLocationLabel) els.catchLocationLabel.textContent = "Välj plats på kartan";
+  if (els.catchLocationLabel) els.catchLocationLabel.textContent = "Välj plats på kartan eller använd GPS";
+}
+
+async function useCurrentCatchLocation() {
+  if (!els.useCurrentCatchLocation) return;
+  if (!navigator.geolocation) {
+    if (els.catchLocationLabel) els.catchLocationLabel.textContent = "GPS stöds inte i den här webbläsaren";
+    return;
+  }
+
+  els.useCurrentCatchLocation.disabled = true;
+  els.useCurrentCatchLocation.textContent = "Hämtar plats...";
+  if (els.catchLocationPicker) els.catchLocationPicker.hidden = false;
+  initCatchLocationMap();
+
+  try {
+    const location = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve({ latitude: Number(position.coords.latitude.toFixed(6)), longitude: Number(position.coords.longitude.toFixed(6)) }),
+        reject,
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+      );
+    });
+    updateSelectedCatchLocation(location);
+    catchLocationPickerMap?.setView([location.latitude, location.longitude], 15);
+    if (els.catchLocationLabel) els.catchLocationLabel.textContent = `Din plats: ${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`;
+  } catch (error) {
+    if (els.catchLocationLabel) {
+      els.catchLocationLabel.textContent = error?.code === 1
+        ? "Platsåtkomst nekades. Välj plats på kartan."
+        : "Kunde inte hämta platsen. Försök igen eller välj på kartan.";
+    }
+  } finally {
+    els.useCurrentCatchLocation.disabled = false;
+    els.useCurrentCatchLocation.textContent = "Använd min plats";
+  }
 }
 
 function getCatchLocation() {
-  if (selectedCatchLocation) return Promise.resolve(selectedCatchLocation);
-  if (!navigator.geolocation) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve({ latitude: Number(position.coords.latitude.toFixed(6)), longitude: Number(position.coords.longitude.toFixed(6)) }),
-      () => resolve(null),
-      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
-    );
-  });
+  return Promise.resolve(selectedCatchLocation);
 }
 
 async function persistCatch() {
@@ -2080,15 +2110,18 @@ async function persistCatch() {
       competitionIds,
       ...(location ? { location } : {})
     };
+    let savedCatch = null;
     try {
-      await saveCatch(payload);
+      savedCatch = await saveCatch(payload);
     } catch {
       // Keep a local copy as well so competition rankings work offline.
     }
-    saveLocalCatch(payload, state.lastResult);
+    const localCatch = saveLocalCatch(payload, state.lastResult);
     els.catchNote.value = "";
     await loadCatches();
-    window.dispatchEvent(new CustomEvent("bigplus:catch-saved"));
+    window.dispatchEvent(new CustomEvent("bigplus:catch-saved", {
+      detail: { catchId: savedCatch?.id || savedCatch?._id || localCatch?.id || "" }
+    }));
     setStatus("Sparad");
   } catch (error) {
     setStatus("Fel");
@@ -3289,6 +3322,7 @@ els.calculateButton.addEventListener("click", calculate);
 els.saveButton.addEventListener("click", persistCatch);
 els.resultMeasureAgain?.addEventListener("click", () => resetPoints());
 els.chooseCatchLocation?.addEventListener("click", chooseCatchLocation);
+els.useCurrentCatchLocation?.addEventListener("click", useCurrentCatchLocation);
 els.clearCatchLocation?.addEventListener("click", clearCatchLocation);
 els.resetButton.addEventListener("click", clearCatchLocation);
 window.addEventListener("resize", draw);

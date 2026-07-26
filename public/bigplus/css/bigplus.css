@@ -1241,6 +1241,46 @@ canvas {
   }
 }
 
+/* Keep the catch detail inline even after the legacy dialog rules above. */
+.catch-list-large > .catch-detail {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  display: block;
+  grid-column: 1 / -1;
+  margin: -1px 0 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0 0 12px 12px;
+  background: transparent;
+}
+.catch-list-large > .catch-detail[hidden] { display: none; }
+.catch-list-large > .catch-detail .catch-detail-dialog {
+  width: auto;
+  max-height: none;
+  overflow: hidden;
+  padding: 14px;
+  border: 1px solid #bfdbfe;
+  border-top: 0;
+  border-radius: 0 0 12px 12px;
+  background: #f8fbff;
+  box-shadow: 0 8px 18px rgba(30, 64, 175, .1);
+  animation: catch-detail-slide .22s ease-out;
+}
+.catch-list-large > .catch-detail .catch-detail-dialog img {
+  display: block;
+  width: min(100%, 460px);
+  max-height: 280px;
+  margin: 0 auto;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.catch-row.is-selected {
+  border-color: #2563eb;
+  border-radius: 12px 12px 0 0;
+  background: #eff6ff;
+}
+
 @media (max-width: 680px) {
   .app-shell {
     padding: 14px;
@@ -1660,6 +1700,8 @@ body { background: #f8fafc; }
 .achievement-card.is-complete .achievement-card-progress i { background: #10b981; }
 .achievement-badge { width: 74px; height: 74px; border-width: 4px; font-size: 1.7rem; }
 .achievement-badge small { display: block; font-size: .55rem; }
+.achievement-grid-detailed .achievement-badge { overflow: hidden; border: 0; border-radius: 12px; background: #fff; box-shadow: 0 5px 14px rgba(15, 35, 75, .12); }
+.achievement-grid-detailed .achievement-badge img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .fish-badge { color: #0f766e; background: #d1fae5; border-color: #0f766e; }
 .target-badge { color: #1e3a8a; background: #dbeafe; border-color: #334155; }
 .camera-badge { color: #1e3a8a; background: #e2e8f0; border-color: #b45309; }
@@ -2673,8 +2715,111 @@ button:hover:not(:disabled) {
 }
 
 /* Final interaction polish for the catch details, progress cards and bottom navigation. */
+.competition-rule-summary {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: .72rem;
+}
+
+.competition-form-fieldset {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 12px 12px;
+  border: 1px solid #dbe5ef;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.competition-form-fieldset legend {
+  padding: 0 5px;
+  color: #142c58;
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.competition-species-options {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px 10px;
+  margin-top: 8px;
+}
+
+.competition-metric-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+
+.competition-check-option {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  gap: 6px;
+  color: #334155;
+  font-size: .75rem !important;
+  font-weight: 700;
+}
+
+.competition-check-option input {
+  width: auto !important;
+  min-height: 0 !important;
+  margin: 0;
+  accent-color: #2563eb;
+}
+
+.competition-check-option input:disabled + * {
+  opacity: .65;
+}
+
+.competition-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #bfdbfe;
+  background: #eff6ff;
+}
+
+.competition-details-header > div {
+  display: grid;
+  gap: 4px;
+}
+
+.competition-details-header strong {
+  color: #142c58;
+}
+
+.competition-details-header small {
+  color: #64748b;
+  font-size: .76rem;
+}
+
+.competition-favorite-button {
+  flex: 0 0 auto;
+  color: #1d4ed8;
+}
+
+.competition-favorite-button.is-favorite {
+  border-color: #f59e0b;
+  background: #fff7d6;
+  color: #b45309;
+}
+
 .app-nav {
   overflow: visible;
+}
+
+@media (max-width: 780px) {
+  .competition-species-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .competition-details-header {
+    align-items: flex-start;
+  }
 }
 
 .nav-button[data-view="measure"] .nav-icon {
@@ -2730,14 +2875,10 @@ button:hover:not(:disabled) {
 }
 
 .home-achievement-overview { padding: 8px 10px 2px; }
-.home-badge-icon-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: center; gap: 12px; margin: 2px 0 14px; }
-.home-badge-icon { display: grid; place-items: center; width: 48px; height: 48px; justify-self: center; border: 3px solid #64748b; border-radius: 14px; color: #fff; background: #334155; box-shadow: 0 5px 12px rgba(15, 23, 42, .12); font-size: .9rem; font-weight: 900; }
-.home-badge-icon-1 { border-color: #b45309; background: #172554; }
-.home-badge-icon-2 { border-color: #166534; background: #14532d; }
-.home-badge-icon-3 { border-color: #a16207; background: #713f12; }
-.home-badge-icon-4 { border-color: #a3a3a3; background: #1e293b; }
-.home-badge-icon-5 { border-color: #2563eb; background: #172554; }
-.home-badge-icon.is-complete { box-shadow: 0 0 0 3px #bbf7d0, 0 5px 12px rgba(15, 23, 42, .12); }
+.home-badge-icon-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; gap: 12px; margin: 2px 0 14px; }
+.home-badge-icon { display: grid; place-items: center; width: 216px; height: 216px; max-width: 100%; justify-self: center; border: 0; border-radius: 0; color: inherit; background: transparent; box-shadow: none; font-size: .9rem; font-weight: 900; }
+.home-badge-icon-1, .home-badge-icon-2, .home-badge-icon-3, .home-badge-icon-4, .home-badge-icon-5 { border: 0; background: transparent; }
+.home-badge-icon.is-complete { box-shadow: none; }
 .home-achievement-progress-label { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #334155; font-size: .78rem; }
 .home-achievement-progress-label .text-button { padding: 0; font-size: .74rem; }
 .home-achievement-progress { height: 6px; margin: 8px 0 6px; overflow: hidden; border-radius: 999px; background: #dbe5ef; }
@@ -3099,6 +3240,242 @@ button:hover:not(:disabled) {
     margin: 0;
     padding: 0;
     transform: none;
+  }
+}
+
+/* Final desktop Mät header override. */
+@media (min-width: 681px) {
+  body.measure-active .app-shell { max-width: 1440px; padding: 18px 22px 28px; }
+  body.measure-active .topbar {
+    display: block !important;
+    position: relative;
+    width: 100%;
+    height: 180px;
+    min-height: 180px;
+    margin: 10px 0 24px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 12px 28px rgba(30, 58, 138, .1);
+    overflow: hidden;
+  }
+  body.measure-active .topbar > .app-nav {
+    position: absolute;
+    top: 0;
+    right: 30%;
+    bottom: auto;
+    left: 15%;
+    width: auto;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+  }
+}
+
+/* Final desktop Mät header override. */
+@media (min-width: 681px) {
+  body.measure-active .app-shell {
+    max-width: 1440px;
+    padding: 18px 22px 28px;
+  }
+
+  body.measure-active .topbar {
+    display: block !important;
+    position: relative;
+    width: 100%;
+    height: 180px;
+    min-height: 180px;
+    margin: 10px 0 24px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 12px 28px rgba(30, 58, 138, .1);
+    overflow: hidden;
+  }
+
+  body.measure-active .topbar > .app-nav {
+    position: absolute;
+    top: 0;
+    right: 30%;
+    bottom: auto;
+    left: 15%;
+    width: auto;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+  }
+}
+
+/* Final desktop Mät header override: use the same header as every other view. */
+@media (min-width: 681px) {
+  body.measure-active .app-shell {
+    max-width: 1440px;
+    padding: 18px 22px 28px;
+  }
+
+  body.measure-active .topbar {
+    display: block !important;
+    position: relative;
+    width: 100%;
+    height: 180px;
+    min-height: 180px;
+    margin: 10px 0 24px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 12px 28px rgba(30, 58, 138, .1);
+    overflow: hidden;
+  }
+
+  body.measure-active .topbar > .app-nav {
+    position: absolute;
+    top: 0;
+    right: 30%;
+    bottom: auto;
+    left: 15%;
+    width: auto;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+  }
+}
+
+/* Final desktop Mät header override: use the same header as every other view. */
+@media (min-width: 681px) {
+  body.measure-active .measure-active .topbar,
+  body.measure-active .topbar {
+    display: block !important;
+    width: 100%;
+    height: 180px;
+    min-height: 180px;
+    margin: 10px 0 24px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 12px 28px rgba(30, 58, 138, .1);
+    overflow: hidden;
+  }
+
+  body.measure-active .topbar > .app-nav {
+    position: absolute;
+    top: 0;
+    right: 30%;
+    bottom: auto;
+    left: 15%;
+    width: auto;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+  }
+}
+
+/* Keep Mät in the same header shell as every other desktop view. */
+@media (min-width: 681px) {
+  .measure-active .app-shell {
+    max-width: 1440px;
+    padding: 18px 22px 28px;
+  }
+
+  .measure-active .topbar {
+    display: block !important;
+    position: relative;
+    width: 100%;
+    height: 180px;
+    min-height: 180px;
+    margin: 10px 0 24px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 12px 28px rgba(30, 58, 138, .1);
+    overflow: hidden;
+  }
+
+  .measure-active .app-nav {
+    position: absolute;
+    top: 50%;
+    right: 18%;
+    bottom: auto;
+    left: 38%;
+    z-index: 4;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    transform: translateY(-50%);
+  }
+}
+
+/* The first measurement step only needs the image upload surface. */
+.measure-active:not(.measure-has-photo) .simple-toolbar,
+.measure-active:not(.measure-has-photo) .reference-palette-top,
+.measure-active:not(.measure-has-photo) .measurement-palette,
+.measure-active:not(.measure-has-photo) .measure-tip-card,
+.measure-active:not(.measure-has-photo) .measure-options-row,
+.measure-active:not(.measure-has-photo) .measure-actions {
+  display: none;
+}
+
+.measure-active:not(.measure-has-photo) .measure-stage {
+  margin-top: 0;
+}
+
+/* Final desktop header alignment for all views, including Mät. */
+@media (min-width: 681px) {
+  .measure-active .topbar {
+    display: block !important;
+  }
+
+  .site-header .topbar > .app-nav {
+    left: 34%;
+    right: 25%;
+    justify-content: flex-start;
+    gap: 12px;
+  }
+
+  .site-header .topbar > .app-nav .nav-button {
+    min-width: 86px;
+  }
+}
+
+/* Keep the desktop header consistent across every view, including Mät. */
+@media (min-width: 681px) {
+  .measure-active .topbar {
+    display: block;
+  }
+
+  .site-header .topbar > .app-nav {
+    left: 34%;
+    right: 25%;
+    justify-content: flex-start;
+    gap: 12px;
+  }
+
+  .site-header .topbar > .app-nav .nav-button {
+    min-width: 86px;
   }
 }
 
@@ -3941,10 +4318,17 @@ button:hover:not(:disabled) {
     outline-offset: 2px;
   }
 
-  .header-measure-cta img {
+  .header-measure-cta .header-measure-icon {
+    display: block;
+    flex: 0 0 27px;
     width: 27px;
     height: 27px;
+    max-width: 27px;
+    max-height: 27px;
     object-fit: contain;
+    object-position: center;
+    opacity: 1;
+    visibility: visible;
     filter: brightness(0) invert(1);
   }
 
@@ -4920,7 +5304,10 @@ button:hover:not(:disabled) {
 .home-achievement-item.is-complete .achievement-progress i { background: #16a34a; }
 .achievement-badge { display: inline-grid; width: 24px; height: 24px; margin-right: 7px; place-items: center; border-radius: 7px; color: #fff; background: #fbbf24; font-size: .8rem; font-weight: 900; vertical-align: middle; }
 .home-achievement-item.is-complete .achievement-badge { background: #16a34a; }
+.home-badge-icon img, .home-badge-emblem img { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 0; }
 @media (max-width: 680px) {
+  .home-badge-icon-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-badge-icon { width: 144px; height: 144px; }
   .home-achievement-item { grid-template-columns: minmax(0, 1fr) auto; }
   .home-achievement-item .achievement-progress { grid-column: 1 / -1; }
 }
@@ -4931,6 +5318,40 @@ button:hover:not(:disabled) {
 .home-activity-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 42px; padding: 3px 0; border-bottom: 1px solid #eef2f7; }
 .home-activity-row:last-child { border-bottom: 0; }
 .home-activity-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #eff6ff; color: #2563eb; font-size: .9rem; }
+
+/* Final desktop Mät header override. */
+@media (min-width: 681px) {
+  body.measure-active .app-shell { max-width: 1440px; padding: 18px 22px 28px; }
+  body.measure-active .topbar {
+    display: block !important;
+    position: relative;
+    width: 100%;
+    height: 180px;
+    min-height: 180px;
+    margin: 10px 0 24px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 12px 28px rgba(30, 58, 138, .1);
+    overflow: hidden;
+  }
+  body.measure-active .topbar > .app-nav {
+    position: absolute;
+    top: 0;
+    right: 30%;
+    bottom: auto;
+    left: 15%;
+    width: auto;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+  }
+}
 .home-activity-copy { display: grid; gap: 1px; min-width: 0; }
 .home-activity-copy strong { overflow: hidden; color: #142c58; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
 .home-activity-copy small, .home-activity-row time { color: #64748b; font-size: .64rem; }
@@ -4950,17 +5371,20 @@ button:hover:not(:disabled) {
 .home-personal-best-section > .section-heading { margin-bottom: 10px; }
 .personal-best-table { display: grid; gap: 6px; }
 .personal-best-table-head,
-.personal-best-table-row { display: grid; grid-template-columns: minmax(0, 1fr) 105px 105px; align-items: center; gap: 10px; }
+.personal-best-table-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(75px, 105px) minmax(75px, 105px); align-items: center; gap: 10px; }
 .personal-best-table-head { padding: 0 10px 2px; color: #142c58; font-size: .72rem; font-weight: 800; }
 .personal-best-table-head span:not(:first-child),
 .personal-best-table-row > strong { text-align: right; }
 .personal-best-table-row { min-height: 44px; padding: 4px 10px 4px 4px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #142c58; font-size: .78rem; }
-.personal-best-species { display: flex; align-items: center; min-width: 0; gap: 9px; }
-.personal-best-species strong { display: block; flex: 1 1 auto; min-width: 0; overflow: hidden; color: #142c58 !important; font-size: .78rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
-.home-personal-best-section .personal-best-species { min-width: 0; }
+.personal-best-species { display: flex; align-items: center; min-width: 120px; gap: 9px; }
+.personal-best-species-name { display: block; flex: 1 1 auto; min-width: 0; overflow: hidden; color: #142c58; font-size: .78rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.home-personal-best-section .personal-best-species { min-width: 120px; }
 @media (max-width: 680px) {
   .personal-best-table-head,
-  .personal-best-table-row { grid-template-columns: minmax(0, 1fr) 78px 78px; gap: 6px; }
+  .personal-best-table-row { grid-template-columns: minmax(118px, 1fr) 72px 72px; gap: 6px; }
+  .personal-best-table-head { grid-template-columns: minmax(118px, 1fr) 72px 72px; gap: 6px; }
+  .personal-best-species,
+  .home-personal-best-section .personal-best-species { min-width: 118px; }
 }
 .home-personal-best-section .personal-best-list {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4993,8 +5417,8 @@ button:hover:not(:disabled) {
 .personal-best-thumb {
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 34px;
+  width: 72px;
+  height: 46px;
   overflow: hidden;
   border-radius: 5px;
   background: #dbeafe;
@@ -5003,13 +5427,25 @@ button:hover:not(:disabled) {
   font-weight: 800;
 }
 
-.personal-best-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.personal-best-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; background: #fff; }
 .personal-best-row > strong { color: #142c58; font-size: .78rem; }
 .personal-best-value { color: #142c58; font-size: .78rem; font-weight: 800; }
 .personal-best-input { grid-column: 2 / -1; }
 .personal-best-input input { width: 100%; min-height: 32px; border: 1px solid #bfdbfe; border-radius: 6px; padding: 0 8px; font: inherit; }
 .profile-personal-best-section { margin-top: 18px; }
 .profile-personal-best-section p { margin: 0; color: #64748b; font-size: .82rem; }
+.home-personal-best-section .section-heading p { margin: 3px 0 0; color: #64748b; font-size: .74rem; }
+.profile-personal-best-section .section-kicker { display: block; margin-bottom: 4px; color: #2563eb; font-size: .68rem; font-weight: 900; letter-spacing: .12em; }
+.profile-personal-best-section .personal-best-editor { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.profile-personal-best-section .personal-best-row { grid-template-columns: 46px minmax(0, 1fr) minmax(110px, auto); min-height: 76px; padding: 9px; border-color: #dbe5ef; border-radius: 12px; box-shadow: 0 4px 12px rgba(20,44,88,.04); }
+.profile-personal-best-section .personal-best-row > strong { align-self: start; padding-top: 4px; }
+.profile-personal-best-section .personal-best-value { display: grid; align-content: center; gap: 2px; min-width: 108px; padding: 7px 9px; border-radius: 8px; background: #ecfdf5; color: #087f5b; text-align: right; }
+.profile-personal-best-section .personal-best-value::before { color: #64748b; content: "Bigplus från fångst"; font-size: .62rem; font-weight: 700; }
+.profile-personal-best-section .personal-best-input { grid-column: 2 / -1; display: grid; gap: 3px; }
+.profile-personal-best-section .personal-best-input::before { color: #64748b; content: "Livstid – eget rekord"; font-size: .62rem; font-weight: 700; }
+.profile-personal-best-section .personal-best-input input { border-color: #bfdbfe; background: #f8fbff; }
+.personal-best-table-head span:nth-child(2)::after { color: #64748b; content: " (eget)"; font-weight: 600; }
+.personal-best-table-head span:nth-child(3)::after { color: #087f5b; content: " (fångst)"; font-weight: 600; }
 .profile-visibility-toggle { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; color: #142c58; cursor: pointer; }
 .profile-visibility-toggle input { width: 18px; height: 18px; margin-top: 2px; accent-color: #2563eb; }
 .profile-visibility-toggle span { display: grid; gap: 2px; }
@@ -5019,6 +5455,45 @@ button:hover:not(:disabled) {
 .friend-request { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; background: #fff; }
 .friend-request > span:nth-child(2) { display: grid; flex: 1; gap: 2px; }
 .friend-request small { color: #64748b; font-size: .74rem; }
+.friend-request-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.friend-request-actions .secondary-button,
+.friend-request-actions .text-button { min-height: 32px; padding: 0 9px; font-size: .72rem; }
+.friend-accept-button { border-color: #86efac; background: #dcfce7; color: #15803d; }
+.friend-accept-button:hover, .friend-accept-button:focus-visible { border-color: #22c55e; background: #bbf7d0; }
+.friend-deny-button { color: #b91c1c; }
+
+.friends-section { overflow: hidden; border-top: 0; background: linear-gradient(145deg, #fff 0%, #f0fdf8 100%); }
+.friends-section .section-heading { align-items: flex-start; }
+.friends-section .section-kicker, .friend-tournament-card .section-kicker { display: block; margin-bottom: 4px; color: #0f9f6e; font-size: .68rem; font-weight: 900; letter-spacing: .12em; }
+.friends-section .section-heading h2 { margin-bottom: 3px; }
+.friends-section .section-heading p { max-width: 420px; }
+.friend-add-form { padding: 10px; border: 1px solid #d7eee4; border-radius: 12px; background: rgba(255,255,255,.82); }
+.friend-add-form input { border-color: #cbded7; border-radius: 9px; }
+.friend-card { position: relative; min-height: 76px; padding: 14px; border-color: #d7eee4; border-radius: 12px; box-shadow: 0 5px 14px rgba(15, 118, 84, .06); }
+.friend-card-avatar { position: relative; flex: 0 0 auto; }
+.friend-card-avatar .competition-avatar { display: grid; place-items: center; width: 42px; height: 42px; border: 2px solid #bbf7d0; background: #ecfdf5; color: #087f5b; font-size: 1rem; }
+.friend-online-dot { position: absolute; right: -1px; bottom: 1px; width: 10px; height: 10px; border: 2px solid #fff; border-radius: 50%; background: #cbd5e1; }
+.friend-online-dot.is-live { background: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,.14); }
+.friend-card-main { gap: 5px; }
+.friend-card-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.friend-card-check { display: grid; place-items: center; width: 26px; height: 26px; margin-left: auto; border-radius: 50%; background: #dcfce7; color: #15803d; font-weight: 900; }
+.friend-tournaments { display: grid; gap: 10px; margin-top: 18px; }
+.friend-tournament-title { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; border-radius: 12px; background: #123b78; color: #fff; }
+.friend-tournament-title h3, .friend-tournament-title p { margin: 0; color: #fff; }
+.friend-tournament-title h3 { font-size: 1rem; }
+.friend-tournament-title p { margin-top: 3px; color: #bfdbfe; font-size: .78rem; }
+.friend-tournament-title > span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #10b981; font-size: 1.1rem; }
+.friend-tournament-card { padding: 14px; border: 1px solid #dbe5ef; border-radius: 12px; background: #fff; box-shadow: 0 4px 12px rgba(20,44,88,.05); }
+.friend-tournament-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.friend-tournament-heading h3 { margin: 0; color: #142c58; font-size: .95rem; }
+.friend-tournament-heading p { margin: 3px 0 0; color: #64748b; font-size: .78rem; }
+.friend-tournament-icon { color: #f59e0b; font-size: 1.25rem; }
+.friend-tournament-results { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 7px; margin-top: 12px; }
+.friend-tournament-results > div { display: grid; grid-template-columns: 1fr auto; gap: 2px 6px; padding: 8px 9px; border-radius: 8px; background: #f8fafc; }
+.friend-tournament-results > div span { color: #142c58; font-size: .76rem; font-weight: 800; }
+.friend-tournament-results > div strong { color: #0f9f6e; font-size: .78rem; }
+.friend-tournament-results > div small { grid-column: 1 / -1; color: #64748b; font-size: .68rem; }
+.friend-tournament-empty { grid-column: 1 / -1; margin: 0; color: #64748b; font-size: .78rem; }
 .catches-toolbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
 .catch-map-panel { margin-top: 14px; padding: 14px; border: 1px solid #dbe5ef; border-radius: 10px; background: #f8fbff; }
 .catch-location-field { margin: 12px 0; padding: 10px 12px; border: 1px solid #dbe5ef; border-radius: 8px; background: #f8fbff; }
@@ -5026,12 +5501,25 @@ button:hover:not(:disabled) {
 .catch-location-heading > div { display: grid; gap: 3px; }
 .catch-location-heading strong { color: #142c58; font-size: .82rem; }
 .catch-location-heading small { color: #64748b; font-size: .72rem; }
+.catch-location-actions { display: flex !important; flex-wrap: wrap; justify-content: flex-end; gap: 6px !important; }
 .catch-location-picker { display: grid; gap: 6px; margin-top: 10px; }
 .catch-location-map { height: 220px; overflow: hidden; border: 1px solid #bfdbfe; border-radius: 8px; }
 .catch-map-panel .section-heading { margin-bottom: 10px; }
 .catch-map { width: 100%; height: 420px; overflow: hidden; border: 1px solid #cbd5e1; border-radius: 8px; background: #dbeafe; }
 .catch-map-empty { margin: 10px 0 0; color: #64748b; font-size: .82rem; text-align: center; }
-@media (max-width: 680px) { .catch-map { height: 320px; } }
+.catches-results-section > .catches-toolbar,
+.catch-map-panel #hideCatchesMap { display: none; }
+@media (min-width: 681px) {
+  .catches-results-section { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 14px; align-items: start; }
+  .catches-results-section > .catch-map-panel { grid-column: 1; grid-row: 1; margin-top: 0; }
+  .catches-results-section > .catch-list-large { grid-column: 2; grid-row: 1; align-content: start; }
+}
+@media (max-width: 680px) {
+  .catches-results-section { display: flex; flex-direction: column; }
+  .catches-results-section > .catch-map-panel { order: -1; margin-top: 0; width: 100%; }
+  .catch-map { height: 320px; }
+}
+@media (max-width: 680px) { .catch-location-heading { align-items: flex-start; flex-direction: column; } .catch-location-actions { width: 100%; justify-content: flex-start; } .catch-location-actions .compact-button { flex: 1 1 145px; } }
 
 @media (min-width: 681px) {
   .home-personal-best-section { grid-column: span 1; }
@@ -5078,7 +5566,7 @@ button:hover:not(:disabled) {
 @media (min-width: 681px) {
   .home-catch-card { grid-template-columns: 104px minmax(0, 1fr) auto; }
   .home-catch-card .catch-copy { min-width: 0; }
-  .home-catch-card .catch-copy strong,
+.home-catch-card .catch-copy strong,
   .home-catch-card .catch-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 @media (min-width: 681px) {
@@ -5128,6 +5616,39 @@ button:hover:not(:disabled) {
     height: 100%;
     margin: 0;
     padding: 0;
+    transform: none;
+  }
+}
+
+/* Mät uses the same full-width desktop header as the other views. */
+@media (min-width: 681px) {
+  body.measure-active .topbar {
+    display: block !important;
+    position: relative;
+    width: 100%;
+    height: 180px;
+    min-height: 180px;
+    margin: 10px 0 24px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 12px 28px rgba(30, 58, 138, .1);
+    overflow: hidden;
+  }
+  body.measure-active .topbar > .app-nav {
+    position: absolute;
+    top: 0;
+    right: 30%;
+    bottom: auto;
+    left: 15%;
+    width: auto;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
     transform: none;
   }
 }

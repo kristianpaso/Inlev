@@ -8,7 +8,9 @@ const FRIENDS_KEY = "bigplus_friends";
 const FRIEND_REQUESTS_KEY = "bigplus_friend_requests";
 const LIVE_KEY = "bigplus_live_status";
 let remoteCatches = null;
+let remoteCompetitions = null;
 let pendingProfilePhoto = "";
+let authBootstrapActive = true;
 const AUTH_API_ROOT = ["localhost", "127.0.0.1"].includes(window.location.hostname)
   ? `http://${window.location.hostname}:4100/api/bigplus`
   : (window.BIGPLUS_RENDER_API_ROOT || "https://bigplus-api.onrender.com/api/bigplus");
@@ -21,12 +23,14 @@ function readJson(key, fallback) {
 }
 
 function accounts() { return readJson(ACCOUNT_KEY, []); }
-function catches() { return readJson(CATCH_KEY, []); }
+function catches() {
+  // MongoDB is the source of truth for an authenticated account. Do not let
+  // old demo records from this browser leak into the member's views.
+  if (currentAccount()) return Array.isArray(remoteCatches) ? remoteCatches : [];
+  return [];
+}
 function competitions() {
-  const list = readJson(COMPETITION_KEY, []);
-  const filtered = list.filter((item) => item?.id !== "nordic-pike-challenge");
-  if (filtered.length !== list.length) localStorage.setItem(COMPETITION_KEY, JSON.stringify(filtered));
-  return filtered;
+  return currentAccount() && Array.isArray(remoteCompetitions) ? remoteCompetitions : [];
 }
 function membershipKey() {
   return `bigplus_competition_memberships:${currentAccount()?.id || "guest"}`;
@@ -34,7 +38,7 @@ function membershipKey() {
 function memberships() { return readJson(membershipKey(), []); }
 function isCompetitionMember(competition) {
   const accountId = currentAccount()?.id;
-  return Boolean(accountId && (memberships().includes(competition?.id) || (competition?.members || []).includes(accountId)));
+  return Boolean(accountId && (competition?.members || []).includes(accountId));
 }
 function personalBestKey() { return `${PERSONAL_BEST_KEY}:${currentAccount()?.id || "guest"}`; }
 function personalBests() { return readJson(personalBestKey(), {}); }
@@ -49,6 +53,9 @@ function friendIds(accountId = currentAccount()?.id) { return accountId ? readJs
 function setFriendIds(accountId, ids) { if (accountId) localStorage.setItem(`${FRIENDS_KEY}:${accountId}`, JSON.stringify([...new Set(ids)])); }
 function friendRequests(accountId = currentAccount()?.id) { return accountId ? readJson(`${FRIEND_REQUESTS_KEY}:${accountId}`, []) : []; }
 function setFriendRequests(accountId, requests) { if (accountId) localStorage.setItem(`${FRIEND_REQUESTS_KEY}:${accountId}`, JSON.stringify(requests)); }
+function pendingFriendRequest(fromId, toId) {
+  return friendRequests(toId).some((request) => request.fromId === fromId && request.status === "pending");
+}
 function isLive(accountId) { return localStorage.getItem(`${LIVE_KEY}:${accountId}`) === "true"; }
 function setLive(accountId, value) { if (accountId) localStorage.setItem(`${LIVE_KEY}:${accountId}`, String(value)); }
 function createMemberCode() {
@@ -66,6 +73,59 @@ function ensureMemberCode(account) {
   return code;
 }
 
+function friendTournamentId(firstId, secondId) {
+  return "friend-tournament:" + [firstId, secondId].sort().join(":");
+}
+
+function ensureFriendTournament(friendId) {
+  const account = currentAccount();
+  const friend = accounts().find((item) => item.id === friendId);
+  if (!account || !friend || account.id === friend.id) return null;
+  const id = friendTournamentId(account.id, friend.id);
+  if (competitions().some((item) => item.id === id)) return id;
+  const tournament = {
+    id,
+    type: "friend",
+    friendIds: [account.id, friend.id],
+    name: "Vänturnering: " + (friend.name || "Fiskare"),
+    description: "Största fisk per art",
+    daysLeft: 365,
+    createdBy: account.id,
+    members: [account.id, friend.id],
+    createdAt: new Date().toISOString()
+  };
+  localStorage.setItem(COMPETITION_KEY, JSON.stringify([...competitions(), tournament]));
+  return id;
+}
+
+function friendBestBySpecies(friendIds) {
+  const result = new Map();
+  catches().filter((item) => friendIds.includes(item.userId)).forEach((item) => {
+    const measurement = item.measurement || item;
+    const species = String(measurement.speciesName || measurement.species || "Annan art");
+    const length = Number(measurement.lengthCm || 0);
+    if (length > Number(result.get(species)?.length || 0)) result.set(species, { length, userId: item.userId });
+  });
+  return [...result.entries()].sort((a, b) => b[1].length - a[1].length);
+}
+
+function renderFriendTournaments() {
+  const target = $("#friendTournamentList");
+  const account = currentAccount();
+  if (!target || !account) return;
+  const friends = friendIds(account.id).map((id) => accounts().find((item) => item.id === id)).filter(Boolean);
+  if (!friends.length) { target.innerHTML = ""; return; }
+  const cards = friends.map((friend) => {
+    const best = friendBestBySpecies([account.id, friend.id]).slice(0, 5);
+    const rows = best.length ? best.map(([species, item]) => {
+      const owner = accounts().find((entry) => entry.id === item.userId);
+      return "<div><span>" + escapeHtml(species) + "</span><strong>" + item.length.toFixed(1) + " cm</strong><small>" + escapeHtml(owner?.name || "Fiskare") + "</small></div>";
+    }).join("") : '<p class="friend-tournament-empty">Registrera fångster för att börja jämföra arter.</p>';
+    return '<article class="friend-tournament-card"><div class="friend-tournament-heading"><div><span class="section-kicker">VÄNUTMANING</span><h3>' + escapeHtml(friend.name || "Fiskare") + '</h3><p>Största fisk per art</p></div><span class="friend-tournament-icon">★</span></div><div class="friend-tournament-results">' + rows + '</div></article>';
+  }).join("");
+  target.innerHTML = '<div class="friend-tournament-title"><div><h3>Vänturneringar</h3><p>Varje vän får en egen tävling där bästa resultatet per art följs.</p></div><span>⚡</span></div>' + cards;
+}
+
 function renderFriends() {
   const listTarget = $("#friendList");
   const suggestionsTarget = $("#friendSuggestions");
@@ -74,8 +134,9 @@ function renderFriends() {
   const ids = friendIds(account.id);
   const incomingRequests = friendRequests(account.id).filter((request) => request.status === "pending");
   const friends = ids.map((id) => accounts().find((item) => item.id === id)).filter(Boolean);
+  friends.forEach((friend) => ensureFriendTournament(friend.id));
   const search = $("#friendSearchInput")?.value.trim().toLowerCase() || "";
-  const candidates = accounts().filter((item) => item.id !== account.id && item.profileVisibility !== "private" && !ids.includes(item.id) && (!search || `${item.name} ${item.email} ${item.memberCode || ""}`.toLowerCase().includes(search))).slice(0, 5);
+  const candidates = accounts().filter((item) => item.id !== account.id && item.profileVisibility !== "private" && !ids.includes(item.id) && !pendingFriendRequest(account.id, item.id) && !pendingFriendRequest(item.id, account.id) && (!search || `${item.name} ${item.email} ${item.memberCode || ""}`.toLowerCase().includes(search))).slice(0, 5);
   if (suggestionsTarget) suggestionsTarget.innerHTML = search && candidates.length ? candidates.map((item) => `<button class="friend-suggestion" type="button" data-friend-id="${escapeHtml(item.id)}"><span class="competition-avatar">${escapeHtml((item.name || "F").slice(0, 1).toUpperCase())}</span><span>${escapeHtml(item.name || item.email)}</span><b>Lägg till</b></button>`).join("") : "";
   listTarget.innerHTML = friends.length ? friends.map((friend) => {
     const catchesForFriend = catches().filter((item) => item.userId === friend.id);
@@ -88,9 +149,16 @@ function renderFriends() {
     const requestMarkup = incomingRequests.map((request) => {
       const sender = accounts().find((item) => item.id === request.fromId);
       if (!sender) return "";
-      return `<article class="friend-request"><span class="competition-avatar">${escapeHtml((sender.name || "F").slice(0, 1).toUpperCase())}</span><span><strong>${escapeHtml(sender.name || "Fiskare")}</strong><small>Vill bli din vän</small></span><button class="secondary-button" type="button" data-accept-friend-request="${escapeHtml(request.id)}">Godkänn</button></article>`;
+      return `<article class="friend-request"><span class="competition-avatar">${escapeHtml((sender.name || "F").slice(0, 1).toUpperCase())}</span><span><strong>${escapeHtml(sender.name || "Fiskare")}</strong><small>Vill bli din vän</small></span><span class="friend-request-actions"><button class="secondary-button friend-accept-button" type="button" data-accept-friend-request="${escapeHtml(request.id)}">Acceptera</button><button class="text-button friend-deny-button" type="button" data-deny-friend-request="${escapeHtml(request.id)}">Neka</button></span></article>`;
     }).join("");
     listTarget.insertAdjacentHTML("afterbegin", `<div class="friend-request-list"><h3>Vänförfrågningar</h3>${requestMarkup}</div>`);
+  }
+  const outgoingRequests = accounts().flatMap((recipient) => friendRequests(recipient.id)
+    .filter((request) => request.fromId === account.id && request.status === "pending")
+    .map((request) => ({ ...request, recipient })));
+  if (outgoingRequests.length) {
+    const outgoingMarkup = outgoingRequests.map(({ recipient }) => `<article class="friend-request is-pending"><span class="competition-avatar">${escapeHtml((recipient.name || "F").slice(0, 1).toUpperCase())}</span><span><strong>${escapeHtml(recipient.name || "Fiskare")}</strong><small>VÃ¤ntar pÃ¥ svar</small></span></article>`).join("");
+    listTarget.insertAdjacentHTML("afterbegin", `<div class="friend-request-list friend-request-outgoing"><h3>Skickade fÃ¶rfrÃ¥gningar</h3>${outgoingMarkup}</div>`);
   }
   const liveButton = $("#liveStatusButton");
   if (liveButton) {
@@ -101,6 +169,7 @@ function renderFriends() {
   }
   const codeTarget = $("#profileMemberCode");
   if (codeTarget) codeTarget.textContent = ensureMemberCode(account);
+  renderFriendTournaments();
 }
 
 function sendFriendRequest(friendId) {
@@ -124,6 +193,14 @@ function acceptFriendRequest(requestId) {
   setFriendRequests(account.id, requests.filter((item) => item.id !== requestId));
   setFriendIds(account.id, [...friendIds(account.id), request.fromId]);
   setFriendIds(request.fromId, [...friendIds(request.fromId), account.id]);
+  ensureFriendTournament(request.fromId);
+  renderFriends();
+}
+
+function denyFriendRequest(requestId) {
+  const account = currentAccount();
+  if (!account) return;
+  setFriendRequests(account.id, friendRequests(account.id).filter((item) => item.id !== requestId));
   renderFriends();
 }
 /*
@@ -149,22 +226,38 @@ function currentAccount() {
 }
 
 function userCatches() {
-  const account = currentAccount();
-  if (account && remoteCatches) return remoteCatches;
-  const all = catches();
-  return account ? all.filter((item) => item.userId === account.id) : all.filter((item) => !item.userId);
+  return catches();
 }
 
 async function loadRemoteCatches() {
   if (!currentAccount()) { remoteCatches = null; return; }
   try {
     const response = await fetch(`${AUTH_API_ROOT}/catches`, { credentials: "include" });
-    if (!response.ok) return;
+    if (!response.ok) {
+      remoteCatches = [];
+      renderCatchLists();
+      return;
+    }
     remoteCatches = await response.json();
     renderCatchLists();
   } catch {
-    remoteCatches = null;
+    remoteCatches = [];
+    renderCatchLists();
   }
+}
+
+async function loadRemoteCompetitions() {
+  if (!currentAccount()) { remoteCompetitions = null; return; }
+  try {
+    const response = await fetch(`${AUTH_API_ROOT}/competitions`, { credentials: "include" });
+    const data = await response.json().catch(() => []);
+    if (!response.ok) throw new Error(data.error || "Kunde inte hämta tävlingar.");
+    remoteCompetitions = Array.isArray(data) ? data : [];
+  } catch {
+    remoteCompetitions = [];
+  }
+  window.bigplusCompetitionIds = remoteCompetitions.flatMap((item) => isCompetitionMember(item) ? [item.id] : []);
+  renderCompetitions();
 }
 
 async function loadGroups() {
@@ -198,18 +291,67 @@ async function createGroup() {
   }
 }
 
+function formatCompetitionDate(value) {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString("sv-SE") : "Okänt datum";
+}
+
+function competitionMetric(competition) {
+  return ["length", "weight", "both"].includes(competition?.scoringMetric) ? competition.scoringMetric : "length";
+}
+
+function competitionMetricLabel(competition) {
+  const metric = competitionMetric(competition);
+  return metric === "weight" ? "Vikt" : metric === "both" ? "Längd + vikt" : "Längd";
+}
+
+function competitionSpeciesLabel(competition) {
+  const species = Array.isArray(competition?.species) ? competition.species.filter(Boolean) : [];
+  return species.length ? species.join(", ") : "Alla arter";
+}
+
+function competitionAllowsSpecies(competition, measurement) {
+  const selected = Array.isArray(competition?.species) ? competition.species.filter(Boolean) : [];
+  if (!selected.length) return true;
+  const name = String(measurement?.speciesName || measurement?.species || "").toLowerCase();
+  return selected.some((item) => String(item).toLowerCase() === name);
+}
+
+function competitionScore(item, competition) {
+  const measurement = item?.measurement || item || {};
+  if (!competitionAllowsSpecies(competition, measurement)) return 0;
+  if (competitionMetric(competition) === "weight") {
+    const value = measurement.weightKg?.mid ?? measurement.weightKg ?? measurement.weight ?? 0;
+    return Number(value) || 0;
+  }
+  return Number(measurement.lengthCm ?? measurement.length ?? 0) || 0;
+}
+
+function formatCompetitionScore(value, competition) {
+  return value > 0 ? `${value.toFixed(1)} ${competitionMetric(competition) === "weight" ? "kg" : "cm"}` : "--";
+}
+
+function formatCompetitionResult(item, competition) {
+  const measurement = item?.measurement || item || {};
+  if (competitionMetric(competition) !== "both") return formatCompetitionScore(competitionScore(item, competition), competition);
+  const length = Number(measurement.lengthCm ?? measurement.length ?? 0);
+  const weight = Number(measurement.weightKg?.mid ?? measurement.weightKg ?? measurement.weight ?? 0);
+  const values = [];
+  if (length > 0) values.push(`${length.toFixed(1)} cm`);
+  if (weight > 0) values.push(`${weight.toFixed(1)} kg`);
+  return values.length ? values.join(" · ") : "--";
+}
+
 function competitionCard(competition) {
   const days = Number(competition.daysLeft);
-  $("#competitionDetailsMeta").textContent = "";
+  // The detail panel is rendered only after a competition is opened.
   const ending = Number.isFinite(days) ? `Avslutas om ${days} dagar` : "Aktiv tävling";
   const joined = isCompetitionMember(competition);
   const owner = competition.createdBy && competition.createdBy === currentAccount()?.id;
   const homeOnly = arguments[1]?.home;
   const participationAction = joined ? `<button class="secondary-button competition-leave-button" type="button" data-competition-action="leave" data-competition-id="${escapeHtml(competition.id)}">Lämna</button>` : `<button class="secondary-button competition-join-button" type="button" data-competition-action="join" data-competition-id="${escapeHtml(competition.id)}">Delta</button>`;
   const action = owner ? `${participationAction}<button class="secondary-button competition-delete-button" type="button" data-competition-action="delete" data-competition-id="${escapeHtml(competition.id)}">Ta bort</button>` : participationAction;
-  const favorite = favoriteCompetition() === competition.id;
-  const favoriteButton = `<button class="secondary-button competition-favorite-button${favorite ? " is-favorite" : ""}" type="button" data-competition-action="favorite" data-competition-id="${escapeHtml(competition.id)}" aria-pressed="${favorite}">${favorite ? "★ Favorit" : "☆ Favorit"}</button>`;
-  return `<article class="competition-card${homeOnly ? " competition-card-home" : ""}" data-competition-id="${escapeHtml(competition.id)}"${homeOnly ? ' role="button" tabindex="0"' : ""}><div class="competition-card-main"><span class="competition-emblem" aria-hidden="true">★</span><div><h3>${escapeHtml(competition.name)}${owner ? '<span class="competition-title-star" aria-label="Skapad av dig">★</span>' : ""}</h3><p>${escapeHtml(competition.description || "Mät och jämför dina fångster.")}</p><small>${ending}</small>${owner ? '<span class="competition-owner-label">Din tävling</span>' : ""}</div></div>${homeOnly ? "" : `<div class="competition-card-actions">${favoriteButton}${action}</div>`}</article>`;
+  return `<article class="competition-card${homeOnly ? " competition-card-home" : ""}" data-competition-id="${escapeHtml(competition.id)}"${homeOnly ? ' role="button" tabindex="0"' : ""}><div class="competition-card-main"><span class="competition-emblem" aria-hidden="true">★</span><div><h3>${escapeHtml(competition.name)}${owner ? '<span class="competition-title-star" aria-label="Skapad av dig">★</span>' : ""}</h3><p>${escapeHtml(competition.description || "Mät och jämför dina fångster.")}</p><small>${ending} · Skapad ${formatCompetitionDate(competition.createdAt)}</small><small class="competition-rule-summary">${escapeHtml(competitionMetricLabel(competition))} · ${escapeHtml(competitionSpeciesLabel(competition))}</small>${owner ? '<span class="competition-owner-label">Din tävling</span>' : ""}</div></div>${homeOnly ? "" : `<div class="competition-card-actions">${action}</div>`}</article>`;
 }
 
 function renderCompetitions() {
@@ -381,24 +523,44 @@ function renderCompetitionDetails(competitionId) {
   if (!competition || !details || !participants) return;
   const slot = $("#competitionDetailsSlot");
   if (slot && details.parentElement !== slot) slot.appendChild(details);
-  const participantMap = new Map();
-  const memberIds = new Set([...(competition.members || []), ...(competition.createdBy ? [competition.createdBy] : [])]);
-  memberIds.forEach((userId) => participantMap.set(userId, { userId, catches: [] }));
-  catches().filter((item) => Array.isArray(item.competitionIds) && item.competitionIds.includes(competitionId)).forEach((item) => {
-    const userId = item.userId || "guest";
-    const own = participantMap.get(userId) || { userId, catches: [] };
-    own.catches.push(item);
-    participantMap.set(userId, own);
-  });
-  const members = [...participantMap.values()].sort((a, b) => Math.max(...b.catches.map((item) => Number(item.measurement?.lengthCm || 0))) - Math.max(...a.catches.map((item) => Number(item.measurement?.lengthCm || 0))));
+  const participantMap = new Map((competition.participants || []).map((participant) => [participant.userId, {
+    ...participant,
+    catches: (participant.catches || []).filter((item) => competitionAllowsSpecies(competition, item.measurement || item))
+  }]));
+  const members = [...participantMap.values()].sort((a, b) => Math.max(0, ...b.catches.map((item) => competitionScore(item, competition))) - Math.max(0, ...a.catches.map((item) => competitionScore(item, competition))));
   $("#competitionDetailsTitle").textContent = "Deltagare och bästa resultat";
   const days = Number(competition.daysLeft);
   $("#competitionDetailsMeta").textContent = Number.isFinite(days) ? `Avslutas om ${days} dagar` : "Aktiv tävling";
   participants.innerHTML = members.length ? members.map((member) => {
-    const account = accounts().find((item) => item.id === member.userId);
-    const best = member.catches.reduce((winner, item) => Number(item.measurement?.lengthCm || 0) > Number(winner?.measurement?.lengthCm || 0) ? item : winner, null);
+    const account = accounts().find((item) => item.id === member.userId) || { name: member.name, photo: member.photo };
+    const best = member.catches.reduce((winner, item) => competitionScore(item, competition) > competitionScore(winner, competition) ? item : winner, null);
     return `<button class="competition-participant" type="button" data-participant-id="${escapeHtml(member.userId)}" data-competition-id="${escapeHtml(competitionId)}"><span class="competition-avatar">${escapeHtml((account?.name || "F").slice(0, 1).toUpperCase())}</span><span><strong>${escapeHtml(account?.name || "Fiskare")}</strong><small>${member.catches.length} fångster</small></span><b>${best ? `${Number(best.measurement.lengthCm || 0).toFixed(1)} cm` : "--"}</b></button>`;
   }).join("") : '<div class="empty-list"><strong>Inga deltagare ännu</strong><span>Registrera en fångst för att synas här.</span></div>';
+  const detailsHeader = document.createElement("div");
+  detailsHeader.className = "competition-details-header";
+  const detailsIntro = document.createElement("div");
+  const detailsName = document.createElement("strong");
+  detailsName.textContent = competition.name;
+  const detailsRule = document.createElement("small");
+  detailsRule.textContent = `Skapad ${formatCompetitionDate(competition.createdAt)} · ${competitionMetricLabel(competition)} · ${competitionSpeciesLabel(competition)}`;
+  detailsIntro.append(detailsName, detailsRule);
+  const favoriteButton = document.createElement("button");
+  const isFavorite = favoriteCompetition() === competition.id;
+  favoriteButton.type = "button";
+  favoriteButton.className = `secondary-button competition-favorite-button${isFavorite ? " is-favorite" : ""}`;
+  favoriteButton.dataset.competitionAction = "favorite";
+  favoriteButton.dataset.competitionId = competition.id;
+  favoriteButton.setAttribute("aria-pressed", String(isFavorite));
+  favoriteButton.textContent = isFavorite ? "★ Favorit" : "☆ Favorit";
+  detailsHeader.append(detailsIntro, favoriteButton);
+  participants.prepend(detailsHeader);
+  participants.querySelectorAll(".competition-participant").forEach((button, index) => {
+    const member = members[index];
+    const bestValue = member ? Math.max(0, ...member.catches.map((item) => competitionScore(item, competition))) : 0;
+    const score = button.querySelector("b");
+    const best = member?.catches.reduce((winner, item) => competitionScore(item, competition) > competitionScore(winner, competition) ? item : winner, null);
+    if (score) score.textContent = best ? formatCompetitionResult(best, competition) : formatCompetitionScore(bestValue, competition);
+  });
   $("#competitionDetailsMeta").textContent = "";
   details.hidden = false;
   details.dataset.competitionId = competitionId;
@@ -422,7 +584,9 @@ function toggleCompetitionDetails(competitionId) {
 function renderParticipantCatches(competitionId, participantId) {
   const target = $("#participantCatches");
   if (!target) return;
-  const items = catches().filter((item) => item.userId === participantId && Array.isArray(item.competitionIds) && item.competitionIds.includes(competitionId));
+  const competition = competitions().find((item) => item.id === competitionId);
+  const participant = competition?.participants?.find((item) => item.userId === participantId);
+  const items = participant?.catches || [];
   target.innerHTML = `<h3>Uppladdade bilder</h3>${items.length ? `<div class="participant-photo-grid">${items.map((item) => item.photo ? `<figure><img src="${escapeHtml(item.photo)}" alt="Fångst"><figcaption>${Number(item.measurement?.lengthCm || 0).toFixed(1)} cm</figcaption></figure>` : "").join("")}</div>` : '<p class="hint">Inga bilder uppladdade ännu.</p>'}`;
   target.hidden = false;
 }
@@ -434,57 +598,106 @@ function createCompetition() {
   $("#competitionNameInput")?.focus();
 }
 
-function saveCompetition(event) {
+async function saveCompetition(event) {
   event.preventDefault();
   const name = $("#competitionNameInput").value.trim();
   if (!name) return;
   const description = $("#competitionDescriptionInput").value.trim() || "Tävla om den längsta fisken.";
   const daysLeft = Math.max(1, Math.min(365, Number($("#competitionDaysInput").value) || 7));
-  const creatorId = currentAccount()?.id || "";
+  if (!currentAccount()) { openAuth("login"); return; }
   const joinOnCreate = $("#competitionJoinOnCreate")?.checked !== false;
-  const next = { id: `competition-${Date.now()}`, name: name.slice(0, 80), description: description.slice(0, 140), daysLeft, createdBy: creatorId, members: joinOnCreate && creatorId ? [creatorId] : [], createdAt: new Date().toISOString() };
-  localStorage.setItem(COMPETITION_KEY, JSON.stringify([...competitions(), next]));
-  const joined = memberships();
-  localStorage.setItem(membershipKey(), JSON.stringify(joinOnCreate ? [...new Set([...joined, next.id])] : joined.filter((id) => id !== next.id)));
+  const allSpecies = $("#competitionSpeciesAll")?.checked !== false;
+  const selectedSpecies = [...document.querySelectorAll('input[name="competitionSpecies"]:checked')].map((input) => input.value);
+  if (!allSpecies && !selectedSpecies.length) {
+    window.alert("Välj minst en art eller Alla arter.");
+    return;
+  }
+  const selectedMetric = document.querySelector('input[name="competitionMetric"]:checked')?.value;
+  const scoringMetric = ["length", "weight", "both"].includes(selectedMetric) ? selectedMetric : "length";
+  const response = await fetch(`${AUTH_API_ROOT}/competitions`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.slice(0, 80), description: description.slice(0, 140), daysLeft, species: allSpecies ? [] : selectedSpecies, scoringMetric, joinOnCreate }) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) { window.alert(data.error || "Kunde inte skapa tävlingen."); return; }
   event.currentTarget.reset();
   $("#competitionDaysInput").value = "7";
   $("#competitionCreatePanel").hidden = true;
-  renderCompetitions();
+  await loadRemoteCompetitions();
   window.alert("Tävlingen skapades.");
 }
 
-function joinCompetition(competitionId) {
+async function joinCompetition(competitionId) {
   if (!competitionId || !currentAccount()) { openAuth("login"); return; }
-  const joined = memberships();
-  if (!joined.includes(competitionId)) joined.push(competitionId);
-  localStorage.setItem(membershipKey(), JSON.stringify(joined));
-  localStorage.setItem(COMPETITION_KEY, JSON.stringify(competitions().map((item) => item.id === competitionId ? { ...item, members: [...new Set([...(item.members || []), currentAccount()?.id].filter(Boolean))] } : item)));
-  renderCompetitions();
+  const response = await fetch(`${AUTH_API_ROOT}/competitions/${encodeURIComponent(competitionId)}/join`, { method: "POST", credentials: "include" });
+  if (!response.ok) { const data = await response.json().catch(() => ({})); window.alert(data.error || "Kunde inte delta i tävlingen."); return; }
+  await loadRemoteCompetitions();
   renderCompetitionDetails(competitionId);
   window.alert("Du deltar nu i tävlingen.");
 }
 
-function leaveCompetition(competitionId) {
-  const joined = memberships().filter((id) => id !== competitionId);
-  localStorage.setItem(membershipKey(), JSON.stringify(joined));
-  const accountId = currentAccount()?.id;
-  localStorage.setItem(COMPETITION_KEY, JSON.stringify(competitions().map((item) => item.id === competitionId ? { ...item, members: (item.members || []).filter((id) => id !== accountId) } : item)));
-  renderCompetitions();
+async function leaveCompetition(competitionId) {
+  const response = await fetch(`${AUTH_API_ROOT}/competitions/${encodeURIComponent(competitionId)}/leave`, { method: "POST", credentials: "include" });
+  if (!response.ok) { const data = await response.json().catch(() => ({})); window.alert(data.error || "Kunde inte lämna tävlingen."); return; }
+  await loadRemoteCompetitions();
   window.alert("Du har lämnat tävlingen.");
 }
 
-function deleteCompetition(competitionId) {
+async function deleteCompetition(competitionId) {
   const competition = competitions().find((item) => item.id === competitionId);
   if (!competition || competition.createdBy !== currentAccount()?.id) return;
   if (!window.confirm(`Ta bort tävlingen ${competition.name}?`)) return;
-  localStorage.setItem(COMPETITION_KEY, JSON.stringify(competitions().filter((item) => item.id !== competitionId)));
-  localStorage.setItem(membershipKey(), JSON.stringify(memberships().filter((id) => id !== competitionId)));
+  const response = await fetch(`${AUTH_API_ROOT}/competitions/${encodeURIComponent(competitionId)}`, { method: "DELETE", credentials: "include" });
+  if (!response.ok) { const data = await response.json().catch(() => ({})); window.alert(data.error || "Kunde inte ta bort tävlingen."); return; }
   $("#competitionDetails").hidden = true;
-  renderCompetitions();
+  await loadRemoteCompetitions();
 }
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
+}
+
+function photoSource(value) {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return "";
+  return value.url || value.secure_url || value.src || value.dataUrl || value.data || "";
+}
+
+function displayValue(value, fallback = "") {
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (!value || typeof value !== "object") return fallback;
+  return value.name || value.label || value.title || fallback;
+}
+
+function achievementBadgeImage(name) {
+  const normalized = String(name || "").trim().toLowerCase();
+  const badges = [
+    ["abborre", "abborre-badge-v1.png"], ["mört", "mort-badge-v1.png"], ["mÃ¶rt", "mort-badge-v1.png"],
+    ["gädda", "gadda-badge-v1.png"], ["gÃ¤dda", "gadda-badge-v1.png"], ["braxen", "braxen-badge-v1.png"],
+    ["gös", "gos-badge-v1.png"], ["gÃ¶s", "gos-badge-v1.png"], ["lake", "lake-badge-v1.png"],
+    ["ruda", "ruda-badge-v1.png"], ["sutare", "sutare-badge-v1.png"], ["id", "id-badge-v1.png"],
+    ["björkna", "bjorkna-badge-v1.png"], ["bjÃ¶rkna", "bjorkna-badge-v1.png"],
+    ["första över 10 cm", "over10-badge-v1.png"], ["fÃ¶rsta Ã¶ver 10 cm", "over10-badge-v1.png"],
+    ["första över 25 cm", "first25cm-badge-v1.png"], ["fÃ¶rsta Ã¶ver 25 cm", "first25cm-badge-v1.png"],
+    ["din första bigplus", "bigplus-badge-v1.png"], ["din fÃ¶rsta bigplus", "bigplus-badge-v1.png"],
+    ["5 arter fångade", "5art-badge-v1.png"], ["5 arter fÃ¥ngade", "5art-badge-v1.png"],
+    ["första verifierade", "forstaveri-badge-v1.png"], ["fÃ¶rsta verifierade", "forstaveri-badge-v1.png"],
+    ["lägg till en vän", "1van-badge-v1.png"], ["lÃ¤gg till en vÃ¤n", "1van-badge-v1.png"],
+    ["gå med i en grupp", "joingroup-badge-v1.png"], ["gÃ¥ med i en grupp", "joingroup-badge-v1.png"],
+    ["3 dagars streak", "3daystreak-badge-v1.png"], ["7 dagars streak", "7daystreak-badge-v1.png"]
+  ];
+  const badge = badges.find(([species]) => normalized === species);
+  return badge ? `/bigplus/assets/achievements/${badge[1]}` : "";
+}
+
+function speciesReferenceImage(name) {
+  const normalized = String(name || "").toLowerCase();
+  const plain = normalized.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (plain.includes("abborre")) return "/bigplus/assets/species/abborre.jpg";
+  if (plain.includes("gos")) return "/bigplus/assets/species/gos.jpg";
+  if (plain.includes("gadda")) return "/bigplus/assets/species/gadda.jpg";
+  if (plain.includes("oring")) return "/bigplus/assets/species/oring.jpg";
+  if (normalized.includes("gös") || normalized.includes("gÃ¶s")) return "/bigplus/assets/species/gos.jpg";
+  if (normalized.includes("gädda") || normalized.includes("gÃ¤dda")) return "/bigplus/assets/species/gadda.jpg";
+  if (normalized.includes("oring") || normalized.includes("öring") || normalized.includes("Ã–ring")) return "/bigplus/assets/species/oring.jpg";
+  return "/bigplus/assets/fangster-icon.png";
 }
 
 function formatCatch(item, compact = false, index = 0) {
@@ -496,10 +709,10 @@ function formatCatch(item, compact = false, index = 0) {
   const created = item.createdAt ? new Date(item.createdAt) : null;
   const dayDiff = created ? Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(created).setHours(0, 0, 0, 0)) / 86400000) : null;
   const date = dayDiff === 0 ? "Idag" : dayDiff === 1 ? "Igår" : created ? created.toLocaleDateString("sv-SE") : "Nyligen";
-  const photo = item.photoDataUrl || item.photo || "";
+  const photo = photoSource(item.photoDataUrl || item.photo);
   const catchKey = item.id || item._id || `catch-${index}`;
   if (compact) {
-    const location = measurement.location || item.location || item.water || "Plats ej angiven";
+    const location = displayValue(measurement.location || item.location || item.water, "Plats ej angiven");
     return `<article class="catch-row home-catch-card" data-catch-id="${escapeHtml(catchKey)}" role="button" tabindex="0"><div class="catch-thumb">${photo ? `<img src="${photo}" alt="">` : "<span>FISK</span>"}</div><div class="catch-copy"><strong>${escapeHtml(species)}</strong><b>${length ? `${length.toFixed(1)} cm` : "-- cm"}</b><small>${escapeHtml(location)}</small></div><time class="catch-date">${escapeHtml(date)}</time></article>`;
   }
   return `<article class="catch-row${compact ? " home-catch-card" : ""}" data-catch-id="${escapeHtml(catchKey)}" role="button" tabindex="0"><div class="catch-thumb">${photo ? `<img src="${photo}" alt="">` : "<span>FISK</span>"}</div><div class="catch-copy"><strong>${escapeHtml(species)}</strong><small>${compact ? (length ? `${length.toFixed(1)} cm` : "-- cm") : date}</small></div><div class="catch-values"><strong>${length ? `${length.toFixed(1)} cm` : "-- cm"}</strong><small>${compact ? date : (weight ? `${weight.toFixed(1)} kg` : "-- kg")}</small></div></article>`;
@@ -561,7 +774,7 @@ function renderCatchDetail(catchId) {
   const detail = $("#catchDetail");
   if (!item || !detail) return;
   const measurement = item.measurement || item;
-  const photo = item.photoDataUrl || item.photo || "";
+  const photo = photoSource(item.photoDataUrl || item.photo);
   $("#catchDetailImage").src = photo;
   const weight = measurement.weightKg?.mid ?? measurement.weightKg ?? measurement.weight;
   const isBigplus = measurement.status === "BIGPLUS" || measurement.isBigplus;
@@ -572,8 +785,19 @@ function renderCatchDetail(catchId) {
   $("#catchDetailStatus small").textContent = isBigplus ? "Godkänd fångst" : "Resultat från din mätning";
   $("#catchDetailTitle").textContent = measurement.speciesName || measurement.species || "Fångst";
   $("#catchDetailMeta").textContent = `${Number(measurement.lengthCm || 0).toFixed(1)} cm · ${measurement.status || "Mätt"}`;
+  const allCatchList = $("#allCatchList");
+  const row = allCatchList
+    ? [...allCatchList.querySelectorAll(".catch-row[data-catch-id]")].find((entry) => String(entry.dataset.catchId) === String(catchId))
+    : null;
+  if (row) {
+    allCatchList.querySelector(".catch-row.is-selected")?.classList.remove("is-selected");
+    row.classList.add("is-selected");
+    row.insertAdjacentElement("afterend", detail);
+  }
+  detail.classList.remove("is-open");
   detail.hidden = false;
-  detail.scrollIntoView({ behavior: "smooth", block: "start" });
+  detail.classList.add("is-open");
+  detail.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 function renderLegacyHomeAchievements(list) {
@@ -600,6 +824,9 @@ function renderHomeAchievements(list) {
   const achievements = [["F" + "\u00f6rsta Bigplus", bigplus, 1], ["Artm" + "\u00e4stare", species, 5], ["G" + "\u00e4ddj" + "\u00e4garen", longPike, 3], ["Fotom" + "\u00e4stare", list.length, 50]];
   const completed = achievements.filter(([, value, goal]) => value >= goal).length;
   const badgeIcons = ["★", "◈", "♛", "10+", "50+"];
+  badgeIcons[0] = `<img src="${achievementBadgeImage("Din första Bigplus")}" alt="" loading="lazy">`;
+  badgeIcons[1] = `<img src="${achievementBadgeImage("5 arter fångade")}" alt="" loading="lazy">`;
+  badgeIcons[2] = `<img src="${achievementBadgeImage("Gädda")}" alt="" loading="lazy">`;
   const badges = badgeIcons.map((icon, index) => {
     const complete = index < completed;
     return `<span class="home-badge-icon home-badge-icon-${index + 1}${complete ? " is-complete" : ""}" aria-label="${complete ? "Upplåst badge" : "Ej upplåst badge"}">${icon}</span>`;
@@ -642,11 +869,11 @@ function renderLegacyPersonalBestLists(list = userCatches()) {
       const measurement = item.measurement || item;
       return String(measurement.speciesName || measurement.species || "").toLowerCase() === name.toLowerCase();
     });
-    const capturedBest = Math.max(0, ...catchesForSpecies.map((item) => Number((item.measurement || item).lengthCm || 0)));
+    const capturedBest = Math.max(0, ...catchesForSpecies.filter(isBigplusCatch).map((item) => Number((item.measurement || item).lengthCm || 0)));
     const previousBest = Number(manual[name] || 0);
     const best = Math.max(capturedBest, previousBest);
-    const bestCatch = catchesForSpecies.find((item) => Number((item.measurement || item).lengthCm || 0) === capturedBest);
-    return { name, best, previousBest, photo: bestCatch?.photoDataUrl || bestCatch?.photo || "" };
+    const bestCatch = catchesForSpecies.filter(isBigplusCatch).find((item) => Number((item.measurement || item).lengthCm || 0) === capturedBest);
+    return { name, best, previousBest, photo: photoSource(bestCatch?.photoDataUrl || bestCatch?.photo) };
   }).filter((item) => item.best > 0 || editor).sort((a, b) => b.best - a.best || a.name.localeCompare(b.name, "sv"));
   const row = (item, editable) => `<div class="personal-best-row"><div class="personal-best-thumb">${item.photo ? `<img src="${item.photo}" alt="">` : "<span>FISK</span>"}</div><strong>${escapeHtml(item.name)}</strong><span class="personal-best-value">${item.best ? `${item.best.toFixed(1)} cm` : "-- cm"}</span>${editable ? `<label class="personal-best-input"><span class="sr-only">Tidigare personbästa för ${escapeHtml(item.name)}</span><input type="number" min="0" step="0.1" value="${item.previousBest || ""}" placeholder="Tidigare cm" data-personal-best-species="${escapeHtml(item.name)}"></label>` : ""}</div>`;
   if (home) home.innerHTML = rows.length ? rows.slice(0, 5).map((item) => row(item, false)).join("") : `<div class="empty-list"><strong>Inga personbästa ännu</strong><span>Mät en fisk eller lägg till tidigare resultat i profilen.</span></div>`;
@@ -673,10 +900,10 @@ function renderLegacyTwoColumnPersonalBestLists(list = userCatches()) {
       const measurement = item.measurement || item;
       return String(measurement.speciesName || measurement.species || "").toLowerCase() === name.toLowerCase();
     });
-    const capturedBest = Math.max(0, ...catchesForSpecies.map((item) => Number((item.measurement || item).lengthCm || 0)));
+    const capturedBest = Math.max(0, ...catchesForSpecies.filter(isBigplusCatch).map((item) => Number((item.measurement || item).lengthCm || 0)));
     const previousBest = Number(manual[name] || 0);
-    const bestCatch = catchesForSpecies.find((item) => Number((item.measurement || item).lengthCm || 0) === capturedBest);
-    return { name, capturedBest, previousBest, best: Math.max(capturedBest, previousBest), photo: bestCatch?.photoDataUrl || bestCatch?.photo || "" };
+    const bestCatch = catchesForSpecies.filter(isBigplusCatch).find((item) => Number((item.measurement || item).lengthCm || 0) === capturedBest);
+    return { name, capturedBest, previousBest, best: capturedBest, photo: photoSource(bestCatch?.photoDataUrl || bestCatch?.photo), speciesPhoto: speciesReferenceImage(name) };
   }).filter((item) => item.capturedBest > 0 || item.previousBest > 0 || editor).sort((a, b) => b.best - a.best || a.name.localeCompare(b.name, "sv"));
   const row = (item, editable) => `<div class="personal-best-row"><div class="personal-best-thumb">${item.photo ? `<img src="${item.photo}" alt="">` : "<span>FISK</span>"}</div><strong>${escapeHtml(item.name)}</strong><span class="personal-best-value">${item.best ? `${item.best.toFixed(1)} cm` : "-- cm"}</span>${editable ? `<label class="personal-best-input"><span class="sr-only">Tidigare personbästa för ${escapeHtml(item.name)}</span><input type="number" min="0" step="0.1" value="${item.previousBest || ""}" placeholder="Tidigare cm" data-personal-best-species="${escapeHtml(item.name)}"></label>` : ""}</div>`;
   if (home) {
@@ -707,14 +934,14 @@ function renderPersonalBestLists(list = userCatches()) {
       const measurement = item.measurement || item;
       return String(measurement.speciesName || measurement.species || "").toLowerCase() === name.toLowerCase();
     });
-    const capturedBest = Math.max(0, ...catchesForSpecies.map((item) => Number((item.measurement || item).lengthCm || 0)));
+    const capturedBest = Math.max(0, ...catchesForSpecies.filter(isBigplusCatch).map((item) => Number((item.measurement || item).lengthCm || 0)));
     const previousBest = Number(manual[name] || 0);
-    const bestCatch = catchesForSpecies.find((item) => Number((item.measurement || item).lengthCm || 0) === capturedBest);
-    return { name, capturedBest, previousBest, best: Math.max(capturedBest, previousBest), photo: bestCatch?.photoDataUrl || bestCatch?.photo || "" };
+    const bestCatch = catchesForSpecies.filter(isBigplusCatch).find((item) => Number((item.measurement || item).lengthCm || 0) === capturedBest);
+    return { name, capturedBest, previousBest, best: capturedBest, photo: photoSource(bestCatch?.photoDataUrl || bestCatch?.photo), speciesPhoto: speciesReferenceImage(name) };
   }).filter((item) => item.capturedBest > 0 || item.previousBest > 0 || editor).sort((a, b) => b.best - a.best || a.name.localeCompare(b.name, "sv"));
   if (home) {
     const tableRows = rows.filter((item) => item.capturedBest > 0 || item.previousBest > 0).slice(0, 5);
-    home.innerHTML = tableRows.length ? `<div class="personal-best-table"><div class="personal-best-table-head"><span>Art</span><span>Livstid</span><span>Bigplus</span></div>${tableRows.map((item) => `<div class="personal-best-table-row"><div class="personal-best-species"><div class="personal-best-thumb">${item.photo ? `<img src="${item.photo}" alt="">` : "<span>FISK</span>"}</div><strong>${escapeHtml(item.name)}</strong></div><strong>${item.previousBest ? `${item.previousBest.toFixed(1)} cm` : "-- cm"}</strong><strong>${item.capturedBest ? `${item.capturedBest.toFixed(1)} cm` : "-- cm"}</strong></div>`).join("")}</div>` : `<div class="empty-list"><strong>Inga personbästa ännu</strong><span>Mät en fisk eller lägg till tidigare resultat i profilen.</span></div>`;
+    home.innerHTML = tableRows.length ? `<div class="personal-best-table"><div class="personal-best-table-head"><span>Art</span><span>Livstid</span><span>Bigplus</span></div>${tableRows.map((item) => { const image = item.speciesPhoto || speciesReferenceImage(item.name) || item.photo; return `<div class="personal-best-table-row"><div class="personal-best-species"><div class="personal-best-thumb"><img src="${image}" alt="${escapeHtml(item.name)}"></div><span class="personal-best-species-name">${escapeHtml(item.name)}</span></div><strong>${item.previousBest ? `${item.previousBest.toFixed(1)} cm` : "-- cm"}</strong><strong>${item.capturedBest ? `${item.capturedBest.toFixed(1)} cm` : "-- cm"}</strong></div>`; }).join("")}</div>` : `<div class="empty-list"><strong>Inga personbästa ännu</strong><span>Mät en fisk eller lägg till tidigare resultat i profilen.</span></div>`;
   }
   if (editor) {
     editor.innerHTML = rows.map((item) => `<div class="personal-best-row"><div class="personal-best-thumb">${item.photo ? `<img src="${item.photo}" alt="">` : "<span>FISK</span>"}</div><strong>${escapeHtml(item.name)}</strong><span class="personal-best-value">${item.best ? `${item.best.toFixed(1)} cm` : "-- cm"}</span><label class="personal-best-input"><span class="sr-only">Tidigare personbästa för ${escapeHtml(item.name)}</span><input type="number" min="0" step="0.1" value="${item.previousBest || ""}" placeholder="Tidigare cm" data-personal-best-species="${escapeHtml(item.name)}"></label></div>`).join("");
@@ -728,7 +955,8 @@ function renderCatchMap() {
   const panel = $("#catchMapPanel");
   const target = $("#catchMap");
   const empty = $("#catchMapEmpty");
-  if (!panel || !target || panel.hidden) return;
+  const catchesView = $("#catchesView");
+  if (!panel || !target || panel.hidden || catchesView?.hidden) return;
   const located = userCatches().filter((item) => Number.isFinite(Number(item.location?.latitude)) && Number.isFinite(Number(item.location?.longitude)));
   if (!window.L) {
     if (empty) { empty.hidden = false; empty.textContent = "Kartan kunde inte laddas just nu."; }
@@ -753,11 +981,26 @@ function renderCatchMap() {
       const measurement = item.measurement || item;
       const species = measurement.speciesName || measurement.species || "Fångst";
       const length = Number(measurement.lengthCm || 0);
-      window.L.marker([latitude, longitude]).bindPopup(`<strong>${escapeHtml(species)}</strong><br>${length ? `${length.toFixed(1)} cm` : "Mätning"}`).addTo(catchMapMarkers);
+      window.L.marker([latitude, longitude]).addTo(catchMapMarkers);
     });
+    catchMapMarkers.eachLayer((marker) => marker.unbindPopup?.());
     catchMapInstance.fitBounds(bounds, { padding: [28, 28], maxZoom: 13 });
   }
   window.setTimeout(() => catchMapInstance.invalidateSize(), 50);
+}
+
+function zoomToCatchOnMap(catchId) {
+  const item = userCatches().find((entry) => String(entry.id || entry._id) === String(catchId));
+  const latitude = Number(item?.location?.latitude);
+  const longitude = Number(item?.location?.longitude);
+  if (!catchMapInstance || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+  catchMapInstance.setView([latitude, longitude], Math.max(catchMapInstance.getZoom(), 15), { animate: true });
+}
+
+function zoomOutAfterCatchDetail() {
+  if (!catchMapInstance) return;
+  const targetZoom = Math.max(4, catchMapInstance.getZoom() - 6);
+  catchMapInstance.setZoom(targetZoom, { animate: true });
 }
 
 function renderCatchLists() {
@@ -767,6 +1010,7 @@ function renderCatchLists() {
   const all = $("#allCatchList");
   if (home) home.innerHTML = html;
   if (all) all.innerHTML = list.length ? list.map((item, index) => formatCatch(item, false, index)).join("") : html;
+  renderCatchMap();
   renderPersonalBestLists(list);
   renderHomeActivity(list);
   renderHomeAchievements(list);
@@ -798,7 +1042,20 @@ function renderAchievementPage(list = userCatches()) {
   const points = [10, 10, 25, 15, 40, 50, 25, 35, 30, 15, 20, 15, 20, 15, 80, 70, 80, 40, 35, 100];
   const badges = species.map((name, index) => ({ name, text: `Få en Bigplus på ${name}`, value: hasSpecies(name) ? 1 : 0, goal: 1, points: points[index], icon: "◈" }));
   const over = (cm) => list.filter((item) => Number((item.measurement || item).lengthCm || 0) >= cm).length;
+  const captureDays = [...new Set(list.map((item) => {
+    const timestamp = new Date(item.createdAt || (item.measurement || item).createdAt || 0).getTime();
+    return timestamp ? new Date(timestamp).toISOString().slice(0, 10) : "";
+  }).filter(Boolean))].sort().reverse();
+  let streak = 0;
+  for (let index = 0; index < captureDays.length; index += 1) {
+    const current = new Date(`${captureDays[index]}T00:00:00`);
+    const previous = captureDays[index + 1] ? new Date(`${captureDays[index + 1]}T00:00:00`) : null;
+    if (index === 0 || (previous && Math.round((current - previous) / 86400000) === 1)) streak += 1;
+    else break;
+  }
   badges.push(
+    { name: "3 dagars streak", text: "Registrera en fangst tre dagar i rad", value: Math.min(streak, 3), goal: 3, points: 20, icon: "*" },
+    { name: "7 dagars streak", text: "Registrera en fangst sju dagar i rad", value: Math.min(streak, 7), goal: 7, points: 40, icon: "*" },
     { name: "Första fisken", text: "Registrera din första fångst", value: Math.min(list.length, 1), goal: 1, points: 10, icon: "◈" },
     { name: "Första över 10 cm", text: "Mät en fisk över 10 cm", value: Math.min(over(10), 1), goal: 1, points: 10, icon: "▱" },
     { name: "Första över 25 cm", text: "Mät en fisk över 25 cm", value: Math.min(over(25), 1), goal: 1, points: 15, icon: "▱" },
@@ -813,6 +1070,10 @@ function renderAchievementPage(list = userCatches()) {
     { name: "Vinn en utmaning", text: "Vinn en tävling", value: list.filter((item) => (item.measurement || item).competitionWon).length, goal: 1, points: 100, icon: "♜" },
     { name: "100-klubben", text: "Få en Bigplus över 100 cm", value: bigplus.filter((item) => Number((item.measurement || item).lengthCm || 0) >= 100).length, goal: 1, points: 120, icon: "100" }
   );
+  badges.forEach((item) => {
+    const image = achievementBadgeImage(item.name);
+    if (image) item.icon = `<img src="${image}" alt="${escapeHtml(item.name)} badge" loading="lazy">`;
+  });
   const completed = badges.filter((item) => item.value >= item.goal).length;
   const rare = badges.filter((item) => item.value >= item.goal && item.points >= 50).length;
   $("#achievementCount")?.replaceChildren(document.createTextNode(String(completed)));
@@ -823,7 +1084,7 @@ function renderAchievementPage(list = userCatches()) {
 
 function renderAccount() {
   const account = currentAccount();
-  const name = account?.name || "Gästfiskare";
+  const name = account?.name || "Logga in";
   const initial = name.trim().charAt(0).toUpperCase() || "B";
   const button = $("#accountButton");
   if (button) button.textContent = account ? name : "Logga in";
@@ -926,6 +1187,8 @@ function showView(view) {
     return;
   }
   document.body.classList.remove("auth-required");
+  const authModal = $("#authModal");
+  if (authModal) authModal.hidden = true;
   document.body.classList.toggle("measure-active", view === "measure");
   $$('[data-app-view]').forEach((section) => { section.hidden = section.dataset.appView !== view; });
   $$('[data-view]').forEach((button) => button.classList.toggle("active", button.dataset.view === view));
@@ -959,6 +1222,7 @@ function setAuthMode(mode) {
 
 async function handleAuth(event) {
   event.preventDefault();
+  authBootstrapActive = false;
   const form = event.currentTarget;
   const mode = form.dataset.mode || "login";
   const email = $("#authEmail").value.trim().toLowerCase();
@@ -977,8 +1241,10 @@ async function handleAuth(event) {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Kunde inte logga in.");
     const account = data.user;
-    const list = accounts().filter((item) => item.id !== account.id && item.email !== account.email);
-    localStorage.setItem(ACCOUNT_KEY, JSON.stringify([...list, account]));
+    if (!account?.id) throw new Error("Inloggningen gav inget giltigt användarkonto.");
+    // Keep only the authenticated MongoDB member locally. Previous versions
+    // stored demo users here, which made stale accounts appear in the app.
+    localStorage.setItem(ACCOUNT_KEY, JSON.stringify([account]));
     localStorage.setItem(SESSION_KEY, account.id);
     localStorage.setItem("inlev_user", account.id);
   } catch (error) {
@@ -993,8 +1259,11 @@ async function handleAuth(event) {
   document.body.classList.remove("auth-required");
   renderAccount();
   renderCatchLists();
-  await loadRemoteCatches();
   showView("home");
+  // Visa appen direkt. En långsam eller tillfälligt otillgänglig fångstlista
+  // ska inte hålla kvar användaren på inloggningssidan.
+  loadRemoteCatches();
+  loadRemoteCompetitions();
 }
 
 function bind() {
@@ -1019,6 +1288,11 @@ function bind() {
   $$('[data-go-view]').forEach((button) => button.addEventListener("click", () => showView(button.dataset.goView)));
   $("#createCompetitionButton")?.addEventListener("click", createCompetition);
   $("#competitionForm")?.addEventListener("submit", saveCompetition);
+  $("#competitionSpeciesAll")?.addEventListener("change", (event) => {
+    document.querySelectorAll('input[name="competitionSpecies"]').forEach((input) => {
+      input.disabled = event.target.checked;
+    });
+  });
   $("#cancelCompetitionButton")?.addEventListener("click", () => { $("#competitionCreatePanel").hidden = true; });
   $("#competitionsList")?.addEventListener("click", (event) => {
     const actionButton = event.target.closest("[data-competition-action]");
@@ -1035,6 +1309,14 @@ function bind() {
       if (card) toggleCompetitionDetails(card.dataset.competitionId);
     }
   });
+  $("#competitionDetails")?.addEventListener("click", (event) => {
+    const actionButton = event.target.closest('[data-competition-action="favorite"]');
+    if (!actionButton) return;
+    const id = actionButton.dataset.competitionId;
+    setFavoriteCompetition(favoriteCompetition() === id ? "" : id);
+    renderCompetitions();
+    renderCompetitionDetails(id);
+  });
   $("#homeCompetitionList")?.addEventListener("click", (event) => {
     const card = event.target.closest("[data-competition-id]");
     if (card) { showView("competitions"); toggleCompetitionDetails(card.dataset.competitionId); }
@@ -1045,18 +1327,19 @@ function bind() {
   });
   $("#allCatchList")?.addEventListener("click", (event) => {
     const row = event.target.closest("[data-catch-id]");
-    if (row) renderCatchDetail(row.dataset.catchId);
+    if (row) { renderCatchDetail(row.dataset.catchId); zoomToCatchOnMap(row.dataset.catchId); }
   });
   $("#homeCatchList")?.addEventListener("click", (event) => {
     const row = event.target.closest("[data-catch-id]");
     if (!row) return;
     showView("catches");
     renderCatchDetail(row.dataset.catchId);
+    window.setTimeout(() => zoomToCatchOnMap(row.dataset.catchId), 0);
   });
   $("#allCatchList")?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     const row = event.target.closest("[data-catch-id]");
-    if (row) { event.preventDefault(); renderCatchDetail(row.dataset.catchId); }
+    if (row) { event.preventDefault(); renderCatchDetail(row.dataset.catchId); zoomToCatchOnMap(row.dataset.catchId); }
   });
   $("#showCatchesMap")?.addEventListener("click", () => {
     $("#catchMapPanel").hidden = false;
@@ -1065,7 +1348,11 @@ function bind() {
   $("#hideCatchesMap")?.addEventListener("click", () => {
     $("#catchMapPanel").hidden = true;
   });
-  $("#closeCatchDetail")?.addEventListener("click", () => { $("#catchDetail").hidden = true; });
+  $("#closeCatchDetail")?.addEventListener("click", () => {
+    $("#catchDetail").hidden = true;
+    $("#allCatchList .catch-row.is-selected")?.classList.remove("is-selected");
+    zoomOutAfterCatchDetail();
+  });
   $("#catchDetailImage")?.addEventListener("click", () => {
     const source = $("#catchDetailImage").src;
     if (!source) return;
@@ -1115,6 +1402,8 @@ function bind() {
   $("#friendList")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-accept-friend-request]");
     if (button) acceptFriendRequest(button.dataset.acceptFriendRequest);
+    const denyButton = event.target.closest("[data-deny-friend-request]");
+    if (denyButton) denyFriendRequest(denyButton.dataset.denyFriendRequest);
   });
   $("#copyMemberCode")?.addEventListener("click", async () => {
     const code = ensureMemberCode(currentAccount());
@@ -1160,29 +1449,55 @@ function bind() {
     event.currentTarget.setAttribute("title", visible ? "Dölj lösenord" : "Visa lösenord");
   });
   $("#logoutButton")?.addEventListener("click", async () => { await fetch(`${AUTH_API_ROOT}/auth/logout`, { method: "POST", credentials: "include" }).catch(() => {}); remoteCatches = null; localStorage.removeItem(SESSION_KEY); localStorage.removeItem("inlev_user"); renderAccount(); showView("home"); });
-  window.addEventListener("bigplus:catch-saved", () => { renderCatchLists(); loadRemoteCatches(); });
+  window.addEventListener("bigplus:catch-saved", async (event) => {
+    renderCatchLists();
+    await loadRemoteCatches();
+    await loadRemoteCompetitions();
+    const catchId = event.detail?.catchId;
+    if (catchId) {
+      showView("catches");
+      renderCatchDetail(catchId);
+    }
+  });
   window.addEventListener("storage", () => { renderAccount(); renderCatchLists(); renderFriends(); });
 }
 
 bind();
-ensureDemoAccount();
 renderAccount();
 renderFriends();
 renderCatchLists();
 renderCompetitions();
-showView("home");
+
+// Vänta på backendens session innan appen visas. Annars kan ett gammalt
+// localStorage-konto öppna appen som en falsk gäst eller låsa fast loginvyn.
+openAuth("login");
 
 fetch(`${AUTH_API_ROOT}/auth/me`, { credentials: "include" })
   .then((response) => response.ok ? response.json() : null)
   .then((data) => {
-    if (!data?.user) return;
-    const list = accounts().filter((item) => item.email !== data.user.email);
-    localStorage.setItem(ACCOUNT_KEY, JSON.stringify([...list, data.user]));
+    if (!authBootstrapActive) return;
+    if (!data?.user) {
+      localStorage.removeItem(ACCOUNT_KEY);
+      localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem("inlev_user");
+      renderAccount();
+      openAuth("login");
+      return;
+    }
+    localStorage.setItem(ACCOUNT_KEY, JSON.stringify([data.user]));
     localStorage.setItem(SESSION_KEY, data.user.id);
     localStorage.setItem("inlev_user", data.user.id);
     renderAccount();
     renderCatchLists();
     loadRemoteCatches();
+    loadRemoteCompetitions();
     showView("home");
   })
-  .catch(() => {});
+  .catch(() => {
+    if (!authBootstrapActive) return;
+    localStorage.removeItem(ACCOUNT_KEY);
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem("inlev_user");
+    renderAccount();
+    openAuth("login");
+  });
