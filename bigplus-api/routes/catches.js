@@ -19,6 +19,14 @@ router.post("/catches", requireAuth, async (req, res, next) => {
   try {
     const input = req.body || {};
     const result = calculateMeasurement(input.measurement || input);
+    // The server is the source of truth for participation. This prevents a
+    // stale browser membership list from losing the competition links.
+    const joinedCompetitions = await req.db.collection("competitions")
+      .find({ members: req.user._id }, { projection: { _id: 1 } })
+      .toArray();
+    const competitionIds = joinedCompetitions
+      .map((competition) => String(competition._id))
+      .slice(0, 20);
     const item = {
       createdAt: new Date().toISOString(),
       userId: req.user._id,
@@ -27,6 +35,7 @@ router.post("/catches", requireAuth, async (req, res, next) => {
       location: input.location && Number.isFinite(Number(input.location.latitude)) && Number.isFinite(Number(input.location.longitude))
         ? { latitude: Number(input.location.latitude), longitude: Number(input.location.longitude) }
         : null,
+      competitionIds,
       measurement: result
     };
 

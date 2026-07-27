@@ -1377,6 +1377,12 @@ canvas {
   margin-top: 10px;
 }
 
+@media (min-width: 681px) {
+  #competitionsList {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 680px) {
   .competition-card {
     gap: 8px;
@@ -3277,6 +3283,72 @@ button:hover:not(:disabled) {
   }
 }
 
+/* Final mobile home adjustments. */
+@media (max-width: 680px) {
+  .desktop-app-controls,
+  .desktop-search {
+    display: none !important;
+  }
+
+  .home-welcome-row {
+    display: flex;
+    align-items: center;
+    min-height: 92px;
+    margin: 10px !important;
+    padding: 16px 18px !important;
+    border: 1px solid #bfdbfe;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #eff6ff 0%, #ffffff 70%);
+    box-shadow: 0 8px 20px rgba(30, 58, 138, .12);
+  }
+
+  .home-welcome-row .home-avatar {
+    flex: 0 0 58px;
+    width: 58px;
+    height: 58px;
+    border: 3px solid #fff;
+    box-shadow: 0 3px 10px rgba(30, 58, 138, .18);
+  }
+
+  .home-welcome-copy h1 { color: #142c58; font-size: 1rem; }
+  .home-welcome-copy h2 { color: #1d4ed8; font-size: 1.12rem; }
+  .home-welcome-copy p { color: #47658f; font-size: .78rem; line-height: 1.35; }
+  .home-welcome-row .hero-settings { top: 16px; right: 14px; }
+}
+
+/* Keep the mobile home view focused on the welcome content. */
+@media (max-width: 680px) {
+  .desktop-app-controls,
+  .desktop-search {
+    display: none !important;
+  }
+
+  .home-welcome-row {
+    display: flex;
+    align-items: center;
+    min-height: 92px;
+    margin: 10px !important;
+    padding: 16px 18px !important;
+    border: 1px solid #bfdbfe;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #eff6ff 0%, #ffffff 70%);
+    box-shadow: 0 8px 20px rgba(30, 58, 138, .12);
+  }
+
+  .home-welcome-row .home-avatar {
+    flex: 0 0 58px;
+    width: 58px;
+    height: 58px;
+    border: 3px solid #fff;
+    box-shadow: 0 3px 10px rgba(30, 58, 138, .18);
+  }
+
+  .home-welcome-copy h1 { color: #142c58; font-size: 1rem; }
+  .home-welcome-copy h2 { color: #1d4ed8; font-size: 1.12rem; }
+  .home-welcome-copy p { color: #47658f; font-size: .78rem; line-height: 1.35; }
+  .home-welcome-row .hero-settings { top: 16px; right: 14px; }
+}
+
 /* Final desktop Mät header override. */
 @media (min-width: 681px) {
   body.measure-active .app-shell {
@@ -3666,10 +3738,14 @@ button:hover:not(:disabled) {
 .member-code-copy { padding: 4px 8px; border: 1px solid #bfdbfe; border-radius: 6px; background: #eff6ff; color: #2563eb; font: inherit; font-size: .68rem; font-weight: 800; cursor: pointer; }
 .friend-add-form { display: flex; gap: 10px; margin: 14px 0; }
 .friend-add-form input { min-width: 0; flex: 1; min-height: 42px; padding: 0 12px; border: 1px solid #dbe5ef; border-radius: 8px; color: #142c58; font: inherit; }
-.friend-suggestions, .friend-list { display: grid; gap: 8px; }
+.friend-suggestions, .friend-list { display: grid; gap: 8px; width: 350px; max-width: 100%; }
 .friend-suggestion { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; color: #142c58; font: inherit; cursor: pointer; }
 .friend-suggestion span:nth-child(2) { flex: 1; text-align: left; }
 .friend-suggestion b { color: #2563eb; font-size: .76rem; }
+.friend-search-result { cursor: default; }
+.friend-search-result-copy { display: grid; flex: 1; gap: 2px; min-width: 0; text-align: left; }
+.friend-search-result-copy small, .friend-search-status { color: #64748b; font-size: .74rem; font-weight: 700; }
+.friend-search-result .primary-button { min-height: 34px; padding: 0 12px; font-size: .74rem; }
 .friend-card { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid #dbe5ef; border-radius: 8px; background: #fff; }
 .friend-card-main { display: grid; flex: 1; gap: 3px; min-width: 0; }
 .friend-card-main strong { color: #142c58; }
@@ -4959,7 +5035,7 @@ button:hover:not(:disabled) {
   }
 
   .home-competition-section {
-    grid-column: span 2;
+    grid-column: span 1;
   }
 
   .home-achievement-section {
@@ -5305,9 +5381,37 @@ button:hover:not(:disabled) {
 .achievement-badge { display: inline-grid; width: 24px; height: 24px; margin-right: 7px; place-items: center; border-radius: 7px; color: #fff; background: #fbbf24; font-size: .8rem; font-weight: 900; vertical-align: middle; }
 .home-achievement-item.is-complete .achievement-badge { background: #16a34a; }
 .home-badge-icon img, .home-badge-emblem img { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 0; }
+
+/* Keep the home badges uniform and give four badges room on each desktop row. */
+@media (min-width: 681px) {
+  .home-achievement-section {
+    grid-column: 3 / span 2;
+    grid-row: 2;
+  }
+
+  .home-badge-icon-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .home-badge-icon {
+    width: 150px;
+    height: 150px;
+    max-width: 100%;
+    overflow: hidden;
+    justify-self: center;
+  }
+}
+
 @media (max-width: 680px) {
+  .home-achievement-section {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
   .home-badge-icon-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .home-badge-icon { width: 144px; height: 144px; }
+  .home-badge-icon { width: min(200px, 100%); height: auto; aspect-ratio: 1; }
   .home-achievement-item { grid-template-columns: minmax(0, 1fr) auto; }
   .home-achievement-item .achievement-progress { grid-column: 1 / -1; }
 }
@@ -5318,6 +5422,104 @@ button:hover:not(:disabled) {
 .home-activity-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 42px; padding: 3px 0; border-bottom: 1px solid #eef2f7; }
 .home-activity-row:last-child { border-bottom: 0; }
 .home-activity-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #eff6ff; color: #2563eb; font-size: .9rem; }
+
+.home-friends-online-list { display: grid; gap: 8px; }
+.home-friend-online-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 9px; min-height: 48px; padding: 6px 0; border-bottom: 1px solid #eef2f7; }
+.home-friend-online-row:last-child { border-bottom: 0; }
+.home-friend-online-row .competition-avatar { position: relative; }
+.home-friend-online-row .competition-avatar i { position: absolute; right: -2px; bottom: -1px; width: 9px; height: 9px; border: 2px solid #fff; border-radius: 50%; background: #10b981; }
+.home-friend-online-row > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; }
+.home-friend-online-row strong { color: #142c58; font-size: .78rem; }
+.home-friend-online-row small { color: #64748b; font-size: .68rem; }
+.home-friend-online-row > b { color: #059669; font-size: .66rem; letter-spacing: .04em; }
+
+@media (min-width: 681px) {
+  .home-achievement-section { grid-column: span 2; grid-row: auto; }
+  .home-badge-section { grid-column: span 1; grid-row: auto; }
+  .home-friends-online-section { grid-column: span 1; grid-row: auto; }
+}
+
+/* Keep badges below competitions and give the in-progress achievements their own readable block. */
+@media (min-width: 681px) {
+  .home-achievement-section,
+  .home-badge-section {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
+  .home-badge-section {
+    display: block;
+  }
+
+  .home-badge-icon-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .home-badge-icon {
+    width: 112px;
+    height: 112px;
+  }
+}
+
+/* Homepage layout: badges use two grid columns, progress uses one. */
+@media (min-width: 681px) {
+  .home-badge-section {
+    grid-column: span 2;
+    grid-row: auto;
+  }
+
+  .home-achievement-section {
+    grid-column: span 1;
+    grid-row: auto;
+  }
+}
+
+.home-progress-achievement-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.home-progress-achievement {
+  display: grid;
+  grid-template-columns: minmax(145px, .8fr) minmax(150px, 1.3fr) minmax(95px, .55fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 8px 10px;
+  border: 1px solid #dbe5ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.home-progress-achievement strong {
+  color: #142c58;
+  font-size: .82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-progress-achievement small {
+  color: #64748b;
+  font-size: .7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-progress-achievement .achievement-progress {
+  width: 100%;
+  margin: 0;
+}
+
+@media (max-width: 680px) {
+  .home-progress-achievement { grid-template-columns: minmax(0, 1fr) auto; }
+  .home-progress-achievement small:first-of-type { grid-column: 1 / -1; }
+  .home-progress-achievement .achievement-progress { grid-column: 1 / -1; }
+}
 
 /* Final desktop Mät header override. */
 @media (min-width: 681px) {
@@ -5378,13 +5580,13 @@ button:hover:not(:disabled) {
 .personal-best-table-row { min-height: 44px; padding: 4px 10px 4px 4px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #142c58; font-size: .78rem; }
 .personal-best-species { display: flex; align-items: center; min-width: 120px; gap: 9px; }
 .personal-best-species-name { display: block; flex: 1 1 auto; min-width: 0; overflow: hidden; color: #142c58; font-size: .78rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
-.home-personal-best-section .personal-best-species { min-width: 120px; }
+.home-personal-best-section .personal-best-species { min-width: 160px; }
 @media (max-width: 680px) {
   .personal-best-table-head,
   .personal-best-table-row { grid-template-columns: minmax(118px, 1fr) 72px 72px; gap: 6px; }
   .personal-best-table-head { grid-template-columns: minmax(118px, 1fr) 72px 72px; gap: 6px; }
-  .personal-best-species,
-  .home-personal-best-section .personal-best-species { min-width: 118px; }
+  .personal-best-species { min-width: 118px; }
+  .home-personal-best-section .personal-best-species { min-width: 160px; }
 }
 .home-personal-best-section .personal-best-list {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5417,7 +5619,7 @@ button:hover:not(:disabled) {
 .personal-best-thumb {
   display: grid;
   place-items: center;
-  width: 72px;
+  width: 88px;
   height: 46px;
   overflow: hidden;
   border-radius: 5px;
@@ -5427,7 +5629,7 @@ button:hover:not(:disabled) {
   font-weight: 800;
 }
 
-.personal-best-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; background: #fff; }
+.personal-best-thumb img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; background: #fff; }
 .personal-best-row > strong { color: #142c58; font-size: .78rem; }
 .personal-best-value { color: #142c58; font-size: .78rem; font-weight: 800; }
 .personal-best-input { grid-column: 2 / -1; }
@@ -5444,8 +5646,34 @@ button:hover:not(:disabled) {
 .profile-personal-best-section .personal-best-input { grid-column: 2 / -1; display: grid; gap: 3px; }
 .profile-personal-best-section .personal-best-input::before { color: #64748b; content: "Livstid – eget rekord"; font-size: .62rem; font-weight: 700; }
 .profile-personal-best-section .personal-best-input input { border-color: #bfdbfe; background: #f8fbff; }
-.personal-best-table-head span:nth-child(2)::after { color: #64748b; content: " (eget)"; font-weight: 600; }
-.personal-best-table-head span:nth-child(3)::after { color: #087f5b; content: " (fångst)"; font-weight: 600; }
+.profile-personal-best-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) 92px 118px;
+  align-items: center;
+  gap: 8px;
+  min-height: 64px;
+  padding: 6px 8px 6px 6px;
+  border: 1px solid #dbe5ef;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(20,44,88,.035);
+}
+.profile-personal-best-species { display: flex; align-items: center; min-width: 0; gap: 8px; color: #142c58; }
+.profile-personal-best-species strong { overflow: hidden; font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
+.profile-personal-best-thumb { display: grid; place-items: center; flex: 0 0 58px; width: 58px; height: 38px; overflow: hidden; border: 1px solid #dbe5ef; border-radius: 7px; background: #f8fbff; color: #64748b; font-size: .5rem; font-weight: 800; }
+.profile-personal-best-thumb img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; }
+.profile-personal-best-bigplus, .profile-personal-best-input { display: grid; gap: 2px; min-width: 0; }
+.profile-personal-best-bigplus span, .profile-personal-best-input span { color: #64748b; font-size: .62rem; font-weight: 700; }
+.profile-personal-best-bigplus strong { color: #087f5b; font-size: .78rem; white-space: nowrap; }
+.profile-personal-best-input input { width: 100%; min-height: 30px; border: 1px solid #bfdbfe; border-radius: 6px; padding: 0 7px; background: #f8fbff; color: #142c58; font: inherit; font-size: .76rem; font-weight: 700; }
+.profile-personal-best-input input:focus { border-color: #2563eb; outline: 3px solid rgba(37,99,235,.14); }
+@media (max-width: 680px) {
+  .profile-personal-best-section .personal-best-editor { grid-template-columns: 1fr; gap: 7px; }
+  .profile-personal-best-row { grid-template-columns: minmax(0, 1fr) 82px 100px; gap: 6px; min-height: 58px; padding: 5px; }
+  .profile-personal-best-thumb { flex-basis: 52px; width: 52px; height: 34px; }
+  .profile-personal-best-species strong, .profile-personal-best-bigplus strong { font-size: .73rem; }
+  .profile-personal-best-input input { min-height: 28px; font-size: .7rem; }
+}
 .profile-visibility-toggle { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; color: #142c58; cursor: pointer; }
 .profile-visibility-toggle input { width: 18px; height: 18px; margin-top: 2px; accent-color: #2563eb; }
 .profile-visibility-toggle span { display: grid; gap: 2px; }
@@ -5475,6 +5703,7 @@ button:hover:not(:disabled) {
 .friend-online-dot { position: absolute; right: -1px; bottom: 1px; width: 10px; height: 10px; border: 2px solid #fff; border-radius: 50%; background: #cbd5e1; }
 .friend-online-dot.is-live { background: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,.14); }
 .friend-card-main { gap: 5px; }
+.friend-remove-button { margin-left: auto; flex: 0 0 auto; white-space: nowrap; }
 .friend-card-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .friend-card-check { display: grid; place-items: center; width: 26px; height: 26px; margin-left: auto; border-radius: 50%; background: #dcfce7; color: #15803d; font-weight: 900; }
 .friend-tournaments { display: grid; gap: 10px; margin-top: 18px; }
@@ -5507,7 +5736,29 @@ button:hover:not(:disabled) {
 .catch-map-panel .section-heading { margin-bottom: 10px; }
 .catch-map { width: 100%; height: 420px; overflow: hidden; border: 1px solid #cbd5e1; border-radius: 8px; background: #dbeafe; }
 .catch-map-empty { margin: 10px 0 0; color: #64748b; font-size: .82rem; text-align: center; }
-.catches-results-section > .catches-toolbar,
+.map-share-panel { margin-top: 14px; padding: 18px; border: 1px solid #bfdbfe; border-radius: 12px; background: #f8fbff; }
+.map-share-panel .section-heading { margin-bottom: 14px; }
+.map-share-form { display: grid; gap: 14px; }
+.map-share-form > label { display: grid; gap: 6px; color: #142c58; font-size: .82rem; font-weight: 800; }
+.map-share-form input[type="text"] { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #142c58; font: inherit; }
+.map-share-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.map-share-columns fieldset { min-width: 0; margin: 0; padding: 12px; border: 1px solid #dbe5ef; border-radius: 10px; background: #fff; }
+.map-share-columns legend { padding: 0 4px; color: #142c58; font-size: .82rem; font-weight: 800; }
+.map-share-choice-list { display: grid; gap: 7px; max-height: 220px; overflow: auto; }
+.map-share-choice { display: flex; align-items: center; gap: 9px; padding: 8px; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; }
+.map-share-choice:has(input:checked) { border-color: #2563eb; background: #eff6ff; }
+.map-share-choice input { accent-color: #2563eb; }
+.map-share-choice span { display: grid; gap: 2px; }
+.map-share-choice strong { color: #142c58; font-size: .8rem; }
+.map-share-choice small, .map-share-empty, .map-share-zone-row small { color: #64748b; font-size: .72rem; }
+.map-share-empty { margin: 0; }
+.map-share-form-status { min-height: 1.1em; color: #047857; font-size: .78rem; }
+.map-share-zone-list { display: grid; gap: 8px; margin-top: 14px; }
+.map-share-zone-list h3 { margin: 0; color: #142c58; font-size: .9rem; }
+.map-share-zone-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid #dbe5ef; border-radius: 8px; background: #fff; }
+.map-share-zone-row > span { display: grid; gap: 2px; }
+.map-share-zone-row strong { color: #142c58; font-size: .8rem; }
+.catches-results-section > .catches-toolbar { display: flex; }
 .catch-map-panel #hideCatchesMap { display: none; }
 @media (min-width: 681px) {
   .catches-results-section { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 14px; align-items: start; }
@@ -5518,6 +5769,7 @@ button:hover:not(:disabled) {
   .catches-results-section { display: flex; flex-direction: column; }
   .catches-results-section > .catch-map-panel { order: -1; margin-top: 0; width: 100%; }
   .catch-map { height: 320px; }
+  .map-share-columns { grid-template-columns: 1fr; }
 }
 @media (max-width: 680px) { .catch-location-heading { align-items: flex-start; flex-direction: column; } .catch-location-actions { width: 100%; justify-content: flex-start; } .catch-location-actions .compact-button { flex: 1 1 145px; } }
 
@@ -5650,5 +5902,57 @@ button:hover:not(:disabled) {
     background: transparent;
     box-shadow: none;
     transform: none;
+  }
+}
+.catches-toolbar { align-items: center; flex-wrap: wrap; gap: 10px; }
+.catches-toolbar .map-share-status { color: #526985; font-size: .82rem; }
+.catches-toolbar #shareMapWithFriends.is-active { border-color: #10b981; background: #ecfdf5; color: #047857; }
+.catch-detail-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.catch-detail-actions small { color: #526985; }
+
+/* The expanded catch uses the same width as the selected catch row. */
+.catch-list-large > .catch-detail .catch-detail-dialog {
+  display: grid;
+  grid-template-columns: clamp(120px, 22%, 220px) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+}
+
+.catch-list-large > .catch-detail .catch-detail-dialog > img {
+  width: 100%;
+  height: 140px;
+  max-height: none;
+  margin: 0;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.catch-list-large > .catch-detail .catch-detail-copy {
+  min-width: 0;
+  padding: 2px 42px 2px 0;
+}
+
+.catch-list-large > .catch-detail .catch-detail-label {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 680px) {
+  .catch-list-large > .catch-detail .catch-detail-dialog {
+    grid-template-columns: 104px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .catch-list-large > .catch-detail .catch-detail-dialog > img {
+    height: 112px;
+  }
+}
+.compact-button { padding: 8px 12px; }
+
+@media (min-width: 681px) {
+  #competitionsList.groups-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

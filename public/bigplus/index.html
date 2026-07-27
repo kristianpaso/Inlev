@@ -1,13 +1,23 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="sv">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Bigplus</title>
-  <link rel="stylesheet" href="/bigplus/css/bigplus.css?v=20260726-69">
+    <style id="auth-bootstrap-style">
+      /* Keep the initial auth decision invisible during a refresh. */
+      body.auth-bootstrap-pending {
+        min-height: 100vh;
+        background: #f8fafc;
+      }
+      body.auth-bootstrap-pending .app-shell {
+        visibility: hidden;
+      }
+    </style>
+    <link rel="stylesheet" href="/bigplus/css/bigplus.css?v=20260726-72">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   </head>
-  <body class="auth-required">
+  <body class="auth-required auth-bootstrap-pending">
     <main class="app-shell">
       <section class="site-header" aria-label="Bigplus header">
         <div class="header-app-shell">
@@ -197,6 +207,7 @@
           </div>
           <div class="measure-actions">
             <button class="primary-button measure-calculate-button" id="calculateButton" type="button">Mät fisken</button>
+            <button class="secondary-button measure-new-fish-button" id="measureNewFishButton" type="button">Mät ny fisk</button>
           </div>
         </section>
 
@@ -283,6 +294,11 @@
           <div class="section-heading"><h2>Pågående tävlingar</h2><button class="text-button" type="button" data-go-view="competitions">Visa alla</button></div>
           <div class="home-competition-list" id="homeCompetitionList"></div>
         </section>
+
+        <section class="dashboard-section home-achievement-section">
+          <div class="section-heading"><h2>Märken</h2><button class="text-button" type="button" data-go-view="achievements">Visa alla</button></div>
+          <div id="homeAchievementList" class="home-achievement-list"></div>
+        </section>
         <section class="dashboard-section home-tournament-section">
           <div class="section-heading"><h2>Pågående turnering</h2><button class="text-button" type="button" data-go-view="competitions">Visa alla</button></div>
           <div id="homeTournamentBlock"></div>
@@ -295,9 +311,9 @@
           <div class="section-heading"><h2>Nästa badge</h2></div>
           <article class="home-badge-card" id="homeNextBadge"></article>
         </section>
-        <section class="dashboard-section home-achievement-section">
-          <div class="section-heading"><h2>Märken</h2><button class="text-button" type="button" data-go-view="achievements">Visa alla</button></div>
-          <div id="homeAchievementList" class="home-achievement-list"></div>
+        <section class="dashboard-section home-friends-online-section">
+          <div class="section-heading"><h2>Vänner</h2><button class="text-button" type="button" data-go-view="profile">Visa vänner</button></div>
+          <div class="home-friends-online-list" id="homeFriendsOnlineList"></div>
         </section>
         <button class="primary-button home-catch-button" type="button" data-go-view="measure">▣ &nbsp; Ny fångst - Mät fisk</button>
         <footer class="desktop-site-footer"><div><strong>BIGPLUS</strong><small>Fånga · Utmana · Klättra</small></div><div><strong>Bygg din resa. Dela din passion.</strong><small>Följ din utveckling, tävla med mål och inspirera andra.</small></div><div><strong>Support</strong><small>Hjälpcenter · Kontakta oss</small></div></footer>
@@ -305,9 +321,10 @@
 
       <section class="app-view" id="catchesView" data-app-view="catches" hidden>
         <div class="view-heading compact-heading"><div><p class="eyebrow blue-eyebrow">DINA RESULTAT</p><h1>Fångster</h1><p>Alla dina sparade mätningar på samma plats.</p></div><button class="primary-button" type="button" data-go-view="measure">Mät ny fisk</button></div>
-        <section class="dashboard-section catches-results-section"><div class="catches-toolbar"><button class="secondary-button" id="showCatchesMap" type="button">Visa på karta</button></div><div class="catch-list catch-list-large" id="allCatchList"></div><section class="catch-map-panel" id="catchMapPanel"><div class="section-heading"><div><h2>Dina fångster på karta</h2><p>Varje nål visar en registrerad fångst.</p></div><button class="text-button" id="hideCatchesMap" type="button">Dölj karta</button></div><div id="catchMap" class="catch-map" role="application" aria-label="Karta över dina fångster"></div><p class="catch-map-empty" id="catchMapEmpty" hidden>Inga fångster har en sparad plats ännu.</p></section><article class="catch-detail" id="catchDetail" hidden><div class="catch-detail-dialog"><button class="text-button catch-detail-close" id="closeCatchDetail" type="button">Stäng</button><img id="catchDetailImage" alt="Uppladdad fångst" title="Klicka för att förstora"><div class="catch-detail-copy"><p class="catch-detail-label">ART</p><h2 id="catchDetailTitle">Fångst</h2><p id="catchDetailMeta"></p><div class="catch-detail-metrics"><div><span>UPPMÄTT LÄNGD</span><strong id="catchDetailLength">-- cm</strong></div><div><span>UPPSKATTAD VIKT</span><strong id="catchDetailWeight">-- kg</strong></div></div><div class="catch-detail-status" id="catchDetailStatus"><b>✓</b><div><strong>BIGPLUS</strong><small>Godkänd fångst</small></div></div></div></div></article><div class="catch-image-lightbox" id="catchImageLightbox" hidden role="dialog" aria-modal="true" aria-label="Förstorad fångstbild"><button class="text-button catch-lightbox-close" id="closeCatchImage" type="button">Stäng</button><img id="catchLightboxImage" alt="Förstorad fångstbild"></div></section>
+        <section class="dashboard-section catches-results-section"><div class="catches-toolbar"><button class="secondary-button" id="showCatchesMap" type="button">Visa på karta</button><button class="secondary-button" id="shareMapWithFriends" type="button">Dela karta med vänner</button><span class="map-share-status" id="mapShareStatus" role="status"></span></div><div class="catch-list catch-list-large" id="allCatchList"></div><section class="catch-map-panel" id="catchMapPanel"><div class="section-heading"><div><h2>Dina fångster på karta</h2><p>Blå pins är dina fångster. Orange pins är delade av vänner.</p></div><button class="text-button" id="hideCatchesMap" type="button">Dölj karta</button></div><div id="catchMap" class="catch-map" role="application" aria-label="Karta över dina och delade fångster"></div><p class="catch-map-empty" id="catchMapEmpty" hidden>Inga fångster har en sparad plats ännu.</p></section><article class="catch-detail" id="catchDetail" hidden><div class="catch-detail-dialog"><button class="text-button catch-detail-close" id="closeCatchDetail" type="button">Stäng</button><img id="catchDetailImage" alt="Uppladdad fångst" title="Klicka för att förstora"><div class="catch-detail-copy"><p class="catch-detail-label">ART</p><h2 id="catchDetailTitle">Fångst</h2><p id="catchDetailMeta"></p><div class="catch-detail-metrics"><div><span>UPPMÄTT LÄNGD</span><strong id="catchDetailLength">-- cm</strong></div><div><span>UPPSKATTAD VIKT</span><strong id="catchDetailWeight">-- kg</strong></div></div><div class="catch-detail-status" id="catchDetailStatus"><b>✓</b><div><strong>BIGPLUS</strong><small>Godkänd fångst</small></div></div><div class="catch-detail-actions"><button class="secondary-button compact-button" id="shareCatchCoordinates" type="button">Dela koordinater</button><small id="catchShareStatus" role="status"></small></div></div></div></article><div class="catch-image-lightbox" id="catchImageLightbox" hidden role="dialog" aria-modal="true" aria-label="Förstorad fångstbild"><button class="text-button catch-lightbox-close" id="closeCatchImage" type="button">Stäng</button><img id="catchLightboxImage" alt="Förstorad fångstbild"></div></section>
       </section>
 
+      <section class="app-view map-share-panel" data-app-view="catches" id="mapSharePanel" hidden><div class="section-heading"><div><p class="eyebrow blue-eyebrow">DELA KARTAN</p><h2>Skapa en delad zon</h2><p>Välj fångster med plats och vilka accepterade vänner som får se dem.</p></div><button class="text-button" id="closeMapSharePanel" type="button">Stäng</button></div><form id="mapShareZoneForm" class="map-share-form"><label>Zonens namn<input id="mapShareZoneName" type="text" maxlength="80" value="Min fiskezon" required></label><div class="map-share-columns"><fieldset><legend>Fångster i zonen</legend><div id="mapShareCatchChoices" class="map-share-choice-list"></div></fieldset><fieldset><legend>Dela med vänner</legend><div id="mapShareFriendChoices" class="map-share-choice-list"></div></fieldset></div><button class="primary-button" type="submit">Dela zon</button><small class="map-share-form-status" id="mapShareFormStatus" role="status"></small></form><div id="mapShareZoneList" class="map-share-zone-list"></div></section>
       <section class="app-view" id="competitionsView" data-app-view="competitions" hidden>
         <div class="view-heading compact-heading"><div><p class="eyebrow blue-eyebrow">TÄVLA OCH VINN</p><h1>Tävlingar</h1><p>Skapa egna tävlingar eller delta i aktiva utmaningar.</p></div><button class="primary-button" type="button" id="createCompetitionButton">Skapa tävling</button></div>
         <section class="competition-create-panel" id="competitionCreatePanel" hidden>
@@ -375,7 +392,7 @@
             <div><span class="section-kicker">GEMENSKAP</span><h2>Vänner</h2><p>Följ framsteg, se LIVE-status och jämför era största fiskar.</p></div>
             <button class="live-toggle" id="liveStatusButton" type="button" aria-pressed="false"><span class="live-dot" aria-hidden="true"></span><span id="liveStatusLabel">Aktivera LIVE</span></button>
           </div>
-          <form class="friend-add-form" id="friendAddForm"><label class="sr-only" for="friendSearchInput">Sök vän</label><input id="friendSearchInput" type="search" placeholder="Sök medlemsnummer, namn eller e-post"><button class="primary-button" type="submit">Lägg till vän</button></form>
+          <form class="friend-add-form" id="friendAddForm"><label class="sr-only" for="friendSearchInput">Sök vän</label><input id="friendSearchInput" type="search" placeholder="Sök medlemsnummer, namn eller e-post"><button class="primary-button" type="submit">Sök medlem</button></form>
           <div class="friend-suggestions" id="friendSuggestions"></div>
           <div class="friend-list" id="friendList"></div>
           <div class="friend-tournaments" id="friendTournamentList"></div>
@@ -455,7 +472,7 @@
       window.BIGPLUS_RENDER_API_ROOT = window.BIGPLUS_RENDER_API_ROOT || "https://bigplus-api.onrender.com/api/bigplus";
     </script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script type="module" src="/bigplus/js/main.js?v=20260726-61"></script>
-<script type="module" src="/bigplus/js/app-shell.js?v=20260726-92"></script>
+  <script type="module" src="/bigplus/js/main.js?v=20260726-62"></script>
+    <script type="module" src="/bigplus/js/app-shell.js?v=20260726-103"></script>
   </body>
 </html>

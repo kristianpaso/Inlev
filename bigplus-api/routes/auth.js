@@ -40,7 +40,11 @@ function createMemberCode() {
 }
 
 async function ensureMemberCode(db, user) {
-  if (user.memberCode) return user;
+  const sameCode = user.memberCode && await db.collection("users").findOne(
+    { memberCode: user.memberCode, _id: { $ne: user._id } },
+    { projection: { _id: 1 } }
+  );
+  if (user.memberCode && !sameCode) return user;
   let memberCode;
   do {
     memberCode = createMemberCode();
@@ -49,16 +53,56 @@ async function ensureMemberCode(db, user) {
   return { ...user, memberCode };
 }
 
+async function ensureMemberCodeIndex(db) {
+  const users = await db.collection("users").find({}, { projection: { memberCode: 1 } }).sort({ _id: 1 }).toArray();
+  const used = new Set();
+  for (const user of users) {
+    let memberCode = typeof user.memberCode === "string" && /^#[0-9]{5}-[A-Z]{3}$/.test(user.memberCode) && !used.has(user.memberCode)
+      ? user.memberCode
+      : createMemberCode();
+    while (used.has(memberCode)) memberCode = createMemberCode();
+    if (memberCode !== user.memberCode) {
+      await db.collection("users").updateOne({ _id: user._id }, { $set: { memberCode } });
+    }
+    used.add(memberCode);
+  }
+  await db.collection("users").createIndex({ memberCode: 1 }, {
+    unique: true,
+    partialFilterExpression: { memberCode: { $type: "string" } }
+  });
+}
+
 function tokenHash(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-function setSessionCookie(res, token) {
-  res.setHeader("Set-Cookie", `${COOKIE_NAME}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_DAYS * 86400}`);
+function isHttpsRequest(req) {
+  return req.secure || req.get("x-forwarded-proto") === "https";
 }
 
-function clearSessionCookie(res) {
-  res.setHeader("Set-Cookie", `${COOKIE_NAME}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`);
+function setSessionCookie(req, res, token) {
+  const crossSite = isHttpsRequest(req);
+  const attributes = [
+    `${COOKIE_NAME}=${token}`,
+    "HttpOnly",
+    `SameSite=${crossSite ? "None" : "Lax"}`,
+    "Path=/",
+    `Max-Age=${SESSION_DAYS * 86400}`
+  ];
+  if (crossSite) attributes.push("Secure");
+  res.setHeader("Set-Cookie", attributes.join("; "));
+}
+
+function clearSessionCookie(req, res) {
+  const attributes = [
+    `${COOKIE_NAME}=`,
+    "HttpOnly",
+    `SameSite=${isHttpsRequest(req) ? "None" : "Lax"}`,
+    "Path=/",
+    "Max-Age=0"
+  ];
+  if (isHttpsRequest(req)) attributes.push("Secure");
+  res.setHeader("Set-Cookie", attributes.join("; "));
 }
 
 function cookieValue(req, name) {
@@ -129,7 +173,7 @@ router.post("/auth/register", async (req, res, next) => {
       { upsert: true }
     );
     const token = await createSession(db, result.insertedId);
-    setSessionCookie(res, token);
+    setSessionCookie(req, res, token);
     res.status(201).json({ user: publicUser(user) });
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ error: "Det finns redan ett konto med den e-posten." });
@@ -148,7 +192,7 @@ router.post("/auth/login", async (req, res, next) => {
     if (!user || !verifyPassword(password, user.passwordHash)) return res.status(401).json({ error: "E-post eller lösenord stämmer inte." });
     const member = await ensureMemberCode(db, user);
     const token = await createSession(db, member._id);
-    setSessionCookie(res, token);
+    setSessionCookie(req, res, token);
     res.json({ user: publicUser(member) });
   } catch (error) {
     next(error);
@@ -209,7 +253,7 @@ router.post("/auth/logout", async (req, res, next) => {
       const token = cookieValue(req, COOKIE_NAME);
       if (token) await db.collection("sessions").deleteOne({ tokenHash: tokenHash(token) });
     }
-    clearSessionCookie(res);
+    clearSessionCookie(req, res);
     res.status(204).end();
   } catch (error) {
     next(error);
@@ -219,3 +263,4 @@ router.post("/auth/logout", async (req, res, next) => {
 module.exports = router;
 module.exports.requireAuth = requireAuth;
 module.exports.ensureDefaultGroup = ensureDefaultGroup;
+module.exports.ensureMemberCodeIndex = ensureMemberCodeIndex;

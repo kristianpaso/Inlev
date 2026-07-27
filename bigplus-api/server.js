@@ -13,7 +13,10 @@ const measurementsRouter = require("./routes/measurements");
 const catchesRouter = require("./routes/catches");
 const authRouter = require("./routes/auth");
 const groupsRouter = require("./routes/groups");
-const { ensureDefaultGroup } = require("./routes/auth");
+const competitionsRouter = require("./routes/competitions");
+const sharingRouter = require("./routes/sharing");
+const friendsRouter = require("./routes/friends");
+const { ensureDefaultGroup, ensureMemberCodeIndex } = require("./routes/auth");
 
 const app = express();
 let mongoState = process.env.MONGODB_URI ? "connecting" : "not_configured";
@@ -56,6 +59,9 @@ app.use("/api/bigplus", measurementsRouter);
 app.use("/api/bigplus", catchesRouter);
 app.use("/api/bigplus", authRouter);
 app.use("/api/bigplus", groupsRouter);
+app.use("/api/bigplus", competitionsRouter);
+app.use("/api/bigplus", sharingRouter);
+app.use("/api/bigplus", friendsRouter);
 
 app.use((error, req, res, next) => {
   const status = error.status || 500;
@@ -83,6 +89,7 @@ async function connectMongo() {
     const db = client.db();
     await db.command({ ping: 1 });
     await ensureDefaultGroup(db);
+    await ensureMemberCodeIndex(db);
     mongoClient = client;
     app.locals.mongo = db;
     mongoAttempts = 0;

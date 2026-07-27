@@ -167,6 +167,7 @@ const els = {
   checklistStepTitle: document.querySelector("#checklistStepTitle"),
   checklistStepText: document.querySelector("#checklistStepText"),
   calculateButton: document.querySelector("#calculateButton"),
+  measureNewFishButton: document.querySelector("#measureNewFishButton"),
   resetButton: document.querySelector("#resetButton"),
   saveButton: document.querySelector("#saveButton"),
   zoomOutButton: document.querySelector("#zoomOutButton"),
@@ -3318,6 +3319,7 @@ els.addReferenceButton.addEventListener("click", addReference);
 els.removeReferenceButton.addEventListener("click", removeSelectedReference);
 els.clearButton?.addEventListener("click", () => resetPoints());
 els.resetButton.addEventListener("click", () => resetPoints({ clearImage: true }));
+els.measureNewFishButton?.addEventListener("click", () => resetPoints({ clearImage: true }));
 els.calculateButton.addEventListener("click", calculate);
 els.saveButton.addEventListener("click", persistCatch);
 els.resultMeasureAgain?.addEventListener("click", () => resetPoints());
