@@ -27,6 +27,7 @@ const state = {
     fish: false,
     body: false
   },
+  rulerVisible: false,
   virtualReference: {
     referenceId: "glasses",
     enabled: false,
@@ -107,6 +108,18 @@ const els = {
   connectionStatus: document.querySelector("#connectionStatus"),
   photoInput: document.querySelector("#photoInput"),
   photoInputLabel: document.querySelector("#photoInputLabel"),
+  manualPhotoInput: document.querySelector("#manualPhotoInput"),
+  cameraPhotoInput: document.querySelector("#cameraPhotoInput"),
+  manualCaptureButton: document.querySelector("#manualCaptureButton"),
+  guidedCaptureButton: document.querySelector("#guidedCaptureButton"),
+  cameraCaptureButton: document.querySelector("#cameraCaptureButton"),
+  manualEntryPanel: document.querySelector("#manualEntryPanel"),
+  manualEntryImage: document.querySelector("#manualEntryImage"),
+  manualSpeciesSelect: document.querySelector("#manualSpeciesSelect"),
+  manualLengthInput: document.querySelector("#manualLengthInput"),
+  manualWeightInput: document.querySelector("#manualWeightInput"),
+  saveManualCatchButton: document.querySelector("#saveManualCatchButton"),
+  manualBackButton: document.querySelector("#manualBackButton"),
   referenceSelect: document.querySelector("#referenceSelect"),
   customReferenceWrap: document.querySelector("#customReferenceWrap"),
   customReference: document.querySelector("#customReference"),
@@ -161,6 +174,7 @@ const els = {
   lockHeightButton: document.querySelector("#lockHeightButton"),
   lengthCard: document.querySelector("#lengthCard"),
   heightCard: document.querySelector("#heightCard"),
+  rulerToggleButton: document.querySelector("#rulerToggleButton"),
   lengthCardValue: document.querySelector("#lengthCardValue"),
   heightCardValue: document.querySelector("#heightCardValue"),
   checklistNextButton: document.querySelector("#checklistNextButton"),
@@ -228,7 +242,7 @@ glassesReferenceImage.src = "/bigplus/assets/glasses-reference.png?v=20260720";
 glassesReferenceImage.addEventListener("load", draw);
 
 function setStatus(text) {
-  els.connectionStatus.textContent = text;
+  if (els.connectionStatus) els.connectionStatus.textContent = text;
 }
 
 function preferredUnit() {
@@ -250,8 +264,8 @@ function formatKgRange(weight) {
 function setCalibrationPercent(percent) {
   const normalized = clamp(Number(percent) || 100, 70, 110);
   state.virtualReference.calibrationFactor = normalized / 100;
-  els.calibrationRange.value = String(Math.round(normalized));
-  els.calibrationValue.textContent = `${Math.round(normalized)}%`;
+  if (els.calibrationRange) els.calibrationRange.value = String(Math.round(normalized));
+  if (els.calibrationValue) els.calibrationValue.textContent = `${Math.round(normalized)}%`;
 }
 
 function getStoredReferences() {
@@ -283,8 +297,8 @@ function currentMemberships() {
 
 function updateReferenceSpecificControls() {
   const glasses = isGlassesReference();
-  els.faceDepthWrap.classList.toggle("hidden", !glasses);
-  els.faceDepthToolButton.classList.toggle("active", glasses && state.faceDepthLine.active);
+  els.faceDepthWrap?.classList.toggle("hidden", !glasses);
+  els.faceDepthToolButton?.classList.toggle("active", glasses && state.faceDepthLine.active);
   updateFaceDepthResult();
   if (glasses) {
     setCalibrationPercent(100);
@@ -300,7 +314,9 @@ function syncMobileReferenceControls() {
 
   const height = clamp(Number(state.virtualReference.baseHeight) || 150, 40, 500);
   els.mobileReferenceScale.value = String(height);
-  els.mobileReferenceScaleValue.textContent = `${Math.round((height / 150) * 100)}%`;
+  if (els.mobileReferenceScaleValue) {
+    els.mobileReferenceScaleValue.textContent = `${Math.round((height / 150) * 100)}%`;
+  }
 
   const canvasRect = els.canvas.getBoundingClientRect();
   const wrapRect = els.canvasWrap.getBoundingClientRect();
@@ -339,9 +355,11 @@ function renderReferenceOptions() {
 }
 
 function renderSpeciesOptions() {
-  els.speciesSelect.innerHTML = `<option value="">Välj art</option>` + state.species
+  const options = `<option value="">Välj art</option>` + state.species
     .map((item) => `<option value="${item.id}">${item.name}</option>`)
     .join("");
+  els.speciesSelect.innerHTML = options;
+  if (els.manualSpeciesSelect) els.manualSpeciesSelect.innerHTML = options;
 }
 
 function updateMeasureTargetSummary() {
@@ -410,7 +428,7 @@ function getCanvasPoint(event) {
 }
 
 function updateZoomUi() {
-  els.zoomValue.textContent = `${Math.round(state.view.zoom * 100)}%`;
+  if (els.zoomValue) els.zoomValue.textContent = `${Math.round(state.view.zoom * 100)}%`;
 }
 
 function canvasCenterPoint() {
@@ -1531,6 +1549,70 @@ function drawMeasurementArrowLine(points, color, label) {
   ctx.restore();
 }
 
+function drawLengthRuler() {
+  if (!state.rulerVisible || state.points.fish.length < 2) return;
+
+  const scaleCmPerPixel = combinedReferenceScaleCmPerPixel();
+  if (!scaleCmPerPixel) return;
+
+  const start = state.points.fish[0];
+  const end = state.points.fish[state.points.fish.length - 1];
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const pixelLength = Math.hypot(dx, dy);
+  if (!pixelLength) return;
+
+  const lengthCm = pixelLength * scaleCmPerPixel;
+  const unitX = dx / pixelLength;
+  const unitY = dy / pixelLength;
+  const normalX = -unitY;
+  const normalY = unitX;
+  const offset = 26;
+  const rulerStart = { x: start.x + normalX * offset, y: start.y + normalY * offset };
+  const rulerEnd = { x: end.x + normalX * offset, y: end.y + normalY * offset };
+
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.strokeStyle = "rgba(15, 54, 111, 0.94)";
+  ctx.lineWidth = 18;
+  ctx.beginPath();
+  ctx.moveTo(rulerStart.x, rulerStart.y);
+  ctx.lineTo(rulerEnd.x, rulerEnd.y);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#fbbf24";
+  ctx.lineWidth = 2;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "800 11px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  const tickSize = 8;
+  const centimetresPerTick = lengthCm > 120 ? 10 : 5;
+  const tickCount = Math.max(1, Math.floor(lengthCm / centimetresPerTick));
+  for (let index = 0; index <= tickCount; index += 1) {
+    const fraction = Math.min(1, (index * centimetresPerTick) / lengthCm);
+    const x = rulerStart.x + (rulerEnd.x - rulerStart.x) * fraction;
+    const y = rulerStart.y + (rulerEnd.y - rulerStart.y) * fraction;
+    const longTick = index % 2 === 0 || index === tickCount;
+    const size = longTick ? tickSize : tickSize * 0.65;
+    ctx.beginPath();
+    ctx.moveTo(x - normalX * size, y - normalY * size);
+    ctx.lineTo(x + normalX * size, y + normalY * size);
+    ctx.stroke();
+    if (longTick) {
+      ctx.fillText(String(Math.round(index * centimetresPerTick)), x - normalX * 14, y - normalY * 14);
+    }
+  }
+
+  const midX = (rulerStart.x + rulerEnd.x) / 2;
+  const midY = (rulerStart.y + rulerEnd.y) / 2;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "900 12px system-ui, sans-serif";
+  ctx.fillText(`${lengthCm.toFixed(1)} cm`, midX + normalX * 27, midY + normalY * 27);
+  ctx.restore();
+}
+
 function drawFaceDepthLine() {
   if (!isGlassesReference() || !state.faceDepthLine.points.length) return;
 
@@ -1857,6 +1939,8 @@ function draw() {
   drawReferenceSlot("can");
   drawVirtualReference();
   drawFaceDepthLine();
+  updateRulerControl();
+  drawLengthRuler();
   drawMeasurementArrowLine(state.points.fish, "#24a0c8", "längd");
   drawMeasurementArrowLine(state.points.body, "#d97706", "höjd");
   updateChecklist();
@@ -1873,14 +1957,31 @@ function setTool(tool) {
   els.heightCard?.classList.toggle("is-active", tool === "body" && !state.measurementLocks.body);
 }
 
+function updateRulerControl() {
+  if (!els.rulerToggleButton) return;
+  const ready = Boolean(state.image && state.points.fish.length >= 2 && combinedReferenceScaleCmPerPixel());
+  els.rulerToggleButton.disabled = !ready;
+  els.rulerToggleButton.classList.toggle("is-active", state.rulerVisible && ready);
+  els.rulerToggleButton.textContent = state.rulerVisible ? "Dölj linjal" : "Visa linjal";
+  els.rulerToggleButton.title = ready
+    ? "Visa en linjal i samma skala som dina referenser"
+    : "Markera längden och placera en referens först";
+}
+
 function resetPoints(options = {}) {
   const clearImage = Boolean(options.clearImage);
   if (clearImage) {
     state.image = null;
     state.imageDataUrl = "";
     els.photoInput.value = "";
+    if (els.manualPhotoInput) els.manualPhotoInput.value = "";
+    if (els.cameraPhotoInput) els.cameraPhotoInput.value = "";
+    if (els.manualEntryImage) els.manualEntryImage.removeAttribute("src");
+    clearCatchLocation();
     els.emptyState.classList.remove("hidden");
-    els.photoInputLabel.textContent = "Välj bild med fisken";
+    els.manualEntryPanel?.classList.add("hidden");
+    document.querySelector(".measure-area")?.classList.add("is-start");
+    if (els.photoInputLabel) els.photoInputLabel.textContent = "Välj bild med fisken";
     resetZoom();
     setStatus("Redo");
   } else {
@@ -1908,17 +2009,18 @@ function resetPoints(options = {}) {
   state.referenceSlots.can = null;
   state.measurementLocks.fish = false;
   state.measurementLocks.body = false;
-  els.faceDepthToolButton.classList.remove("active");
+  state.rulerVisible = false;
+  els.faceDepthToolButton?.classList.remove("active");
   state.points.ref = [];
   state.points.fish = [];
   state.points.body = [];
-  els.referenceSelect.value = "glasses";
-  els.speciesSelect.value = "";
-  els.minSize.value = 0;
+  if (els.referenceSelect) els.referenceSelect.value = "glasses";
+  if (els.speciesSelect) els.speciesSelect.value = "";
+  if (els.minSize) els.minSize.value = 0;
   updateMeasureTargetSummary();
   state.lastResult = null;
   state.lastPayload = null;
-  els.saveButton.disabled = true;
+  if (els.saveButton) els.saveButton.disabled = true;
   renderReferenceReadout();
   renderResult(null);
   updateReferenceSpecificControls();
@@ -1927,18 +2029,130 @@ function resetPoints(options = {}) {
   draw();
 }
 
+function showMeasurementWorkspace() {
+  els.emptyState.classList.add("hidden");
+  els.manualEntryPanel?.classList.add("hidden");
+  document.querySelector(".measure-area")?.classList.remove("is-start");
+  if (els.photoInputLabel) els.photoInputLabel.textContent = "Mät ny fisk";
+}
+
+function showManualEntry() {
+  els.emptyState.classList.add("hidden");
+  els.manualEntryPanel?.classList.remove("hidden");
+  document.querySelector(".measure-area")?.classList.add("is-manual");
+  document.querySelector(".measure-area")?.classList.remove("is-start");
+  if (els.manualEntryImage && state.imageDataUrl) {
+    els.manualEntryImage.src = state.imageDataUrl;
+    els.manualEntryImage.alt = "Uppladdad bild på fångsten";
+  }
+}
+
+function showMeasureStart() {
+  els.emptyState.classList.remove("hidden");
+  els.manualEntryPanel?.classList.add("hidden");
+  document.querySelector(".measure-area")?.classList.remove("is-manual");
+  document.querySelector(".measure-area")?.classList.add("is-start");
+}
+
+function readImageFile(file, onLoaded) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const image = new Image();
+    image.onload = () => onLoaded(image, reader.result);
+    image.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function setMeasurementImage(image, dataUrl) {
+  state.image = image;
+  state.imageDataUrl = dataUrl;
+  resetZoom();
+  resetPoints();
+  els.referenceSelect.value = "glasses";
+  state.referenceSlots.active = "glasses";
+  showMeasurementWorkspace();
+  draw();
+}
+
+async function persistManualCatch() {
+  const speciesId = els.manualSpeciesSelect?.value || "";
+  const parseManualNumber = (value) => Number(String(value ?? "").trim().replace(",", "."));
+  const lengthCm = parseManualNumber(els.manualLengthInput?.value);
+  const weightKg = parseManualNumber(els.manualWeightInput?.value);
+  const species = state.species.find((item) => item.id === speciesId);
+  if (!state.imageDataUrl || !species || !Number.isFinite(lengthCm) || lengthCm <= 0 || !Number.isFinite(weightKg) || weightKg < 0) {
+    setStatus("Fyll i art, längd och vikt");
+    return;
+  }
+
+  const isBigplus = species.minCm > 0 && lengthCm >= species.minCm;
+  const measurement = {
+    speciesId,
+    species: species.name,
+    speciesName: species.name,
+    lengthCm,
+    weightKg,
+    bodyCm: null,
+    minCm: species.minCm || 0,
+    status: isBigplus ? "BIGPLUS" : "Mätt",
+    isBigplus,
+    confidence: "Manuell",
+    disclaimer: "Mått och vikt registrerade manuellt."
+  };
+  const payload = {
+    manual: true,
+    // Keep these fields at the request root as well as inside measurement.
+    // This makes manual saves compatible with older local API processes.
+    speciesId,
+    species: species.name,
+    lengthCm,
+    weightKg,
+    measurement,
+    userId: currentUserId(),
+    note: "Manuell registrering",
+    photo: state.imageDataUrl,
+    competitionIds: currentMemberships()
+  };
+  try {
+    window.bigplusLoading?.show("Sparar din fångst...");
+    setStatus("Sparar");
+    let saved = null;
+    try { saved = await saveCatch(payload); } catch (error) {
+      if (currentUserId()) throw error;
+    }
+    const local = saveLocalCatch(payload, {
+      ...measurement,
+      weightKg: { low: weightKg, mid: weightKg, high: weightKg }
+    });
+    resetPoints({ clearImage: true });
+    setStatus("Sparad");
+    if (saved) {
+      await loadCatches();
+    } else {
+      renderCatches(getLocalCatches(currentUserId()).slice(-30).reverse());
+    }
+    window.dispatchEvent(new CustomEvent("bigplus:catch-saved", { detail: { catchId: saved?.id || saved?._id || local?.id || "" } }));
+  } catch (error) {
+    window.bigplusLoading?.hide();
+    setStatus("Fel");
+    alert(error.message);
+  }
+}
+
 function renderResult(result) {
-  els.bigStatus.className = "big-status pending";
-  els.resultPanel.classList.toggle("is-empty", !result);
+  if (els.bigStatus) els.bigStatus.className = "big-status pending";
+  if (els.resultPanel) els.resultPanel.classList.toggle("is-empty", !result);
   updateChecklist();
 
   if (!result) {
-    els.bigStatus.querySelector("strong").textContent = "Väntar";
-    els.lengthResult.textContent = `-- ${preferredUnit()}`;
-    els.weightResult.textContent = "-- kg";
-    els.bodyDepthResult.textContent = `-- ${preferredUnit()}`;
-    els.limitResult.textContent = `-- ${preferredUnit()}`;
-    els.confidenceResult.textContent = "--";
+    if (els.bigStatus?.querySelector("strong")) els.bigStatus.querySelector("strong").textContent = "Väntar";
+    if (els.lengthResult) els.lengthResult.textContent = `-- ${preferredUnit()}`;
+    if (els.weightResult) els.weightResult.textContent = "-- kg";
+    if (els.bodyDepthResult) els.bodyDepthResult.textContent = `-- ${preferredUnit()}`;
+    if (els.limitResult) els.limitResult.textContent = `-- ${preferredUnit()}`;
+    if (els.confidenceResult) els.confidenceResult.textContent = "--";
     if (els.resultPhoto) els.resultPhoto.removeAttribute("src");
     if (els.resultSpecies) els.resultSpecies.textContent = "--";
     if (els.resultSpeciesLatin) els.resultSpeciesLatin.textContent = "--";
@@ -1948,14 +2162,14 @@ function renderResult(result) {
   }
 
   const statusClass = result.status === "BIGPLUS" ? "bigplus" : result.status.startsWith("SL") ? "release" : "check";
-  els.bigStatus.classList.add(statusClass);
-  els.bigStatus.querySelector("strong").textContent = result.status;
-  els.lengthResult.textContent = formatCm(result.lengthCm);
-  els.weightResult.textContent = formatKgRange(result.weightKg);
-  els.bodyDepthResult.textContent = result.bodyCm ? formatCm(result.bodyCm) : `-- ${preferredUnit()}`;
-  els.limitResult.textContent = result.minCm > 0 ? formatCm(result.minCm) : "Kolla";
-  els.confidenceResult.textContent = result.confidence === "body" ? "Bättre" : result.confidence === "high" ? "Hög" : result.confidence === "local" ? "Lokal" : "Mellan";
-  els.disclaimer.textContent = result.disclaimer;
+  if (els.bigStatus) els.bigStatus.classList.add(statusClass);
+  if (els.bigStatus?.querySelector("strong")) els.bigStatus.querySelector("strong").textContent = result.status;
+  if (els.lengthResult) els.lengthResult.textContent = formatCm(result.lengthCm);
+  if (els.weightResult) els.weightResult.textContent = formatKgRange(result.weightKg);
+  if (els.bodyDepthResult) els.bodyDepthResult.textContent = result.bodyCm ? formatCm(result.bodyCm) : `-- ${preferredUnit()}`;
+  if (els.limitResult) els.limitResult.textContent = result.minCm > 0 ? formatCm(result.minCm) : "Kolla";
+  if (els.confidenceResult) els.confidenceResult.textContent = result.confidence === "body" ? "Bättre" : result.confidence === "high" ? "Hög" : result.confidence === "local" ? "Lokal" : "Mellan";
+  if (els.disclaimer) els.disclaimer.textContent = result.disclaimer;
   const selectedSpecies = state.species.find((item) => item.id === els.speciesSelect.value);
   if (els.resultPhoto && state.imageDataUrl) els.resultPhoto.src = state.imageDataUrl;
   if (els.resultSpecies) els.resultSpecies.textContent = selectedSpecies?.name || "Annan art";
@@ -2099,6 +2313,7 @@ async function persistCatch() {
   if (!state.lastPayload) return;
 
   try {
+    window.bigplusLoading?.show("Sparar din fångst...");
     setStatus("Sparar");
     let competitionIds = [];
     competitionIds = currentMemberships();
@@ -2106,25 +2321,25 @@ async function persistCatch() {
     const payload = {
       measurement: state.lastPayload,
       userId: currentUserId(),
-      note: els.catchNote.value,
+      note: els.catchNote?.value || "",
       photo: state.imageDataUrl,
       competitionIds,
       ...(location ? { location } : {})
     };
     let savedCatch = null;
-    try {
-      savedCatch = await saveCatch(payload);
-    } catch {
-      // Keep a local copy as well so competition rankings work offline.
+    try { savedCatch = await saveCatch(payload); } catch (error) {
+      if (currentUserId()) throw error;
     }
     const localCatch = saveLocalCatch(payload, state.lastResult);
-    els.catchNote.value = "";
+    if (els.catchNote) els.catchNote.value = "";
     await loadCatches();
+    resetPoints({ clearImage: true });
     window.dispatchEvent(new CustomEvent("bigplus:catch-saved", {
       detail: { catchId: savedCatch?.id || savedCatch?._id || localCatch?.id || "" }
     }));
     setStatus("Sparad");
   } catch (error) {
+    window.bigplusLoading?.hide();
     setStatus("Fel");
     alert(error.message);
   }
@@ -2677,6 +2892,7 @@ function referenceIdFromDrop(event) {
 }
 
 async function boot() {
+  document.querySelector(".measure-area")?.classList.add("is-start");
   const mode = getApiMode();
   setStatus(mode.label);
 
@@ -2738,15 +2954,7 @@ async function loadTestImage() {
     });
     const image = new Image();
     image.onload = () => {
-      state.image = image;
-      state.imageDataUrl = dataUrl;
-      els.emptyState.classList.add("hidden");
-      els.photoInputLabel.textContent = "Mät ny fisk";
-      resetZoom();
-      resetPoints();
-      els.referenceSelect.value = "glasses";
-      state.referenceSlots.active = "glasses";
-      draw();
+      setMeasurementImage(image, dataUrl);
     };
     image.src = dataUrl;
   } catch {
@@ -2755,26 +2963,22 @@ async function loadTestImage() {
 }
 
 els.photoInput.addEventListener("change", () => {
-  const file = els.photoInput.files?.[0];
-  if (!file) return;
+  readImageFile(els.photoInput.files?.[0], setMeasurementImage);
+});
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    const image = new Image();
-    image.onload = () => {
-      state.image = image;
-      state.imageDataUrl = reader.result;
-      els.emptyState.classList.add("hidden");
-      els.photoInputLabel.textContent = "Mät ny fisk";
-      resetZoom();
-      resetPoints();
-      els.referenceSelect.value = "glasses";
-      state.referenceSlots.active = "glasses";
-      draw();
-    };
-    image.src = reader.result;
-  };
-  reader.readAsDataURL(file);
+els.manualPhotoInput?.addEventListener("change", () => {
+  readImageFile(els.manualPhotoInput.files?.[0], (image, dataUrl) => {
+    state.image = image;
+    state.imageDataUrl = dataUrl;
+    resetZoom();
+    resetPoints();
+    showManualEntry();
+    draw();
+  });
+});
+
+els.cameraPhotoInput?.addEventListener("change", () => {
+  readImageFile(els.cameraPhotoInput.files?.[0], setMeasurementImage);
 });
 
 document.addEventListener("pointerdown", (event) => {
@@ -3264,6 +3468,16 @@ els.fishTool.addEventListener("click", () => setTool("fish"));
 els.bodyTool.addEventListener("click", () => setTool("body"));
 els.editLengthButton?.addEventListener("click", () => unlockMeasurement("fish"));
 els.editHeightButton?.addEventListener("click", () => unlockMeasurement("body"));
+els.rulerToggleButton?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  const ready = Boolean(state.image && state.points.fish.length >= 2 && combinedReferenceScaleCmPerPixel());
+  if (!ready) {
+    setStatus("Markera längden och placera en referens först");
+    return;
+  }
+  state.rulerVisible = !state.rulerVisible;
+  draw();
+});
 els.lockLengthButton?.addEventListener("click", () => toggleMeasurementLock("fish"));
 els.lockHeightButton?.addEventListener("click", () => toggleMeasurementLock("body"));
 els.lockLengthButton?.addEventListener("click", (event) => event.stopPropagation());
@@ -3296,6 +3510,16 @@ els.checkCan?.querySelector(".check-label")?.addEventListener("click", () => edi
 els.checklistNextButton?.addEventListener("click", finishChecklistStep);
 bindReferencePaletteItem(els.paletteGlasses, "glasses");
 bindReferencePaletteItem(els.paletteCan, "can-330");
+els.manualCaptureButton?.addEventListener("click", () => els.manualPhotoInput?.click());
+els.guidedCaptureButton?.addEventListener("click", () => els.photoInput?.click());
+els.cameraCaptureButton?.addEventListener("click", () => els.cameraPhotoInput?.click());
+els.saveManualCatchButton?.addEventListener("click", persistManualCatch);
+els.manualBackButton?.addEventListener("click", () => {
+  state.image = null;
+  state.imageDataUrl = "";
+  showMeasureStart();
+  draw();
+});
 els.canvasWrap.addEventListener("dragover", (event) => {
   event.preventDefault();
   if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";

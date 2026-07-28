@@ -28,10 +28,17 @@ if (process.env.DNS_SERVERS) {
 }
 if (typeof dns.setDefaultResultOrder === "function") dns.setDefaultResultOrder("ipv4first");
 
-const allowedOrigins = (process.env.CORS_ORIGIN || process.env.CORS_ORIGINS || "http://127.0.0.1:4173,http://localhost:4173")
+const configuredOrigins = (process.env.CORS_ORIGIN || process.env.CORS_ORIGINS || "")
   .split(",")
   .map((origin) => origin.trim().replace(/\/$/, ""))
   .filter(Boolean);
+const allowedOrigins = [...new Set([
+  ...configuredOrigins,
+  "http://127.0.0.1:4173",
+  "http://localhost:4173",
+  "http://localhost:8888",
+  "https://sage-vacherin-aa5cd3.netlify.app"
+])];
 app.use(cors({ origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)), credentials: true }));
 app.use(express.json({ limit: "6mb" }));
 

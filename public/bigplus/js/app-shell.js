@@ -16,12 +16,43 @@ let mapSharingEnabled = false;
 let remoteMapZones = [];
 let pendingProfilePhoto = "";
 let authBootstrapActive = true;
+let pendingCatchDeleteId = "";
+let pendingCatchDeleteCode = "";
+// Keep the local API on the same hostname so host-only session cookies are sent.
+const LOCAL_API_HOST = window.location.hostname === "127.0.0.1" ? "127.0.0.1" : "localhost";
 const AUTH_API_ROOT = ["localhost", "127.0.0.1"].includes(window.location.hostname)
-  ? `http://${window.location.hostname}:4100/api/bigplus`
+  ? `http://${LOCAL_API_HOST}:4100/api/bigplus`
   : (window.BIGPLUS_RENDER_API_ROOT || "https://bigplus-api.onrender.com/api/bigplus");
+const AUTH_API_FALLBACK_ROOT = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+  ? `http://${LOCAL_API_HOST === "127.0.0.1" ? "localhost" : "127.0.0.1"}:4100/api/bigplus`
+  : null;
+
+async function fetchCompetitionCreate(url, options) {
+  try {
+    return await fetch(url, options);
+  } catch (error) {
+    if (!AUTH_API_FALLBACK_ROOT || !url.startsWith(AUTH_API_ROOT)) throw error;
+    return fetch(`${AUTH_API_FALLBACK_ROOT}${url.slice(AUTH_API_ROOT.length)}`, options);
+  }
+}
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
+
+function setAppLoading(active, message = "Laddar...") {
+  const screen = $("#appLoadingScreen");
+  if (!screen) return;
+  screen.hidden = !active;
+  screen.setAttribute("aria-hidden", String(!active));
+  const label = $("#appLoadingMessage");
+  if (label) label.textContent = message;
+  document.body.classList.toggle("is-app-loading", active);
+}
+
+window.bigplusLoading = {
+  show: (message) => setAppLoading(true, message),
+  hide: () => setAppLoading(false)
+};
 
 function readJson(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key) || "null") ?? fallback; } catch { return fallback; }
@@ -68,8 +99,49 @@ function pendingFriendRequest(fromId, toId) {
   if (!fromId || !toId || fromId === toId) return false;
   return friendRequests(toId).some((request) => request.fromId === fromId && request.status === "pending");
 }
-function isLive(accountId) { return localStorage.getItem(`${LIVE_KEY}:${accountId}`) === "true"; }
-function setLive(accountId, value) { if (accountId) localStorage.setItem(`${LIVE_KEY}:${accountId}`, String(value)); }
+function liveUntil(accountId) {
+  const raw = Number(localStorage.getItem(`${LIVE_KEY}:${accountId}:until`) || 0);
+  return Number.isFinite(raw) ? raw : 0;
+}
+function isLive(accountId) {
+  if (!accountId || localStorage.getItem(`${LIVE_KEY}:${accountId}`) !== "true") return false;
+  let until = liveUntil(accountId);
+  // Give older LIVE flags a finite lifetime instead of leaving them active forever.
+  if (!until) {
+    until = Date.now() + 60 * 60 * 1000;
+    localStorage.setItem(`${LIVE_KEY}:${accountId}:until`, String(until));
+  }
+  if (until && until <= Date.now()) {
+    setLive(accountId, false);
+    return false;
+  }
+  return true;
+}
+function setLive(accountId, value, durationMinutes = 60) {
+  if (!accountId) return;
+  if (!value) {
+    localStorage.removeItem(`${LIVE_KEY}:${accountId}`);
+    localStorage.removeItem(`${LIVE_KEY}:${accountId}:until`);
+    return;
+  }
+  localStorage.setItem(`${LIVE_KEY}:${accountId}`, "true");
+  localStorage.setItem(`${LIVE_KEY}:${accountId}:until`, String(Date.now() + Math.max(1, Number(durationMinutes) || 60) * 60 * 1000));
+}
+function liveRemainingMinutes(accountId) {
+  if (!isLive(accountId)) return 0;
+  return Math.max(1, Math.ceil((liveUntil(accountId) - Date.now()) / 60000));
+}
+function renderLiveStatus(account) {
+  const liveButton = $("#liveStatusButton");
+  const durationSelect = $("#liveDurationSelect");
+  if (!liveButton || !account) return;
+  const active = isLive(account.id);
+  const remaining = liveRemainingMinutes(account.id);
+  liveButton.classList.toggle("is-live", active);
+  liveButton.setAttribute("aria-pressed", String(active));
+  $("#liveStatusLabel").textContent = active ? `LIVE · ${remaining} min kvar` : "Aktivera LIVE";
+  if (durationSelect) durationSelect.disabled = active;
+}
 function createMemberCode() {
   const digits = String(Math.floor(10000 + Math.random() * 90000));
   const letters = Array.from({ length: 3 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join("");
@@ -190,13 +262,7 @@ function renderFriendsLegacy() {
     .replaceAll("V\u00c3\u0192\u00c2\u00a4ntar p\u00c3\u0192\u00c2\u00a5 svar", "V\u00e4ntar p\u00e5 svar")
     .replaceAll("Skickade f\u00c3\u0192\u00c2\u00b6rfr\u00c3\u0192\u00c2\u00a5gningar", "Skickade f\u00f6rfr\u00e5gningar")
     .replaceAll("Skickade f\u00c3\u00b6rfr\u00c3\u00a5gningar", "Skickade f\u00f6rfr\u00e5gningar");
-  const liveButton = $("#liveStatusButton");
-  if (liveButton) {
-    const active = isLive(account.id);
-    liveButton.classList.toggle("is-live", active);
-    liveButton.setAttribute("aria-pressed", String(active));
-    $("#liveStatusLabel").textContent = active ? "LIVE aktiv" : "Aktivera LIVE";
-  }
+  renderLiveStatus(account);
   const codeTarget = $("#profileMemberCode");
   if (codeTarget) codeTarget.textContent = ensureMemberCode(account);
   renderFriendTournaments();
@@ -244,13 +310,7 @@ function renderFriends() {
     return `<article class="friend-request is-pending"><span class="competition-avatar">${escapeHtml((recipient.name || "F").slice(0, 1).toUpperCase())}</span><span><strong>${escapeHtml(recipient.name || "Fiskare")}</strong><small>V\u00e4ntar p\u00e5 svar</small></span></article>`;
   }).join("")}</div>` : "";
   listTarget.innerHTML = incomingMarkup + outgoingMarkup + friendMarkup;
-  const liveButton = $("#liveStatusButton");
-  if (liveButton) {
-    const active = isLive(account.id);
-    liveButton.classList.toggle("is-live", active);
-    liveButton.setAttribute("aria-pressed", String(active));
-    $("#liveStatusLabel").textContent = active ? "LIVE aktiv" : "Aktivera LIVE";
-  }
+  renderLiveStatus(account);
   const codeTarget = $("#profileMemberCode");
   if (codeTarget) codeTarget.textContent = ensureMemberCode(account);
   renderFriendTournaments();
@@ -366,6 +426,72 @@ function mapCatchRecords() {
 }
 function catchRecordById(catchId) {
   return mapCatchRecords().find((entry) => String(entry.id || entry._id) === String(catchId));
+}
+
+function makeCatchDeleteCode() {
+  const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  return Array.from({ length: 5 }, () => characters[Math.floor(Math.random() * characters.length)]).join("");
+}
+
+function removeLocalCatch(catchId) {
+  const stored = readJson(CATCH_KEY, []);
+  if (!Array.isArray(stored)) return;
+  localStorage.setItem(CATCH_KEY, JSON.stringify(stored.filter((item) => String(item?.id || item?._id || "") !== String(catchId))));
+}
+
+function openDeleteCatchDialog(catchId) {
+  const item = catchRecordById(catchId);
+  const modal = $("#deleteCatchModal");
+  const code = $("#deleteCatchCode");
+  const input = $("#deleteCatchCodeInput");
+  const message = $("#deleteCatchMessage");
+  const confirm = $("#confirmDeleteCatch");
+  if (!item || !modal || !code || !input || !confirm) return;
+  pendingCatchDeleteId = String(item.id || item._id || catchId);
+  pendingCatchDeleteCode = makeCatchDeleteCode();
+  code.textContent = pendingCatchDeleteCode;
+  input.value = "";
+  input.setAttribute("aria-label", `Skriv koden ${pendingCatchDeleteCode}`);
+  confirm.disabled = true;
+  if (message) message.textContent = "";
+  modal.hidden = false;
+  window.setTimeout(() => input.focus(), 0);
+}
+
+function closeDeleteCatchDialog() {
+  const modal = $("#deleteCatchModal");
+  if (modal) modal.hidden = true;
+  pendingCatchDeleteId = "";
+  pendingCatchDeleteCode = "";
+}
+
+async function confirmDeleteCatch() {
+  const input = $("#deleteCatchCodeInput");
+  const message = $("#deleteCatchMessage");
+  const value = String(input?.value || "").trim().toUpperCase();
+  if (!pendingCatchDeleteId || value !== pendingCatchDeleteCode) {
+    if (message) message.textContent = "Koden stämmer inte. Försök igen.";
+    return;
+  }
+
+  const catchId = pendingCatchDeleteId;
+  const confirm = $("#confirmDeleteCatch");
+  if (confirm) { confirm.disabled = true; confirm.textContent = "Tar bort..."; }
+  try {
+    if (!String(catchId).startsWith("local-")) {
+      const response = await fetch(`${AUTH_API_ROOT}/catches/${encodeURIComponent(catchId)}`, { method: "DELETE", credentials: "include" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Kunde inte ta bort fångsten.");
+    }
+    removeLocalCatch(catchId);
+    if (Array.isArray(remoteCatches)) remoteCatches = remoteCatches.filter((item) => String(item.id || item._id || "") !== String(catchId));
+    closeDeleteCatchDialog();
+    $("#catchDetail").hidden = true;
+    renderCatchLists();
+  } catch (error) {
+    if (message) message.textContent = error.message || "Kunde inte ta bort fångsten.";
+    if (confirm) { confirm.disabled = false; confirm.textContent = "Ta bort fångsten"; }
+  }
 }
 function updateMapShareControls() {
   const button = $("#shareMapWithFriends");
@@ -628,7 +754,7 @@ function formatCompetitionResult(item, competition) {
   return values.length ? values.join(" · ") : "--";
 }
 
-function competitionCard(competition) {
+function competitionCardMarkup(competition) {
   const days = Number(competition.daysLeft);
   // The detail panel is rendered only after a competition is opened.
   const ending = Number.isFinite(days) ? `Avslutas om ${days} dagar` : "Aktiv tävling";
@@ -640,15 +766,21 @@ function competitionCard(competition) {
   return `<article class="competition-card${homeOnly ? " competition-card-home" : ""}" data-competition-id="${escapeHtml(competition.id)}"${homeOnly ? ' role="button" tabindex="0"' : ""}><div class="competition-card-main"><span class="competition-emblem" aria-hidden="true">★</span><div><h3>${escapeHtml(competition.name)}${owner ? '<span class="competition-title-star" aria-label="Skapad av dig">★</span>' : ""}</h3><p>${escapeHtml(competition.description || "Mät och jämför dina fångster.")}</p><small>${ending} · Skapad ${formatCompetitionDate(competition.createdAt)}</small><small class="competition-rule-summary">${escapeHtml(competitionMetricLabel(competition))} · ${escapeHtml(competitionSpeciesLabel(competition))}</small>${owner ? '<span class="competition-owner-label">Din tävling</span>' : ""}</div></div>${homeOnly ? "" : `<div class="competition-card-actions">${action}</div>`}</article>`;
 }
 
+function competitionCard(competition, options) {
+  return `<div class="competition-card-shell" data-competition-shell-id="${escapeHtml(competition.id)}">${competitionCardMarkup(competition, options)}</div>`;
+}
+
 function renderCompetitions() {
   const list = competitions().filter((item) => item && item.name);
   const details = $("#competitionDetails");
   const detailsSlot = $("#competitionDetailsSlot");
+  const activeDetailsId = details && !details.hidden ? details.dataset.competitionId : "";
   if (details && detailsSlot && details.parentElement !== detailsSlot) detailsSlot.appendChild(details);
   const html = list.length ? list.map(competitionCard).join("") : `<div class="empty-list"><strong>Inga aktiva tävlingar</strong><span>Skapa den första tävlingen.</span></div>`;
   const target = $("#competitionsList");
   if (target) target.innerHTML = html;
   if (target) decorateCompetitionCards(target);
+  if (activeDetailsId) renderCompetitionDetails(activeDetailsId);
   const home = $("#homeCompetitionList");
   if (home) {
     const joinedList = list.filter(isCompetitionMember);
@@ -828,8 +960,8 @@ function renderCompetitionDetails(competitionId) {
   const details = $("#competitionDetails");
   const participants = $("#competitionParticipants");
   if (!competition || !details || !participants) return;
-  const slot = $("#competitionDetailsSlot");
-  if (slot && details.parentElement !== slot) slot.appendChild(details);
+  const shell = [...document.querySelectorAll("#competitionsList .competition-card-shell")]
+    .find((item) => item.dataset.competitionShellId === competitionId);
   const participantMap = new Map((competition.participants || []).map((participant) => [participant.userId, {
     ...participant,
     catches: (participant.catches || []).filter((item) => competitionAllowsSpecies(competition, item.measurement || item))
@@ -872,10 +1004,12 @@ function renderCompetitionDetails(competitionId) {
   details.hidden = false;
   details.dataset.competitionId = competitionId;
   details.classList.add("competition-details-inline");
-  const card = [...document.querySelectorAll("#competitionsList .competition-card")].find((item) => item.dataset.competitionId === competitionId);
-  if (card) card.insertAdjacentElement("afterend", details);
+  document.querySelectorAll("#competitionsList .competition-card-shell").forEach((item) => item.classList.remove("has-open-details"));
+  if (shell) {
+    shell.appendChild(details);
+    shell.classList.add("has-open-details");
+  }
   $("#participantCatches").hidden = true;
-  details.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function toggleCompetitionDetails(competitionId) {
@@ -883,6 +1017,9 @@ function toggleCompetitionDetails(competitionId) {
   if (details && !details.hidden && details.dataset.competitionId === competitionId) {
     details.hidden = true;
     details.removeAttribute("data-competition-id");
+    document.querySelectorAll("#competitionsList .competition-card-shell").forEach((item) => {
+      if (item.dataset.competitionShellId === competitionId) item.classList.remove("has-open-details");
+    });
     return;
   }
   renderCompetitionDetails(competitionId);
@@ -914,7 +1051,7 @@ async function saveCompetition(event) {
   if (!currentAccount()) { openAuth("login"); return; }
   const joinOnCreate = $("#competitionJoinOnCreate")?.checked !== false;
   const allSpecies = $("#competitionSpeciesAll")?.checked !== false;
-  const selectedSpecies = [...document.querySelectorAll('input[name="competitionSpecies"]:checked')].map((input) => input.value);
+  const selectedSpecies = [...new Set([...document.querySelectorAll('input[name="competitionSpecies"]:checked')].map((input) => input.value))];
   if (!allSpecies && !selectedSpecies.length) {
     window.alert("Välj minst en art eller Alla arter.");
     return;
@@ -922,7 +1059,7 @@ async function saveCompetition(event) {
   const selectedMetric = document.querySelector('input[name="competitionMetric"]:checked')?.value;
   const scoringMetric = ["length", "weight", "both"].includes(selectedMetric) ? selectedMetric : "length";
   try {
-    const response = await fetch(`${AUTH_API_ROOT}/competitions`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.slice(0, 80), description: description.slice(0, 140), daysLeft, species: allSpecies ? [] : selectedSpecies, scoringMetric, joinOnCreate }) });
+    const response = await fetchCompetitionCreate(`${AUTH_API_ROOT}/competitions`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.slice(0, 80), description: description.slice(0, 140), daysLeft, species: allSpecies ? [] : selectedSpecies, scoringMetric, joinOnCreate }) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) { window.alert(data.error || `Kunde inte skapa tävlingen (HTTP ${response.status}).`); return; }
     event.currentTarget.reset();
@@ -932,7 +1069,7 @@ async function saveCompetition(event) {
     window.alert("Tävlingen skapades.");
   } catch (error) {
     console.error("Kunde inte skapa tävlingen", error);
-    window.alert("Kunde inte nå Bigplus-servern. Kontrollera att API:t är igång och att CORS_ORIGINS innehåller webbplatsens Netlify-adress.");
+    window.alert(`Kunde inte nå Bigplus-servern på ${AUTH_API_ROOT}. Kontrollera att backend körs och att du är inloggad på nytt efter en server- eller adressändring.`);
   }
 }
 
@@ -1027,7 +1164,7 @@ function formatCatch(item, compact = false, index = 0) {
     const location = displayValue(measurement.location || item.location || item.water, "Plats ej angiven");
     return `<article class="catch-row home-catch-card" data-catch-id="${escapeHtml(catchKey)}" role="button" tabindex="0"><div class="catch-thumb">${photo ? `<img src="${photo}" alt="">` : "<span>FISK</span>"}</div><div class="catch-copy"><strong>${escapeHtml(species)}</strong><b>${length ? `${length.toFixed(1)} cm` : "-- cm"}</b><small>${escapeHtml(location)}</small></div><time class="catch-date">${escapeHtml(date)}</time></article>`;
   }
-  return `<article class="catch-row${compact ? " home-catch-card" : ""}" data-catch-id="${escapeHtml(catchKey)}" role="button" tabindex="0"><div class="catch-thumb">${photo ? `<img src="${photo}" alt="">` : "<span>FISK</span>"}</div><div class="catch-copy"><strong>${escapeHtml(species)}</strong><small>${compact ? (length ? `${length.toFixed(1)} cm` : "-- cm") : date}</small></div><div class="catch-values"><strong>${length ? `${length.toFixed(1)} cm` : "-- cm"}</strong><small>${compact ? date : (weight ? `${weight.toFixed(1)} kg` : "-- kg")}</small></div></article>`;
+  return `<article class="catch-row${compact ? " home-catch-card" : ""}" data-catch-id="${escapeHtml(catchKey)}" role="button" tabindex="0"><div class="catch-thumb">${photo ? `<img src="${photo}" alt="">` : "<span>FISK</span>"}</div><div class="catch-copy"><strong>${escapeHtml(species)}</strong><small>${compact ? (length ? `${length.toFixed(1)} cm` : "-- cm") : date}</small></div><div class="catch-values"><strong>${length ? `${length.toFixed(1)} cm` : "-- cm"}</strong><small>${compact ? date : (weight ? `${weight.toFixed(1)} kg` : "-- kg")}</small></div><div class="catch-row-actions"><button class="catch-delete-button" type="button" data-delete-catch="${escapeHtml(catchKey)}">Ta bort</button></div></article>`;
 }
 
 function isBigplusCatch(item) {
@@ -1088,16 +1225,24 @@ function renderCatchDetail(catchId) {
   detail.dataset.catchId = String(item.id || item._id || catchId);
   const measurement = item.measurement || item;
   const photo = photoSource(item.photoDataUrl || item.photo);
-  $("#catchDetailImage").src = photo;
+  const detailImage = $("#catchDetailImage");
+  if (detailImage) detailImage.src = photo;
   const weight = measurement.weightKg?.mid ?? measurement.weightKg ?? measurement.weight;
   const isBigplus = measurement.status === "BIGPLUS" || measurement.isBigplus;
-  $("#catchDetailLength").textContent = `${Number(measurement.lengthCm || 0).toFixed(1)} cm`;
-  $("#catchDetailWeight").textContent = weight ? `${Number(weight).toFixed(1)} kg` : "-- kg";
-  $("#catchDetailStatus").classList.toggle("is-approved", Boolean(isBigplus));
-  $("#catchDetailStatus strong").textContent = isBigplus ? "BIGPLUS" : "MÄTNING KLAR";
-  $("#catchDetailStatus small").textContent = isBigplus ? "Godkänd fångst" : "Resultat från din mätning";
-  $("#catchDetailTitle").textContent = measurement.speciesName || measurement.species || "Fångst";
-  $("#catchDetailMeta").textContent = `${Number(measurement.lengthCm || 0).toFixed(1)} cm · ${measurement.status || "Mätt"}`;
+  const detailLength = $("#catchDetailLength");
+  const detailWeight = $("#catchDetailWeight");
+  const detailStatus = $("#catchDetailStatus");
+  const detailStatusTitle = $("#catchDetailStatus strong");
+  const detailStatusText = $("#catchDetailStatus small");
+  const detailTitle = $("#catchDetailTitle");
+  const detailMeta = $("#catchDetailMeta");
+  if (detailLength) detailLength.textContent = `${Number(measurement.lengthCm || 0).toFixed(1)} cm`;
+  if (detailWeight) detailWeight.textContent = weight ? `${Number(weight).toFixed(1)} kg` : "-- kg";
+  if (detailStatus) detailStatus.classList.toggle("is-approved", Boolean(isBigplus));
+  if (detailStatusTitle) detailStatusTitle.textContent = isBigplus ? "BIGPLUS" : "MÄTNING KLAR";
+  if (detailStatusText) detailStatusText.textContent = isBigplus ? "Godkänd fångst" : "Resultat från din mätning";
+  if (detailTitle) detailTitle.textContent = measurement.speciesName || measurement.species || "Fångst";
+  if (detailMeta) detailMeta.textContent = `${Number(measurement.lengthCm || 0).toFixed(1)} cm · ${measurement.status || "Mätt"}`;
   const coordinateButton = $("#shareCatchCoordinates");
   const shareStatus = $("#catchShareStatus");
   const hasCoordinates = Number.isFinite(Number(item.location?.latitude)) && Number.isFinite(Number(item.location?.longitude));
@@ -1689,6 +1834,13 @@ function bind() {
     // The inline detail card lives inside the catch list; do not let its
     // buttons or image trigger the parent catch-row handler again.
     if (event.target.closest("#catchDetail")) return;
+    const deleteButton = event.target.closest("[data-delete-catch]");
+    if (deleteButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      openDeleteCatchDialog(deleteButton.dataset.deleteCatch);
+      return;
+    }
     const row = event.target.closest("[data-catch-id]");
     if (row) { renderCatchDetail(row.dataset.catchId); zoomToCatchOnMap(row.dataset.catchId); }
   });
@@ -1725,6 +1877,20 @@ function bind() {
     if (button) deleteMapShareZone(button.dataset.deleteMapZone);
   });
   $("#shareCatchCoordinates")?.addEventListener("click", shareCatchCoordinates);
+  $("#deleteCatchCodeInput")?.addEventListener("input", (event) => {
+    const value = String(event.target.value || "").trim().toUpperCase();
+    event.target.value = value;
+    const confirm = $("#confirmDeleteCatch");
+    if (confirm) confirm.disabled = value.length !== 5;
+    const message = $("#deleteCatchMessage");
+    if (message) message.textContent = "";
+  });
+  $("#closeDeleteCatchModal")?.addEventListener("click", closeDeleteCatchDialog);
+  $("#cancelDeleteCatch")?.addEventListener("click", closeDeleteCatchDialog);
+  $("#confirmDeleteCatch")?.addEventListener("click", confirmDeleteCatch);
+  $("#deleteCatchModal")?.addEventListener("click", (event) => {
+    if (event.target.id === "deleteCatchModal") closeDeleteCatchDialog();
+  });
   $("#hideCatchesMap")?.addEventListener("click", () => {
     $("#catchMapPanel").hidden = true;
   });
@@ -1753,10 +1919,23 @@ function bind() {
   $("#liveStatusButton")?.addEventListener("click", () => {
     const account = currentAccount();
     if (!account) return openAuth("login");
-    setLive(account.id, !isLive(account.id));
+    const active = isLive(account.id);
+    const duration = Number($("#liveDurationSelect")?.value || 60);
+    setLive(account.id, !active, duration);
     renderFriends();
     renderHomeFriendsOnline();
   });
+  window.setInterval(() => {
+    const account = currentAccount();
+    if (!account) return;
+    const wasLive = localStorage.getItem(`${LIVE_KEY}:${account.id}`) === "true";
+    const active = isLive(account.id);
+    renderLiveStatus(account);
+    if (wasLive && !active) {
+      renderFriends();
+      renderHomeFriendsOnline();
+    }
+  }, 30000);
   $("#friendSearchInput")?.addEventListener("input", () => { friendSearchResult = null; renderFriends(); });
   $("#friendAddForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1844,14 +2023,19 @@ function bind() {
   });
   $("#logoutButton")?.addEventListener("click", async () => { await fetch(`${AUTH_API_ROOT}/auth/logout`, { method: "POST", credentials: "include" }).catch(() => {}); remoteCatches = null; remoteFriends = null; localStorage.removeItem(SESSION_KEY); localStorage.removeItem("inlev_user"); renderAccount(); showView("home"); });
   window.addEventListener("bigplus:catch-saved", async (event) => {
-    renderCatchLists();
-    await loadRemoteCatches();
-    await loadRemoteFriends();
-    await loadRemoteCompetitions();
-    const catchId = event.detail?.catchId;
-    if (catchId) {
+    setAppLoading(true, "Laddar din fångst...");
+    try {
+      renderCatchLists();
+      await loadRemoteCatches();
+      await loadRemoteFriends();
+      await loadRemoteCompetitions();
+      const catchId = event.detail?.catchId;
       showView("catches");
-      renderCatchDetail(catchId);
+      if (catchId) {
+        renderCatchDetail(catchId);
+      }
+    } finally {
+      setAppLoading(false);
     }
   });
   window.addEventListener("storage", () => { renderAccount(); renderCatchLists(); renderFriends(); });
@@ -1865,6 +2049,16 @@ renderCompetitions();
 
 // Vänta på backendens session innan appen visas. Annars kan ett gammalt
 // localStorage-konto öppna appen som en falsk gäst eller låsa fast loginvyn.
+async function loadInitialRemoteData() {
+  await loadRemoteCatches();
+  await loadRemoteFriends();
+  await loadRemoteCompetitions();
+  renderAccount();
+  renderCatchLists();
+  renderFriends();
+  renderCompetitions();
+}
+
 function finishAuthBootstrap() {
   authBootstrapActive = false;
   document.body.classList.remove("auth-bootstrap-pending");
@@ -1875,15 +2069,12 @@ else openAuth("login");
 
 fetch(`${AUTH_API_ROOT}/auth/me`, { credentials: "include" })
   .then((response) => response.ok ? response.json() : null)
-  .then((data) => {
+  .then(async (data) => {
     if (!authBootstrapActive) return;
     if (!data?.user) {
       if (currentAccount()) {
         renderAccount();
-        renderCatchLists();
-        loadRemoteCatches();
-        loadRemoteFriends();
-        loadRemoteCompetitions();
+        await loadInitialRemoteData();
         showView("home");
         return;
       }
@@ -1897,21 +2088,14 @@ fetch(`${AUTH_API_ROOT}/auth/me`, { credentials: "include" })
     localStorage.setItem(ACCOUNT_KEY, JSON.stringify([data.user]));
     localStorage.setItem(SESSION_KEY, data.user.id);
     localStorage.setItem("inlev_user", data.user.id);
-    renderAccount();
-    renderCatchLists();
-    loadRemoteCatches();
-    loadRemoteFriends();
-    loadRemoteCompetitions();
+    await loadInitialRemoteData();
     showView("home");
   })
-  .catch(() => {
+  .catch(async () => {
     if (!authBootstrapActive) return;
     if (currentAccount()) {
       renderAccount();
-      renderCatchLists();
-      loadRemoteCatches();
-      loadRemoteFriends();
-      loadRemoteCompetitions();
+      await loadInitialRemoteData();
       showView("home");
       return;
     }
