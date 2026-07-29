@@ -12,6 +12,180 @@
   --shadow: 0 18px 45px rgba(23, 32, 27, 0.12);
 }
 
+/* Fisketurer: en enkel loggbok fÃ¶r planering och minnen. */
+.journal-view .view-heading {
+  align-items: end;
+  margin-bottom: 18px;
+}
+
+.journal-view .view-heading > div > p:last-child {
+  max-width: 520px;
+  color: #64748b;
+}
+
+.journal-nav-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #e8f0ff;
+  color: #2563eb;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.journal-planner {
+  margin-bottom: 16px;
+  border-color: #b9d4ff;
+  background: #f4f8ff;
+}
+
+.journal-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+.journal-form-heading,
+.journal-notes-field,
+.journal-form-actions,
+.journal-form > .small-print {
+  grid-column: 1 / -1;
+}
+
+.journal-form-heading h2 {
+  margin: 0 0 4px;
+}
+
+.journal-form-heading p,
+.journal-trip-card p,
+.journal-trip-notes {
+  margin: 0;
+  color: #64748b;
+}
+
+.journal-form label {
+  display: grid;
+  gap: 6px;
+  color: #1e3a8a;
+  font-size: .82rem;
+  font-weight: 800;
+}
+
+.journal-form input,
+.journal-form textarea {
+  width: 100%;
+  border: 1px solid #cbd8e8;
+  border-radius: 7px;
+  background: #fff;
+  color: #172554;
+  font: inherit;
+  padding: 10px 11px;
+}
+
+.journal-form textarea {
+  resize: vertical;
+}
+
+.journal-form-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.journal-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.journal-trip-list {
+  display: grid;
+  gap: 9px;
+}
+
+.journal-trip-card {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 13px;
+  padding: 12px;
+  border: 1px solid #d7e2ef;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.journal-trip-date {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  color: #1e40af;
+  font-size: .78rem;
+}
+
+.journal-trip-date span {
+  color: #64748b;
+}
+
+.journal-trip-body {
+  min-width: 0;
+}
+
+.journal-trip-body h3 {
+  margin: 0 0 4px;
+  color: #172554;
+  font-size: .98rem;
+}
+
+.journal-trip-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.journal-trip-meta span {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #36527a;
+  font-size: .72rem;
+}
+
+.journal-trip-notes {
+  margin-top: 8px !important;
+  font-size: .78rem;
+}
+
+@media (min-width: 681px) {
+  .site-header .topbar > .app-nav .nav-button[data-view="journal"] {
+    min-width: 84px;
+  }
+}
+
+@media (max-width: 680px) {
+  .journal-view .view-heading,
+  .journal-columns,
+  .journal-form {
+    grid-template-columns: 1fr;
+  }
+
+  .journal-view .view-heading {
+    display: grid;
+    gap: 12px;
+  }
+
+  .journal-view .view-heading .primary-button {
+    width: 100%;
+  }
+
+  .journal-trip-card {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -1810,6 +1984,12 @@ body { background: #f8fafc; }
 .catch-row-actions { display: flex; align-items: center; justify-content: flex-end; }
 .catch-delete-button { padding: 7px 9px; border: 1px solid #fecaca; border-radius: 7px; background: #fff; color: #b91c1c; font: inherit; font-size: .72rem; font-weight: 800; cursor: pointer; }
 .catch-delete-button:hover { background: #fef2f2; }
+/* Keep list rows readable; deletion is available in the opened catch detail. */
+.catch-list-large .catch-row { grid-template-columns: 86px minmax(0, 1fr) auto; }
+.catch-list-large .catch-copy { min-width: 0; padding-left: 4px; }
+.catch-list-large .catch-copy strong,
+.catch-list-large .catch-copy small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catch-list-large .catch-values { min-width: 74px; text-align: right; }
 .app-view > .view-heading { border-bottom: 1px solid #e2e8f0; padding-bottom: 17px; }
 .groups-view-card { border-left: 4px solid #10b981; }
 .groups-live-section { margin-top: 22px; }
@@ -3068,7 +3248,7 @@ button:hover:not(:disabled) {
 .catch-image-lightbox {
   position: fixed;
   inset: 0;
-  z-index: 55;
+  z-index: 2100;
   display: grid;
   place-items: center;
   padding: 18px;
@@ -4108,6 +4288,56 @@ button:hover:not(:disabled) {
 .leaderboard-section .leaderboard-row:first-child {
   border-color: #fbbf24;
   background: #fff7d6;
+}
+
+.leaderboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.leaderboard-board {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #dbe5ef;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.leaderboard-board h3 {
+  margin: 0;
+  color: #142c58;
+  font-size: 1rem;
+}
+
+.leaderboard-board > p {
+  margin: 3px 0 10px;
+  color: #64748b;
+  font-size: .76rem;
+}
+
+.leaderboard-board .leaderboard-row {
+  grid-template-columns: 24px 28px minmax(0, 1fr) auto;
+  gap: 6px;
+  padding: 8px;
+}
+
+.leaderboard-board .leaderboard-row > small {
+  display: none;
+}
+
+.leaderboard-board .empty-list {
+  min-height: 54px;
+  padding: 8px;
+  border: 1px dashed #bfd1e6;
+  border-radius: 6px;
+  background: #fff;
+}
+
+@media (max-width: 680px) {
+  .leaderboard-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 680px) {
@@ -5561,6 +5791,27 @@ button:hover:not(:disabled) {
   }
 }
 
+/* Homepage badge overview: show the badges as a clean two-column image grid. */
+.home-achievement-section .home-badge-icon-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.home-achievement-section .home-badge-icon {
+  width: min(150px, 100%);
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.home-achievement-section .home-achievement-progress-label,
+.home-achievement-section .home-achievement-progress {
+  display: none;
+}
+
+.home-achievement-section .home-achievement-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .home-progress-achievement-list {
   display: grid;
   grid-template-columns: 1fr;
@@ -5810,7 +6061,7 @@ button:hover:not(:disabled) {
 .friend-tournament-results > div small { grid-column: 1 / -1; color: #64748b; font-size: .68rem; }
 .friend-tournament-empty { grid-column: 1 / -1; margin: 0; color: #64748b; font-size: .78rem; }
 .catches-toolbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
-.catch-map-panel { margin-top: 14px; padding: 14px; border: 1px solid #dbe5ef; border-radius: 10px; background: #f8fbff; }
+.catch-map-panel { margin-top: 14px; padding: 0px; border: 1px solid #dbe5ef; border-radius: 10px; background: #f8fbff; }
 .catch-location-field { margin: 12px 0; padding: 10px 12px; border: 1px solid #dbe5ef; border-radius: 8px; background: #f8fbff; }
 .catch-location-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .catch-location-heading > div { display: grid; gap: 3px; }
@@ -5823,6 +6074,7 @@ button:hover:not(:disabled) {
 .catch-map { width: 100%; height: 420px; overflow: hidden; border: 1px solid #cbd5e1; border-radius: 8px; background: #dbeafe; }
 .catch-map-empty { margin: 10px 0 0; color: #64748b; font-size: .82rem; text-align: center; }
 .map-share-panel { margin-top: 14px; padding: 18px; border: 1px solid #bfdbfe; border-radius: 12px; background: #f8fbff; }
+#mapSharePanel:not(.is-open) { display: none !important; }
 .map-share-panel .section-heading { margin-bottom: 14px; }
 .map-share-form { display: grid; gap: 14px; }
 .map-share-form > label { display: grid; gap: 6px; color: #142c58; font-size: .82rem; font-weight: 800; }
@@ -5995,6 +6247,19 @@ button:hover:not(:disabled) {
 .catches-toolbar #shareMapWithFriends.is-active { border-color: #10b981; background: #ecfdf5; color: #047857; }
 .catch-detail-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
 .catch-detail-actions small { color: #526985; }
+.catch-share-modal { position: fixed; inset: 0; z-index: 10010; display: grid; place-items: center; padding: 16px; background: rgba(15, 23, 42, .52); }
+.catch-share-modal[hidden] { display: none; }
+.catch-share-dialog { position: relative; width: min(100%, 460px); max-height: min(80vh, 620px); overflow-y: auto; box-sizing: border-box; padding: 26px; border: 1px solid #bfdbfe; border-radius: 14px; background: #fff; box-shadow: 0 20px 60px rgba(15, 23, 42, .24); }
+.catch-share-dialog .catch-detail-close { position: absolute; top: 14px; right: 14px; }
+.catch-share-dialog h2 { margin: 0; color: #142c58; }
+.catch-share-dialog > p:not(.catch-detail-label) { margin: 8px 0 0; color: #526985; line-height: 1.5; }
+.catch-share-friend-choices { display: grid; gap: 8px; margin: 16px 0 10px; }
+.catch-share-choice { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid #dbe5ef; border-radius: 9px; background: #f8fbff; color: #142c58; cursor: pointer; }
+.catch-share-choice:has(input:checked) { border-color: #2563eb; background: #eff6ff; }
+.catch-share-choice input { width: 18px; height: 18px; accent-color: #2563eb; }
+.catch-share-choice span { display: grid; gap: 2px; }
+.catch-share-choice small, .catch-share-empty, #catchShareFormStatus { color: #526985; font-size: .82rem; }
+.catch-share-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .catch-delete-modal { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 20px; background: rgba(15, 23, 42, .52); }
 .catch-delete-modal:not([hidden]) { position: fixed !important; z-index: 10000 !important; isolation: isolate; pointer-events: auto; }
 .catch-delete-modal:not([hidden]) .catch-delete-dialog { position: relative; z-index: 10001; pointer-events: auto; }
@@ -6069,6 +6334,13 @@ body:has(#deleteCatchModal:not([hidden])) .catch-map-panel { pointer-events: non
 @media (max-width: 680px) {
   .catch-list-large .catch-row { grid-template-columns: 64px minmax(0, 1fr) auto; }
   .catch-list-large .catch-row-actions { grid-column: 2 / -1; justify-content: flex-start; padding-top: 2px; }
+  .catch-list-large .catch-row { grid-template-columns: 76px minmax(0, 1fr) auto; gap: 10px; padding: 8px 10px 8px 8px; }
+  .catch-list-large .catch-thumb { width: 76px; height: 72px; }
+  .catch-list-large .catch-copy { padding-left: 4px; }
+  .catch-list-large .catch-copy strong { font-size: .9rem; }
+  .catch-list-large .catch-copy small { font-size: .72rem; }
+  .catch-list-large .catch-values { min-width: 62px; }
+  .catch-list-large .catch-row-actions { display: none; }
   .catch-list-large > .catch-detail .catch-detail-dialog {
     grid-template-columns: 104px minmax(0, 1fr);
     gap: 12px;
@@ -6114,13 +6386,14 @@ body:has(#deleteCatchModal:not([hidden])) .catch-map-panel { pointer-events: non
   width: min(100%, 780px);
 }
 
-.measure-area.is-start .canvas-wrap,
-.measure-area.is-manual .canvas-wrap {
-  min-height: 0 !important;
-  height: auto;
-  border: 2px dashed #2563eb;
-  border-radius: 14px;
-  background: #f4f8ff;
+.measure-area.is-start .canvas-wrap, .measure-area.is-manual .canvas-wrap {
+    min-height: 0 !important;
+    height: auto;
+    border: 2px dashed #2563eb;
+    border-radius: 14px;
+    background: #f4f8ff;
+    margin-top: 46px;
+    width: 800px;
 }
 
 .measure-area.is-start #measureCanvas,
@@ -6274,6 +6547,52 @@ body:has(#deleteCatchModal:not([hidden])) .catch-map-panel { pointer-events: non
   font: inherit;
 }
 
+.manual-location-field {
+  width: min(100%, 560px);
+  box-sizing: border-box;
+  margin: 8px 0 10px;
+  padding: 10px 12px;
+  border: 1px solid #dbe5ef;
+  border-radius: 8px;
+  background: #f8fbff;
+  text-align: left;
+}
+
+.manual-location-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.manual-location-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.manual-location-heading strong {
+  color: #142c58;
+  font-size: .82rem;
+}
+
+.manual-location-heading small {
+  color: #64748b;
+  font-size: .72rem;
+}
+
+.manual-location-picker {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.manual-location-map {
+  height: 180px;
+  overflow: hidden;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+}
+
 .manual-entry-panel > .primary-button,
 .manual-entry-panel > .secondary-button {
   width: min(100%, 420px);
@@ -6285,6 +6604,8 @@ body:has(#deleteCatchModal:not([hidden])) .catch-map-panel { pointer-events: non
   .manual-entry-panel { padding: 30px 16px; }
   .manual-entry-fields { grid-template-columns: 1fr; width: min(100%, 360px); }
   .measure-start-button { min-height: 54px; font-size: .92rem; }
+  .manual-location-heading { align-items: flex-start; flex-direction: column; }
+  .manual-location-heading .compact-button { width: 100%; justify-content: center; }
 }
 
 /* Keep the save-and-redirect flow calm and uninterruptible. */
@@ -6336,4 +6657,395 @@ body.is-app-loading { overflow: hidden; }
 
 @keyframes bigplus-loading-spin {
   to { transform: rotate(360deg); }
+}
+
+/* Home catch display switcher. The default remains the compact list. */
+.home-catch-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.home-catch-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid #dbe5ef;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.view-toggle-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.view-toggle-button.is-active {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.home-catch-list.is-grid-view {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, auto));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.home-catch-list.is-grid-view .home-catch-card {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.home-catch-list.is-grid-view .home-catch-card:nth-child(1) { grid-column: 1; grid-row: 1; }
+.home-catch-list.is-grid-view .home-catch-card:nth-child(2) { grid-column: 2; grid-row: 1; }
+.home-catch-list.is-grid-view .home-catch-card:nth-child(3) { grid-column: 1; grid-row: 2; }
+.home-catch-list.is-grid-view .home-catch-card:nth-child(4) { grid-column: 2; grid-row: 2; }
+
+.home-catch-list.is-grid-view .home-catch-card .catch-thumb {
+  width: 100%;
+  height: 112px;
+  border-radius: 0;
+}
+
+/* The image view is intentionally visual-only; details remain available in list view. */
+.home-catch-list.is-grid-view .home-catch-card .catch-copy,
+.home-catch-list.is-grid-view .home-catch-card .catch-values,
+.home-catch-list.is-grid-view .home-catch-card .catch-date {
+  display: none !important;
+}
+
+.home-catch-list.is-grid-view .home-catch-card .catch-copy {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px 0;
+}
+
+.home-catch-list.is-grid-view .home-catch-card .catch-values {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 10px 9px;
+  text-align: left;
+}
+
+@media (max-width: 680px) {
+  .home-catch-heading-actions { gap: 6px; }
+  .home-catch-view-toggle { display: inline-flex; }
+  .home-catch-list.is-grid-view {
+    grid-template-rows: repeat(2, minmax(64px, auto));
+    gap: 8px;
+  }
+  .home-catch-list.is-grid-view .home-catch-card .catch-thumb { height: 88px; }
+}
+
+/* Keep the competition detail heading compact and put one icon-only favorite control beside it. */
+.competition-details-header {
+  display: none;
+}
+
+.competition-details > .competition-participants {
+  position: relative;
+  background: transparent;
+}
+
+.competition-participants-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+  margin: 0 0 10px;
+  padding: 0 2px;
+  color: #1e40af;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.competition-details > .competition-participants .competition-favorite-button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  flex: 0 0 34px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #1d4ed8;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.competition-details > .competition-participants .competition-favorite-button.is-favorite {
+  color: #b45309;
+}
+
+/* Final desktop homepage layout: badges span two columns, progress stays compact. */
+@media (min-width: 681px) {
+  .home-achievement-section {
+    grid-column: span 1;
+    grid-row: auto;
+  }
+
+  .home-badge-section {
+    grid-column: span 1;
+    grid-row: auto;
+  }
+
+  .home-achievement-section .home-badge-icon-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: center;
+  }
+
+  .home-achievement-section .home-badge-icon {
+    width: 112px;
+    height: 112px;
+    max-width: 100%;
+    aspect-ratio: 1;
+    justify-self: center;
+  }
+
+  .home-badge-section .home-progress-achievement-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-personal-best-section,
+  .home-latest-catches-section,
+  .home-competition-section {
+    min-height: 370px;
+  }
+
+  .home-competition-section .home-competition-list {
+    display: grid;
+    gap: 0;
+  }
+
+  .home-competition-section .competition-card-home {
+    min-height: 75px;
+    height: 75px;
+    margin-bottom: 6px;
+    padding: 9px 12px;
+    overflow: hidden;
+  }
+
+  .home-competition-section .competition-card-home .competition-card-main {
+    gap: 10px;
+  }
+
+  .home-competition-section .competition-card-home .competition-emblem {
+    flex-basis: 38px;
+    width: 38px;
+    height: 38px;
+    font-size: 1rem;
+  }
+
+  .home-competition-section .competition-card-home h3 {
+    font-size: .86rem;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .home-competition-section .competition-card-home .competition-days-badge {
+    margin-left: 5px;
+    padding: 2px 6px;
+    font-size: .62rem;
+  }
+
+  .home-competition-section .competition-card-home .home-competition-species {
+    margin-top: 5px;
+    color: #64748b;
+    font-size: .68rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .home-competition-section .competition-card-home .competition-owner-label {
+    display: none;
+  }
+}
+
+/* Fisketurer: en enkel loggbok fÃ¶r planering och minnen. */
+.journal-view .view-heading { align-items: end; margin-bottom: 18px; }
+.journal-view .view-heading > div > p:last-child { max-width: 520px; color: #64748b; }
+.journal-nav-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: #e8f0ff; color: #2563eb; font-size: 1.1rem; font-weight: 800; line-height: 1; }
+.journal-planner { margin-bottom: 16px; border-color: #b9d4ff; background: #f4f8ff; }
+.journal-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.journal-form-heading, .journal-notes-field, .journal-form-actions, .journal-form > .small-print { grid-column: 1 / -1; }
+.journal-form-heading h2 { margin: 0 0 4px; }
+.journal-form-heading p, .journal-trip-card p, .journal-trip-notes { margin: 0; color: #64748b; }
+.journal-form label { display: grid; gap: 6px; color: #1e3a8a; font-size: .82rem; font-weight: 800; }
+.journal-form input, .journal-form textarea { width: 100%; border: 1px solid #cbd8e8; border-radius: 7px; background: #fff; color: #172554; font: inherit; padding: 10px 11px; }
+.journal-form textarea { resize: vertical; }
+.journal-form-actions { display: flex; gap: 10px; align-items: center; }
+.journal-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.journal-trip-list { display: grid; gap: 9px; }
+.journal-trip-card { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 13px; padding: 12px; border: 1px solid #d7e2ef; border-radius: 7px; background: #fff; }
+.journal-trip-date { display: grid; align-content: start; gap: 5px; color: #1e40af; font-size: .78rem; }
+.journal-trip-date span { color: #64748b; }
+.journal-trip-body { min-width: 0; }
+.journal-trip-body h3 { margin: 0 0 4px; color: #172554; font-size: .98rem; }
+.journal-trip-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.journal-trip-meta span { padding: 4px 7px; border-radius: 999px; background: #eef4ff; color: #36527a; font-size: .72rem; }
+.journal-trip-notes { margin-top: 8px !important; font-size: .78rem; }
+@media (min-width: 681px) { .site-header .topbar > .app-nav .nav-button[data-view="journal"] { min-width: 84px; } }
+@media (max-width: 680px) {
+  .journal-view .view-heading, .journal-columns, .journal-form { grid-template-columns: 1fr; }
+  .journal-view .view-heading { display: grid; gap: 12px; }
+  .journal-view .view-heading .primary-button { width: 100%; }
+  .journal-trip-card { grid-template-columns: 1fr; gap: 7px; }
+}
+
+/* Keep the desktop brand, navigation and account controls in separate zones. */
+@media (min-width: 681px) {
+  .site-header .topbar {
+    display: grid !important;
+    grid-template-columns: minmax(300px, 1fr) minmax(430px, auto) minmax(170px, 1fr);
+    align-items: center;
+    column-gap: clamp(18px, 3vw, 52px);
+    padding: 0 clamp(24px, 5vw, 96px) !important;
+    box-sizing: border-box;
+  }
+
+  .site-header .brand-header-image {
+    position: relative !important;
+    inset: auto !important;
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: start;
+    width: min(320px, 100%);
+    height: 100%;
+    z-index: 1;
+  }
+
+  .site-header .brand-header-image img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+    object-position: left center;
+  }
+
+  .site-header .topbar > .app-nav,
+  body.measure-active .site-header .topbar > .app-nav {
+    position: relative !important;
+    inset: auto !important;
+    grid-column: 2;
+    grid-row: 1;
+    align-self: stretch;
+    justify-self: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: max-content;
+    max-width: 100%;
+    height: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    z-index: 4;
+  }
+
+  .site-header .desktop-app-controls {
+    position: relative !important;
+    inset: auto !important;
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .site-header .desktop-account-button {
+    order: 3;
+    margin-left: 8px;
+  }
+}
+
+/* Progress rows must shrink inside their card at every desktop width. */
+.home-progress-achievement,
+.home-progress-achievement > *,
+.home-progress-achievement .achievement-progress,
+.home-progress-achievement .achievement-progress-track,
+.home-progress-achievement .achievement-progress-bar {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.home-progress-achievement {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(80px, .7fr) minmax(0, auto);
+  overflow: hidden;
+}
+
+.home-progress-achievement .achievement-progress {
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Keep the measurement flow together so the second step is visible at the top of the workspace. */
+.measure-flow-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: min(100%, 780px);
+  margin: 0 auto 12px;
+  padding: 8px 12px;
+  border: 1px solid #dbe7f7;
+  border-radius: 12px;
+  background: #fff;
+  color: #64748b;
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.measure-flow-step { padding: 6px 10px; border-radius: 999px; white-space: nowrap; }
+.measure-flow-step.is-active { background: #2563eb; color: #fff; }
+.measure-flow-arrow { color: #94a3b8; }
+.measure-reference-note { display: none; width: min(100%, 780px); margin: -4px auto 10px; color: #64748b; text-align: center; font-size: .78rem; }
+.measure-area[data-flow-step="2"] .measure-flow-step[data-measure-step="1"] { background: #e2e8f0; color: #64748b; }
+.measure-area[data-flow-step="2"] .measure-flow-step[data-measure-step="2"] { background: #2563eb; color: #fff; }
+.measure-area[data-flow-step="2"] .measure-reference-note { display: block; }
+
+@media (max-width: 680px) {
+  .measure-flow-steps { margin-bottom: 8px; padding: 7px 8px; }
+  .measure-flow-step { padding: 5px 8px; font-size: .72rem; }
+  .measure-reference-note { font-size: .72rem; }
 }

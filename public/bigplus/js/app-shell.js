@@ -7,6 +7,7 @@ const FAVORITE_COMPETITION_KEY = "bigplus_favorite_competition";
 const FRIENDS_KEY = "bigplus_friends";
 const FRIEND_REQUESTS_KEY = "bigplus_friend_requests";
 const LIVE_KEY = "bigplus_live_status";
+const HOME_CATCH_VIEW_KEY = "bigplus_home_catch_view";
 let remoteCatches = null;
 let remoteCompetitions = null;
 let remoteSharedCatches = [];
@@ -126,6 +127,16 @@ function setLive(accountId, value, durationMinutes = 60) {
   }
   localStorage.setItem(`${LIVE_KEY}:${accountId}`, "true");
   localStorage.setItem(`${LIVE_KEY}:${accountId}:until`, String(Date.now() + Math.max(1, Number(durationMinutes) || 60) * 60 * 1000));
+}
+function homeCatchView() { return localStorage.getItem(HOME_CATCH_VIEW_KEY) === "grid" ? "grid" : "list"; }
+function updateHomeCatchView(mode = homeCatchView()) {
+  const home = $("#homeCatchList");
+  if (home) home.classList.toggle("is-grid-view", mode === "grid");
+  $$('[data-catch-view]').forEach((button) => {
+    const active = button.dataset.catchView === mode;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
 }
 function liveRemainingMinutes(accountId) {
   if (!isLive(accountId)) return 0;
@@ -514,7 +525,10 @@ async function loadSharedMapData() {
     const zones = await zonesResponse.json().catch(() => []);
     mapSharingEnabled = Boolean(share.enabled);
     remoteSharedCatches = Array.isArray(shared) ? shared : [];
-    remoteMapZones = Array.isArray(zones) ? zones : [];
+    const localZones = readJson(`bigplus_map_zones:${currentAccount()?.id}`, []);
+    const serverZones = Array.isArray(zones) ? zones : [];
+    const serverIds = new Set(serverZones.map((zone) => String(zone.id || zone._id || "")));
+    remoteMapZones = [...serverZones, ...(Array.isArray(localZones) ? localZones.filter((zone) => !serverIds.has(String(zone.id || zone._id || ""))) : [])];
   } catch {
     mapSharingEnabled = mapSharingLocal();
     remoteSharedCatches = [];
@@ -597,22 +611,118 @@ async function toggleMapSharing() {
     updateMapShareControls();
   } catch (error) { window.alert(error.message || "Kunde inte uppdatera kartdelning."); }
 }
+function catchShareFriendRecords(accountId = currentAccount()?.id) {
+  const remote = Array.isArray(remoteFriends?.friends) ? remoteFriends.friends : [];
+  if (remote.length) return remote;
+  return acceptedFriendIds(accountId)
+    .map((id) => accounts().find((account) => String(account.id) === String(id)))
+    .filter(Boolean);
+}
+
+function renderCatchShareFriends() {
+  const target = $("#catchShareFriendChoices");
+  if (!target) return;
+  const account = currentAccount();
+  const friends = account ? catchShareFriendRecords(account.id) : [];
+  if (!friends.length) {
+    target.innerHTML = '<p class="catch-share-empty">Lägg till och acceptera en vän först.</p>';
+    return;
+  }
+  target.innerHTML = friends.map((friend) => {
+    const id = String(friend.id || friend._id || "");
+    const name = escapeHtml(friend.name || friend.displayName || friend.email || "Vän");
+    return `<label class="catch-share-choice"><input type="checkbox" name="catchShareRecipientIds" value="${escapeHtml(id)}"><span><strong>${name}</strong></span></label>`;
+  }).join("");
+}
+
+function ensureCatchShareModal() {
+  let modal = $("#catchShareModal");
+  if (modal) return modal;
+  modal = document.createElement("div");
+  modal.id = "catchShareModal";
+  modal.className = "catch-share-modal";
+  modal.hidden = true;
+  modal.innerHTML = `<div class="catch-share-dialog" role="dialog" aria-modal="true" aria-labelledby="catchShareTitle"><button class="text-button catch-detail-close" id="closeCatchShareModal" type="button">Stäng</button><p class="catch-detail-label">DELA I APPEN</p><h2 id="catchShareTitle">Dela fångstplats</h2><p>Välj vilka accepterade vänner som får se koordinaterna i Bigplus.</p><form id="catchShareForm"><div id="catchShareFriendChoices" class="catch-share-friend-choices"></div><p id="catchShareFormStatus" role="status"></p><div class="catch-share-actions"><button class="secondary-button" id="cancelCatchShare" type="button">Avbryt</button><button class="primary-button" type="submit">Dela med valda vänner</button></div></form></div>`;
+  document.body.appendChild(modal);
+  $("#catchShareForm")?.addEventListener("submit", submitCatchCoordinateShare);
+  $("#closeCatchShareModal")?.addEventListener("click", closeCatchShareModal);
+  $("#cancelCatchShare")?.addEventListener("click", closeCatchShareModal);
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) closeCatchShareModal();
+  });
+  return modal;
+}
+
 async function shareCatchCoordinates() {
+  const account = currentAccount();
+  if (!account) { openAuth("login"); return; }
   const detail = $("#catchDetail");
   const item = catchRecordById(detail?.dataset.catchId);
   const status = $("#catchShareStatus");
   const latitude = Number(item?.location?.latitude);
   const longitude = Number(item?.location?.longitude);
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) { if (status) status.textContent = "Fångsten saknar sparade koordinater."; return; }
-  const measurement = item.measurement || item;
-  const species = measurement.speciesName || measurement.species || "Fångst";
-  const text = `${species}: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}\nhttps://www.google.com/maps?q=${latitude},${longitude}`;
+  const modal = ensureCatchShareModal();
+  modal.hidden = false;
+  modal.dataset.catchId = String(item.id || item._id || detail?.dataset.catchId || "");
+  const formStatus = $("#catchShareFormStatus");
+  if (formStatus) formStatus.textContent = "Välj accepterade vänner som ska se platsen i appen.";
+  renderCatchShareFriends();
+  await loadRemoteFriends();
+  renderCatchShareFriends();
+}
+
+function closeCatchShareModal() {
+  const modal = $("#catchShareModal");
+  if (modal) modal.hidden = true;
+}
+
+async function submitCatchCoordinateShare(event) {
+  event.preventDefault();
+  const account = currentAccount();
+  const modal = $("#catchShareModal");
+  const status = $("#catchShareFormStatus");
+  const itemId = modal?.dataset.catchId;
+  const recipientIds = [...document.querySelectorAll("input[name='catchShareRecipientIds']:checked")].map((input) => input.value);
+  if (!account || !itemId) { if (status) status.textContent = "Logga in och öppna fångsten igen."; return; }
+  if (!recipientIds.length) { if (status) status.textContent = "Välj minst en vän."; return; }
   try {
-    if (navigator.share) await navigator.share({ title: `${species} - fångstplats`, text });
-    else { await navigator.clipboard.writeText(text); if (status) status.textContent = "Koordinaterna är kopierade."; }
-    const account = currentAccount();
-    if (account && item.id) fetch(`${AUTH_API_ROOT}/sharing/catches/${encodeURIComponent(item.id)}`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipientIds: friendIds(account.id) }) }).catch(() => {});
-  } catch (error) { if (error.name !== "AbortError" && status) status.textContent = "Kunde inte dela koordinaterna."; }
+    const response = await fetch(`${AUTH_API_ROOT}/sharing/catches/${encodeURIComponent(itemId)}`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recipientIds })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Kunde inte dela koordinaterna.");
+    let sharedZone = {
+      id: `local-catch-share-${Date.now()}`,
+      name: "Delad fångst",
+      catchIds: [String(itemId)],
+      recipientIds: recipientIds.map(String),
+      createdAt: new Date().toISOString()
+    };
+    try {
+      const zoneResponse = await fetch(`${AUTH_API_ROOT}/sharing/zones`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Delad fångst", catchIds: [String(itemId)], recipientIds })
+      });
+      const zoneData = await zoneResponse.json().catch(() => ({}));
+      if (zoneResponse.ok && zoneData && (zoneData.id || zoneData._id)) sharedZone = zoneData;
+    } catch {
+      // Keep a local entry visible even when the optional zone endpoint is unavailable.
+    }
+    remoteMapZones = [sharedZone, ...remoteMapZones];
+    localStorage.setItem(`bigplus_map_zones:${account.id}`, JSON.stringify(remoteMapZones));
+    renderMapSharePanel();
+    updateMapShareControls();
+    const count = Array.isArray(data.recipientIds) ? data.recipientIds.length : recipientIds.length;
+    const catchStatus = $("#catchShareStatus");
+    if (catchStatus) catchStatus.textContent = `Koordinaterna delas i appen med ${count} vän${count === 1 ? "" : "ner"}.`;
+    closeCatchShareModal();
+  } catch (error) {
+    if (status) status.textContent = error.message || "Kunde inte dela koordinaterna.";
+  }
 }
 
 async function loadRemoteCatches() {
@@ -761,9 +871,13 @@ function competitionCardMarkup(competition) {
   const joined = isCompetitionMember(competition);
   const owner = competition.createdBy && competition.createdBy === currentAccount()?.id;
   const homeOnly = arguments[1]?.home;
+  const daysBadge = Number.isFinite(days) ? `<span class="competition-days-badge">${days} dagar</span>` : "";
   const participationAction = joined ? `<button class="secondary-button competition-leave-button" type="button" data-competition-action="leave" data-competition-id="${escapeHtml(competition.id)}">Lämna</button>` : `<button class="secondary-button competition-join-button" type="button" data-competition-action="join" data-competition-id="${escapeHtml(competition.id)}">Delta</button>`;
   const action = owner ? `${participationAction}<button class="secondary-button competition-delete-button" type="button" data-competition-action="delete" data-competition-id="${escapeHtml(competition.id)}">Ta bort</button>` : participationAction;
-  return `<article class="competition-card${homeOnly ? " competition-card-home" : ""}" data-competition-id="${escapeHtml(competition.id)}"${homeOnly ? ' role="button" tabindex="0"' : ""}><div class="competition-card-main"><span class="competition-emblem" aria-hidden="true">★</span><div><h3>${escapeHtml(competition.name)}${owner ? '<span class="competition-title-star" aria-label="Skapad av dig">★</span>' : ""}</h3><p>${escapeHtml(competition.description || "Mät och jämför dina fångster.")}</p><small>${ending} · Skapad ${formatCompetitionDate(competition.createdAt)}</small><small class="competition-rule-summary">${escapeHtml(competitionMetricLabel(competition))} · ${escapeHtml(competitionSpeciesLabel(competition))}</small>${owner ? '<span class="competition-owner-label">Din tävling</span>' : ""}</div></div>${homeOnly ? "" : `<div class="competition-card-actions">${action}</div>`}</article>`;
+  const details = homeOnly
+    ? `<small class="home-competition-species">${escapeHtml(competitionMetricLabel(competition))} · ${escapeHtml(competitionSpeciesLabel(competition))}</small>`
+    : `<p>${escapeHtml(competition.description || "Mät och jämför dina fångster.")}</p><small>${ending} · Skapad ${formatCompetitionDate(competition.createdAt)}</small><small class="competition-rule-summary">${escapeHtml(competitionMetricLabel(competition))} · ${escapeHtml(competitionSpeciesLabel(competition))}</small>`;
+  return `<article class="competition-card${homeOnly ? " competition-card-home" : ""}" data-competition-id="${escapeHtml(competition.id)}"${homeOnly ? ' role="button" tabindex="0"' : ""}><div class="competition-card-main"><span class="competition-emblem" aria-hidden="true">★</span><div><h3>${escapeHtml(competition.name)}${daysBadge}${owner ? '<span class="competition-title-star" aria-label="Skapad av dig">★</span>' : ""}</h3>${details}${owner ? '<span class="competition-owner-label">Din tävling</span>' : ""}</div></div>${homeOnly ? "" : `<div class="competition-card-actions">${action}</div>`}</article>`;
 }
 
 function competitionCard(competition, options) {
@@ -938,21 +1052,37 @@ function renderHomeCompetitionRank() {
 function renderLeaderboard() {
   const target = $("#bigplusLeaderboard");
   if (!target) return;
+  const account = currentAccount();
+  const visibleIds = new Set([account?.id, ...acceptedFriendIds(account?.id)].filter(Boolean).map(String));
   const scores = new Map();
   catches().forEach((item) => {
     const measurement = item.measurement || item;
     if (measurement.status !== "BIGPLUS" && !measurement.isBigplus) return;
-    const id = item.userId || "guest";
-    const score = scores.get(id) || { id, count: 0, best: 0 };
+    const id = String(item.userId || "");
+    if (!id || !visibleIds.has(id)) return;
+    const score = scores.get(id) || { id, count: 0, bestLength: 0, bestWeight: 0 };
     score.count += 1;
-    score.best = Math.max(score.best, Number(measurement.lengthCm || 0));
+    score.bestLength = Math.max(score.bestLength, Number(measurement.lengthCm || measurement.length || 0));
+    score.bestWeight = Math.max(score.bestWeight, Number(measurement.weightKg || measurement.weight || 0));
     scores.set(id, score);
   });
-  const rows = [...scores.values()].sort((a, b) => b.count - a.count || b.best - a.best).slice(0, 10);
-  target.innerHTML = rows.length ? rows.map((row, index) => {
-    const account = accounts().find((item) => item.id === row.id);
-    return `<div class="leaderboard-row"><strong class="leaderboard-rank">${index + 1}</strong><span class="competition-avatar">${escapeHtml((account?.name || "F").slice(0, 1).toUpperCase())}</span><span class="leaderboard-name">${escapeHtml(account?.name || "Fiskare")}</span><strong>${row.count} Bigplus</strong><small>Bäst ${row.best.toFixed(1)} cm</small></div>`;
-  }).join("") : '<div class="empty-list"><strong>Topplistan väntar på fångster</strong><span>Registrera din första Bigplus-fisk.</span></div>';
+  const renderBoard = (title, subtitle, valueKey, formatter) => {
+    const rows = [...scores.values()]
+      .filter((row) => row[valueKey] > 0)
+      .sort((a, b) => b[valueKey] - a[valueKey] || b.count - a.count)
+      .slice(0, 10);
+    const body = rows.length ? rows.map((row, index) => {
+      const profile = accounts().find((item) => String(item.id) === row.id);
+      const name = profile?.name || (row.id === String(account?.id) ? account?.name : "Fiskare") || "Fiskare";
+      return `<div class="leaderboard-row"><strong class="leaderboard-rank">${index + 1}</strong><span class="competition-avatar">${escapeHtml(name.slice(0, 1).toUpperCase())}</span><span class="leaderboard-name">${escapeHtml(name)}</span><strong>${formatter(row[valueKey])}</strong></div>`;
+    }).join("") : '<div class="empty-list"><strong>Ingen registrerad än</strong><span>Lägg till en Bigplus-fångst för att synas här.</span></div>';
+    return `<section class="leaderboard-board"><h3>${title}</h3><p>${subtitle}</p><div class="leaderboard-list">${body}</div></section>`;
+  };
+  target.innerHTML = [
+    renderBoard("Vikt", "Bästa Bigplus-vikt", "bestWeight", (value) => `${value.toFixed(1)} kg`),
+    renderBoard("Längd", "Längsta Bigplus-fisk", "bestLength", (value) => `${value.toFixed(1)} cm`),
+    renderBoard("Antal", "Flest Bigplus-fångster", "count", (value) => `${value} st`)
+  ].join("");
 }
 
 function renderCompetitionDetails(competitionId) {
@@ -975,6 +1105,12 @@ function renderCompetitionDetails(competitionId) {
     const best = member.catches.reduce((winner, item) => competitionScore(item, competition) > competitionScore(winner, competition) ? item : winner, null);
     return `<button class="competition-participant" type="button" data-participant-id="${escapeHtml(member.userId)}" data-competition-id="${escapeHtml(competitionId)}"><span class="competition-avatar">${escapeHtml((account?.name || "F").slice(0, 1).toUpperCase())}</span><span><strong>${escapeHtml(account?.name || "Fiskare")}</strong><small>${member.catches.length} fångster</small></span><b>${best ? `${Number(best.measurement.lengthCm || 0).toFixed(1)} cm` : "--"}</b></button>`;
   }).join("") : '<div class="empty-list"><strong>Inga deltagare ännu</strong><span>Registrera en fångst för att synas här.</span></div>';
+  const participantsHeading = document.createElement("div");
+  participantsHeading.className = "competition-participants-heading";
+  const participantsHeadingText = document.createElement("strong");
+  participantsHeadingText.textContent = "Deltagare och bästa resultat";
+  participantsHeading.append(participantsHeadingText);
+  participants.prepend(participantsHeading);
   const detailsHeader = document.createElement("div");
   detailsHeader.className = "competition-details-header";
   const detailsIntro = document.createElement("div");
@@ -986,13 +1122,15 @@ function renderCompetitionDetails(competitionId) {
   const favoriteButton = document.createElement("button");
   const isFavorite = favoriteCompetition() === competition.id;
   favoriteButton.type = "button";
-  favoriteButton.className = `secondary-button competition-favorite-button${isFavorite ? " is-favorite" : ""}`;
+  favoriteButton.className = `competition-favorite-button${isFavorite ? " is-favorite" : ""}`;
   favoriteButton.dataset.competitionAction = "favorite";
   favoriteButton.dataset.competitionId = competition.id;
   favoriteButton.setAttribute("aria-pressed", String(isFavorite));
   favoriteButton.textContent = isFavorite ? "★ Favorit" : "☆ Favorit";
-  detailsHeader.append(detailsIntro, favoriteButton);
-  participants.prepend(detailsHeader);
+  favoriteButton.setAttribute("aria-label", isFavorite ? "Ta bort favorit" : "Markera som favorit");
+  favoriteButton.title = isFavorite ? "Ta bort favorit" : "Markera som favorit";
+  favoriteButton.textContent = isFavorite ? "★" : "☆";
+  participantsHeading.append(favoriteButton);
   participants.querySelectorAll(".competition-participant").forEach((button, index) => {
     const member = members[index];
     const bestValue = member ? Math.max(0, ...member.catches.map((item) => competitionScore(item, competition))) : 0;
@@ -1164,7 +1302,7 @@ function formatCatch(item, compact = false, index = 0) {
     const location = displayValue(measurement.location || item.location || item.water, "Plats ej angiven");
     return `<article class="catch-row home-catch-card" data-catch-id="${escapeHtml(catchKey)}" role="button" tabindex="0"><div class="catch-thumb">${photo ? `<img src="${photo}" alt="">` : "<span>FISK</span>"}</div><div class="catch-copy"><strong>${escapeHtml(species)}</strong><b>${length ? `${length.toFixed(1)} cm` : "-- cm"}</b><small>${escapeHtml(location)}</small></div><time class="catch-date">${escapeHtml(date)}</time></article>`;
   }
-  return `<article class="catch-row${compact ? " home-catch-card" : ""}" data-catch-id="${escapeHtml(catchKey)}" role="button" tabindex="0"><div class="catch-thumb">${photo ? `<img src="${photo}" alt="">` : "<span>FISK</span>"}</div><div class="catch-copy"><strong>${escapeHtml(species)}</strong><small>${compact ? (length ? `${length.toFixed(1)} cm` : "-- cm") : date}</small></div><div class="catch-values"><strong>${length ? `${length.toFixed(1)} cm` : "-- cm"}</strong><small>${compact ? date : (weight ? `${weight.toFixed(1)} kg` : "-- kg")}</small></div><div class="catch-row-actions"><button class="catch-delete-button" type="button" data-delete-catch="${escapeHtml(catchKey)}">Ta bort</button></div></article>`;
+  return `<article class="catch-row${compact ? " home-catch-card" : ""}" data-catch-id="${escapeHtml(catchKey)}" role="button" tabindex="0"><div class="catch-thumb">${photo ? `<img src="${photo}" alt="">` : "<span>FISK</span>"}</div><div class="catch-copy"><strong>${escapeHtml(species)}</strong><small>${compact ? (length ? `${length.toFixed(1)} cm` : "-- cm") : date}</small></div><div class="catch-values"><strong>${length ? `${length.toFixed(1)} cm` : "-- cm"}</strong><small>${compact ? date : (weight ? `${weight.toFixed(1)} kg` : "-- kg")}</small></div></article>`;
 }
 
 function isBigplusCatch(item) {
@@ -1245,6 +1383,27 @@ function renderCatchDetail(catchId) {
   if (detailMeta) detailMeta.textContent = `${Number(measurement.lengthCm || 0).toFixed(1)} cm · ${measurement.status || "Mätt"}`;
   const coordinateButton = $("#shareCatchCoordinates");
   const shareStatus = $("#catchShareStatus");
+  const detailActions = detail.querySelector(".catch-detail-actions");
+  let deleteDetailButton = $("#deleteCatchFromDetail");
+  if (!deleteDetailButton && detailActions) {
+    deleteDetailButton = document.createElement("button");
+    deleteDetailButton.id = "deleteCatchFromDetail";
+    deleteDetailButton.type = "button";
+    deleteDetailButton.className = "danger-button compact-button";
+    deleteDetailButton.textContent = "Ta bort fångsten";
+    detailActions.insertBefore(deleteDetailButton, detailActions.querySelector("small"));
+    deleteDetailButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openDeleteCatchDialog(event.currentTarget.dataset.deleteCatch);
+    });
+  }
+  const itemId = String(item.id || item._id || catchId);
+  const canDelete = String(itemId).startsWith("local-") || String(item.userId || "") === String(currentAccount()?.id || "");
+  if (deleteDetailButton) {
+    deleteDetailButton.hidden = !canDelete;
+    deleteDetailButton.dataset.deleteCatch = itemId;
+  }
   const hasCoordinates = Number.isFinite(Number(item.location?.latitude)) && Number.isFinite(Number(item.location?.longitude));
   if (coordinateButton) coordinateButton.hidden = !hasCoordinates;
   if (shareStatus) shareStatus.textContent = hasCoordinates ? "" : "Ingen plats sparad för fångsten.";
@@ -1261,6 +1420,14 @@ function renderCatchDetail(catchId) {
   detail.hidden = false;
   detail.classList.add("is-open");
   detail.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function closeCatchDetailPanel() {
+  const detail = $("#catchDetail");
+  if (!detail) return;
+  detail.hidden = true;
+  $("#allCatchList .catch-row.is-selected")?.classList.remove("is-selected");
+  zoomOutAfterCatchDetail();
 }
 
 function renderLegacyHomeAchievements(list) {
@@ -1286,7 +1453,7 @@ function renderHomeAchievements(list) {
   const longPike = list.filter((item) => Number((item.measurement || item).lengthCm || 0) >= 100 && String((item.measurement || item).speciesName || (item.measurement || item).species || "").toLowerCase().includes("g" + "\u00e4dd")).length;
   const achievements = [["F" + "\u00f6rsta Bigplus", bigplus, 1], ["Artm" + "\u00e4stare", species, 5], ["G" + "\u00e4ddj" + "\u00e4garen", longPike, 3], ["Fotom" + "\u00e4stare", list.length, 50]];
   const completed = achievements.filter(([, value, goal]) => value >= goal).length;
-  const badgeIcons = ["★", "◈", "♛", "10+", "50+"];
+  const badgeIcons = ["★", "◈", "♛"];
   badgeIcons[0] = `<img src="${achievementBadgeImage("Din första Bigplus")}" alt="" loading="lazy">`;
   badgeIcons[1] = `<img src="${achievementBadgeImage("5 arter fångade")}" alt="" loading="lazy">`;
   badgeIcons[2] = `<img src="${achievementBadgeImage("Gädda")}" alt="" loading="lazy">`;
@@ -1511,6 +1678,7 @@ function renderCatchLists() {
   const home = $("#homeCatchList");
   const all = $("#allCatchList");
   if (home) home.innerHTML = html;
+  updateHomeCatchView();
   if (all) all.innerHTML = list.length ? list.map((item, index) => formatCatch(item, false, index)).join("") : html;
   renderCatchMap();
   renderPersonalBestLists(list);
@@ -1684,6 +1852,68 @@ function toggleProfileMenu() {
   if (menu) menu.hidden = !menu.hidden;
 }
 
+const JOURNAL_TRIPS_KEY = "bigplus_fishing_trips";
+
+function journalTrips() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(JOURNAL_TRIPS_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveJournalTrips(trips) {
+  localStorage.setItem(JOURNAL_TRIPS_KEY, JSON.stringify(trips));
+}
+
+function formatJournalDate(value) {
+  if (!value) return "Datum saknas";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat("sv-SE", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(date);
+}
+
+function renderJournalTrip(trip) {
+  const details = [trip.location, trip.species].filter(Boolean).map((value) => escapeHtml(String(value))).join(" · ");
+  const meta = [trip.bait || "Bete ej valt", trip.weather || "V\u00e4der ej ifyllt"].map((value) => `<span>${escapeHtml(String(value))}</span>`).join("");
+  return `<article class="journal-trip-card"><div class="journal-trip-date"><strong>${escapeHtml(formatJournalDate(trip.date))}</strong><span>${escapeHtml(trip.time || "Flexibel tid")}</span></div><div class="journal-trip-body"><h3>${escapeHtml(String(trip.title || "Fisketur"))}</h3><p>${details || "Ingen plats eller m\u00e5lart vald \u00e4nnu."}</p><div class="journal-trip-meta">${meta}</div>${trip.notes ? `<p class="journal-trip-notes">${escapeHtml(String(trip.notes))}</p>` : ""}</div></article>`;
+}
+
+function renderJournal() {
+  const upcomingTarget = $("#journalUpcomingList");
+  const pastTarget = $("#journalPastList");
+  if (!upcomingTarget || !pastTarget) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const trips = journalTrips().sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+  const upcoming = trips.filter((trip) => !trip.date || trip.date >= today);
+  const past = trips.filter((trip) => trip.date && trip.date < today).reverse();
+  upcomingTarget.innerHTML = upcoming.length ? upcoming.map(renderJournalTrip).join("") : `<div class="empty-list"><strong>Inga planerade turer</strong><span>Planera n\u00e4sta tur med v\u00e4der, vind och bete.</span></div>`;
+  pastTarget.innerHTML = past.length ? past.map(renderJournalTrip).join("") : `<div class="empty-list"><strong>Din fiskeloggbok b\u00f6rjar h\u00e4r</strong><span>Avslutade turer kan fyllas p\u00e5 med anteckningar senare.</span></div>`;
+}
+
+function saveJournalTrip(event) {
+  event.preventDefault();
+  const trip = {
+    id: `journal-${Date.now()}`,
+    title: $("#journalTripTitle")?.value.trim() || "Fisketur",
+    date: $("#journalTripDate")?.value || "",
+    time: $("#journalTripTime")?.value || "",
+    location: $("#journalTripLocation")?.value.trim() || "",
+    species: $("#journalTripSpecies")?.value.trim() || "",
+    bait: $("#journalTripBait")?.value.trim() || "",
+    weather: $("#journalTripWeather")?.value.trim() || "",
+    notes: $("#journalTripNotes")?.value.trim() || "",
+    createdAt: new Date().toISOString(),
+  };
+  saveJournalTrips([...journalTrips(), trip]);
+  event.currentTarget.reset();
+  $("#journalPlanner").hidden = true;
+  const status = $("#journalFormStatus");
+  if (status) status.textContent = "Fisketuren \u00e4r sparad.";
+  renderJournal();
+}
+
 function showView(view) {
   if (!currentAccount()) {
     document.body.classList.add("auth-required");
@@ -1701,6 +1931,7 @@ function showView(view) {
   if (view === "home" || view === "catches" || view === "profile" || view === "competitions" || view === "achievements") renderCatchLists();
   if (view === "achievements") renderAchievementPage(userCatches());
   if (view === "home" || view === "competitions") renderCompetitions();
+  if (view === "journal") renderJournal();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -1761,14 +1992,15 @@ async function handleAuth(event) {
   }
   $("#authModal").hidden = true;
   document.body.classList.remove("auth-required");
-  renderAccount();
-  renderCatchLists();
-  showView("home");
+  setAppLoading(true, "Laddar din medlemsprofil...");
+  try {
+    await loadInitialRemoteData();
+    showView("home");
+  } finally {
+    setAppLoading(false);
+  }
   // Visa appen direkt. En långsam eller tillfälligt otillgänglig fångstlista
   // ska inte hålla kvar användaren på inloggningssidan.
-  loadRemoteCatches();
-  loadRemoteFriends();
-  loadRemoteCompetitions();
 }
 
 function bind() {
@@ -1776,6 +2008,11 @@ function bind() {
     document.body.classList.remove("mobile-menu-open");
     $("#mobileMenuButton")?.setAttribute("aria-expanded", "false");
     showView(button.dataset.view);
+  }));
+  $$('[data-catch-view]').forEach((button) => button.addEventListener("click", () => {
+    const mode = button.dataset.catchView === "grid" ? "grid" : "list";
+    localStorage.setItem(HOME_CATCH_VIEW_KEY, mode);
+    updateHomeCatchView(mode);
   }));
   $("#mobileMenuButton")?.addEventListener("click", (event) => {
     const open = document.body.classList.toggle("mobile-menu-open");
@@ -1791,6 +2028,9 @@ function bind() {
     if (!event.target.closest("#profileMenu, #mobileAccountButton, #desktopAccountButton, #homeAvatar")) closeProfileMenu();
   });
   $$('[data-go-view]').forEach((button) => button.addEventListener("click", () => showView(button.dataset.goView)));
+  $("#journalNewTripButton")?.addEventListener("click", () => { $("#journalPlanner").hidden = false; $("#journalTripTitle")?.focus(); });
+  $("#journalCancelButton")?.addEventListener("click", () => { $("#journalPlanner").hidden = true; });
+  $("#journalTripForm")?.addEventListener("submit", saveJournalTrip);
   $("#createCompetitionButton")?.addEventListener("click", createCompetition);
   $("#competitionForm")?.addEventListener("submit", saveCompetition);
   $("#competitionSpeciesAll")?.addEventListener("change", (event) => {
@@ -1817,6 +2057,8 @@ function bind() {
   $("#competitionDetails")?.addEventListener("click", (event) => {
     const actionButton = event.target.closest('[data-competition-action="favorite"]');
     if (!actionButton) return;
+    event.preventDefault();
+    event.stopPropagation();
     const id = actionButton.dataset.competitionId;
     setFavoriteCompetition(favoriteCompetition() === id ? "" : id);
     renderCompetitions();
@@ -1842,7 +2084,14 @@ function bind() {
       return;
     }
     const row = event.target.closest("[data-catch-id]");
-    if (row) { renderCatchDetail(row.dataset.catchId); zoomToCatchOnMap(row.dataset.catchId); }
+    if (row) {
+      if (row.classList.contains("is-selected") && !$("#catchDetail")?.hidden) {
+        closeCatchDetailPanel();
+        return;
+      }
+      renderCatchDetail(row.dataset.catchId);
+      zoomToCatchOnMap(row.dataset.catchId);
+    }
   });
   $("#homeCatchList")?.addEventListener("click", (event) => {
     const row = event.target.closest("[data-catch-id]");
@@ -1855,7 +2104,15 @@ function bind() {
     if (event.key !== "Enter" && event.key !== " ") return;
     if (event.target.closest("#catchDetail")) return;
     const row = event.target.closest("[data-catch-id]");
-    if (row) { event.preventDefault(); renderCatchDetail(row.dataset.catchId); zoomToCatchOnMap(row.dataset.catchId); }
+    if (row) {
+      event.preventDefault();
+      if (row.classList.contains("is-selected") && !$("#catchDetail")?.hidden) {
+        closeCatchDetailPanel();
+        return;
+      }
+      renderCatchDetail(row.dataset.catchId);
+      zoomToCatchOnMap(row.dataset.catchId);
+    }
   });
   $("#showCatchesMap")?.addEventListener("click", () => {
     $("#catchMapPanel").hidden = false;
@@ -1864,13 +2121,24 @@ function bind() {
   $("#shareMapWithFriends")?.addEventListener("click", async () => {
     const panel = $("#mapSharePanel");
     if (!panel) return;
+    if (!panel.hidden && panel.classList.contains("is-open")) {
+      panel.hidden = true;
+      panel.classList.remove("is-open");
+      return;
+    }
     panel.hidden = false;
+    panel.classList.add("is-open");
     renderMapSharePanel();
     // Refresh both lists so a newly accepted friend or newly saved catch is available immediately.
     await Promise.all([loadRemoteFriends(), loadSharedMapData()]);
     panel.scrollIntoView({ behavior: "smooth", block: "start" });
   });
-  $("#closeMapSharePanel")?.addEventListener("click", () => { $("#mapSharePanel").hidden = true; });
+  $("#closeMapSharePanel")?.addEventListener("click", () => {
+    const panel = $("#mapSharePanel");
+    if (!panel) return;
+    panel.hidden = true;
+    panel.classList.remove("is-open");
+  });
   $("#mapShareZoneForm")?.addEventListener("submit", createMapShareZone);
   $("#mapShareZoneList")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-delete-map-zone]");
@@ -1895,19 +2163,31 @@ function bind() {
     $("#catchMapPanel").hidden = true;
   });
   $("#closeCatchDetail")?.addEventListener("click", () => {
-    $("#catchDetail").hidden = true;
-    $("#allCatchList .catch-row.is-selected")?.classList.remove("is-selected");
-    zoomOutAfterCatchDetail();
+    closeCatchDetailPanel();
   });
   $("#catchDetailImage")?.addEventListener("click", () => {
     const source = $("#catchDetailImage").src;
     if (!source) return;
+    const mapPanel = $("#catchMapPanel");
+    if (mapPanel) {
+      mapPanel.dataset.wasVisibleForLightbox = String(!mapPanel.hidden);
+      mapPanel.hidden = true;
+    }
     $("#catchLightboxImage").src = source;
     $("#catchImageLightbox").hidden = false;
   });
-  $("#closeCatchImage")?.addEventListener("click", () => { $("#catchImageLightbox").hidden = true; });
+  const closeCatchImageLightbox = () => {
+    $("#catchImageLightbox").hidden = true;
+    const mapPanel = $("#catchMapPanel");
+    if (mapPanel?.dataset.wasVisibleForLightbox === "true") {
+      mapPanel.hidden = false;
+      renderCatchMap();
+    }
+    if (mapPanel) delete mapPanel.dataset.wasVisibleForLightbox;
+  };
+  $("#closeCatchImage")?.addEventListener("click", closeCatchImageLightbox);
   $("#catchImageLightbox")?.addEventListener("click", (event) => {
-    if (event.target.id === "catchImageLightbox") event.currentTarget.hidden = true;
+    if (event.target.id === "catchImageLightbox") closeCatchImageLightbox();
   });
   $("#closeCompetitionDetails")?.addEventListener("click", () => {
     $("#competitionDetails").hidden = true;
@@ -2062,6 +2342,7 @@ async function loadInitialRemoteData() {
 function finishAuthBootstrap() {
   authBootstrapActive = false;
   document.body.classList.remove("auth-bootstrap-pending");
+  setAppLoading(false);
 }
 
 if (currentAccount()) showView("home");

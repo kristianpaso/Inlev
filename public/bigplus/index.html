@@ -14,11 +14,11 @@
         visibility: hidden;
       }
     </style>
-  <link rel="stylesheet" href="/bigplus/css/bigplus.css?v=20260728-75">
+    <link rel="stylesheet" href="/bigplus/css/bigplus.css?v=20260728-89">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   </head>
   <body class="auth-required auth-bootstrap-pending">
-    <div class="app-loading-screen" id="appLoadingScreen" hidden aria-hidden="true" aria-live="polite">
+    <div class="app-loading-screen" id="appLoadingScreen" aria-hidden="false" aria-live="polite">
       <div class="app-loading-panel" role="status">
         <img src="/bigplus/assets/bigplus-logo-hd.png" alt="Bigplus">
         <span class="app-loading-spinner" aria-hidden="true"></span>
@@ -42,7 +42,6 @@
           <label class="desktop-search"><span class="sr-only">Sök</span><input type="search" placeholder="Sök fångster, arter, sjöar..."><span aria-hidden="true">⌕</span></label>
           <button class="desktop-notification" type="button" aria-label="Notiser" title="Notiser"><span class="desktop-bell" aria-hidden="true"></span><b>3</b></button>
           <button class="avatar-placeholder desktop-account-button" type="button" id="desktopAccountButton" aria-label="Öppna profil">B</button>
-          <button class="header-measure-cta" type="button" data-view="measure"><img class="header-measure-icon" src="/bigplus/assets/fangster-icon.png" alt="" aria-hidden="true"><span>Mät ny fisk</span></button>
         </div>
         <nav class="app-nav" aria-label="Huvudmeny">
           <button class="nav-button active" type="button" data-view="home"><img class="nav-icon" src="/bigplus/assets/hem-icon.png" alt=""><span>Hem</span></button>
@@ -50,6 +49,7 @@
           <button class="nav-button" type="button" data-view="measure"><img class="nav-icon" src="/bigplus/assets/mat-fisken-icon.png" alt=""><span>Mät</span></button>
           <button class="nav-button" type="button" data-view="competitions"><img class="nav-icon" src="/bigplus/assets/rank-icon.png" alt=""><span>Tävlingar</span></button>
           <button class="nav-button" type="button" data-view="profile"><img class="nav-icon" src="/bigplus/assets/profile-icon.png" alt=""><span>Profil</span></button>
+          <button class="nav-button" type="button" data-view="journal"><span class="nav-icon journal-nav-icon" aria-hidden="true">J</span><span>Fisketurer</span></button>
         </nav>
         <div class="profile-menu" id="profileMenu" hidden>
           <button type="button" id="profileMenuEdit">Redigera profil</button>
@@ -134,6 +134,11 @@
         </aside>
 
         <section class="measure-area">
+          <div class="measure-flow-steps" aria-label="Mätsteg">
+            <span class="measure-flow-step is-active" data-measure-step="1">1. Bild</span>
+            <span class="measure-flow-arrow" aria-hidden="true">&rarr;</span>
+            <span class="measure-flow-step" data-measure-step="2">2. Mät fisken</span>
+          </div>
           <div class="simple-toolbar" aria-label="Snabbval">
             <input class="simple-file-input" id="photoInput" type="file" accept="image/*">
             <button class="secondary-button simple-clear-button" id="clearButton" type="button">Rensa markeringarna</button>
@@ -150,7 +155,13 @@
               <span>Skapa burk</span>
               <span class="reference-palette-lock check-lock" id="lockCanPalette" role="button" tabindex="0" aria-label="Lås burk" title="Lås burk"><span class="lock-icon" aria-hidden="true"></span></span>
             </button>
+            <button class="reference-palette-item reference-palette-fish" id="paletteFishReference" type="button" draggable="true" data-reference-id="fish-reference">
+              <img src="/bigplus/assets/species/gadda.jpg" alt="">
+              <span>Skapa fiskreferens</span>
+              <span class="reference-palette-lock check-lock" id="lockFishPalette" role="button" tabindex="0" aria-label="Lås fiskreferens" title="Lås fiskreferens"><span class="lock-icon" aria-hidden="true"></span></span>
+            </button>
           </div>
+          <p class="measure-reference-note">Glasögon och burk ger skalan. Fiskreferensen är valfri och kan läggas över fisken för en tydligare uppskattning.</p>
           <div class="measure-stage">
             <div class="canvas-wrap">
               <div class="zoom-toolbar" aria-label="Zooma bild">
@@ -185,6 +196,19 @@
                   <label>Art<select id="manualSpeciesSelect"><option value="">Välj art</option></select></label>
                   <label>Längd i cm<input id="manualLengthInput" type="number" min="0" step="0.1" inputmode="decimal" placeholder="t.ex. 42,5"></label>
                   <label>Vikt i kg<input id="manualWeightInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="t.ex. 1,2"></label>
+                </div>
+                <div class="manual-location-field">
+                  <div class="manual-location-heading">
+                    <div>
+                      <strong>Var fick du fisken?</strong>
+                      <small id="manualLocationLabel">Valfritt: markera platsen pa kartan</small>
+                    </div>
+                    <button class="secondary-button compact-button" id="chooseManualCatchLocation" type="button">Valj pa karta</button>
+                  </div>
+                  <div class="manual-location-picker" id="manualLocationPicker" hidden>
+                    <div id="manualLocationMap" class="manual-location-map" role="application" aria-label="Valj plats for manuell fangst"></div>
+                    <button class="text-button" id="clearManualCatchLocation" type="button">Rensa plats</button>
+                  </div>
                 </div>
                 <button class="primary-button" id="saveManualCatchButton" type="button">SPARA FÅNGST</button>
                 <button class="secondary-button" id="manualBackButton" type="button">Välj annat alternativ</button>
@@ -314,8 +338,8 @@
           <div class="section-heading"><div><h2>Personbästa</h2><p>Livstid är ditt manuella rekord. Bigplus är bästa godkända fångst.</p></div><button class="text-button" type="button" data-go-view="profile">Redigera</button></div>
           <div class="personal-best-list" id="homePersonalBestList"></div>
         </section>
-        <section class="dashboard-section">
-          <div class="section-heading"><h2>Senaste fångster</h2><button class="text-button" type="button" data-go-view="catches">Visa alla</button></div>
+          <section class="dashboard-section home-latest-catches-section">
+          <div class="section-heading home-catch-heading"><h2>Senaste fångster</h2><div class="home-catch-heading-actions"><div class="home-catch-view-toggle" role="group" aria-label="Visning av senaste fångster"><button class="view-toggle-button is-active" type="button" data-catch-view="list" aria-pressed="true" title="Visa som lista"><span aria-hidden="true">☷</span><span class="sr-only">Lista</span></button><button class="view-toggle-button" type="button" data-catch-view="grid" aria-pressed="false" title="Visa som bildrutnät"><span aria-hidden="true">⊞</span><span class="sr-only">Bildrutnät</span></button></div><button class="text-button" type="button" data-go-view="catches">Visa alla</button></div></div>
           <div class="catch-list home-catch-list" id="homeCatchList"></div>
         </section>
         <section class="dashboard-section home-competition-section">
@@ -348,8 +372,8 @@
       </section>
 
       <section class="app-view" id="catchesView" data-app-view="catches" hidden>
-        <div class="view-heading compact-heading"><div><p class="eyebrow blue-eyebrow">DINA RESULTAT</p><h1>Fångster</h1><p>Alla dina sparade mätningar på samma plats.</p></div><button class="primary-button" type="button" data-go-view="measure">Mät ny fisk</button></div>
-        <section class="dashboard-section catches-results-section"><div class="catches-toolbar"><button class="secondary-button" id="showCatchesMap" type="button">Visa på karta</button><button class="secondary-button" id="shareMapWithFriends" type="button">Dela karta med vänner</button><span class="map-share-status" id="mapShareStatus" role="status"></span></div><div class="catch-list catch-list-large" id="allCatchList"></div><section class="catch-map-panel" id="catchMapPanel"><div class="section-heading"><div><h2>Dina fångster på karta</h2><p>Blå pins är dina fångster. Orange pins är delade av vänner.</p></div><button class="text-button" id="hideCatchesMap" type="button">Dölj karta</button></div><div id="catchMap" class="catch-map" role="application" aria-label="Karta över dina och delade fångster"></div><p class="catch-map-empty" id="catchMapEmpty" hidden>Inga fångster har en sparad plats ännu.</p></section><article class="catch-detail" id="catchDetail" hidden><div class="catch-detail-dialog"><button class="text-button catch-detail-close" id="closeCatchDetail" type="button">Stäng</button><img id="catchDetailImage" alt="Uppladdad fångst" title="Klicka för att förstora"><div class="catch-detail-copy"><p class="catch-detail-label">ART</p><h2 id="catchDetailTitle">Fångst</h2><p id="catchDetailMeta"></p><div class="catch-detail-metrics"><div><span>UPPMÄTT LÄNGD</span><strong id="catchDetailLength">-- cm</strong></div><div><span>UPPSKATTAD VIKT</span><strong id="catchDetailWeight">-- kg</strong></div></div><div class="catch-detail-status" id="catchDetailStatus"><b>✓</b><div><strong>BIGPLUS</strong><small>Godkänd fångst</small></div></div><div class="catch-detail-actions"><button class="secondary-button compact-button" id="shareCatchCoordinates" type="button">Dela koordinater</button><small id="catchShareStatus" role="status"></small></div></div></div></article><div class="catch-delete-modal" id="deleteCatchModal" hidden><div class="catch-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="deleteCatchTitle"><button class="text-button catch-detail-close" id="closeDeleteCatchModal" type="button" aria-label="Stäng">Stäng</button><p class="catch-detail-label">SÄKERHETSKONTROLL</p><h2 id="deleteCatchTitle">Ta bort fångst?</h2><p>Skriv in de fem bokstäverna exakt för att bekräfta att fångsten ska tas bort.</p><strong class="catch-delete-code" id="deleteCatchCode"></strong><label class="catch-delete-field" for="deleteCatchCodeInput"><span>Bekräftelsekod</span><input id="deleteCatchCodeInput" type="text" maxlength="5" autocomplete="off" spellcheck="false"></label><p class="catch-delete-message" id="deleteCatchMessage" role="status" aria-live="polite"></p><div class="catch-delete-actions"><button class="secondary-button" id="cancelDeleteCatch" type="button">Avbryt</button><button class="danger-button" id="confirmDeleteCatch" type="button" disabled>Ta bort fångsten</button></div></div></div><div class="catch-image-lightbox" id="catchImageLightbox" hidden role="dialog" aria-modal="true" aria-label="Förstorad fångstbild"><button class="text-button catch-lightbox-close" id="closeCatchImage" type="button">Stäng</button><img id="catchLightboxImage" alt="Förstorad fångstbild"></div></section>
+        <div class="view-heading compact-heading"><div><p class="eyebrow blue-eyebrow">DINA RESULTAT</p><h1>Fångster</h1><p>Alla dina sparade mätningar på samma plats.</p></div></div>
+        <section class="dashboard-section catches-results-section"><div class="catches-toolbar"><button class="secondary-button" id="showCatchesMap" type="button">Visa på karta</button><button class="secondary-button" id="shareMapWithFriends" type="button">Dela karta med vänner</button><span class="map-share-status" id="mapShareStatus" role="status"></span></div><div class="catch-list catch-list-large" id="allCatchList"></div><section class="catch-map-panel" id="catchMapPanel"><div id="catchMap" class="catch-map" role="application" aria-label="Karta över dina och delade fångster"></div><p class="catch-map-empty" id="catchMapEmpty" hidden>Inga fångster har en sparad plats ännu.</p></section><article class="catch-detail" id="catchDetail" hidden><div class="catch-detail-dialog"><button class="text-button catch-detail-close" id="closeCatchDetail" type="button">Stäng</button><img id="catchDetailImage" alt="Uppladdad fångst" title="Klicka för att förstora"><div class="catch-detail-copy"><p class="catch-detail-label">ART</p><h2 id="catchDetailTitle">Fångst</h2><p id="catchDetailMeta"></p><div class="catch-detail-metrics"><div><span>UPPMÄTT LÄNGD</span><strong id="catchDetailLength">-- cm</strong></div><div><span>UPPSKATTAD VIKT</span><strong id="catchDetailWeight">-- kg</strong></div></div><div class="catch-detail-status" id="catchDetailStatus"><b>✓</b><div><strong>BIGPLUS</strong><small>Godkänd fångst</small></div></div><div class="catch-detail-actions"><button class="secondary-button compact-button" id="shareCatchCoordinates" type="button">Dela koordinater</button><small id="catchShareStatus" role="status"></small></div></div></div></article><div class="catch-delete-modal" id="deleteCatchModal" hidden><div class="catch-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="deleteCatchTitle"><button class="text-button catch-detail-close" id="closeDeleteCatchModal" type="button" aria-label="Stäng">Stäng</button><p class="catch-detail-label">SÄKERHETSKONTROLL</p><h2 id="deleteCatchTitle">Ta bort fångst?</h2><p>Skriv in de fem bokstäverna exakt för att bekräfta att fångsten ska tas bort.</p><strong class="catch-delete-code" id="deleteCatchCode"></strong><label class="catch-delete-field" for="deleteCatchCodeInput"><span>Bekräftelsekod</span><input id="deleteCatchCodeInput" type="text" maxlength="5" autocomplete="off" spellcheck="false"></label><p class="catch-delete-message" id="deleteCatchMessage" role="status" aria-live="polite"></p><div class="catch-delete-actions"><button class="secondary-button" id="cancelDeleteCatch" type="button">Avbryt</button><button class="danger-button" id="confirmDeleteCatch" type="button" disabled>Ta bort fångsten</button></div></div></div><div class="catch-image-lightbox" id="catchImageLightbox" hidden role="dialog" aria-modal="true" aria-label="Förstorad fångstbild"><button class="text-button catch-lightbox-close" id="closeCatchImage" type="button">Stäng</button><img id="catchLightboxImage" alt="Förstorad fångstbild"></div></section>
       </section>
 
       <section class="app-view map-share-panel" data-app-view="catches" id="mapSharePanel" hidden><div class="section-heading"><div><p class="eyebrow blue-eyebrow">DELA KARTAN</p><h2>Skapa en delad zon</h2><p>Välj fångster med plats och vilka accepterade vänner som får se dem.</p></div><button class="text-button" id="closeMapSharePanel" type="button">Stäng</button></div><form id="mapShareZoneForm" class="map-share-form"><label>Zonens namn<input id="mapShareZoneName" type="text" maxlength="80" value="Min fiskezon" required></label><div class="map-share-columns"><fieldset><legend>Fångster i zonen</legend><div id="mapShareCatchChoices" class="map-share-choice-list"></div></fieldset><fieldset><legend>Dela med vänner</legend><div id="mapShareFriendChoices" class="map-share-choice-list"></div></fieldset></div><button class="primary-button" type="submit">Dela zon</button><small class="map-share-form-status" id="mapShareFormStatus" role="status"></small></form><div id="mapShareZoneList" class="map-share-zone-list"></div></section>
@@ -412,7 +436,33 @@
         </section>
         <section class="dashboard-section competition-live-section"><div class="section-heading"><h2>Aktiva tävlingar</h2><span class="group-hint">Mät och jämför</span></div><div id="competitionsList" class="groups-list"></div><div id="competitionDetailsSlot"></div></section>
         <section class="dashboard-section competition-details" id="competitionDetails" hidden><span id="competitionDetailsTitle" hidden></span><span id="competitionDetailsMeta" hidden></span><div id="competitionParticipants" class="competition-participants"></div><div id="participantCatches" class="participant-catches" hidden></div></section>
-        <section class="dashboard-section leaderboard-section"><div class="section-heading"><h2>Topplistan</h2><span class="group-hint">Flest Bigplus-fångster</span></div><div id="bigplusLeaderboard" class="leaderboard-list"></div></section>
+        <section class="dashboard-section leaderboard-section"><div class="section-heading"><h2>Topplistan</h2><span class="group-hint">Mina vänner</span></div><div id="bigplusLeaderboard" class="leaderboard-grid"></div></section>
+      </section>
+
+      <section class="app-view journal-view" id="journalView" data-app-view="journal" hidden>
+        <div class="view-heading compact-heading">
+          <div><p class="eyebrow blue-eyebrow">PLANERA OCH MINNS</p><h1>Fisketurer</h1><p>Samla planer, v&#228;der, vind och beten p&#229; samma plats.</p></div>
+          <button class="primary-button" type="button" id="journalNewTripButton">Ny fisketur</button>
+        </div>
+        <section class="dashboard-section journal-planner" id="journalPlanner" hidden>
+          <form id="journalTripForm" class="journal-form">
+            <div class="journal-form-heading"><h2>Planera en fisketur</h2><p>G&#246;r n&#228;sta tur enklare att komma ih&#229;g.</p></div>
+            <label>Rubrik<input id="journalTripTitle" type="text" maxlength="80" placeholder="Till exempel kv&#228;llstur vid sj&#246;n" required></label>
+            <label>Datum<input id="journalTripDate" type="date" required></label>
+            <label>Tid<input id="journalTripTime" type="time"></label>
+            <label>Plats<input id="journalTripLocation" type="text" maxlength="80" placeholder="Sj&#246;n, &#229;n eller platsen"></label>
+            <label>M&#229;larter<input id="journalTripSpecies" type="text" maxlength="120" placeholder="Till exempel g&#228;dda och abborre"></label>
+            <label>Bete<input id="journalTripBait" type="text" maxlength="120" placeholder="Bete eller metod"></label>
+            <label>V&#228;der och vind<input id="journalTripWeather" type="text" maxlength="120" placeholder="Sol, vind, temperatur..."></label>
+            <label class="journal-notes-field">Anteckningar<textarea id="journalTripNotes" rows="3" maxlength="500" placeholder="Planer, tips och annat att minnas"></textarea></label>
+            <div class="journal-form-actions"><button class="primary-button" type="submit">Spara fisketur</button><button class="secondary-button" id="journalCancelButton" type="button">Avbryt</button></div>
+            <p class="small-print" id="journalFormStatus" role="status"></p>
+          </form>
+        </section>
+        <div class="journal-columns">
+          <section class="dashboard-section"><div class="section-heading"><h2>Kommande turer</h2><span class="group-hint">N&#228;sta &#228;ventyr</span></div><div id="journalUpcomingList" class="journal-trip-list"></div></section>
+          <section class="dashboard-section"><div class="section-heading"><h2>Senaste turer</h2><span class="group-hint">Dina minnen</span></div><div id="journalPastList" class="journal-trip-list"></div></section>
+        </div>
       </section>
 
       <section class="app-view achievements-view" id="achievementsView" data-app-view="achievements" hidden>
@@ -424,12 +474,11 @@
       </section>
 
       <section class="app-view" id="profileView" data-app-view="profile" hidden>
-        <div class="view-heading compact-heading profile-heading"><div><p class="eyebrow blue-eyebrow">DIN PROFIL</p><h1 id="profileHeading">Logga in</h1><p id="profileEmail">Logga in för att få ett eget konto.</p></div><button class="settings-button" type="button" id="profileSettingsButton" aria-label="Inställningar" title="Inställningar">⚙</button><button class="primary-button" type="button" id="profileAuthButton">Logga in</button></div>
+        <div class="view-heading compact-heading profile-heading"><div><p class="eyebrow blue-eyebrow">DIN PROFIL</p><h1 id="profileHeading">Logga in</h1><p id="profileEmail">Logga in för att få ett eget konto.</p></div><div class="profile-heading-actions"><button class="settings-button" type="button" id="profileSettingsButton" aria-label="Inställningar" title="Inställningar">⚙</button><button class="primary-button" type="button" id="profileAuthButton">Logga in</button></div></div>
         <div class="dashboard-grid two-column-grid"><article class="dashboard-card profile-summary-card"><div class="avatar-placeholder large-avatar" id="profileAvatar">B</div><div><h2 id="profileName">Logga in</h2><p id="profileAccountHint">Logga in för att spara dina fångster.</p><div class="member-code-line"><strong id="profileMemberCode">#-----</strong><button class="member-code-copy" id="copyMemberCode" type="button">Kopiera</button></div></div></article><article class="dashboard-card achievement-summary"><h2>Prestationer</h2><div class="achievement-mini-grid"><span><strong id="profileCatchCount">0</strong><small>Fångster</small></span><span><strong id="profileBigplusCount">0</strong><small>Bigplus</small></span><span><strong id="profileCompetitionCount">0</strong><small>Vunna tävlingar</small></span></div></article></div>
-        <section class="dashboard-section friends-section">
+<section class="dashboard-section friends-section">
           <div class="section-heading">
             <div><span class="section-kicker">GEMENSKAP</span><h2>Vänner</h2><p>Följ framsteg, se LIVE-status och jämför era största fiskar.</p></div>
-            <div class="live-controls"><label class="live-duration-label" for="liveDurationSelect">Visa LIVE i</label><select class="live-duration-select" id="liveDurationSelect" aria-label="Hur länge ska LIVE vara aktivt"><option value="30">30 min</option><option value="60" selected>1 timme</option><option value="120">2 timmar</option><option value="240">4 timmar</option></select><button class="live-toggle" id="liveStatusButton" type="button" aria-pressed="false"><span class="live-dot" aria-hidden="true"></span><span id="liveStatusLabel">Aktivera LIVE</span></button></div>
           </div>
           <form class="friend-add-form" id="friendAddForm"><label class="sr-only" for="friendSearchInput">Sök vän</label><input id="friendSearchInput" type="search" placeholder="Sök medlemsnummer, namn eller e-post"><button class="primary-button" type="submit">Sök medlem</button></form>
           <div class="friend-suggestions" id="friendSuggestions"></div>
@@ -511,7 +560,7 @@
       window.BIGPLUS_RENDER_API_ROOT = window.BIGPLUS_RENDER_API_ROOT || "https://bigplus-api.onrender.com/api/bigplus";
     </script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script type="module" src="/bigplus/js/main.js?v=20260728-67"></script>
-    <script type="module" src="/bigplus/js/app-shell.js?v=20260728-109"></script>
+<script type="module" src="/bigplus/js/main.js?v=20260728-68"></script>
+    <script type="module" src="/bigplus/js/app-shell.js?v=20260728-120"></script>
   </body>
 </html>

@@ -156,7 +156,12 @@ router.post("/sharing/catches/:catchId", requireAuth, async (req, res, next) => 
     if (!id) return res.status(400).json({ error: "Ogiltig fångst." });
     const item = await req.db.collection("catches").findOne({ _id: id, userId: req.user._id }, { projection: { _id: 1 } });
     if (!item) return res.status(404).json({ error: "Fångsten hittades inte." });
-    const recipientIds = validIds(req.body?.recipientIds).filter((value) => !value.equals(req.user._id));
+    const owner = await req.db.collection("users").findOne({ _id: req.user._id }, { projection: { friendIds: 1 } });
+    const acceptedFriendIds = new Set((owner?.friendIds || []).map((value) => String(value)));
+    const recipientIds = validIds(req.body?.recipientIds)
+      .filter((value) => !value.equals(req.user._id))
+      .filter((value) => acceptedFriendIds.has(String(value)));
+    if (!recipientIds.length) return res.status(400).json({ error: "Välj minst en accepterad vän." });
     await req.db.collection("catch_shares").updateOne(
       { catchId: id, ownerId: req.user._id },
       { $set: { catchId: id, ownerId: req.user._id, recipientIds, updatedAt: new Date() } },

@@ -61,7 +61,8 @@ const state = {
   referenceSlots: {
     active: "glasses",
     glasses: null,
-    can: null
+    can: null,
+    fish: null
   },
   view: {
     zoom: 1,
@@ -95,6 +96,8 @@ const state = {
 };
 
 let draggedReferenceId = "";
+let savingCatch = false;
+let savingManualCatch = false;
 let palettePointerDrag = null;
 let suppressPaletteClick = false;
 const canvasTouchPointers = new Map();
@@ -118,6 +121,11 @@ const els = {
   manualSpeciesSelect: document.querySelector("#manualSpeciesSelect"),
   manualLengthInput: document.querySelector("#manualLengthInput"),
   manualWeightInput: document.querySelector("#manualWeightInput"),
+  chooseManualCatchLocation: document.querySelector("#chooseManualCatchLocation"),
+  manualLocationPicker: document.querySelector("#manualLocationPicker"),
+  manualLocationMap: document.querySelector("#manualLocationMap"),
+  manualLocationLabel: document.querySelector("#manualLocationLabel"),
+  clearManualCatchLocation: document.querySelector("#clearManualCatchLocation"),
   saveManualCatchButton: document.querySelector("#saveManualCatchButton"),
   manualBackButton: document.querySelector("#manualBackButton"),
   referenceSelect: document.querySelector("#referenceSelect"),
@@ -156,8 +164,10 @@ const els = {
   clearButton: document.querySelector("#clearButton"),
   paletteGlasses: document.querySelector("#paletteGlasses"),
   paletteCan: document.querySelector("#paletteCan"),
+  paletteFishReference: document.querySelector("#paletteFishReference"),
   lockGlassesPalette: document.querySelector("#lockGlassesPalette"),
   lockCanPalette: document.querySelector("#lockCanPalette"),
+  lockFishPalette: document.querySelector("#lockFishPalette"),
   checkPhoto: document.querySelector("#checkPhoto"),
   checkReference: document.querySelector("#checkReference"),
   checkGlasses: document.querySelector("#checkGlasses"),
@@ -226,6 +236,9 @@ const ctx = els.canvas.getContext("2d");
 let catchLocationPickerMap = null;
 let catchLocationPickerMarker = null;
 let selectedCatchLocation = null;
+let manualLocationPickerMap = null;
+let manualLocationPickerMarker = null;
+let selectedManualCatchLocation = null;
 const classicCanReferenceImage = new Image();
 classicCanReferenceImage.decoding = "async";
 classicCanReferenceImage.src = "/bigplus/assets/can-classic.png?v=20260719";
@@ -350,7 +363,7 @@ function setMobileReferenceScale(value) {
 function renderReferenceOptions() {
   els.referenceSelect.innerHTML = state.references
     .map((item) => `<option value="${item.id}">${item.name}${item.sizeCm ? ` (${item.sizeCm} cm)` : ""}</option>`)
-    .join("");
+    .join("") + `<option value="fish-reference">Fiskreferens (valfri)</option>`;
   updateSimpleReferenceButtons();
 }
 
@@ -483,6 +496,7 @@ function isGlassesReference() {
 function referenceSlotNameForId(referenceId = els.referenceSelect.value) {
   if (referenceId === "glasses") return "glasses";
   if (referenceId === "can-330") return "can";
+  if (referenceId === "fish-reference") return "fish";
   return "";
 }
 
@@ -493,6 +507,7 @@ function clonePoints(points) {
 function updateSimpleReferenceButtons() {
   const glassesReady = Boolean(state.referenceSlots.glasses) || state.referenceSlots.active === "glasses";
   const canReady = Boolean(state.referenceSlots.can) || state.referenceSlots.active === "can";
+  const fishReady = Boolean(state.referenceSlots.fish) || state.referenceSlots.active === "fish";
   els.simpleGlassesButton?.classList.toggle("active", glassesReady);
   els.simpleCanButton?.classList.toggle("active", canReady);
   if (els.paletteCan) {
@@ -515,6 +530,16 @@ function updateSimpleReferenceButtons() {
     els.paletteGlasses.title = state.image && !state.referenceSlots.glasses
       ? "Skapa glasögon i bilden"
       : "Skapa eller redigera glasögonen";
+  }
+  if (els.paletteFishReference) {
+    const fishEnabled = Boolean(state.referenceSlots.can?.virtual?.locked);
+    els.paletteFishReference.disabled = !fishEnabled;
+    els.paletteFishReference.draggable = fishEnabled;
+    els.paletteFishReference.title = fishEnabled ? "Skapa fiskreferens i bilden" : "Lås burken först";
+    els.paletteFishReference.classList.toggle("is-next-step", Boolean(state.image && fishEnabled && !state.referenceSlots.fish));
+    els.paletteFishReference.classList.toggle("is-complete", Boolean(state.referenceSlots.fish?.virtual?.locked));
+    els.paletteFishReference.classList.toggle("is-active-reference", state.referenceSlots.active === "fish" && state.virtualReference.enabled && state.virtualReference.selected && !state.virtualReference.locked);
+    els.lockFishPalette?.classList.toggle("is-locked", Boolean(state.referenceSlots.fish?.virtual?.locked));
   }
   if (els.simpleGlassesButton) {
     els.simpleGlassesButton.textContent = state.referenceSlots.glasses ? "Glasögon klar" : "1 Glasögon";
@@ -550,6 +575,11 @@ function togglePaletteReferenceLock(slotName) {
     // Keep the workflow in reference mode until the can is created explicitly.
     setTool("ref");
     setStatus("Glasögon klara. Skapa burk.");
+  } else if (slotName === "fish") {
+    state.referenceSlots.active = "fish";
+    state.virtualReference.referenceId = "fish-reference";
+    setTool("ref");
+    setStatus("Fiskreferens klar");
   } else {
     state.referenceSlots.active = "can";
     state.virtualReference.referenceId = "can-330";
@@ -586,7 +616,7 @@ function editReferenceSlot(slotName) {
   state.virtualReference.locked = false;
   state.virtualReference.selected = true;
   setTool("ref");
-  setStatus(slotName === "glasses" ? "Glasögon upplåsta" : "Burk upplåst");
+  setStatus(slotName === "glasses" ? "Glasögon upplåsta" : slotName === "fish" ? "Fiskreferens upplåst" : "Burk upplåst");
   updateReferenceLockButton();
   updateReferenceChecklistLockButton();
   updateSimpleReferenceButtons();
@@ -636,6 +666,7 @@ function isAnyReferenceLocked() {
   return Boolean(
     state.referenceSlots.glasses?.virtual?.locked ||
     state.referenceSlots.can?.virtual?.locked ||
+    state.referenceSlots.fish?.virtual?.locked ||
     state.virtualReference.locked
   );
 }
@@ -648,7 +679,7 @@ function areAllReferencesLocked() {
 function updateReferenceChecklistLockButton() {
   const button = els.lockReferenceChecklist;
   if (!button) return;
-  const hasReference = Boolean(state.referenceSlots.glasses || state.referenceSlots.can || state.virtualReference.enabled);
+  const hasReference = Boolean(state.referenceSlots.glasses || state.referenceSlots.can || state.referenceSlots.fish || state.virtualReference.enabled);
   const locked = areAllReferencesLocked();
   button.disabled = !hasReference;
   button.classList.toggle("is-locked", locked);
@@ -657,7 +688,7 @@ function updateReferenceChecklistLockButton() {
 }
 
 function setReferencePlacementLock(locked) {
-  ["glasses", "can"].forEach((slotName) => {
+  ["glasses", "can", "fish"].forEach((slotName) => {
     const slot = state.referenceSlots[slotName];
     if (!slot?.virtual) return;
     slot.virtual.locked = locked;
@@ -700,10 +731,13 @@ function toggleReferencePlacementLock() {
 
   if (shouldUnlock) {
     setTool("ref");
-    setStatus(slotName === "can" ? "Burk upplåst" : "Glasögon upplåsta");
+    setStatus(slotName === "can" ? "Burk upplåst" : slotName === "fish" ? "Fiskreferens upplåst" : "Glasögon upplåsta");
   } else if (slotName === "glasses") {
     setTool("ref");
     setStatus("Glasögon klara. Skapa burk.");
+  } else if (slotName === "fish") {
+    setTool("ref");
+    setStatus("Fiskreferens låst");
   } else if (slotName === "can" && areAllReferencesLocked()) {
     setTool("fish");
     setStatus("Referenser klara. Markera längd.");
@@ -1978,6 +2012,8 @@ function resetPoints(options = {}) {
     if (els.cameraPhotoInput) els.cameraPhotoInput.value = "";
     if (els.manualEntryImage) els.manualEntryImage.removeAttribute("src");
     clearCatchLocation();
+    clearManualCatchLocation();
+    if (els.manualLocationPicker) els.manualLocationPicker.hidden = true;
     els.emptyState.classList.remove("hidden");
     els.manualEntryPanel?.classList.add("hidden");
     document.querySelector(".measure-area")?.classList.add("is-start");
@@ -2032,15 +2068,21 @@ function resetPoints(options = {}) {
 function showMeasurementWorkspace() {
   els.emptyState.classList.add("hidden");
   els.manualEntryPanel?.classList.add("hidden");
-  document.querySelector(".measure-area")?.classList.remove("is-start");
+  const measureArea = document.querySelector(".measure-area");
+  measureArea?.classList.remove("is-start", "is-manual");
+  if (measureArea) measureArea.dataset.flowStep = "2";
   if (els.photoInputLabel) els.photoInputLabel.textContent = "Mät ny fisk";
 }
 
 function showManualEntry() {
+  clearManualCatchLocation();
+  if (els.manualLocationPicker) els.manualLocationPicker.hidden = true;
   els.emptyState.classList.add("hidden");
   els.manualEntryPanel?.classList.remove("hidden");
-  document.querySelector(".measure-area")?.classList.add("is-manual");
-  document.querySelector(".measure-area")?.classList.remove("is-start");
+  const measureArea = document.querySelector(".measure-area");
+  measureArea?.classList.add("is-manual");
+  measureArea?.classList.remove("is-start");
+  if (measureArea) measureArea.dataset.flowStep = "manual";
   if (els.manualEntryImage && state.imageDataUrl) {
     els.manualEntryImage.src = state.imageDataUrl;
     els.manualEntryImage.alt = "Uppladdad bild på fångsten";
@@ -2051,7 +2093,9 @@ function showMeasureStart() {
   els.emptyState.classList.remove("hidden");
   els.manualEntryPanel?.classList.add("hidden");
   document.querySelector(".measure-area")?.classList.remove("is-manual");
-  document.querySelector(".measure-area")?.classList.add("is-start");
+  const measureArea = document.querySelector(".measure-area");
+  measureArea?.classList.add("is-start");
+  if (measureArea) measureArea.dataset.flowStep = "1";
 }
 
 function readImageFile(file, onLoaded) {
@@ -2077,6 +2121,7 @@ function setMeasurementImage(image, dataUrl) {
 }
 
 async function persistManualCatch() {
+  if (savingManualCatch) return;
   const speciesId = els.manualSpeciesSelect?.value || "";
   const parseManualNumber = (value) => Number(String(value ?? "").trim().replace(",", "."));
   const lengthCm = parseManualNumber(els.manualLengthInput?.value);
@@ -2113,8 +2158,11 @@ async function persistManualCatch() {
     userId: currentUserId(),
     note: "Manuell registrering",
     photo: state.imageDataUrl,
-    competitionIds: currentMemberships()
+    competitionIds: currentMemberships(),
+    ...(selectedManualCatchLocation ? { location: selectedManualCatchLocation } : {})
   };
+  savingManualCatch = true;
+  if (els.saveManualCatchButton) els.saveManualCatchButton.disabled = true;
   try {
     window.bigplusLoading?.show("Sparar din fångst...");
     setStatus("Sparar");
@@ -2138,6 +2186,9 @@ async function persistManualCatch() {
     window.bigplusLoading?.hide();
     setStatus("Fel");
     alert(error.message);
+  } finally {
+    savingManualCatch = false;
+    if (els.saveManualCatchButton) els.saveManualCatchButton.disabled = false;
   }
 }
 
@@ -2270,6 +2321,41 @@ function clearCatchLocation() {
   if (els.catchLocationLabel) els.catchLocationLabel.textContent = "Välj plats på kartan eller använd GPS";
 }
 
+function updateManualCatchLocation(location) {
+  selectedManualCatchLocation = location;
+  if (manualLocationPickerMap && !manualLocationPickerMarker) {
+    manualLocationPickerMarker = window.L.marker([location.latitude, location.longitude]).addTo(manualLocationPickerMap);
+  }
+  manualLocationPickerMarker?.setLatLng([location.latitude, location.longitude]);
+  if (els.manualLocationLabel) els.manualLocationLabel.textContent = `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`;
+}
+
+function initManualCatchLocationMap() {
+  if (!els.manualLocationMap || !window.L) return;
+  if (!manualLocationPickerMap) {
+    manualLocationPickerMap = window.L.map(els.manualLocationMap, { zoomControl: true }).setView([62.0, 15.0], 4);
+    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap-bidragsgivare" }).addTo(manualLocationPickerMap);
+    manualLocationPickerMap.on("click", (event) => updateManualCatchLocation({ latitude: Number(event.latlng.lat.toFixed(6)), longitude: Number(event.latlng.lng.toFixed(6)) }));
+  }
+  window.setTimeout(() => manualLocationPickerMap.invalidateSize(), 50);
+  if (selectedManualCatchLocation) updateManualCatchLocation(selectedManualCatchLocation);
+}
+
+function chooseManualCatchLocation() {
+  if (!els.manualLocationPicker) return;
+  els.manualLocationPicker.hidden = !els.manualLocationPicker.hidden;
+  if (!els.manualLocationPicker.hidden) initManualCatchLocationMap();
+}
+
+function clearManualCatchLocation() {
+  selectedManualCatchLocation = null;
+  if (manualLocationPickerMarker) {
+    manualLocationPickerMap?.removeLayer(manualLocationPickerMarker);
+    manualLocationPickerMarker = null;
+  }
+  if (els.manualLocationLabel) els.manualLocationLabel.textContent = "Valfritt: markera platsen pa kartan";
+}
+
 async function useCurrentCatchLocation() {
   if (!els.useCurrentCatchLocation) return;
   if (!navigator.geolocation) {
@@ -2310,8 +2396,10 @@ function getCatchLocation() {
 }
 
 async function persistCatch() {
-  if (!state.lastPayload) return;
+  if (!state.lastPayload || savingCatch) return;
 
+  savingCatch = true;
+  if (els.saveButton) els.saveButton.disabled = true;
   try {
     window.bigplusLoading?.show("Sparar din fångst...");
     setStatus("Sparar");
@@ -2342,6 +2430,9 @@ async function persistCatch() {
     window.bigplusLoading?.hide();
     setStatus("Fel");
     alert(error.message);
+  } finally {
+    savingCatch = false;
+    if (els.saveButton) els.saveButton.disabled = false;
   }
 }
 
@@ -3514,9 +3605,13 @@ els.manualCaptureButton?.addEventListener("click", () => els.manualPhotoInput?.c
 els.guidedCaptureButton?.addEventListener("click", () => els.photoInput?.click());
 els.cameraCaptureButton?.addEventListener("click", () => els.cameraPhotoInput?.click());
 els.saveManualCatchButton?.addEventListener("click", persistManualCatch);
+els.chooseManualCatchLocation?.addEventListener("click", chooseManualCatchLocation);
+els.clearManualCatchLocation?.addEventListener("click", clearManualCatchLocation);
 els.manualBackButton?.addEventListener("click", () => {
   state.image = null;
   state.imageDataUrl = "";
+  clearManualCatchLocation();
+  if (els.manualLocationPicker) els.manualLocationPicker.hidden = true;
   showMeasureStart();
   draw();
 });

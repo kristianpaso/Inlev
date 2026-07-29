@@ -54,9 +54,9 @@ export function getApiMode() {
 }
 
 async function fetchJson(url, options = {}, fallbackMessage = "API-fel") {
-  const { timeoutMs = 1200, ...fetchOptions } = options;
+  const { timeoutMs = 30000, ...fetchOptions } = options;
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = timeoutMs > 0 ? window.setTimeout(() => controller.abort(), timeoutMs) : null;
   let response;
 
   try {
@@ -66,8 +66,11 @@ async function fetchJson(url, options = {}, fallbackMessage = "API-fel") {
       headers: { "Content-Type": "application/json", ...(fetchOptions.headers || {}) },
       signal: fetchOptions.signal || controller.signal
     });
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("Anslutningen tog för lång tid. Försök igen.");
+    throw error;
   } finally {
-    window.clearTimeout(timeout);
+    if (timeout) window.clearTimeout(timeout);
   }
 
   const data = await response.json().catch(() => ({}));
@@ -108,7 +111,8 @@ export function saveCatch(payload) {
     `${API_ROOT}/catches`,
     {
       method: "POST",
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      timeoutMs: 60000
     },
     "Kunde inte spara fångsten"
   );
