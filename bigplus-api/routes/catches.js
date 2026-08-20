@@ -6,6 +6,7 @@ const { calculateMeasurement } = require("../services/measurement");
 const { requireAuth } = require("./auth");
 
 const router = express.Router();
+const MAX_CATCH_IMAGE_CHARS = 2_000_000;
 
 function parseMeasurementNumber(value) {
   if (value && typeof value === "object") {
@@ -60,11 +61,15 @@ router.post("/catches", requireAuth, async (req, res, next) => {
     const competitionIds = joinedCompetitions
       .map((competition) => String(competition._id))
       .slice(0, 20);
+    const photo = typeof input.photo === "string" ? input.photo : "";
+    if (photo.length > MAX_CATCH_IMAGE_CHARS) {
+      return res.status(413).json({ error: "Bilden är för stor. Ladda upp bilden igen så komprimeras den automatiskt." });
+    }
     const item = {
       createdAt: new Date().toISOString(),
       userId: req.user._id,
       note: String(input.note || "").slice(0, 240),
-      photo: typeof input.photo === "string" ? input.photo.slice(0, 4_000_000) : "",
+      photo,
       location: input.location && Number.isFinite(Number(input.location.latitude)) && Number.isFinite(Number(input.location.longitude))
         ? { latitude: Number(input.location.latitude), longitude: Number(input.location.longitude) }
         : null,

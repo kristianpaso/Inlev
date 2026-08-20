@@ -16,6 +16,7 @@ const groupsRouter = require("./routes/groups");
 const competitionsRouter = require("./routes/competitions");
 const sharingRouter = require("./routes/sharing");
 const friendsRouter = require("./routes/friends");
+const weatherRouter = require("./routes/weather");
 const { ensureDefaultGroup, ensureMemberCodeIndex } = require("./routes/auth");
 
 const app = express();
@@ -69,6 +70,7 @@ app.use("/api/bigplus", groupsRouter);
 app.use("/api/bigplus", competitionsRouter);
 app.use("/api/bigplus", sharingRouter);
 app.use("/api/bigplus", friendsRouter);
+app.use("/api/bigplus", weatherRouter);
 
 app.use((error, req, res, next) => {
   const status = error.status || 500;

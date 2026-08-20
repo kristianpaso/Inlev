@@ -10,7 +10,8 @@
   getSpecies,
   saveCatch,
   saveLocalCatch
-} from "./api.js?v=20260726-31";
+} from "./api.js?v=20260731-modules";
+import { compressImageFile } from "./shell/image-utils.js";
 
 const state = {
   references: [],
@@ -2070,6 +2071,7 @@ function showMeasurementWorkspace() {
   els.manualEntryPanel?.classList.add("hidden");
   const measureArea = document.querySelector(".measure-area");
   measureArea?.classList.remove("is-start", "is-manual");
+  measureArea?.classList.add("is-guided-mode");
   if (measureArea) measureArea.dataset.flowStep = "2";
   if (els.photoInputLabel) els.photoInputLabel.textContent = "Mät ny fisk";
 }
@@ -2081,7 +2083,7 @@ function showManualEntry() {
   els.manualEntryPanel?.classList.remove("hidden");
   const measureArea = document.querySelector(".measure-area");
   measureArea?.classList.add("is-manual");
-  measureArea?.classList.remove("is-start");
+  measureArea?.classList.remove("is-start", "is-guided-mode");
   if (measureArea) measureArea.dataset.flowStep = "manual";
   if (els.manualEntryImage && state.imageDataUrl) {
     els.manualEntryImage.src = state.imageDataUrl;
@@ -2095,18 +2097,20 @@ function showMeasureStart() {
   document.querySelector(".measure-area")?.classList.remove("is-manual");
   const measureArea = document.querySelector(".measure-area");
   measureArea?.classList.add("is-start");
+  measureArea?.classList.remove("is-manual", "is-guided-mode");
   if (measureArea) measureArea.dataset.flowStep = "1";
 }
 
-function readImageFile(file, onLoaded) {
+async function readImageFile(file, onLoaded) {
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
+  try {
+    const dataUrl = await compressImageFile(file, { maxEdge: 1600, quality: 0.78 });
     const image = new Image();
-    image.onload = () => onLoaded(image, reader.result);
-    image.src = reader.result;
-  };
-  reader.readAsDataURL(file);
+    image.onload = () => onLoaded(image, dataUrl);
+    image.src = dataUrl;
+  } catch {
+    setStatus("Kunde inte läsa bilden");
+  }
 }
 
 function setMeasurementImage(image, dataUrl) {

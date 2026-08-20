@@ -232,7 +232,8 @@ router.get("/members/search", requireAuth, async (req, res, next) => {
 router.patch("/auth/profile", requireAuth, async (req, res, next) => {
   try {
     const name = String(req.body?.name || "").trim().slice(0, 80);
-    const photo = typeof req.body?.photo === "string" ? req.body.photo.slice(0, 4_000_000) : (req.user.photo || "");
+    const photo = typeof req.body?.photo === "string" ? req.body.photo : (req.user.photo || "");
+    if (photo.length > 1_000_000) return res.status(413).json({ error: "Profilbilden är för stor. Ladda upp bilden igen så komprimeras den automatiskt." });
     const profileVisibility = req.body?.profileVisibility === "private" ? "private" : "public";
     if (!name) return res.status(400).json({ error: "Namn krävs." });
     await req.db.collection("users").updateOne(
