@@ -11,17 +11,51 @@ const WEATHER_RECENT_PLACES_KEY = "bigplus_weather_recent_places";
 const WEATHER_LOCK_KEY = "bigplus_weather_location_locked";
 const EMPTY_FEATURE_COLLECTION = { type: "FeatureCollection", features: [] };
 const WEATHER_MAX_ZOOM = 22;
-const WEATHER_MAX_ALLOWED_ZOOM = WEATHER_MAX_ZOOM - 9;
+// Keep the map geographically useful at city level while leaving a small
+// buffer before the tile provider's maximum zoom.
+const WEATHER_MAX_ALLOWED_ZOOM = WEATHER_MAX_ZOOM - 6;
 const WEATHER_DEFAULT_ZOOM = WEATHER_MAX_ZOOM - 12;
+// Keep the useful Sweden/Norden overview reachable, but stop after 34 normal
+// wheel steps out from the local start view.
+const WEATHER_MAX_ZOOM_OUT_STEPS = 34;
+const WEATHER_WHEEL_ZOOM_STEP = 0.2;
+const WEATHER_MIN_ALLOWED_ZOOM = Math.max(0, WEATHER_DEFAULT_ZOOM - (WEATHER_MAX_ZOOM_OUT_STEPS * WEATHER_WHEEL_ZOOM_STEP));
 const MIN_DISPLAY_RADAR_LEVEL = 0;
 const RAIN_DISPLAY_MIN_ZOOM = 4.8;
-const RAIN_VIEW_BUFFER_RATIO = 0.38;
+const RAIN_VIEW_BUFFER_RATIO = 0.28;
 const RAIN_CLOUD_PIN_OFFSET = [0, 0];
 const WATER_FEATURE_LAYERS = ["water", "waterway", "water-names"];
-// SMHI's Sweden composite PNG uses SWEREF99 TM corner coordinates.
-// These official corners are transformed to WGS84 for MapLibre.
+const RAIN_STRENGTH_ICON_ASSETS = {
+  "rain-strength-1": "/bigplus/assets/weather/bigplus-regn-1.png",
+  "rain-strength-2": "/bigplus/assets/weather/bigplus-regn-2.png",
+  "rain-strength-3": "/bigplus/assets/weather/bigplus-regn-3.png",
+  "rain-strength-4": "/bigplus/assets/weather/bigplus-regn-4.png",
+  "rain-strength-5": "/bigplus/assets/weather/bigplus-regn-5.png"
+};
+// WGS84 corners used by the SMHI Sweden composite image source. The same
+// quadrilateral is used when converting decoded raster pixels to hexagons.
 const RADAR_BOUNDS = [[5.28496, 69.78109], [29.799664, 69.419691], [23.727184, 53.685564], [9.319164, 53.869605]];
+// The honeycomb is generated in the radar image's pixel space. This keeps
+// every hexagon anchored to the same SMHI pixel even when MapLibre pitches,
+// rotates, pans, or zooms the map.
+const RADAR_HEX_RADIUS_PX = 2.45;
+const RADAR_CELL_SIZE = 3;
 const WEATHER_ICON_ASSETS = Array.from({ length: 10 }, (_, index) => `/bigplus/assets/weather/weather-${index + 1}.png`);
+
+const PIKE_WEATHER_RULES = [
+  { name: "Mulet + frisk vind", wind: [5, 9], clouds: [65, 100], rating: "🔥", score: 4, spot: "Vindutsatt vik, vasskant, udde", depth: "1–4 m", lure: "Shad/paddletail", color: "Motoroil, abborre" },
+  { name: "Lätt regn + vind", wind: [4, 8], rain: [0.1, 5], rating: "🔥", score: 4, spot: "Grundvik, inlopp, vass", depth: "1–3 m", lure: "Shad", color: "Firetiger, chartreuse" },
+  { name: "Skymning + mulet", wind: [2, 6], clouds: [60, 100], time: "dusk", rating: "🔥", score: 4, spot: "Grundflak, gräs, vass", depth: "0,5–3 m", lure: "Jigg/jerkbait", color: "Svart, mörkgrön" },
+  { name: "Gryning + svag vind", wind: [1, 4], time: "dawn", rating: "🟢", score: 3, spot: "Grunt nära vegetation", depth: "0,5–2,5 m", lure: "Jigg/jerkbait", color: "Naturfärg" },
+  { name: "Kallare efter väderomslag", wind: [3, 7], temp: [-5, 10], rating: "🟢", score: 3, spot: "Brant nära grundområde", depth: "3–7 m", lure: "Stor shad", color: "Mört, brun/grön" },
+  { name: "Stabilt mulet", wind: [3, 6], clouds: [65, 100], rating: "🟢", score: 3, spot: "Uddar, sund, vegetationskanter", depth: "2–5 m", lure: "Swimbait/jigg", color: "Naturfärg" },
+  { name: "Soligt + blåst", wind: [5, 9], clouds: [0, 40], temp: [12, 35], rating: "🟢", score: 3, spot: "Vindutsatt strand/udde", depth: "2–5 m", lure: "Shad/spinnerbait", color: "Silver, vitt" },
+  { name: "Soligt + vindstilla", wind: [0, 2], clouds: [0, 35], temp: [10, 35], rating: "🟡", score: 2, spot: "Skugga, djup vegetation", depth: "4–8 m", lure: "Softbait", color: "Diskret naturfärg" },
+  { name: "Varm högsommar", wind: [1, 4], temp: [20, 40], rating: "🟡", score: 2, spot: "Djupkant, pelagiskt, djup vegetation", depth: "5–10+ m", lure: "Tung jigg/shad", color: "Mört, sik" },
+  { name: "Kraftigt regn", wind: [4, 10], rain: [5, 60], rating: "🟡", score: 2, spot: "Inlopp, lävikar, grumligt vatten", depth: "1–5 m", lure: "Vibrerande shad", color: "Chartreuse/orange" },
+  { name: "Hård vind", wind: [9, 13], rating: "🟠", score: 1, spot: "Skyddade områden", depth: "2–6 m", lure: "Tung shad", color: "Kontrastfärg" },
+  { name: "Het + klar + vindstilla", wind: [0, 2], clouds: [0, 25], temp: [24, 40], rating: "🔴/🟡", score: 2, spot: "Djup, skuggzoner", depth: "6–12+ m", lure: "Tung softbait", color: "Naturfärg" }
+];
 
 const layerLabels = {
   rain: "Regn",
@@ -44,15 +78,17 @@ function fishingLightStyle() {
       }
     },
     layers: [
-      { id: "background", type: "background", paint: { "background-color": "#06294a" } },
-      { id: "landcover-wood", type: "fill", source: "openmaptiles", "source-layer": "landcover", filter: ["match", ["get", "class"], ["wood", "forest", "grass", "scrub"], true, false], paint: { "fill-color": "#123a60", "fill-opacity": 0.94 } },
-      { id: "landuse-soft", type: "fill", source: "openmaptiles", "source-layer": "landuse", paint: { "fill-color": "#194d73", "fill-opacity": 0.84 } },
+      { id: "background", type: "background", paint: { "background-color": "#062b35" } },
+      { id: "landcover-wood", type: "fill", source: "openmaptiles", "source-layer": "landcover", filter: ["match", ["get", "class"], ["wood", "forest", "grass", "scrub"], true, false], paint: { "fill-color": "#0b3431", "fill-opacity": 0.96 } },
+      { id: "landcover-rough", type: "fill", source: "openmaptiles", "source-layer": "landcover", filter: ["match", ["get", "class"], ["rock", "heath", "tundra", "sand", "glacier"], true, false], paint: { "fill-color": "#18433d", "fill-opacity": 0.9 } },
+      { id: "landuse-soft", type: "fill", source: "openmaptiles", "source-layer": "landuse", paint: { "fill-color": "#103a39", "fill-opacity": 0.88 } },
       { id: "water", type: "fill", source: "openmaptiles", "source-layer": "water", paint: { "fill-color": "#073b74", "fill-opacity": 1 } },
       { id: "water-shadow", type: "line", source: "openmaptiles", "source-layer": "water", paint: { "line-color": "#0f79c2", "line-opacity": 0.76, "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.5, 10, 1.8] } },
       { id: "waterway", type: "line", source: "openmaptiles", "source-layer": "waterway", paint: { "line-color": "#1c8bd0", "line-opacity": 0.98, "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.8, 12, 2.7] } },
       { id: "roads-major", type: "line", source: "openmaptiles", "source-layer": "transportation", filter: ["match", ["get", "class"], ["motorway", "trunk", "primary", "secondary", "tertiary"], true, false], paint: { "line-color": "#8fc9e8", "line-opacity": 0.38, "line-width": ["interpolate", ["linear"], ["zoom"], 5, 0.6, 12, 2.2] } },
       { id: "buildings", type: "fill", source: "openmaptiles", "source-layer": "building", minzoom: 12, paint: { "fill-color": "#4b88ad", "fill-opacity": 0.34 } },
       { id: "water-names", type: "symbol", source: "openmaptiles", "source-layer": "water_name", minzoom: 5, layout: { "text-field": ["coalesce", ["get", "name:sv"], ["get", "name"]], "text-size": ["interpolate", ["linear"], ["zoom"], 5, 11, 10, 16], "text-font": ["Noto Sans Italic"], "symbol-placement": "point" }, paint: { "text-color": "#c5eeff", "text-halo-color": "rgba(3, 35, 69, .9)", "text-halo-width": 1.5 } },
+      { id: "mountain-peaks", type: "symbol", source: "openmaptiles", "source-layer": "mountain_peak", minzoom: 6, layout: { "text-field": ["coalesce", ["get", "name:sv"], ["get", "name"], "▲"], "text-size": ["interpolate", ["linear"], ["zoom"], 6, 9, 11, 14], "text-font": ["Noto Sans Regular"], "text-anchor": "bottom" }, paint: { "text-color": "#b8d2a5", "text-halo-color": "rgba(3, 32, 24, .92)", "text-halo-width": 1.2 } },
       { id: "place-names", type: "symbol", source: "openmaptiles", "source-layer": "place", minzoom: 4, layout: { "text-field": ["coalesce", ["get", "name:sv"], ["get", "name"]], "text-size": ["match", ["get", "class"], "city", 13, "town", 11, 9], "text-font": ["Noto Sans Regular"] }, paint: { "text-color": "#eef8ff", "text-halo-color": "rgba(3, 35, 69, .9)", "text-halo-width": 1 } }
     ]
   };
@@ -123,6 +159,33 @@ function finiteWeatherNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function inRange(value, range) {
+  return value != null && (!range || (value >= range[0] && value <= range[1]));
+}
+
+function pikeWeatherAssessment(item = {}) {
+  const wind = finiteWeatherNumber(item.windSpeedMs);
+  const rain = finiteWeatherNumber(item.precipitationMm);
+  const clouds = finiteWeatherNumber(item.cloudCoverPercent);
+  const temp = finiteWeatherNumber(item.temperatureC);
+  const hour = new Date(item.time || Date.now()).getHours();
+  const timeMatches = (period) => period === "dawn" ? hour >= 4 && hour <= 8 : hour >= 19 || hour <= 5;
+  const candidates = PIKE_WEATHER_RULES.map((rule) => {
+    const checks = [
+      rule.wind && inRange(wind, rule.wind),
+      rule.rain && inRange(rain, rule.rain),
+      rule.clouds && inRange(clouds, rule.clouds),
+      rule.temp && inRange(temp, rule.temp),
+      rule.time && timeMatches(rule.time)
+    ].filter(Boolean).length;
+    const available = [rule.wind, rule.rain, rule.clouds, rule.temp, rule.time].filter(Boolean).length;
+    return { ...rule, checks, available, match: checks === available && available > 0 };
+  }).sort((a, b) => (b.match - a.match) || (b.checks * b.score - a.checks * a.score));
+  const best = candidates[0];
+  if (!best || best.checks < 1 || (!best.match && best.checks < 2)) return null;
+  return { ...best, confidence: Math.round((best.checks / best.available) * 100), wind, rain, clouds, temp };
+}
+
 function weatherSummary(item = {}) {
   const tempValue = finiteWeatherNumber(item.temperatureC);
   const windValue = finiteWeatherNumber(item.windSpeedMs);
@@ -191,10 +254,12 @@ export function createWeatherController({ userCatches }) {
   let rainCloudMapMarkers = [];
   let rainCloudImageUrl = "";
   let rainCloudRequestId = 0;
-  let rainAnimationCanvas = null;
-  let rainAnimationRaf = 0;
-  let rainViewportRaf = 0;
+let rainAnimationCanvas = null;
+let rainAnimationRaf = 0;
+let rainViewportRaf = 0;
+let rainStrengthIconsPromise = null;
   let weatherLocationMarker = null;
+  let pikeWeatherMarker = null;
   const rainShapeSeed = Math.random() * 1000;
   let mapIsTilted = false;
 
@@ -263,35 +328,41 @@ export function createWeatherController({ userCatches }) {
     let drawn = 0;
     for (const cell of clouds) {
       if (drawn >= 520 || !bounds.contains([cell.lon, cell.lat]) || !cell.polygon?.[0]) continue;
-      const corners = cell.polygon[0].map(([lon, lat]) => map.project([lon, lat]));
-      if (corners.length < 4) continue;
-      const topLeft = corners[0];
-      const topRight = corners[1];
-      const bottomRight = corners[2];
-      const bottomLeft = corners[3];
-      const top = { x: (topLeft.x + topRight.x) / 2, y: (topLeft.y + topRight.y) / 2 };
-      const bottom = { x: (bottomLeft.x + bottomRight.x) / 2, y: (bottomLeft.y + bottomRight.y) / 2 };
-      if (top.x < -30 || top.x > width + 30 || top.y < -30 || top.y > height + 30) continue;
+      const corners = radarHoneycombPolygon(cell)?.[0]?.map(([lon, lat]) => map.project([lon, lat])) || [];
+      if (corners.length < 6) continue;
+      const topIndex = corners.reduce((best, point, index) => point.y < corners[best].y ? index : best, 0);
+      const top = corners[topIndex];
+      const leftTop = corners[(topIndex + 5) % 6];
+      const rightTop = corners[(topIndex + 1) % 6];
+      const minX = Math.min(...corners.map((point) => point.x));
+      const maxX = Math.max(...corners.map((point) => point.x));
+      const maxY = Math.max(...corners.map((point) => point.y));
+      if (maxX < -30 || minX > width + 30 || maxY < -30 || top.y > height + 30) continue;
       const count = Number(cell.level) >= 2 ? 6 : cell.coverage > 0.25 ? 4 : 3;
       context.strokeStyle = rainAnimationColor(cell.level);
       context.lineWidth = Number(cell.level) >= 2 ? 1.45 : 1.1;
       context.lineCap = "round";
       context.shadowColor = context.strokeStyle;
       context.shadowBlur = 3;
-      const projectedHeight = Math.max(12, Math.abs(bottom.y - top.y));
-      const groundDirection = bottom.y >= top.y ? 1 : -1;
-      const groundTravel = Math.min(160, Math.max(28, projectedHeight * 0.78));
+      const projectedHeight = Math.max(12, maxY - top.y);
+      // Start every drop on the upper hexagon frame and always fall toward the
+      // screen's ground direction. The old square-cell midpoint made rain
+      // collapse onto one line and reverse when the map was rotated.
+      const groundTravel = Math.min(72, Math.max(20, projectedHeight * 0.58));
       for (let index = 0; index < count; index += 1) {
         const seed = Math.abs((cell.x || 0) * 13 + (cell.y || 0) * 7 + index * 29) % 97 / 97;
         const fall = (seconds * (0.72 + Number(cell.level || 0) * 0.08) + seed) % 1;
         const across = (seed * 0.72 + index * 0.18) % 1;
-        const startX = top.x + (bottom.x - top.x) * (0.12 + across * 0.76);
-        const startY = top.y + (bottom.y - top.y) * 0.08 + groundDirection * fall * groundTravel;
+        const edgePoint = across < 0.5
+          ? { x: leftTop.x + (top.x - leftTop.x) * (across * 2), y: leftTop.y + (top.y - leftTop.y) * (across * 2) }
+          : { x: top.x + (rightTop.x - top.x) * ((across - 0.5) * 2), y: top.y + (rightTop.y - top.y) * ((across - 0.5) * 2) };
+        const startX = edgePoint.x;
+        const startY = edgePoint.y + fall * groundTravel;
         const length = Math.min(26, Math.max(9, projectedHeight * 0.16)) + Number(cell.level || 0) * 2;
         context.globalAlpha = tiltFactor * Math.min(0.9, 0.32 + (Number(cell.coverage) || 0) * 0.58);
         context.beginPath();
         context.moveTo(startX, startY);
-        context.lineTo(startX + 3, startY + groundDirection * length);
+        context.lineTo(startX + 3, startY + length);
         context.stroke();
         drawn += 1;
       }
@@ -345,9 +416,39 @@ export function createWeatherController({ userCatches }) {
   }
 
   function radarPixelToLngLat(x, y, width, height) {
-    const easting = 126648 + (x / Math.max(1, width - 1)) * (1075693 - 126648);
-    const northing = 7771252 - (y / Math.max(1, height - 1)) * (7771252 - 5983984);
-    return sweref99TmToWgs84(easting, northing);
+    // Use the exact same quadrilateral as the MapLibre SMHI image source.
+    // This keeps every derived hexagon on top of the raster pixel it came
+    // from instead of mixing two different projections.
+    // MapLibre positions the image bounds at the outer pixel edges. Using
+    // width/height here keeps cell edges and raster pixels on the same line.
+    const horizontal = Math.min(1, Math.max(0, x / Math.max(1, width)));
+    const vertical = Math.min(1, Math.max(0, y / Math.max(1, height)));
+    const toMercator = ([longitude, latitude]) => {
+      const clampedLatitude = Math.max(-85.05112878, Math.min(85.05112878, latitude));
+      const radians = clampedLatitude * Math.PI / 180;
+      const sine = Math.sin(radians);
+      return { x: (longitude + 180) / 360, y: 0.5 - Math.log((1 + sine) / (1 - sine)) / (4 * Math.PI) };
+    };
+    const fromMercator = (point) => ({
+      lon: point.x * 360 - 180,
+      lat: Math.atan(Math.sinh(Math.PI - 2 * Math.PI * point.y)) * 180 / Math.PI
+    });
+    const topLeft = toMercator(RADAR_BOUNDS[0]);
+    const topRight = toMercator(RADAR_BOUNDS[1]);
+    const bottomRight = toMercator(RADAR_BOUNDS[2]);
+    const bottomLeft = toMercator(RADAR_BOUNDS[3]);
+    const top = [
+      topLeft.x + (topRight.x - topLeft.x) * horizontal,
+      topLeft.y + (topRight.y - topLeft.y) * horizontal
+    ];
+    const bottom = [
+      bottomLeft.x + (bottomRight.x - bottomLeft.x) * horizontal,
+      bottomLeft.y + (bottomRight.y - bottomLeft.y) * horizontal
+    ];
+    return fromMercator({
+      x: top[0] + (bottom[0] - top[0]) * vertical,
+      y: top[1] + (bottom[1] - top[1]) * vertical
+    });
   }
 
   function radarCellPolygon(x, y, size, width, height) {
@@ -357,6 +458,37 @@ export function createWeatherController({ userCatches }) {
       [radarPixelToLngLat(x, y, width, height), radarPixelToLngLat(right, y, width, height), radarPixelToLngLat(right, bottom, width, height), radarPixelToLngLat(x, bottom, width, height), radarPixelToLngLat(x, y, width, height)]
         .map(({ lon, lat }) => [lon, lat])
     ];
+  }
+
+  // Pointy-top hexagons use the exact honeycomb spacing in radar pixels. The
+  // source raster remains the authority for location; the shape is only a
+  // visual sampling window around that pixel, so it cannot drift away from
+  // the SMHI footprint at another zoom or map angle.
+  function radarHoneycombPolygon(cloud, scale = 1) {
+    const width = Number(cloud?.radarWidth) || 0;
+    const height = Number(cloud?.radarHeight) || 0;
+    const radius = Number(cloud?.hexRadiusPx) || RADAR_HEX_RADIUS_PX;
+    if (!width || !height) return cloud?.polygon?.[0] || [];
+    const centerX = Number(cloud?.centerX ?? cloud?.x) || 0;
+    const centerY = Number(cloud?.centerY ?? cloud?.y) || 0;
+    const points = Array.from({ length: 6 }, (_, index) => {
+      const angle = -Math.PI / 2 + index * (Math.PI / 3);
+      const { lon, lat } = radarPixelToLngLat(
+        centerX + Math.cos(angle) * radius * scale,
+        centerY + Math.sin(angle) * radius * scale,
+        width,
+        height
+      );
+      return [lon, lat];
+    });
+    points.push(points[0]);
+    return [points];
+  }
+
+  function radarHoneycombRingPolygon(cloud, outerScale = 1, innerScale = 0.68) {
+    const outer = radarHoneycombPolygon(cloud, outerScale)[0];
+    const inner = radarHoneycombPolygon(cloud, innerScale)[0].slice().reverse();
+    return [outer, inner];
   }
 
   function radarCellLevel(red, green, blue) {
@@ -378,19 +510,112 @@ export function createWeatherController({ userCatches }) {
 
   function rainMapScale() {
     if (!map) return 1;
-    return Math.min(1.18, Math.max(0.74, 0.86 * (2 ** ((map.getZoom() - WEATHER_DEFAULT_ZOOM) * 0.18))));
+    // Radar cells are geographic polygons. They must not grow with the map
+    // zoom; MapLibre handles their screen size from their fixed coordinates.
+    return 1;
   }
 
-  function rainCloudFeatureCollection() {
-    const clouds = rainCloudsForViewport();
+  function rainLevelRgb(level) {
+    return Number(level) >= 3 ? [255, 24, 72] : Number(level) === 2 ? [255, 232, 0] : Number(level) === 1 ? [38, 255, 116] : [0, 220, 255];
+  }
+
+  function rainCloudNeighbourMap(clouds) {
+    const keyFor = (cloud) => `${cloud.gridColumn}:${cloud.gridRow}`;
+    const byCell = new Map(clouds.map((cloud) => [keyFor(cloud), cloud]));
+    const neighboursByCell = new Map();
+    for (const cloud of clouds) {
+      const column = Number(cloud.gridColumn);
+      const row = Number(cloud.gridRow);
+      const diagonalX = row % 2 ? 1 : -1;
+      const offsets = [
+        [-1, 0], [1, 0],
+        [0, -1], [diagonalX, -1],
+        [0, 1], [diagonalX, 1]
+      ];
+      const neighbours = offsets
+        .map(([xOffset, yOffset]) => byCell.get(`${column + xOffset}:${row + yOffset}`))
+        .filter(Boolean);
+      neighboursByCell.set(keyFor(cloud), neighbours);
+    }
+    return neighboursByCell;
+  }
+
+  function rainCloudNeighbours(cloud, clouds, neighbourMap = null) {
+    const key = `${cloud.gridColumn}:${cloud.gridRow}`;
+    if (neighbourMap) return neighbourMap.get(key) || [];
+    return rainCloudNeighbourMap(clouds).get(key) || [];
+  }
+
+  function rainCloudBoundaryDistanceMap(clouds, neighbourMap) {
+    const distances = new Map();
+    const queue = [];
+    for (const cloud of clouds) {
+      const key = `${cloud.gridColumn}:${cloud.gridRow}`;
+      const neighbours = neighbourMap.get(key) || [];
+      if (neighbours.length < 6) {
+        distances.set(key, 0);
+        queue.push(cloud);
+      }
+    }
+    for (let index = 0; index < queue.length; index += 1) {
+      const cloud = queue[index];
+      const key = `${cloud.gridColumn}:${cloud.gridRow}`;
+      const nextDistance = (distances.get(key) || 0) + 1;
+      for (const neighbour of neighbourMap.get(key) || []) {
+        const neighbourKey = `${neighbour.gridColumn}:${neighbour.gridRow}`;
+        if (distances.has(neighbourKey)) continue;
+        distances.set(neighbourKey, nextDistance);
+        queue.push(neighbour);
+      }
+    }
+    return distances;
+  }
+
+  function blendedHexBorderColor(cloud, clouds, neighbours = rainCloudNeighbours(cloud, clouds)) {
+    const own = rainLevelRgb(cloud.level);
+    const neighbourAverage = neighbours.length
+      ? neighbours.reduce((sum, candidate) => {
+        const color = rainLevelRgb(candidate.level);
+        return sum.map((value, index) => value + color[index]);
+      }, [0, 0, 0]).map((value) => value / neighbours.length)
+      : own;
+    // Lift the original cell colour toward a soft highlight while retaining
+    // a small amount of the neighbouring colour at shared edges.
+    const mixed = own.map((value, index) => Math.min(255, Math.round(value * 0.56 + neighbourAverage[index] * 0.14 + 255 * 0.30)));
+    return `rgb(${mixed.join(",")})`;
+  }
+
+  function rainHexFillOpacity(cloud, neighbours = [], boundaryDistance = 0) {
+    // A closed honeycomb cell is 70% transparent. Each open side makes the
+    // cell 10 percentage points less transparent, so exposed cells remain
+    // legible without losing the soft map underneath.
+    const openSides = Math.max(0, 6 - neighbours.length);
+    const edgeFade = Math.min(0.16, 0.12 / (Math.max(0, Number(boundaryDistance) || 0) + 1));
+    return Math.max(0.1, 0.7 - openSides * 0.1 - edgeFade);
+  }
+
+  function rainHexBorderOpacity(neighbours, boundaryDistance = 0) {
+    // Borders use the same 0.7 baseline as fills, but lose only 5 percentage
+    // points per open side. The edge-distance fade softens large clusters.
+    const openSides = Math.max(0, 6 - neighbours.length);
+    const edgeFade = Math.min(0.12, 0.09 / (Math.max(0, Number(boundaryDistance) || 0) + 1));
+    return Math.max(0.1, 0.7 - openSides * 0.05 - edgeFade);
+  }
+
+  function rainCloudFeatureCollection(clouds = rainCloudsForViewport()) {
+    const neighbourMap = rainCloudNeighbourMap(clouds);
+    const boundaryDistanceMap = rainCloudBoundaryDistanceMap(clouds, neighbourMap);
     return {
       type: "FeatureCollection",
       features: clouds.map((cloud) => ({
         type: "Feature",
-        geometry: { type: "Polygon", coordinates: cloud.polygon },
+        geometry: { type: "Polygon", coordinates: radarHoneycombPolygon(cloud) },
         properties: {
           level: cloud.level,
           coverage: cloud.coverage,
+          fillOpacity: rainHexFillOpacity(cloud, rainCloudNeighbours(cloud, clouds, neighbourMap), boundaryDistanceMap.get(`${cloud.gridColumn}:${cloud.gridRow}`) || 0),
+          borderColor: blendedHexBorderColor(cloud, clouds, rainCloudNeighbours(cloud, clouds, neighbourMap)),
+          borderOpacity: rainHexBorderOpacity(rainCloudNeighbours(cloud, clouds, neighbourMap), boundaryDistanceMap.get(`${cloud.gridColumn}:${cloud.gridRow}`) || 0),
           intensity: Number(cloud.level) === 0
             ? Math.min(1, 0.18 + (Number(cloud.coverage) || 0) * 0.42)
             : Math.min(1, (Number(cloud.level) || 0) / 3 * 0.78 + (Number(cloud.coverage) || 0) * 0.22)
@@ -399,8 +624,49 @@ export function createWeatherController({ userCatches }) {
     };
   }
 
-  function rainPointFeatureCollection() {
-    const clouds = rainCloudsForViewport();
+  function rainCloudFillFeatureCollection(clouds, baseCollection = rainCloudFeatureCollection(clouds)) {
+    return {
+      type: "FeatureCollection",
+      features: baseCollection.features.map((feature, index) => ({
+        type: "Feature",
+        geometry: { type: "Polygon", coordinates: radarHoneycombRingPolygon(clouds[index], 1, 0.84) },
+        properties: {
+          level: feature.properties.level,
+          fillOpacity: feature.properties.fillOpacity
+        }
+      }))
+    };
+  }
+
+  function rainCloudFadeFeatureCollection(clouds, baseCollection = rainCloudFeatureCollection(clouds)) {
+    return {
+      type: "FeatureCollection",
+      features: baseCollection.features.map((feature, index) => ({
+        type: "Feature",
+        geometry: { type: "Polygon", coordinates: radarHoneycombRingPolygon(clouds[index], 0.84, 0.64) },
+        properties: {
+          level: feature.properties.level,
+          fadeOpacity: Math.max(0.02, Number(feature.properties.fillOpacity) - 0.025)
+        }
+      }))
+    };
+  }
+
+  function rainCloudCoreFeatureCollection(clouds, baseCollection = rainCloudFeatureCollection(clouds)) {
+    return {
+      type: "FeatureCollection",
+      features: baseCollection.features.map((feature, index) => ({
+        type: "Feature",
+        geometry: { type: "Polygon", coordinates: radarHoneycombPolygon(clouds[index], 0.64) },
+        properties: {
+          level: feature.properties.level,
+          coreOpacity: Math.max(0.02, Number(feature.properties.fillOpacity) - 0.05)
+        }
+      }))
+    };
+  }
+
+  function rainPointFeatureCollection(clouds = rainCloudsForViewport()) {
     const features = [];
     const featureLimit = 12000;
     for (const cloud of clouds) {
@@ -408,6 +674,12 @@ export function createWeatherController({ userCatches }) {
       const level = Number(cloud.level) || 0;
       const coverage = Number(cloud.coverage) || 0;
       const baseWeight = Math.min(1, 0.38 + level * 0.24 + coverage * 0.62);
+      const iconIndex = level >= 3 ? 5 : level === 2 ? 4 : level === 1 ? 3 : coverage > 0.45 ? 2 : 1;
+      features.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [cloud.lon, cloud.lat] },
+        properties: { kind: "intensity", level, coverage, rainIcon: `rain-strength-${iconIndex}` }
+      });
       const ringSize = level >= 2 ? 4 : coverage > 0.35 ? 3 : 2;
       const polygon = cloud.polygon?.[0] || [];
       const lonStep = Math.max(0.008, Math.abs((polygon[1]?.[0] || cloud.lon) - (polygon[0]?.[0] || cloud.lon)));
@@ -420,7 +692,7 @@ export function createWeatherController({ userCatches }) {
         features.push({
           type: "Feature",
           geometry: { type: "Point", coordinates: [cloud.lon + Math.cos(angle) * lonStep * distance, cloud.lat + Math.sin(angle) * latStep * distance] },
-          properties: { level, coverage, heatWeight: Math.min(1, baseWeight * intensityJitter) }
+          properties: { kind: "heat", level, coverage, heatWeight: Math.min(1, baseWeight * intensityJitter) }
         });
       }
     }
@@ -470,11 +742,17 @@ export function createWeatherController({ userCatches }) {
 
   function updateRainLayerVisibility() {
     const visible = rainViewportVisible();
-    ["weather-rain-heatmap-soft", "weather-rain-heatmap", "weather-rain-glow", "weather-rain-3d"].forEach((layerId) => {
-      if (map?.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
+    ["weather-rain-heatmap-soft", "weather-rain-heatmap", "weather-rain-glow", "weather-rain-intensity-icons", "weather-rain-3d"].forEach((layerId) => {
+      if (map?.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", "none");
     });
-    if (map?.getLayer("weather-rain-grid")) map.setLayoutProperty("weather-rain-grid", "visibility", "none");
-    if (map?.getLayer("smhi-radar")) map.setLayoutProperty("smhi-radar", "visibility", visible ? "visible" : "none");
+    if (map?.getLayer("weather-rain-grid")) map.setLayoutProperty("weather-rain-grid", "visibility", visible ? "visible" : "none");
+    if (map?.getLayer("weather-rain-cell-fade")) map.setLayoutProperty("weather-rain-cell-fade", "visibility", visible ? "visible" : "none");
+    if (map?.getLayer("weather-rain-cell-core")) map.setLayoutProperty("weather-rain-cell-core", "visibility", visible ? "visible" : "none");
+    if (map?.getLayer("weather-rain-grid-border")) map.setLayoutProperty("weather-rain-grid-border", "visibility", visible ? "visible" : "none");
+    // SMHI is the comparison layer and must remain visible at the overview
+    // zoom too; the local BIGPLUS hexagon layer still respects its own detail
+    // zoom threshold above.
+    if (map?.getLayer("smhi-radar")) map.setLayoutProperty("smhi-radar", "visibility", activeLayer === "rain" && Boolean(radar?.imageUrl) && smhiRadarOnTop ? "visible" : "none");
   }
 
   function scheduleRainViewportUpdate() {
@@ -494,10 +772,58 @@ export function createWeatherController({ userCatches }) {
   }
 
   function updateRainCloudSource() {
-    const clouds = rainCloudFeatureCollection();
-    const points = rainPointFeatureCollection();
+    const viewportClouds = rainCloudsForViewport();
+    const clouds = rainCloudFeatureCollection(viewportClouds);
+    const fills = rainCloudFillFeatureCollection(viewportClouds, clouds);
+    const fade = rainCloudFadeFeatureCollection(viewportClouds, clouds);
+    const core = rainCloudCoreFeatureCollection(viewportClouds, clouds);
+    const points = rainPointFeatureCollection(viewportClouds);
     map?.getSource("weather-rain-clouds")?.setData(clouds);
+    map?.getSource("weather-rain-fills")?.setData(fills);
+    map?.getSource("weather-rain-cell-fade")?.setData(fade);
+    map?.getSource("weather-rain-cell-core")?.setData(core);
     map?.getSource("weather-rain-points")?.setData(points);
+  }
+
+  function ensureRainStrengthIconLayer() {
+    if (!map || !map.isStyleLoaded() || map.getLayer("weather-rain-intensity-icons")) return;
+    map.addLayer({
+      id: "weather-rain-intensity-icons",
+      type: "symbol",
+      source: "weather-rain-points",
+      filter: ["==", ["get", "kind"], "intensity"],
+      layout: {
+        visibility: "none",
+        "icon-image": ["get", "rainIcon"],
+        "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.012, 5, 0.016, 8, 0.021, 10, 0.026, 13, 0.034],
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
+        "icon-pitch-alignment": "map",
+        "icon-rotation-alignment": "map"
+      },
+      paint: {
+        "icon-opacity": ["interpolate", ["linear"], ["zoom"], 3, 0.52, 5, 0.64, 8, 0.78, 13, 0.88]
+      }
+    });
+  }
+
+  function ensureRainStrengthIcons() {
+    if (!map || !map.isStyleLoaded()) return;
+    if (!rainStrengthIconsPromise) {
+      rainStrengthIconsPromise = Promise.all(Object.entries(RAIN_STRENGTH_ICON_ASSETS).map(([name, url]) => new Promise((resolve) => {
+        if (map.hasImage(name)) {
+          resolve();
+          return;
+        }
+        map.loadImage(url, (error, image) => {
+          if (!error && image && !map.hasImage(name)) map.addImage(name, image, { pixelRatio: 2 });
+          resolve();
+        });
+      }))).then(() => {
+        ensureRainStrengthIconLayer();
+        updateRainLayerVisibility();
+      });
+    }
   }
 
   function updateWeatherLocationMarker() {
@@ -505,71 +831,57 @@ export function createWeatherController({ userCatches }) {
     if (!map.loaded()) return;
     if (!weatherLocationMarker) {
       const element = document.createElement("span");
-      element.className = "weather-current-location-pin";
+      element.className = "weather-current-location-marker";
       element.setAttribute("aria-hidden", "true");
-      element.innerHTML = "<span></span>";
+      element.innerHTML = "<span class=\"weather-current-location-pin\"><span></span></span>";
       weatherLocationMarker = new window.maplibregl.Marker({ element, anchor: "bottom", offset: [0, 0], draggable: false, pitchAlignment: "map", rotationAlignment: "map" });
     }
     weatherLocationMarker.setLngLat([activePoint.lon, activePoint.lat]);
     if (!weatherLocationMarker._map) weatherLocationMarker.addTo(map);
+    updateWeatherLocationMarkerScale();
+  }
+
+  function updateWeatherLocationMarkerScale() {
+    const markerElement = weatherLocationMarker?.getElement?.().querySelector(".weather-current-location-pin");
+    const zoom = Number(map?.getZoom?.());
+    if (!markerElement || !Number.isFinite(zoom)) return;
+    const scale = Math.max(0.38, Math.min(1, 0.38 + ((zoom - 4) / 10) * 0.62));
+    markerElement.style.setProperty("--location-scale", scale.toFixed(3));
+  }
+
+  function updatePikeWeatherMarker() {
+    if (!map || !window.maplibregl || !map.loaded()) return;
+    const assessment = pikeWeatherAssessment(currentItem() || {});
+    if (!assessment || !Number.isFinite(Number(activePoint.lat)) || !Number.isFinite(Number(activePoint.lon))) {
+      pikeWeatherMarker?.remove();
+      return;
+    }
+    if (!pikeWeatherMarker) {
+      const element = document.createElement("button");
+      element.type = "button";
+      element.className = "weather-pike-marker";
+      element.setAttribute("aria-label", "Gäddprognos för vald plats");
+      element.addEventListener("click", () => {
+        const panel = $("#weatherPikeRecommendation");
+        panel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+      pikeWeatherMarker = new window.maplibregl.Marker({ element, anchor: "bottom", offset: [22, 18] });
+    }
+    const element = pikeWeatherMarker.getElement();
+    element.innerHTML = `<span aria-hidden="true">🐟</span><small>${escapeHtml(assessment.rating)}</small>`;
+    element.title = `${assessment.name}: ${assessment.lure}, ${assessment.depth}`;
+    pikeWeatherMarker.setLngLat([activePoint.lon, activePoint.lat]);
+    if (!pikeWeatherMarker._map) pikeWeatherMarker.addTo(map);
   }
 
   function updateRainMapScale() {
-    const scale = rainMapScale();
-    document.querySelectorAll("#weatherMap [data-weather-cloud]").forEach((element) => {
-      const baseScale = Number(element.dataset.cloudScale) || 1;
-      element.style.setProperty("--rain-cloud-render-scale", String(baseScale * scale));
-    });
-    document.querySelectorAll("#weatherMap .weather-rain-cloud-marker").forEach((element) => {
-      element.style.setProperty("--rain-map-scale", String(scale));
-    });
+    // Rain is rendered by geographic MapLibre layers. There are no DOM cloud
+    // markers to scale when the map zooms or moves.
   }
 
   function mountRainMapMarkers() {
-    if (!map || activeLayer !== "rain" || !radar?.imageUrl) return;
-    const createMarker = (element, coordinates, anchor, offset = [0, 0]) => {
-      const marker = new window.maplibregl.Marker({
-        element,
-        anchor,
-        offset,
-        pitchAlignment: "viewport",
-        rotationAlignment: "viewport"
-      }).setLngLat(coordinates).addTo(map);
-      rainMapMarkers.push(marker);
-      return marker;
-    };
-    rainMarkers.forEach((rainMarker, index) => {
-      const element = document.createElement("span");
-      const label = rainMarker.level >= 3 ? "Kraftigt regn" : rainMarker.level === 2 ? "Regn" : "Lätt regn";
-      element.className = `weather-rain-location-marker weather-rain-cloud-level-${rainMarker.level}`;
-      element.dataset.weatherRainMarker = "";
-      element.dataset.markerLat = String(rainMarker.lat);
-      element.dataset.markerLon = String(rainMarker.lon);
-      element.style.setProperty("--marker-delay", String(index % 5));
-      element.innerHTML = `<i></i><b>${label}</b>`;
-      createMarker(element, [rainMarker.lon, rainMarker.lat], "center");
-    });
-    rainCloudMarkerCells().forEach((cloud, index) => {
-      const wrapper = document.createElement("span");
-      const element = document.createElement("span");
-      wrapper.className = `weather-rain-cloud-marker weather-rain-cloud-level-${cloud.level}`;
-      element.className = `weather-rain-cloud weather-rain-cloud-level-${cloud.level}`;
-      element.dataset.weatherCloud = "";
-      element.dataset.cloudLat = String(cloud.lat);
-      element.dataset.cloudLon = String(cloud.lon);
-      element.dataset.cloudScale = String(cloud.scale);
-      element.style.setProperty("--cloud-delay", String(index % 7));
-      element.style.setProperty("--cloud-scale", String(cloud.scale));
-      const shapePhase = rainShapeSeed + (cloud.x || 0) * 0.11 + (cloud.y || 0) * 0.07 + index * 1.91;
-      element.style.setProperty("--cloud-shape-width", (0.9 + ((Math.sin(shapePhase) + 1) / 2) * 0.18).toFixed(2));
-      element.style.setProperty("--cloud-shape-tilt", `${(-6 + ((Math.sin(shapePhase * 1.7) + 1) / 2) * 12).toFixed(1)}deg`);
-      element.style.setProperty("--cloud-puff-left", `${(28 + ((Math.sin(shapePhase * 1.2) + 1) / 2) * 12).toFixed(0)}%`);
-      element.style.setProperty("--cloud-puff-right", `${(56 + ((Math.sin(shapePhase * 1.45) + 1) / 2) * 18).toFixed(0)}%`);
-      element.innerHTML = `<span class="weather-rain-cloud-body"><i class="weather-rain-puff weather-rain-puff-left"></i><i class="weather-rain-puff weather-rain-puff-center"></i><i class="weather-rain-puff weather-rain-puff-right"></i><span class="weather-rain-cloud-base"></span></span><span class="weather-rain-drops"><i></i><i></i><i></i><i></i><i></i></span>`;
-      wrapper.appendChild(element);
-      const cloudMarker = createMarker(wrapper, [cloud.lon, cloud.lat], "bottom", RAIN_CLOUD_PIN_OFFSET);
-      rainCloudMapMarkers.push(cloudMarker);
-    });
+    // Legacy cloud and rain-pill markers are intentionally disabled. The
+    // current renderer uses only geographic MapLibre sources and layers.
   }
 
   function rainMotionFeatureCollection() {
@@ -638,30 +950,49 @@ export function createWeatherController({ userCatches }) {
         const context = canvas.getContext("2d", { willReadFrequently: true });
         context.drawImage(image, 0, 0);
         const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-        // Use a denser sampling grid so close zooms do not expose the radar
-        // pixels as isolated dots between the heatmap points.
-        const cellSize = 8;
-        const samplesPerCell = Math.ceil(cellSize / 2) ** 2;
+        // Build a real pointy-top honeycomb in the radar image itself. The
+        // old one-cell-per-square approach shifted alternate rows and made
+        // the local polygons visibly diverge from the SMHI colour field.
+        const hexRadius = RADAR_HEX_RADIUS_PX;
+        const horizontalStep = Math.sqrt(3) * hexRadius;
+        const verticalStep = 1.5 * hexRadius;
+        const sampleOffsets = [
+          [0, 0],
+          [hexRadius * 0.52, 0],
+          [-hexRadius * 0.52, 0],
+          [0, hexRadius * 0.52],
+          [0, -hexRadius * 0.52],
+          [hexRadius * 0.3, hexRadius * 0.38],
+          [-hexRadius * 0.3, -hexRadius * 0.38]
+        ];
         const cells = [];
-        for (let y = 0; y < canvas.height; y += cellSize) {
-          for (let x = 0; x < canvas.width; x += cellSize) {
-            if (x < 120 && y < 80) continue;
+        const rowCount = Math.ceil((canvas.height - hexRadius * 2) / verticalStep);
+        for (let gridRow = 0; gridRow < rowCount; gridRow += 1) {
+          const centerY = hexRadius + gridRow * verticalStep;
+          const rowOffset = gridRow % 2 ? horizontalStep * 0.5 : 0;
+          const columnCount = Math.ceil((canvas.width - rowOffset - hexRadius) / horizontalStep);
+          for (let gridColumn = 0; gridColumn < columnCount; gridColumn += 1) {
+            const centerX = hexRadius + rowOffset + gridColumn * horizontalStep;
+            if (centerX < 0 || centerX >= canvas.width || centerY < 0 || centerY >= canvas.height) continue;
+            if (centerX < 120 && centerY < 80) continue;
             let colored = 0;
             let strongest = 0;
-            for (let sampleY = y; sampleY < Math.min(canvas.height, y + cellSize); sampleY += 2) {
-              for (let sampleX = x; sampleX < Math.min(canvas.width, x + cellSize); sampleX += 2) {
-                const offset = (sampleY * canvas.width + sampleX) * 4;
-                if (pixels[offset + 3] < 70) continue;
-                const level = radarCellLevel(pixels[offset], pixels[offset + 1], pixels[offset + 2]);
-                if (level == null || level < MIN_DISPLAY_RADAR_LEVEL) continue;
-                colored += 1;
-                strongest = Math.max(strongest, level);
-              }
+            for (const [offsetX, offsetY] of sampleOffsets) {
+              const sampleX = Math.max(0, Math.min(canvas.width - 1, Math.round(centerX + offsetX)));
+              const sampleY = Math.max(0, Math.min(canvas.height - 1, Math.round(centerY + offsetY)));
+              const offset = (sampleY * canvas.width + sampleX) * 4;
+              if (pixels[offset + 3] < 70) continue;
+              const level = radarCellLevel(pixels[offset], pixels[offset + 1], pixels[offset + 2]);
+              if (level == null || level < MIN_DISPLAY_RADAR_LEVEL) continue;
+              colored += 1;
+              strongest = Math.max(strongest, level);
             }
             if (colored < 1) continue;
-            const point = radarPixelToLngLat(x + cellSize / 2, y + cellSize / 2, canvas.width, canvas.height);
-            const coverage = colored / samplesPerCell;
-            cells.push({ ...point, polygon: radarCellPolygon(x, y, cellSize, canvas.width, canvas.height), level: strongest, coverage, score: strongest * 0.4 + coverage, scale: Math.min(1.05, 0.58 + coverage * 0.55 + strongest * 0.05), x, y });
+            const point = radarPixelToLngLat(centerX, centerY, canvas.width, canvas.height);
+            const coverage = colored / sampleOffsets.length;
+            const cloud = { ...point, level: strongest, coverage, score: strongest * 0.4 + coverage, scale: 1, x: centerX, y: centerY, centerX, centerY, gridColumn, gridRow, hexRadiusPx: hexRadius, radarWidth: canvas.width, radarHeight: canvas.height };
+            cloud.polygon = radarHoneycombPolygon(cloud);
+            cells.push(cloud);
           }
         }
         const visibleBounds = map?.getBounds?.();
@@ -753,6 +1084,13 @@ export function createWeatherController({ userCatches }) {
     });
   }
 
+  function forecastDisplaySlots() {
+    const slots = forecastSlots15();
+    const start = Math.max(0, Math.min(activeIndex, Math.max(0, slots.length - 1)));
+    return Array.from({ length: 4 }, (_, index) => slots[Math.min(slots.length - 1, start + index * 2)])
+      .filter((item, index, list) => item && list.findIndex((candidate) => candidate?.time === item.time) === index);
+  }
+
   function weatherIconAsset(item, index) {
     const symbol = String(item?.symbolCode || "").toLowerCase();
     const rain = finiteWeatherNumber(item?.precipitationMm) || 0;
@@ -812,6 +1150,7 @@ export function createWeatherController({ userCatches }) {
         style: fishingLightStyle(),
         center: [activePoint.lon, activePoint.lat],
         zoom: WEATHER_DEFAULT_ZOOM,
+        minZoom: WEATHER_MIN_ALLOWED_ZOOM,
         maxZoom: WEATHER_MAX_ALLOWED_ZOOM,
         attributionControl: false,
         cooperativeGestures: false,
@@ -833,12 +1172,16 @@ export function createWeatherController({ userCatches }) {
         ensureWeatherLayers();
         updateMapLayers();
       });
-      map.on("load", updateWeatherLocationMarker);
-      map.on("zoom", () => { updateRainMapScale(); scheduleRainViewportUpdate(); scheduleRainAnimation(); });
+      map.on("load", () => {
+        updateWeatherLocationMarker();
+        updatePikeWeatherMarker();
+        updateMapLayers();
+      });
+      map.on("zoom", () => { updateWeatherLocationMarkerScale(); updateRainMapScale(); scheduleRainViewportUpdate(); scheduleRainAnimation(); });
       map.on("resize", () => { updateRainMapScale(); scheduleRainViewportUpdate(); scheduleRainAnimation(); });
       map.on("move", () => { scheduleRainViewportUpdate(); scheduleRainAnimation(); });
       map.on("moveend", () => { updateWeatherLocationMarker(); updateRainMotionSource(); refreshRainMapMarkers(); });
-      map.on("zoomend", () => { updateWeatherLocationMarker(); updateRainMotionSource(); refreshRainMapMarkers(); });
+      map.on("zoomend", () => { updateWeatherLocationMarker(); updateWeatherLocationMarkerScale(); updateRainMotionSource(); refreshRainMapMarkers(); });
       map.on("rotate", scheduleRainAnimation);
       map.on("pitch", () => { updateRain3DPresentation(); scheduleRainAnimation(); });
       map.on("click", (event) => {
@@ -862,7 +1205,18 @@ export function createWeatherController({ userCatches }) {
         loadPoint(point);
       });
     }
-    window.setTimeout(() => map?.resize(), 60);
+    const resizeWeatherMap = () => {
+      if (!map) return;
+      map.resize();
+      if (map.isStyleLoaded?.()) {
+        ensureWeatherLayers();
+        updateMapLayers();
+        scheduleRainViewportUpdate();
+      }
+    };
+    // The view is switched from display:none to visible by the shell. Resize
+    // again after that transition so MapLibre does not keep a zero-size canvas.
+    [60, 260, 720].forEach((delay) => window.setTimeout(resizeWeatherMap, delay));
   }
 
   function ensureWeatherLayers() {
@@ -878,17 +1232,21 @@ export function createWeatherController({ userCatches }) {
     if (!map.getLayer("weather-rain-motion-head")) map.addLayer({ id: "weather-rain-motion-head", type: "circle", source: "weather-rain-motion", filter: ["==", ["get", "kind"], "motion-head"], layout: { visibility: "none" }, paint: { "circle-color": "#35b9f4", "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 4, 9, 6, 13, 8], "circle-opacity": 0.95, "circle-stroke-color": "#e7fbff", "circle-stroke-width": 2 } });
     if (!map.getLayer("weather-rain-motion-label")) map.addLayer({ id: "weather-rain-motion-label", type: "symbol", source: "weather-rain-motion", filter: ["==", ["get", "kind"], "motion-head"], layout: { visibility: "none", "text-field": ["get", "label"], "text-size": 10, "text-offset": [0, -1.7], "text-font": ["Noto Sans Bold"] }, paint: { "text-color": "#e9fbff", "text-halo-color": "#083149", "text-halo-width": 1.2 } });
     if (!map.getSource("weather-rain-clouds")) map.addSource("weather-rain-clouds", { type: "geojson", data: EMPTY_FEATURE_COLLECTION });
+    if (!map.getSource("weather-rain-fills")) map.addSource("weather-rain-fills", { type: "geojson", data: EMPTY_FEATURE_COLLECTION });
+    if (!map.getSource("weather-rain-cell-fade")) map.addSource("weather-rain-cell-fade", { type: "geojson", data: EMPTY_FEATURE_COLLECTION });
+    if (!map.getSource("weather-rain-cell-core")) map.addSource("weather-rain-cell-core", { type: "geojson", data: EMPTY_FEATURE_COLLECTION });
     if (!map.getSource("weather-rain-points")) map.addSource("weather-rain-points", { type: "geojson", data: EMPTY_FEATURE_COLLECTION });
     if (!map.getLayer("weather-rain-heatmap-soft")) map.addLayer({
       id: "weather-rain-heatmap-soft",
       type: "heatmap",
       source: "weather-rain-points",
+      filter: ["==", ["get", "kind"], "heat"],
       layout: { visibility: "none" },
       paint: {
         "heatmap-weight": ["interpolate", ["linear"], ["get", "heatWeight"], 0, 0, 0.25, 0.24, 0.55, 0.62, 1, 0.9],
-        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 3, 0.42, 5, 0.62, 8, 0.8, 13, 1.08],
-        "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 3, 34, 5, 56, 8, 86, 13, 126],
-        "heatmap-opacity": 0.62,
+        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 3, 0.28, 5, 0.34, 8, 0.42, 13, 0.52],
+        "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 3, 12, 5, 16, 8, 20, 13, 26],
+        "heatmap-opacity": 0.18,
         "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(0,0,0,0)", 0.04, "#0b6fd8", 0.12, "#2bb7ff", 0.26, "#24d8ed", 0.44, "#4ddd65", 0.64, "#e6df2b", 0.82, "#ff9223", 0.94, "#ff4539", 1, "#dc163d"]
       }
     });
@@ -896,33 +1254,72 @@ export function createWeatherController({ userCatches }) {
       id: "weather-rain-heatmap",
       type: "heatmap",
       source: "weather-rain-points",
+      filter: ["==", ["get", "kind"], "heat"],
       layout: { visibility: "none" },
       paint: {
         "heatmap-weight": ["interpolate", ["linear"], ["get", "heatWeight"], 0, 0, 0.25, 0.3, 0.55, 0.72, 1, 1],
-        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 3, 0.58, 5, 0.78, 8, 1.08, 10, 1.35, 13, 1.58],
-        "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 3, 28, 5, 48, 8, 76, 10, 102, 13, 136],
-        "heatmap-opacity": 0.92,
+        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 3, 0.34, 5, 0.42, 8, 0.5, 10, 0.58, 13, 0.66],
+        "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 3, 10, 5, 14, 8, 18, 10, 22, 13, 28],
+        "heatmap-opacity": 0.24,
         "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(0,0,0,0)", 0.03, "#0b7ce6", 0.12, "#3bc4ff", 0.26, "#2ee0ee", 0.44, "#57e363", 0.64, "#f0e02b", 0.82, "#ff9622", 0.94, "#ff4238", 1, "#df153e"]
       }
     });
     if (!map.getLayer("weather-rain-grid")) map.addLayer({
       id: "weather-rain-grid",
       type: "fill",
-      source: "weather-rain-clouds",
+      source: "weather-rain-fills",
       layout: { visibility: "none" },
       paint: {
-        "fill-antialias": false,
-        "fill-color": ["match", ["get", "level"], 3, "#ef3939", 2, "#f3d229", 1, "#32c84d", "#1676cf"],
-        "fill-opacity": ["interpolate", ["linear"], ["get", "coverage"], 0, 0.42, 0.25, 0.58, 0.6, 0.78, 1, 0.92]
+        "fill-antialias": true,
+        "fill-color": ["match", ["get", "level"], 3, "#ff1848", 2, "#ffe800", 1, "#26ff74", "#00dcff"],
+        "fill-opacity": ["coalesce", ["get", "fillOpacity"], 0.58],
+        "fill-outline-color": "rgba(0,0,0,0)"
+      }
+    });
+    if (!map.getLayer("weather-rain-cell-fade")) map.addLayer({
+      id: "weather-rain-cell-fade",
+      type: "fill",
+      source: "weather-rain-cell-fade",
+      layout: { visibility: "none" },
+      paint: {
+        "fill-antialias": true,
+        "fill-color": ["match", ["get", "level"], 3, "#ff1848", 2, "#ffe800", 1, "#26ff74", "#00dcff"],
+        "fill-opacity": ["coalesce", ["get", "fadeOpacity"], 0.18],
+        "fill-outline-color": "rgba(0,0,0,0)"
+      }
+    });
+    if (!map.getLayer("weather-rain-cell-core")) map.addLayer({
+      id: "weather-rain-cell-core",
+      type: "fill",
+      source: "weather-rain-cell-core",
+      layout: { visibility: "none" },
+      paint: {
+        "fill-antialias": true,
+        "fill-color": ["match", ["get", "level"], 3, "#ff1848", 2, "#ffe800", 1, "#26ff74", "#00dcff"],
+        "fill-opacity": ["coalesce", ["get", "coreOpacity"], 0.22],
+        "fill-outline-color": "rgba(0,0,0,0)"
+      }
+    });
+    if (!map.getLayer("weather-rain-grid-border")) map.addLayer({
+      id: "weather-rain-grid-border",
+      type: "line",
+      source: "weather-rain-clouds",
+      layout: { visibility: "none", "line-cap": "round", "line-join": "round" },
+      paint: {
+        "line-color": ["coalesce", ["get", "borderColor"], "#244d5b"],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 3, 1.2, 7, 1.6, 11, 2.1, 14, 2.7],
+        "line-opacity": ["*", ["coalesce", ["get", "borderOpacity"], 0.84], 0.7],
+        "line-blur": 0.82
       }
     });
     if (!map.getLayer("weather-rain-glow")) map.addLayer({
       id: "weather-rain-glow",
       type: "circle",
       source: "weather-rain-points",
+      filter: ["==", ["get", "kind"], "heat"],
       layout: { visibility: "none" },
       paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 22, 5, 32, 8, 48, 10, 64, 13, 88],
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 8, 5, 11, 8, 14, 10, 17, 13, 20],
         "circle-color": ["match", ["get", "level"], 3, "#ef314b", 2, "#ff9d24", 1, "#5ce56c", "#31baff"],
         "circle-opacity": 0.18,
         "circle-blur": 0.92
@@ -940,7 +1337,7 @@ export function createWeatherController({ userCatches }) {
         "fill-extrusion-opacity": 0
       }
     });
-    ["weather-rain-heatmap-soft", "weather-rain-heatmap", "weather-rain-glow", "weather-rain-3d", "weather-rain-motion-line", "weather-rain-motion-head", "weather-rain-motion-label"].forEach((layerId) => {
+    ["weather-rain-heatmap-soft", "weather-rain-heatmap", "weather-rain-glow", "weather-rain-intensity-icons", "weather-rain-cell-fade", "weather-rain-cell-core", "weather-rain-grid-border", "weather-rain-3d", "weather-rain-motion-line", "weather-rain-motion-head", "weather-rain-motion-label"].forEach((layerId) => {
       if (map.getLayer(layerId) && map.getLayer("weather-label")) map.moveLayer(layerId, "weather-label");
     });
     updateRain3DPresentation();
@@ -952,6 +1349,7 @@ export function createWeatherController({ userCatches }) {
     if (button.dataset.smhiBound !== "true") {
       button.addEventListener("click", () => {
         smhiRadarOnTop = !smhiRadarOnTop;
+        if (smhiRadarOnTop) setRadarLayer();
         updateSmhiRadarPresentation();
       });
       button.dataset.smhiBound = "true";
@@ -965,9 +1363,8 @@ export function createWeatherController({ userCatches }) {
     renderSmhiOverlayControl();
     if (!map || !map.getLayer("smhi-radar")) return;
     const visible = activeLayer === "rain" && Boolean(radar?.imageUrl) && smhiRadarOnTop;
-    map.setPaintProperty("smhi-radar", "raster-opacity", visible ? (smhiRadarOnTop ? 0.58 : 0.78) : 0);
-    if (visible && smhiRadarOnTop) map.moveLayer("smhi-radar");
-    else if (map.getLayer("weather-area")) map.moveLayer("smhi-radar", "weather-area");
+    map.setLayoutProperty("smhi-radar", "visibility", visible ? "visible" : "none");
+    map.setPaintProperty("smhi-radar", "raster-opacity", visible ? 0.58 : 0);
   }
 
   function setRadarLayer() {
@@ -977,7 +1374,7 @@ export function createWeatherController({ userCatches }) {
         map.setPaintProperty("smhi-radar", "raster-opacity", 0);
         map.setLayoutProperty("smhi-radar", "visibility", "none");
       }
-      ["weather-rain-heatmap-soft", "weather-rain-heatmap", "weather-rain-glow", "weather-rain-grid", "weather-rain-3d"].forEach((layerId) => {
+      ["weather-rain-heatmap-soft", "weather-rain-heatmap", "weather-rain-glow", "weather-rain-grid", "weather-rain-grid-border", "weather-rain-intensity-icons", "weather-rain-cell-fade", "weather-rain-cell-core", "weather-rain-3d"].forEach((layerId) => {
         if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", "none");
       });
       renderSmhiOverlayControl();
@@ -997,11 +1394,28 @@ export function createWeatherController({ userCatches }) {
     radarImageUrl = radarUrl;
     radarCoordinatesKey = coordinatesKey;
     if (!map.getLayer("smhi-radar")) {
-      map.addLayer({ id: "smhi-radar", type: "raster", source: "smhi-radar", paint: { "raster-opacity": 0.78, "raster-saturation": 0.45, "raster-contrast": 0.2, "raster-brightness-min": 0, "raster-brightness-max": 1, "raster-fade-duration": 0, "raster-resampling": "linear" } }, "weather-area");
+      map.addLayer({ id: "smhi-radar", type: "raster", source: "smhi-radar", paint: { "raster-opacity": 0.78, "raster-saturation": 0.45, "raster-contrast": 0.2, "raster-brightness-min": 0, "raster-brightness-max": 1, "raster-fade-duration": 0, "raster-resampling": "linear" } });
     }
     updateSmhiRadarPresentation();
+    // Image sources can finish after the layer is created. Re-apply the
+    // visibility and repaint once MapLibre has received the raster tile.
+    map.once("idle", () => {
+      if (!map || !map.getLayer("smhi-radar")) return;
+      updateSmhiRadarPresentation();
+      map.triggerRepaint();
+    });
     updateRainLayerVisibility();
     renderRainCloudOverlay();
+  }
+
+  function scheduleRadarLayerSync() {
+    [0, 250, 800, 1800].forEach((delay) => {
+      window.setTimeout(() => {
+        if (!map || !radar?.imageUrl) return;
+        if (map.isStyleLoaded()) setRadarLayer();
+        else map.once("idle", setRadarLayer);
+      }, delay);
+    });
   }
 
   function updateMapLayers() {
@@ -1091,6 +1505,17 @@ export function createWeatherController({ userCatches }) {
     const radarTime = $("#weatherRadarOverlayTime");
     if (radarOverlay) radarOverlay.hidden = activeLayer !== "rain" || !radar?.imageUrl;
     if (radarTime) radarTime.textContent = radar?.imageUrl ? `SMHI radar · ${formatUpdated(radar.updatedAt)}` : radar?.reason || "Radar visas bara för aktuellt läge";
+  }
+
+  function renderPikeRecommendation() {
+    const target = $("#weatherPikeRecommendation");
+    if (!target) return;
+    const assessment = pikeWeatherAssessment(currentItem() || {});
+    if (!assessment) {
+      target.innerHTML = `<div class="weather-pike-empty"><span aria-hidden="true">🐟</span><div><strong>Gäddindikator</strong><p>Fler vädervärden behövs för att bedöma gäddläget.</p></div></div>`;
+      return;
+    }
+    target.innerHTML = `<div class="weather-pike-heading"><span class="weather-pike-icon" aria-hidden="true">🐟</span><div><small>GÄDDA · VÄDERMATCH</small><h2>${escapeHtml(assessment.name)}</h2></div><b>${escapeHtml(assessment.rating)}</b></div><p class="weather-pike-copy">Ikonen på kartan visar att väderläget passar gäddfiske här just nu.</p><div class="weather-pike-grid"><span><small>Het plats</small><strong>${escapeHtml(assessment.spot)}</strong></span><span><small>Troligt djup</small><strong>${escapeHtml(assessment.depth)}</strong></span><span><small>Drag</small><strong>${escapeHtml(assessment.lure)}</strong></span><span><small>Färg</small><strong>${escapeHtml(assessment.color)}</strong></span></div>`;
   }
 
   function renderTimeline() {
@@ -1233,7 +1658,7 @@ export function createWeatherController({ userCatches }) {
   function renderForecastList() {
     const target = $("#weatherForecastList");
     if (!target) return;
-    target.innerHTML = forecastSlots15().map((item, index) => {
+    target.innerHTML = forecastDisplaySlots().map((item, index) => {
       const summary = weatherSummary(item);
       const rainValue = finiteWeatherNumber(item.precipitationMm);
       const hour = new Intl.DateTimeFormat("sv-SE", { hour: "2-digit", minute: "2-digit" }).format(new Date(item.time));
@@ -1332,6 +1757,7 @@ export function createWeatherController({ userCatches }) {
     renderWeatherFocus();
     renderPlaceLists();
     renderForecastList();
+    renderPikeRecommendation();
     if (radar?.imageUrl) {
       const radarUrl = radar.imageUrl.startsWith("/") ? `${API_ROOT}${radar.imageUrl}` : radar.imageUrl;
       loadRainClouds(radarUrl);
@@ -1339,6 +1765,7 @@ export function createWeatherController({ userCatches }) {
       renderRainCloudOverlay();
     }
     updateMapLayers();
+    updatePikeWeatherMarker();
   }
 
   async function loadRadar(time = currentItem()?.time) {
@@ -1349,18 +1776,15 @@ export function createWeatherController({ userCatches }) {
     } catch {
       // A requested timestamp may be between SMHI radar frames.
     }
-    const requestedMs = time ? new Date(time).getTime() : NaN;
-    const isNearCurrentTime = !Number.isFinite(requestedMs) || Math.abs(requestedMs - Date.now()) <= 15 * 60 * 1000;
-    // The latest SMHI composite is the reliable source for the current view.
-    // A forecast timestamp can fall between radar frames and return no image,
-    // even though a fresh radar image is available for the same moment.
-    if (!result?.imageUrl && isNearCurrentTime && time) {
-      try {
-        const latest = await getWeatherRadar();
-        if (latest?.imageUrl) result = latest;
-      } catch {
-        // Keep the radar unavailable when the provider has no current image.
-      }
+    // SMHI radar is an observation/composite, not a forecast layer. A slider
+    // time can fall between radar frames or be several hours ahead, so always
+    // prefer the latest available image for the optional comparison overlay.
+    // The forecast slider still controls the Bigplus weather data separately.
+    try {
+      const latest = await getWeatherRadar();
+      if (latest?.imageUrl) result = latest;
+    } catch {
+      // Keep a requested-time image if the latest-image request is unavailable.
     }
     if (requestId !== radarRequestId) return;
     radar = result;
@@ -1371,6 +1795,7 @@ export function createWeatherController({ userCatches }) {
     renderSources();
     renderHeatmapLegend();
     updateMapLayers();
+    scheduleRadarLayerSync();
   }
 
   function queueRadarLoad() {

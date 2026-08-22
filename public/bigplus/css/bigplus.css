@@ -186,6 +186,162 @@
   }
 }
 
+/* The header owns the top of the screen, so the image must fit the remaining viewport. */
+@media (min-width: 681px) {
+  body.measure-guided-active .measure-stage,
+  body.measure-guided-active .canvas-wrap {
+    top: 214px;
+    height: calc(100vh - 214px);
+  }
+}
+
+@media (max-width: 680px) {
+  body.measure-guided-active .measure-stage,
+  body.measure-guided-active .canvas-wrap {
+    top: 66px;
+    height: calc(100vh - 66px);
+  }
+}
+
+/* Mobile measuring flow: keep every control in its own visible band. */
+@media (max-width: 680px) {
+  body.measure-guided-active {
+    overflow: hidden;
+  }
+
+  body.measure-guided-active .site-header {
+    height: 80px;
+    min-height: 80px;
+    z-index: 60;
+  }
+
+  body.measure-guided-active .measure-action-menu {
+    top: 86px;
+    right: 10px;
+    z-index: 80;
+    gap: 5px;
+  }
+
+  body.measure-guided-active .measure-action-button {
+    min-height: 34px;
+    padding: 0 9px;
+    font-size: .64rem;
+  }
+
+  body.measure-guided-active .measure-step-menu {
+    top: 132px;
+    right: 10px;
+    left: 10px;
+    z-index: 70;
+    width: auto;
+    max-width: none;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    padding: 5px;
+  }
+
+  body.measure-guided-active .measure-step-menu-button {
+    width: auto;
+    min-width: 0;
+    min-height: 58px;
+    padding: 4px 2px;
+    font-size: .62rem;
+  }
+
+  body.measure-guided-active .measure-step-menu-button img,
+  body.measure-guided-active .measure-step-menu-icon {
+    width: 29px;
+    height: 29px;
+  }
+
+  body.measure-guided-active .guided-measure-button {
+    top: 198px;
+    right: 10px;
+    left: 10px;
+    z-index: 70;
+    width: auto;
+    min-height: 40px;
+  }
+
+  body.measure-guided-active .measure-stage,
+  body.measure-guided-active .canvas-wrap {
+    top: 250px !important;
+    right: 0;
+    bottom: 70px;
+    left: 0;
+    width: auto;
+    height: auto !important;
+  }
+
+  body.measure-guided-active #measureCanvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  body.measure-guided-active .zoom-toolbar {
+    right: 10px;
+    bottom: 80px;
+    z-index: 75;
+  }
+}
+
+body.measure-guided-active #measureCanvas {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.measure-action-menu {
+  display: none;
+  position: fixed;
+  top: 224px;
+  right: 18px;
+  z-index: 30;
+  gap: 7px;
+}
+
+body.measure-guided-active .measure-action-menu {
+  display: flex;
+}
+
+.measure-action-button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(255,255,255,.82);
+  border-radius: 8px;
+  background: rgba(5, 20, 30, .88);
+  box-shadow: 0 6px 18px rgba(0,0,0,.24);
+  color: #fff;
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.measure-action-button:hover,
+.measure-action-button:focus-visible {
+  background: #087f9a;
+  outline: 0;
+}
+
+.measure-action-button.is-cancel {
+  border-color: rgba(254, 202, 202, .9);
+  background: rgba(127, 29, 29, .9);
+}
+
+@media (max-width: 680px) {
+  .measure-action-menu {
+    top: 72px;
+    right: 10px;
+    gap: 5px;
+  }
+
+  .measure-action-button {
+    min-height: 32px;
+    padding: 0 8px;
+    font-size: .64rem;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -6547,6 +6703,29 @@ body:has(#deleteCatchModal:not([hidden])) .catch-map-panel { pointer-events: non
   font: inherit;
 }
 
+.manual-note-field {
+  display: grid;
+  gap: 5px;
+  width: min(100%, 560px);
+  color: #142c58;
+  font-size: .78rem;
+  font-weight: 800;
+  text-align: left;
+}
+
+.manual-note-field textarea {
+  width: 100%;
+  min-height: 64px;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #142c58;
+  font: inherit;
+  resize: vertical;
+}
+
 .manual-location-field {
   width: min(100%, 560px);
   box-sizing: border-box;
@@ -7040,6 +7219,71 @@ body.is-app-loading { overflow: hidden; }
 .measure-flow-step.is-active { background: #2563eb; color: #fff; }
 .measure-flow-arrow { color: #94a3b8; }
 .measure-reference-note { display: none; width: min(100%, 780px); margin: -4px auto 10px; color: #64748b; text-align: center; font-size: .78rem; }
+.measure-progress-panel {
+  display: none;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  width: min(100%, 780px);
+  margin: -4px auto 12px;
+}
+
+.measure-area.is-guided-mode .measure-progress-panel {
+  display: grid;
+}
+
+.measure-progress-item {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  min-height: 54px;
+  align-content: center;
+  padding: 8px 10px;
+  border: 1px solid #dbe7f7;
+  border-radius: 8px;
+  background: #fff;
+  color: #64748b;
+}
+
+.measure-progress-item span {
+  overflow: hidden;
+  font-size: .66rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.measure-progress-item strong {
+  overflow: hidden;
+  color: #142c58;
+  font-size: .82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.measure-progress-item.is-active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.measure-progress-item.is-done {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.measure-progress-item.is-warn {
+  border-color: #fbbf24;
+  background: #fffbeb;
+}
+
+.result-save-hint {
+  display: block;
+  grid-column: 1 / -1;
+  margin-top: -2px;
+  color: #64748b;
+  font-size: .72rem;
+  line-height: 1.35;
+}
 .measure-area[data-flow-step="2"] .measure-flow-step[data-measure-step="1"] { background: #e2e8f0; color: #64748b; }
 .measure-area[data-flow-step="2"] .measure-flow-step[data-measure-step="2"] { background: #2563eb; color: #fff; }
 .measure-area[data-flow-step="2"] .measure-reference-note { display: block; }
@@ -7048,6 +7292,9 @@ body.is-app-loading { overflow: hidden; }
   .measure-flow-steps { margin-bottom: 8px; padding: 7px 8px; }
   .measure-flow-step { padding: 5px 8px; font-size: .72rem; }
   .measure-reference-note { font-size: .72rem; }
+  .measure-progress-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+  .measure-progress-item { min-height: 48px; padding: 7px 8px; }
+  .measure-progress-item strong { font-size: .78rem; }
 }
 
 /* Mätvyn visar stegindikatorn först når appmätningen faktiskt har startat. */
@@ -9781,6 +10028,324 @@ body:has(.nav-button[data-view="catches"].active) .catch-personal-best-copy smal
   .weather-current-panel > div:last-child { border-bottom:0; }
 }
 
+/* Guided fish measurement: one viewport, one small four-step control. */
+body.measure-guided-active {
+  overflow: hidden;
+}
+
+body.measure-guided-active .app-shell {
+  max-width: none;
+  min-height: 100vh;
+  padding: 0;
+}
+
+body.measure-guided-active .controls-panel,
+body.measure-guided-active .result-panel,
+body.measure-guided-active .measure-flow-steps,
+body.measure-guided-active .measure-progress-panel,
+body.measure-guided-active .simple-toolbar,
+body.measure-guided-active .reference-palette-top,
+body.measure-guided-active .measure-reference-note,
+body.measure-guided-active .reference-readout,
+body.measure-guided-active .measurement-palette,
+body.measure-guided-active .measure-tip-card,
+body.measure-guided-active .measure-options-row,
+body.measure-guided-active .measure-actions,
+body.measure-guided-active .measure-result-summary {
+  display: none !important;
+}
+
+body.measure-guided-active .site-header {
+  display: block !important;
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 25;
+}
+
+body.measure-guided-active .workspace,
+body.measure-guided-active .measure-area,
+body.measure-guided-active .measure-stage,
+body.measure-guided-active .canvas-wrap {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0;
+  overflow: hidden;
+}
+
+body.measure-guided-active .workspace {
+  display: block;
+}
+
+body.measure-guided-active .canvas-wrap {
+  border: 0;
+  border-radius: 0;
+  background: #07131b;
+  box-shadow: none;
+}
+
+body.measure-guided-active #measureCanvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  min-height: 0 !important;
+  object-fit: contain;
+}
+
+body.measure-guided-active .zoom-toolbar {
+  top: auto;
+  right: 18px;
+  bottom: 18px;
+  z-index: 12;
+}
+
+.measure-step-menu {
+  display: none;
+  position: fixed;
+  top: 224px;
+  left: 18px;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(4, 76px);
+  gap: 7px;
+  padding: 7px;
+  border: 1px solid rgba(255,255,255,.78);
+  border-radius: 12px;
+  background: rgba(5, 20, 30, .88);
+  box-shadow: 0 8px 26px rgba(0,0,0,.3);
+  backdrop-filter: blur(10px);
+}
+
+body.measure-guided-active .measure-step-menu {
+  display: grid;
+}
+
+.guided-measure-button {
+  display: none;
+  position: fixed;
+  top: 316px;
+  left: 25px;
+  z-index: 20;
+  width: 290px;
+  min-height: 42px;
+  padding: 9px 16px;
+  border: 1px solid #64748b;
+  border-radius: 9px;
+  background: #64748b;
+  color: #e2e8f0;
+  font: inherit;
+  font-size: .85rem;
+  font-weight: 900;
+  letter-spacing: .02em;
+  cursor: not-allowed;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .22);
+}
+
+body.measure-guided-active .guided-measure-button {
+  display: block;
+}
+
+.guided-result-popup {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 40;
+  width: min(360px, calc(100vw - 32px));
+  padding: 18px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(255, 255, 255, .82);
+  border-radius: 14px;
+  background: rgba(6, 20, 29, .94);
+  color: #f8fafc;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .45);
+  backdrop-filter: blur(12px);
+}
+
+body.measure-guided-active .guided-result-popup:not([hidden]) {
+  display: block;
+}
+
+.guided-result-popup-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.guided-result-kicker {
+  display: block;
+  color: #7dd3fc;
+  font-size: .7rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.guided-result-popup h2 {
+  margin: 4px 0 0;
+  font-size: 1.25rem;
+}
+
+.guided-result-popup-close {
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, .45);
+  border-radius: 8px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.guided-result-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.guided-result-metrics > div {
+  padding: 12px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .1);
+}
+
+.guided-result-metrics span {
+  display: block;
+  color: #cbd5e1;
+  font-size: .72rem;
+}
+
+.guided-result-metrics strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 1.5rem;
+}
+
+.guided-result-popup p {
+  margin: 14px 0 0;
+  color: #cbd5e1;
+  font-size: .8rem;
+  line-height: 1.4;
+}
+
+.guided-result-popup .guided-result-perspective {
+  margin-top: 7px;
+  color: #7dd3fc;
+  font-size: .75rem;
+}
+
+@media (max-width: 680px) {
+  .guided-result-popup {
+    top: auto;
+    bottom: 76px;
+    transform: translateX(-50%);
+  }
+
+  .guided-result-metrics {
+    gap: 8px;
+  }
+
+  .guided-result-metrics strong {
+    font-size: 1.25rem;
+  }
+}
+
+.guided-measure-button.is-ready {
+  border-color: #15803d;
+  background: #16a34a;
+  color: #fff;
+  cursor: pointer;
+}
+
+.guided-measure-button.is-ready:hover,
+.guided-measure-button.is-ready:focus-visible {
+  background: #15803d;
+  outline: 3px solid rgba(134, 239, 172, .72);
+  outline-offset: 2px;
+}
+
+.measure-step-menu-button {
+  display: grid;
+  grid-template-rows: 34px auto;
+  place-items: center;
+  gap: 4px;
+  width: 76px;
+  min-height: 62px;
+  padding: 5px 3px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #f8fafc;
+  font: inherit;
+  font-size: .67rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.measure-step-menu-button img,
+.measure-step-menu-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  object-fit: contain;
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.measure-step-menu-button.is-active,
+.measure-step-menu-button:focus-visible {
+  border-color: #7dd3fc;
+  background: #087f9a;
+  outline: 0;
+}
+
+.measure-step-menu-button:hover { background: rgba(14, 116, 144, .82); }
+
+@media (max-width: 680px) {
+  .measure-step-menu {
+    top: 72px;
+    left: 10px;
+    grid-template-columns: repeat(4, minmax(58px, 1fr));
+    width: min(calc(100vw - 20px), 350px);
+    gap: 4px;
+    padding: 5px;
+  }
+
+  .guided-measure-button {
+    top: 137px;
+    left: 15px;
+    width: min(calc(100vw - 30px), 350px);
+  }
+
+  .measure-step-menu-button {
+    width: auto;
+    min-height: 56px;
+    font-size: .61rem;
+  }
+
+  .measure-step-menu-button img,
+  .measure-step-menu-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  body.measure-guided-active .zoom-toolbar {
+    right: 10px;
+    bottom: 10px;
+  }
+}
+
 /* Weather controls: white Bigplus header, compact forecast cards and readable layer scales. */
 body:has(.nav-button[data-view="weather"].active) .site-header,
 body:has(.nav-button[data-view="weather"].active) .site-header .header-app-shell,
@@ -9952,6 +10517,25 @@ body:has(.nav-button[data-view="weather"].active) .weather-forecast-strip articl
 .weather-hour-gust { color:#ffd02d; }
 .weather-hour-rain { margin-top:auto; color:#42caff; font-size:.72rem; }
 body:has(.nav-button[data-view="weather"].active) .weather-insights-grid { display:grid; grid-template-columns:1.25fr .9fr .9fr 1fr; gap:12px; margin-top:18px; }
+.weather-pike-recommendation { display:grid; gap:10px; padding:14px; border:1px solid #2a755a; border-radius:14px; background:linear-gradient(145deg,#082f35,#0b513b); color:#f4fff7; box-shadow:0 12px 26px rgba(2,27,25,.22); }
+.weather-pike-heading { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px; }
+.weather-pike-heading h2 { margin:2px 0 0; color:#fff; font-size:.96rem; }
+.weather-pike-heading small { color:#6ff29a; font-size:.6rem; font-weight:950; letter-spacing:.08em; }
+.weather-pike-heading > b { font-size:1.1rem; }
+.weather-pike-icon { display:grid; place-items:center; width:40px; height:40px; border:1px solid rgba(125,255,184,.5); border-radius:50%; background:#0d7c55; font-size:1.45rem; filter:drop-shadow(0 4px 5px rgba(0,0,0,.22)); }
+.weather-pike-copy { margin:0; color:#c9f4d7; font-size:.72rem; line-height:1.35; }
+.weather-pike-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
+.weather-pike-grid span { display:grid; gap:3px; padding:8px; border:1px solid rgba(156,240,184,.2); border-radius:8px; background:rgba(2,24,27,.28); }
+.weather-pike-grid small { color:#9fceb0; font-size:.62rem; }
+.weather-pike-grid strong { color:#fff; font-size:.7rem; line-height:1.2; }
+.weather-pike-empty { display:flex; align-items:center; gap:10px; }
+.weather-pike-empty > span { font-size:1.45rem; }
+.weather-pike-empty strong { display:block; color:#fff; font-size:.82rem; }
+.weather-pike-empty p { margin:3px 0 0; color:#b9d8c4; font-size:.68rem; }
+.weather-pike-marker { position:relative; display:grid; place-items:center; width:44px; height:44px; border:3px solid #fff; border-radius:50% 50% 50% 6px; background:linear-gradient(145deg,#19a76d,#075c4b); box-shadow:0 7px 16px rgba(0,0,0,.35),0 0 0 4px rgba(60,237,145,.22); color:#fff; cursor:pointer; transform:rotate(-45deg); }
+.weather-pike-marker span { display:block; font-size:1.45rem; line-height:1; transform:rotate(45deg); }
+.weather-pike-marker small { position:absolute; right:-16px; top:-12px; display:grid; place-items:center; min-width:22px; min-height:22px; border:2px solid #fff; border-radius:50%; background:#f49b21; font-size:.7rem; transform:rotate(45deg); }
+body:has(.nav-button[data-view="weather"].active) .weather-pike-recommendation { border-color:#197a59; background:linear-gradient(145deg,#082e36,#0a4d3b); }
 .weather-insight-card { min-height:245px; padding:17px; border:1px solid #29485a; border-radius:14px; background:#061a28; color:#f8fbff; box-shadow:0 12px 30px rgba(0,0,0,.18); }
 .weather-insight-card h2 { margin:0 0 18px; color:#fff; font-size:.82rem; letter-spacing:.02em; }
 .weather-insight-value { display:block; color:#fff; font-size:1.7rem; }
@@ -10115,6 +10699,15 @@ body:has(.nav-button[data-view="weather"].active) #weatherTiltButton.is-active {
 @media (max-width:680px) { .weather-rain-cloud-marker { width:56px; height:50px; }.weather-rain-cloud-marker .weather-rain-cloud { width:56px; height:50px; }.weather-rain-cloud-body { right:5px; bottom:16px; left:5px; height:20px; }.weather-rain-puff-left { width:17px; height:17px; }.weather-rain-puff-center { width:22px; height:22px; }.weather-rain-puff-right { width:16px; height:17px; } }
 .weather-rain-animation { position:absolute; z-index:1; inset:0; display:block; pointer-events:none; }
 
+/* The rain field is geographic MapLibre data. Keep the retired DOM cloud
+   renderer hidden so stale markup can never cover the heatmap on reload. */
+body:has(.nav-button[data-view="weather"].active) #weatherRainCloudOverlay,
+body:has(.nav-button[data-view="weather"].active) .weather-rain-cloud-marker,
+body:has(.nav-button[data-view="weather"].active) .weather-rain-location-marker,
+body:has(.nav-button[data-view="weather"].active) #weatherMap .weather-rain-cloud,
+body:has(.nav-button[data-view="weather"].active) #weatherMap [data-weather-cloud],
+body:has(.nav-button[data-view="weather"].active) #weatherMap [data-weather-rain-marker] { display:none !important; }
+
 /* Weather interaction refinement: give the live panel room while keeping the map readable. */
 @media (min-width:681px) {
   body:has(.nav-button[data-view="weather"].active) .weather-shell { grid-template-columns:minmax(320px,360px) minmax(0,1fr) !important; gap:12px; }
@@ -10262,4 +10855,110 @@ body:has(.nav-button[data-view="catches"].active) .catches-goals-hub {
 body:has(.nav-button[data-view="catches"].active) .catches-goals-hub .catch-mini-goal {
   border-color: rgba(71, 169, 180, .46);
   background: rgba(255, 255, 255, .78);
+}
+
+/* Keep the image entirely inside the space below the persistent header. */
+@media (min-width: 681px) {
+  body.measure-guided-active .measure-stage,
+  body.measure-guided-active .canvas-wrap {
+    top: 214px;
+    height: calc(100vh - 214px);
+  }
+}
+
+@media (max-width: 680px) {
+  body.measure-guided-active .measure-stage,
+  body.measure-guided-active .canvas-wrap {
+    top: 66px;
+    height: calc(100vh - 66px);
+  }
+}
+/* Weather canvas-first layout v20260822. */
+body:has(.nav-button[data-view="weather"].active) .weather-view { overflow:visible !important; background:#03131f; }
+body:has(.nav-button[data-view="weather"].active) .weather-shell { position:relative !important; display:block !important; min-height:0 !important; margin:0 !important; }
+body:has(.nav-button[data-view="weather"].active) .weather-map-panel { position:relative !important; width:100% !important; height:min(72svh,760px) !important; min-height:520px !important; border-radius:14px !important; overflow:hidden !important; }
+body:has(.nav-button[data-view="weather"].active) #weatherMap { position:absolute !important; inset:0 !important; width:100% !important; height:100% !important; }
+body:has(.nav-button[data-view="weather"].active) .weather-map-panel .weather-map-toolbar { z-index:8; }
+body:has(.nav-button[data-view="weather"].active) .weather-map-panel .weather-time-dock { z-index:8; }
+body:has(.nav-button[data-view="weather"].active) .weather-side-panel { position:static !important; display:contents !important; }
+body:has(.nav-button[data-view="weather"].active) .weather-side-panel > :not(.weather-current-panel) { display:none !important; }
+body:has(.nav-button[data-view="weather"].active) .weather-current-panel { position:absolute !important; z-index:9; top:18px; left:18px; width:min(310px,calc(100% - 36px)); max-height:calc(100% - 36px); overflow:auto !important; padding:12px !important; border:1px solid rgba(160,223,242,.34) !important; border-radius:14px !important; background:rgba(3,22,35,.76) !important; box-shadow:0 14px 34px rgba(0,0,0,.24) !important; backdrop-filter:blur(7px); }
+body:has(.nav-button[data-view="weather"].active) .weather-current-panel { max-height:430px !important; overflow:hidden !important; }
+body:has(.nav-button[data-view="weather"].active) .weather-current-panel .weather-now-heading { margin:0 0 7px !important; padding:0 0 7px !important; border-bottom:1px solid rgba(160,223,242,.18) !important; font-size:.72rem !important; line-height:1.25 !important; }
+body:has(.nav-button[data-view="weather"].active) .weather-current-panel .weather-now-hero { min-height:92px !important; padding:8px 10px !important; }
+body:has(.nav-button[data-view="weather"].active) .weather-current-panel .weather-now-list { display:grid !important; grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:0 10px !important; margin:7px 0 !important; }
+body:has(.nav-button[data-view="weather"].active) .weather-current-panel .weather-now-list div { padding:6px 0 !important; font-size:.72rem !important; }
+body:has(.nav-button[data-view="weather"].active) .weather-current-panel .weather-condition-note { margin:5px 0 0 !important; padding:8px 10px !important; font-size:.7rem !important; }
+body:has(.nav-button[data-view="weather"].active) .weather-current-panel .weather-metric-chart { display:none !important; }
+body:has(.nav-button[data-view="weather"].active) .weather-forecast-strip { position:relative !important; display:grid !important; grid-template-columns:repeat(4,minmax(0,1fr)) !important; gap:12px !important; width:100% !important; margin:14px 0 0 !important; overflow:visible !important; }
+body:has(.nav-button[data-view="weather"].active) .weather-forecast-strip article { min-width:0 !important; min-height:164px !important; padding:11px !important; border:1px solid #294b5e !important; border-radius:12px !important; background:linear-gradient(160deg,#082438,#061b2a) !important; box-shadow:0 10px 22px rgba(0,0,0,.18) !important; }
+body:has(.nav-button[data-view="weather"].active) .weather-hour-icon { width:58px !important; height:58px !important; min-height:58px !important; margin:auto; }
+body:has(.nav-button[data-view="weather"].active) .weather-hour-card time { font-size:1rem !important; }
+body:has(.nav-button[data-view="weather"].active) .weather-hour-card strong { font-size:1.7rem !important; }
+body:has(.nav-button[data-view="weather"].active) .weather-hour-rain-value { color:#6bdcff !important; font-size:.95rem !important; font-weight:900; }
+body:has(.nav-button[data-view="weather"].active) .weather-rain-animation { z-index:2; }
+
+/* Keep the geographic anchor fixed while scaling only the visible location pin. */
+.weather-current-location-marker { position:relative; display:block; width:0; height:0; pointer-events:none; }
+body:has(.nav-button[data-view="weather"].active) .weather-current-location-marker .weather-current-location-pin {
+  position:absolute !important;
+  left:-15px;
+  bottom:0;
+  transform:scale(var(--location-scale,1)) !important;
+  transform-origin:50% 100%;
+  transition:transform .12s ease-out;
+}
+
+/* Keep the weather navigation icon visible even though its markup is an empty span. */
+.weather-nav-icon {
+  position:relative;
+  display:grid !important;
+  width:28px;
+  height:28px;
+  flex:0 0 28px;
+  place-items:center;
+  color:#1578ea !important;
+  font-size:0;
+  line-height:1;
+}
+.weather-nav-icon::before {
+  display:block;
+  color:currentColor;
+  content:"☁";
+  font-family:"Segoe UI Symbol","Arial Unicode MS",sans-serif;
+  font-size:1.62rem;
+  line-height:1;
+  transform:translateY(-1px);
+}
+.weather-nav-icon::after {
+  position:absolute;
+  right:2px;
+  bottom:1px;
+  width:6px;
+  height:9px;
+  border-radius:60% 60% 65% 65%;
+  background:#16a9f7;
+  box-shadow:-7px 2px 0 -1px #49c9ff;
+  content:"";
+  transform:rotate(18deg);
+}
+body:has(.nav-button[data-view="weather"].active) .weather-nav-icon { color:#086ee1 !important; filter:drop-shadow(0 2px 4px rgba(8,110,225,.24)); }
+
+@media (max-width:680px) {
+  body:has(.nav-button[data-view="weather"].active) { overflow:auto !important; padding-bottom:78px; }
+  body:has(.nav-button[data-view="weather"].active) .weather-page-header { padding:12px 10px 10px !important; }
+  body:has(.nav-button[data-view="weather"].active) .weather-shell { display:flex !important; flex-direction:column !important; gap:10px !important; }
+  body:has(.nav-button[data-view="weather"].active) .weather-map-panel { order:1 !important; height:58svh !important; min-height:390px !important; max-height:600px; border-radius:12px !important; }
+  body:has(.nav-button[data-view="weather"].active) .weather-side-panel { display:contents !important; }
+  body:has(.nav-button[data-view="weather"].active) .weather-current-panel { top:12px; left:12px; width:auto; max-width:calc(100% - 24px); max-height:none; padding:0 !important; border:0 !important; background:transparent !important; box-shadow:none !important; backdrop-filter:none; overflow:visible !important; }
+  body:has(.nav-button[data-view="weather"].active) .weather-current-panel > :not(.weather-now-hero) { display:none !important; }
+  body:has(.nav-button[data-view="weather"].active) .weather-current-panel .weather-now-hero { display:grid !important; min-width:148px; margin:0 !important; padding:10px 12px !important; border:1px solid rgba(165,228,245,.42) !important; border-radius:12px !important; background:rgba(3,22,35,.72) !important; box-shadow:0 9px 20px rgba(0,0,0,.2) !important; backdrop-filter:blur(6px); }
+  body:has(.nav-button[data-view="weather"].active) .weather-forecast-strip { order:2 !important; grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:9px !important; margin:0 !important; }
+  body:has(.nav-button[data-view="weather"].active) .weather-forecast-strip article { min-height:154px !important; padding:9px !important; }
+  body:has(.nav-button[data-view="weather"].active) .weather-hour-icon { width:52px !important; height:52px !important; min-height:52px !important; }
+  body:has(.nav-button[data-view="weather"].active) .weather-hour-card strong { font-size:1.45rem !important; }
+  body:has(.nav-button[data-view="weather"].active) .weather-map-panel .weather-time-dock { right:8px !important; bottom:8px !important; left:8px !important; }
+  body:has(.nav-button[data-view="weather"].active) .weather-map-panel .weather-layer-controls { right:8px !important; bottom:62px !important; left:8px !important; }
+  body:has(.nav-button[data-view="weather"].active) .weather-insights-grid,
+  body:has(.nav-button[data-view="weather"].active) .weather-alert-strip { margin-top:10px !important; }
 }

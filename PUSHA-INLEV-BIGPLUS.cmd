@@ -3,9 +3,26 @@ setlocal
 
 cd /d "%~dp0"
 
+set "BIGPLUS_SOURCE=C:\Users\krist\Documents\Codex\2026-07-18\j\outputs\bigplus-project"
+
 echo === Inlev / Bigplus: Git-status ===
 git status --short
 if errorlevel 1 goto :error
+
+if exist "%BIGPLUS_SOURCE%\public\bigplus\" (
+  echo.
+  echo === Synkar senaste Bigplus till Inlev-paketet ===
+  robocopy "%BIGPLUS_SOURCE%\public\bigplus" "%CD%\public\bigplus" /E /XD node_modules .git /NFL /NDL /NJH /NJS /NP
+  if errorlevel 8 goto :error
+  if exist "%BIGPLUS_SOURCE%\bigplus-api\" (
+    robocopy "%BIGPLUS_SOURCE%\bigplus-api" "%CD%\bigplus-api" /E /XD node_modules .git /NFL /NDL /NJH /NJS /NP
+    if errorlevel 8 goto :error
+  )
+) else (
+  echo.
+  echo OBS: Bigplus-kallan hittades inte: "%BIGPLUS_SOURCE%"
+  echo Fortsatter med Bigplus-kopian som redan finns i deploy-rooten.
+)
 
 echo.
 echo === Lagger till alla andringar i Inlev-paketet ===

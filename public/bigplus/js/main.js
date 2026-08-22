@@ -92,6 +92,16 @@ const state = {
   glassesPlacement: {
     active: false
   },
+  handGuides: [],
+  handDepth: {
+    available: false,
+    relative: 0,
+    scale: 1,
+    label: ""
+  },
+  referenceDepth: {
+    canBaselineHeight: null
+  },
   lastResult: null,
   lastPayload: null
 };
@@ -99,6 +109,12 @@ const state = {
 let draggedReferenceId = "";
 let savingCatch = false;
 let savingManualCatch = false;
+let mediaPipeFaceLandmarkerPromise = null;
+let mediaPipeHolisticLandmarkerPromise = null;
+let mediaPipeHandLandmarkerPromise = null;
+let faceDetectionError = false;
+let holisticDetectionError = false;
+let handDetectionError = false;
 let palettePointerDrag = null;
 let suppressPaletteClick = false;
 const canvasTouchPointers = new Map();
@@ -116,12 +132,23 @@ const els = {
   cameraPhotoInput: document.querySelector("#cameraPhotoInput"),
   manualCaptureButton: document.querySelector("#manualCaptureButton"),
   guidedCaptureButton: document.querySelector("#guidedCaptureButton"),
+  measureStepMenu: document.querySelector("#measureStepMenu"),
+  guidedMeasureButton: document.querySelector("#guidedMeasureButton"),
+  guidedResultPopup: document.querySelector("#guidedResultPopup"),
+  guidedResultPopupClose: document.querySelector("#guidedResultPopupClose"),
+  guidedLengthResult: document.querySelector("#guidedLengthResult"),
+  guidedHeightResult: document.querySelector("#guidedHeightResult"),
+  guidedResultStatus: document.querySelector("#guidedResultStatus"),
+  guidedPerspectiveResult: document.querySelector("#guidedPerspectiveResult"),
+  changeMeasurePhotoButton: document.querySelector("#changeMeasurePhotoButton"),
+  cancelMeasureButton: document.querySelector("#cancelMeasureButton"),
   cameraCaptureButton: document.querySelector("#cameraCaptureButton"),
   manualEntryPanel: document.querySelector("#manualEntryPanel"),
   manualEntryImage: document.querySelector("#manualEntryImage"),
   manualSpeciesSelect: document.querySelector("#manualSpeciesSelect"),
   manualLengthInput: document.querySelector("#manualLengthInput"),
   manualWeightInput: document.querySelector("#manualWeightInput"),
+  manualCatchNote: document.querySelector("#manualCatchNote"),
   chooseManualCatchLocation: document.querySelector("#chooseManualCatchLocation"),
   manualLocationPicker: document.querySelector("#manualLocationPicker"),
   manualLocationMap: document.querySelector("#manualLocationMap"),
@@ -216,6 +243,12 @@ const els = {
   measureTargetSummaryText: document.querySelector("#measureTargetSummaryText"),
   measureStatusSummary: document.querySelector("#measureStatusSummary"),
   measureStatusSummaryText: document.querySelector("#measureStatusSummaryText"),
+  measureProgressPanel: document.querySelector("#measureProgressPanel"),
+  measurePhotoProgress: document.querySelector("#measurePhotoProgress"),
+  measureReferenceProgress: document.querySelector("#measureReferenceProgress"),
+  measureLengthProgress: document.querySelector("#measureLengthProgress"),
+  measureHeightProgress: document.querySelector("#measureHeightProgress"),
+  measureResultProgress: document.querySelector("#measureResultProgress"),
   bigStatus: document.querySelector("#bigStatus"),
   lengthResult: document.querySelector("#lengthResult"),
   weightResult: document.querySelector("#weightResult"),
@@ -229,6 +262,7 @@ const els = {
   catchLocationMap: document.querySelector("#catchLocationMap"),
   catchLocationLabel: document.querySelector("#catchLocationLabel"),
   clearCatchLocation: document.querySelector("#clearCatchLocation"),
+  resultSaveHint: document.querySelector("#resultSaveHint"),
   disclaimer: document.querySelector("#disclaimer"),
   catchLog: document.querySelector("#catchLog")
 };
@@ -242,7 +276,7 @@ let manualLocationPickerMarker = null;
 let selectedManualCatchLocation = null;
 const classicCanReferenceImage = new Image();
 classicCanReferenceImage.decoding = "async";
-classicCanReferenceImage.src = "/bigplus/assets/can-classic.png?v=20260719";
+classicCanReferenceImage.src = "/bigplus/assets/can-calibration.png?v=20260821";
 classicCanReferenceImage.addEventListener("load", draw);
 const CLASSIC_CAN_IMAGE_BOUNDS = {
   x: 0,
@@ -250,6 +284,13 @@ const CLASSIC_CAN_IMAGE_BOUNDS = {
   width: 597,
   height: 1060
 };
+// Keep the automatic overlay tied to the physical reference dimensions. Any
+// perspective correction comes from the detected hand depth, not a sample-
+// specific percentage.
+const AUTO_CAN_SIZE_FACTOR = 1.2;
+const FINGER_WIDTH_CM = 2;
+const CAN_HEIGHT_CM = 11.5;
+const FULL_GRIP_SPAN_CORRECTION = 4 / 3;
 const glassesReferenceImage = new Image();
 glassesReferenceImage.decoding = "async";
 glassesReferenceImage.src = "/bigplus/assets/glasses-reference.png?v=20260720";
@@ -272,7 +313,12 @@ function formatCm(value) {
 }
 
 function formatKgRange(weight) {
+  if (Number.isFinite(Number(weight))) return `${Number(weight).toFixed(2)} kg`;
   return `${weight.low.toFixed(1)}-${weight.high.toFixed(1)} kg`;
+}
+
+function parseManualNumber(value) {
+  return Number(String(value ?? "").trim().replace(",", "."));
 }
 
 function setCalibrationPercent(percent) {
@@ -363,7 +409,14 @@ function setMobileReferenceScale(value) {
 
 function renderReferenceOptions() {
   els.referenceSelect.innerHTML = state.references
-    .map((item) => `<option value="${item.id}">${item.name}${item.sizeCm ? ` (${item.sizeCm} cm)` : ""}</option>`)
+    .map((item) => {
+      const dimensions = item.widthCm && item.heightCm
+        ? ` (${item.widthCm} x ${item.heightCm} cm)`
+        : item.sizeCm
+          ? ` (${item.sizeCm} cm)`
+          : "";
+      return `<option value="${item.id}">${item.name}${dimensions}</option>`;
+    })
     .join("") + `<option value="fish-reference">Fiskreferens (valfri)</option>`;
   updateSimpleReferenceButtons();
 }
@@ -380,6 +433,99 @@ function updateMeasureTargetSummary() {
   const selected = state.species.find((item) => item.id === els.speciesSelect.value);
   if (els.measureTargetSummary) els.measureTargetSummary.textContent = selected?.minCm ? formatCm(selected.minCm) : "–";
   if (els.measureTargetSummaryText) els.measureTargetSummaryText.textContent = selected?.minCm ? "Minimimått" : "Ej valt";
+}
+
+function updateProgressItem(name, options = {}) {
+  const item = document.querySelector(`[data-progress-item="${name}"]`);
+  if (!item) return;
+  item.classList.toggle("is-done", Boolean(options.done));
+  item.classList.toggle("is-active", Boolean(options.active));
+  item.classList.toggle("is-warn", Boolean(options.warn));
+}
+
+function updateMeasureProgress() {
+  if (!els.measureProgressPanel) return;
+  const hasImage = Boolean(state.image);
+  const referencesLocked = Boolean(
+    state.referenceSlots.glasses?.virtual?.locked &&
+    state.referenceSlots.can?.virtual?.locked
+  );
+  const hasAnyReference = Boolean(state.referenceSlots.glasses || state.referenceSlots.can);
+  const lengthReady = state.points.fish.length >= 2;
+  const heightReady = state.points.body.length >= 2;
+  const lengthLocked = Boolean(state.measurementLocks.fish);
+  const heightLocked = Boolean(state.measurementLocks.body);
+  const hasResult = Boolean(state.lastResult);
+  const guidedMeasureReady = Boolean(
+    hasImage &&
+    state.referenceSlots.glasses &&
+    state.referenceSlots.can &&
+    lengthReady &&
+    heightReady
+  );
+  els.guidedMeasureButton?.classList.toggle("is-ready", guidedMeasureReady);
+  if (els.guidedMeasureButton) {
+    els.guidedMeasureButton.disabled = !guidedMeasureReady;
+    els.guidedMeasureButton.setAttribute("aria-disabled", String(!guidedMeasureReady));
+  }
+
+  if (els.measurePhotoProgress) els.measurePhotoProgress.textContent = hasImage ? "Vald" : "Väntar";
+  if (els.measureReferenceProgress) {
+    els.measureReferenceProgress.textContent = referencesLocked
+      ? "Låst"
+      : hasAnyReference
+        ? "Lås"
+        : "Saknas";
+  }
+  if (els.measureLengthProgress) els.measureLengthProgress.textContent = lengthLocked ? "Låst" : lengthReady ? "Klar" : "Ej klar";
+  if (els.measureHeightProgress) els.measureHeightProgress.textContent = heightLocked ? "Låst" : heightReady ? "Klar" : "Ej klar";
+  if (els.measureResultProgress) els.measureResultProgress.textContent = hasResult ? state.lastResult.status : "Väntar";
+
+  updateProgressItem("photo", { done: hasImage, active: !hasImage });
+  updateProgressItem("reference", { done: referencesLocked, active: hasImage && !referencesLocked });
+  updateProgressItem("length", { done: lengthLocked, active: referencesLocked && !lengthLocked });
+  updateProgressItem("height", { done: heightLocked, active: lengthLocked && !heightLocked });
+  updateProgressItem("result", {
+    done: hasResult,
+    active: referencesLocked && lengthLocked && heightLocked && !hasResult,
+    warn: hasResult && state.lastResult.status !== "BIGPLUS"
+  });
+
+  if (els.resultSaveHint) {
+    if (!hasResult) {
+      els.resultSaveHint.textContent = "Mät fisken innan fångsten sparas.";
+    } else if (state.lastResult.status === "BIGPLUS") {
+      els.resultSaveHint.textContent = "Resultatet är klart. Lägg till plats eller anteckning om du vill och spara fångsten.";
+    } else {
+      els.resultSaveHint.textContent = "Resultatet är klart men behöver kontrolleras mot lokala regler innan du sparar.";
+    }
+  }
+}
+
+function manualCatchStatus(species, lengthCm) {
+  if (!species?.minCm) return "KOLLA";
+  return lengthCm >= species.minCm ? "BIGPLUS" : "SLÄPP";
+}
+
+function updateManualEntryState() {
+  const speciesId = els.manualSpeciesSelect?.value || "";
+  const species = state.species.find((item) => item.id === speciesId);
+  const lengthCm = parseManualNumber(els.manualLengthInput?.value);
+  const weightKg = parseManualNumber(els.manualWeightInput?.value);
+  const ready = Boolean(
+    state.imageDataUrl &&
+    species &&
+    Number.isFinite(lengthCm) &&
+    lengthCm > 0 &&
+    Number.isFinite(weightKg) &&
+    weightKg >= 0
+  );
+  if (els.saveManualCatchButton) {
+    els.saveManualCatchButton.disabled = savingManualCatch || !ready;
+  }
+  if (ready) {
+    setStatus(manualCatchStatus(species, lengthCm));
+  }
 }
 
 function getSelectedReferenceCm() {
@@ -870,6 +1016,7 @@ function updateChecklist() {
   updateReferenceChecklistLockButton();
   updateMeasurementLockButtons();
   updateChecklistNextButton();
+  updateMeasureProgress();
 }
 
 function invalidateResult() {
@@ -1028,6 +1175,21 @@ function referenceScalesForCalculation() {
       scaleCmPerPixel: (slot.refCm * slotCalibrationFactor(slot)) / distance(slot.points)
     }));
 
+  // The can is the physical scale at the fish's plane. Glasses and hand depth
+  // describe the perspective context, but changing the can size must change
+  // the measured fish length.
+  const glasses = state.referenceSlots.glasses;
+  const can = scales.find((item) => item.referenceId === "can-330");
+  if (can) {
+    return [can];
+  }
+
+  if (glasses?.points?.length === 2 && distance(glasses.points) > 0 && state.handDepth.available) {
+    const objectDepthScale = clamp(state.handDepth.scale || 1, 0.75, 1.35);
+    const facePlaneScale = (glasses.refCm * (glasses.virtual?.calibrationFactor || 1)) / distance(glasses.points);
+    return [{ referenceId: "hand-fish-plane", scaleCmPerPixel: facePlaneScale / objectDepthScale }];
+  }
+
   if (scales.length) return scales;
   if (state.points.ref.length === 2 && distance(state.points.ref) > 0) {
     return [{
@@ -1041,14 +1203,35 @@ function referenceScalesForCalculation() {
 function combinedReferenceScaleCmPerPixel() {
   const scales = referenceScalesForCalculation();
   if (!scales.length) return null;
-  // A can placed in the hand is a physical-size anchor at the fish's depth.
-  // Prefer it over the glasses reference, which is normally farther back.
-  const canScale = scales.find((item) => item.referenceId === "can-330");
-  if (canScale) return canScale.scaleCmPerPixel;
-  return scales.reduce((sum, item) => sum + item.scaleCmPerPixel, 0) / scales.length;
+  return scales[0].scaleCmPerPixel;
+}
+
+function canPerspectiveRatio() {
+  return state.handDepth.available ? clamp(state.handDepth.scale || 1, 0.75, 1.35) : null;
+}
+
+function canPerspectiveLabel() {
+  const ratio = canPerspectiveRatio();
+  if (ratio === null) return "Ingen burkjustering registrerad.";
+  const change = Math.round(Math.abs(ratio - 1) * 100);
+  if (change < 2) return "Fisk och burk ligger nära ansiktets djupplan.";
+  return ratio > 1
+    ? `Fisk och burk hålls ungefär ${change}% närmare kameran än ansiktsplanet.`
+    : `Fisk och burk hålls ungefär ${change}% längre bort än ansiktsplanet.`;
+}
+
+function glassesBasedCanHeight() {
+  const glasses = state.referenceSlots.glasses;
+  const glassesPixels = glasses?.points?.length === 2 ? distance(glasses.points) : 0;
+  const objectDepthScale = state.handDepth.available ? clamp(state.handDepth.scale || 1, 0.75, 1.35) : 1;
+  return glassesPixels ? glassesPixels * (11.5 / 14) * objectDepthScale * AUTO_CAN_SIZE_FACTOR : 0;
 }
 
 function selectedReferenceWidthRatio(referenceId = activeReferenceId()) {
+  const reference = state.references.find((item) => item.id === referenceId);
+  if (reference?.widthCm > 0 && reference?.heightCm > 0) {
+    return reference.widthCm / reference.heightCm;
+  }
   if (referenceId === "glasses") return 1;
   if (referenceId === "can-330") return 0.57;
   if (referenceId === "can-330-slim") return 0.4;
@@ -1057,6 +1240,12 @@ function selectedReferenceWidthRatio(referenceId = activeReferenceId()) {
 }
 
 function referenceVisualHeight(measureLength, referenceId = activeReferenceId()) {
+  const reference = state.references.find((item) => item.id === referenceId);
+  if (reference?.widthCm > 0 && reference?.heightCm > 0) {
+    return referenceId === "glasses"
+      ? measureLength * (reference.heightCm / reference.widthCm)
+      : measureLength;
+  }
   return referenceId === "glasses" ? measureLength * 0.36 : measureLength;
 }
 
@@ -1376,14 +1565,77 @@ function localReferencePoint(point, rect = virtualReferenceGeometry()) {
   };
 }
 
+function transformImagePoint(point, oldFrame, newFrame) {
+  if (!point || !oldFrame.drawWidth || !oldFrame.drawHeight) return point;
+  return {
+    ...point,
+    x: newFrame.offsetX + ((point.x - oldFrame.offsetX) / oldFrame.drawWidth) * newFrame.drawWidth,
+    y: newFrame.offsetY + ((point.y - oldFrame.offsetY) / oldFrame.drawHeight) * newFrame.drawHeight
+  };
+}
+
+function transformImagePoints(points, oldFrame, newFrame) {
+  if (!Array.isArray(points)) return;
+  for (let index = 0; index < points.length; index += 1) {
+    points[index] = transformImagePoint(points[index], oldFrame, newFrame);
+  }
+}
+
+function transformVirtualReferenceForResize(reference, oldFrame, newFrame) {
+  if (!reference) return;
+  const oldScaleX = newFrame.drawWidth / Math.max(1, oldFrame.drawWidth);
+  const oldScaleY = newFrame.drawHeight / Math.max(1, oldFrame.drawHeight);
+  const oldWidth = (Number(reference.height) || 0) * selectedReferenceWidthRatio(reference.referenceId);
+  const oldCenter = {
+    x: (Number(reference.x) || 0) + oldWidth / 2,
+    y: (Number(reference.y) || 0) + (Number(reference.height) || 0) / 2
+  };
+  const nextCenter = transformImagePoint(oldCenter, oldFrame, newFrame);
+  const nextHeight = (Number(reference.height) || 0) * oldScaleY;
+  const nextWidth = nextHeight * selectedReferenceWidthRatio(reference.referenceId);
+  reference.height = nextHeight;
+  reference.baseHeight = (Number(reference.baseHeight) || 0) * oldScaleY;
+  reference.x = nextCenter.x - nextWidth / 2;
+  reference.y = nextCenter.y - nextHeight / 2;
+  reference.groundY = transformImagePoint({ x: 0, y: Number(reference.groundY) || oldCenter.y }, oldFrame, newFrame).y;
+  if (Number.isFinite(reference.lockedAnchorY)) {
+    reference.lockedAnchorY = transformImagePoint({ x: 0, y: reference.lockedAnchorY }, oldFrame, newFrame).y;
+  }
+}
+
+function preserveMeasurementStateOnResize(oldFrame, newFrame) {
+  if (!state.image || !oldFrame.drawWidth || !newFrame.drawWidth) return;
+  transformImagePoints(state.points.ref, oldFrame, newFrame);
+  transformImagePoints(state.points.fish, oldFrame, newFrame);
+  transformImagePoints(state.points.body, oldFrame, newFrame);
+  transformImagePoints(state.faceDepthLine.points, oldFrame, newFrame);
+  transformImagePoints(state.faceDepthLine.startPoints, oldFrame, newFrame);
+  state.handGuides.forEach((guide) => {
+    Object.assign(guide, transformImagePoint(guide, oldFrame, newFrame));
+    if (guide.shoulder) guide.shoulder = transformImagePoint(guide.shoulder, oldFrame, newFrame);
+    if (guide.elbow) guide.elbow = transformImagePoint(guide.elbow, oldFrame, newFrame);
+  });
+  transformVirtualReferenceForResize(state.virtualReference, oldFrame, newFrame);
+  Object.values(state.referenceSlots).forEach((slot) => {
+    if (!slot || typeof slot !== "object") return;
+    transformImagePoints(slot.points, oldFrame, newFrame);
+    transformVirtualReferenceForResize(slot.virtual, oldFrame, newFrame);
+  });
+  if (Number.isFinite(state.referenceDepth.canBaselineHeight)) {
+    state.referenceDepth.canBaselineHeight *= newFrame.drawHeight / Math.max(1, oldFrame.drawHeight);
+  }
+}
+
 function resizeCanvasToDisplay() {
   const rect = els.canvas.getBoundingClientRect();
   const ratio = window.devicePixelRatio || 1;
   const width = Math.max(320, Math.floor(rect.width * ratio));
   const height = Math.max(420, Math.floor(rect.height * ratio));
   if (els.canvas.width !== width || els.canvas.height !== height) {
+    const oldFrame = getImageFrame();
     els.canvas.width = width;
     els.canvas.height = height;
+    preserveMeasurementStateOnResize(oldFrame, getImageFrame());
   }
 }
 
@@ -1415,31 +1667,421 @@ function getImageFrame() {
   return { offsetX, offsetY, drawWidth, drawHeight };
 }
 
+async function getMediaPipeFaceLandmarker() {
+  if (!mediaPipeFaceLandmarkerPromise) {
+    mediaPipeFaceLandmarkerPromise = (async () => {
+      const { FaceLandmarker, FilesetResolver } = await import("/bigplus/vendor/face/vision_bundle.js");
+      const fileset = await FilesetResolver.forVisionTasks("/bigplus/vendor/face/wasm");
+      return FaceLandmarker.createFromOptions(fileset, {
+        baseOptions: {
+          modelAssetPath: "/bigplus/vendor/face/face_landmarker.task",
+          // CPU works across desktop and mobile browsers without requiring WebGL.
+          delegate: "CPU"
+        },
+        numFaces: 1,
+        minFaceDetectionConfidence: 0.3,
+        minFacePresenceConfidence: 0.3,
+        minTrackingConfidence: 0.3,
+        outputFaceBlendshapes: false,
+        outputFacialTransformationMatrixes: false,
+        runningMode: "IMAGE"
+      });
+    })().catch((error) => {
+      mediaPipeFaceLandmarkerPromise = null;
+      throw error;
+    });
+  }
+  return mediaPipeFaceLandmarkerPromise;
+}
+
+async function getMediaPipeHolisticLandmarker() {
+  if (!mediaPipeHolisticLandmarkerPromise) {
+    mediaPipeHolisticLandmarkerPromise = (async () => {
+      const { HolisticLandmarker, FilesetResolver } = await import("/bigplus/vendor/face/vision_bundle.js");
+      const fileset = await FilesetResolver.forVisionTasks("/bigplus/vendor/face/wasm");
+      return HolisticLandmarker.createFromOptions(fileset, {
+        baseOptions: {
+          modelAssetPath: "/bigplus/vendor/face/holistic_landmarker.task",
+          delegate: "CPU"
+        },
+        minFaceDetectionConfidence: 0.1,
+        minPoseDetectionConfidence: 0.1,
+        minHandLandmarksConfidence: 0.1,
+        minPosePresenceConfidence: 0.1,
+        minTrackingConfidence: 0.1,
+        outputSegmentationMasks: false,
+        runningMode: "IMAGE"
+      });
+    })().catch((error) => {
+      mediaPipeHolisticLandmarkerPromise = null;
+      throw error;
+    });
+  }
+  return mediaPipeHolisticLandmarkerPromise;
+}
+
+async function getMediaPipeHandLandmarker() {
+  if (!mediaPipeHandLandmarkerPromise) {
+    mediaPipeHandLandmarkerPromise = (async () => {
+      const { HandLandmarker, FilesetResolver } = await import("/bigplus/vendor/face/vision_bundle.js");
+      const fileset = await FilesetResolver.forVisionTasks("/bigplus/vendor/face/wasm");
+      return HandLandmarker.createFromOptions(fileset, {
+        baseOptions: {
+          modelAssetPath: "/bigplus/vendor/face/hand_landmarker.task",
+          delegate: "CPU"
+        },
+        numHands: 2,
+        minHandDetectionConfidence: 0.12,
+        minHandPresenceConfidence: 0.1,
+        minTrackingConfidence: 0.1,
+        runningMode: "IMAGE"
+      });
+    })().catch((error) => {
+      mediaPipeHandLandmarkerPromise = null;
+      throw error;
+    });
+  }
+  return mediaPipeHandLandmarkerPromise;
+}
+
+function faceBoxToImageFrame(face) {
+  if (!face || !state.image) return null;
+  const frame = getImageFrame();
+  return {
+    x: frame.offsetX + (face.x / state.image.width) * frame.drawWidth,
+    y: frame.offsetY + (face.y / state.image.height) * frame.drawHeight,
+    width: (face.width / state.image.width) * frame.drawWidth,
+    height: (face.height / state.image.height) * frame.drawHeight,
+    eyeDistancePx: ((face.width / state.image.width) * frame.drawWidth) * 0.38,
+    rotationDeg: 0
+  };
+}
+
+function faceLandmarksToImageFrame(landmarks) {
+  if (!landmarks?.length || !state.image) return null;
+  const frame = getImageFrame();
+  const point = (index) => landmarks[index];
+  const average = (indexes) => indexes.reduce((sum, index) => ({
+    x: sum.x + point(index).x / indexes.length,
+    y: sum.y + point(index).y / indexes.length
+  }), { x: 0, y: 0 });
+  const rightEye = average([33, 133, 159, 145]);
+  const leftEye = average([362, 263, 386, 374]);
+  const eyeDistance = Math.hypot(leftEye.x - rightEye.x, leftEye.y - rightEye.y);
+  if (!Number.isFinite(eyeDistance) || eyeDistance <= 0) return null;
+
+  return {
+    x: frame.offsetX + ((rightEye.x + leftEye.x) / 2) * frame.drawWidth,
+    y: frame.offsetY + ((rightEye.y + leftEye.y) / 2) * frame.drawHeight,
+    width: eyeDistance * frame.drawWidth * 2.55,
+    height: Math.abs(leftEye.y - rightEye.y) * frame.drawHeight,
+    eyeDistancePx: eyeDistance * frame.drawWidth,
+    rotationDeg: Math.atan2(leftEye.y - rightEye.y, leftEye.x - rightEye.x) * 180 / Math.PI
+  };
+}
+
+function automaticGlassesWidth(face) {
+  if (!face) return null;
+  return Number.isFinite(face.eyeDistancePx)
+    ? face.eyeDistancePx * 2.35
+    : face.width * 0.84;
+}
+
+function handLandmarksToImageFrame(landmarks) {
+  if (!landmarks?.length || !state.image) return null;
+  const frame = getImageFrame();
+  const point = (index) => landmarks[index];
+  const palm = [5, 9, 13, 17].reduce((sum, index) => ({
+    x: sum.x + point(index).x / 4,
+    y: sum.y + point(index).y / 4
+  }), { x: 0, y: 0 });
+  const fingertips = [8, 12, 16, 20].reduce((sum, index) => ({
+    x: sum.x + point(index).x / 4,
+    y: sum.y + point(index).y / 4
+  }), { x: 0, y: 0 });
+  const grip = {
+    x: (palm.x + fingertips.x) / 2,
+    y: (palm.y + fingertips.y) / 2
+  };
+  const palmWidth = Math.hypot(point(5).x - point(17).x, point(5).y - point(17).y);
+  // Use the finger span across the grip as the physical reference. The thumb
+  // is excluded; a full grip uses four fingers at about 2 cm each.
+  const visibleFingerCount = [8, 12, 16, 20].filter((index) => point(index)).length;
+  const centralFingerCount = [8, 12, 16].filter((index) => point(index)).length;
+  const fingerSpanCm = visibleFingerCount >= 3
+    ? 4 * FINGER_WIDTH_CM
+    : Math.max(FINGER_WIDTH_CM, visibleFingerCount * FINGER_WIDTH_CM);
+  return {
+    x: frame.offsetX + grip.x * frame.drawWidth,
+    y: frame.offsetY + grip.y * frame.drawHeight,
+    width: palmWidth * frame.drawWidth,
+    // Palm-to-finger conversion is intentionally conservative: the
+    // landmark span is wider than the visible finger itself.
+    fingerWidth: visibleFingerCount >= 1 ? palmWidth * frame.drawWidth : 0,
+    fingerSpanPixels: visibleFingerCount >= 3
+      ? palmWidth * frame.drawWidth * FULL_GRIP_SPAN_CORRECTION
+      : palmWidth * frame.drawWidth,
+    fingerReferenceCm: FINGER_WIDTH_CM,
+    fingerSpanCm,
+    visibleFingerCount,
+    centralFingerCount,
+    wrist: {
+      x: frame.offsetX + point(0).x * frame.drawWidth,
+      y: frame.offsetY + point(0).y * frame.drawHeight
+    }
+  };
+}
+
+function updateHandDepthEstimate(result) {
+  const face = result?.faceLandmarks?.[0];
+  const hands = [result?.leftHandLandmarks?.[0], result?.rightHandLandmarks?.[0]].filter(Boolean);
+  if (!face?.length || !hands.length) {
+    state.handDepth = { available: false, relative: 0, scale: 1, label: "" };
+    return state.handDepth;
+  }
+
+  const averageLandmark = (landmarks, indexes) => indexes.reduce((sum, index) => ({
+    x: sum.x + (landmarks[index]?.x || 0) / indexes.length,
+    y: sum.y + (landmarks[index]?.y || 0) / indexes.length,
+    z: sum.z + (landmarks[index]?.z || 0) / indexes.length
+  }), { x: 0, y: 0, z: 0 });
+  const distance3d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+  const eyeA = averageLandmark(face, [33, 133]);
+  const eyeB = averageLandmark(face, [362, 263]);
+  const faceCenter = averageLandmark(face, [33, 133, 362, 263]);
+  const eyeDistance = distance3d(eyeA, eyeB);
+  if (!Number.isFinite(eyeDistance) || eyeDistance <= 0) {
+    state.handDepth = { available: false, relative: 0, scale: 1, label: "" };
+    return state.handDepth;
+  }
+
+  const fish = fishGuide();
+  const hand = hands
+    .map((landmarks) => averageLandmark(landmarks, [0, 5, 9, 13, 17]))
+    .sort((a, b) => {
+      if (!fish) return 0;
+      const frame = getImageFrame();
+      const ax = frame.offsetX + a.x * frame.drawWidth;
+      const ay = frame.offsetY + a.y * frame.drawHeight;
+      const bx = frame.offsetX + b.x * frame.drawWidth;
+      const by = frame.offsetY + b.y * frame.drawHeight;
+      return Math.hypot(ax - fish.centerX, ay - fish.centerY) - Math.hypot(bx - fish.centerX, by - fish.centerY);
+    })[0];
+  const relative = clamp((faceCenter.z - hand.z) / eyeDistance, -1.5, 1.5);
+  // Holistic depth is relative rather than metric. Keep its visual influence
+  // deliberately small so it corrects perspective without making the can jump.
+  const scale = clamp(1 + relative * 0.12, 0.88, 1.12);
+  state.handDepth = {
+    available: true,
+    relative,
+    scale,
+    label: relative > 0.08 ? "handen framför ansiktet" : relative < -0.08 ? "handen bakom ansiktet" : "handen nära ansiktsplanet"
+  };
+  return state.handDepth;
+}
+
+async function detectHolisticInImage() {
+  if (!state.image) return null;
+  holisticDetectionError = false;
+  try {
+    const landmarker = await getMediaPipeHolisticLandmarker();
+    const result = landmarker.detect(state.image);
+    if (result?.faceLandmarks?.[0] || result?.leftHandLandmarks?.[0] || result?.rightHandLandmarks?.[0] || result?.poseLandmarks?.length) {
+      updateHandDepthEstimate(result);
+      return result;
+    }
+
+    const enlargedInput = createFaceDetectionInput(state.image, 1.35);
+    const enlargedResult = landmarker.detect(enlargedInput);
+    updateHandDepthEstimate(enlargedResult);
+    return enlargedResult;
+  } catch {
+    holisticDetectionError = true;
+    return null;
+  }
+}
+
+async function detectHandsInImage() {
+  if (!state.image) return null;
+  handDetectionError = false;
+  try {
+    const landmarker = await getMediaPipeHandLandmarker();
+    const inputs = [
+      state.image,
+      createFaceDetectionInput(state.image, 1.6),
+      createFaceDetectionInput(state.image, 2.2)
+    ];
+    for (const input of inputs) {
+      const result = landmarker.detect(input);
+      if (result?.landmarks?.length) return result;
+    }
+
+    const crops = [
+      { x: 0.12, y: 0.36, width: 0.76, height: 0.58 },
+      { x: 0.22, y: 0.48, width: 0.56, height: 0.48 },
+      { x: 0.02, y: 0.28, width: 0.96, height: 0.70 }
+    ];
+    for (const crop of crops) {
+      const source = {
+        x: Math.round(state.image.width * crop.x),
+        y: Math.round(state.image.height * crop.y),
+        width: Math.round(state.image.width * crop.width),
+        height: Math.round(state.image.height * crop.height)
+      };
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(source.width * 2.2));
+      canvas.height = Math.max(1, Math.round(source.height * 2.2));
+      const detectionContext = canvas.getContext("2d", { alpha: false });
+      detectionContext.drawImage(state.image, source.x, source.y, source.width, source.height, 0, 0, canvas.width, canvas.height);
+      const croppedResult = landmarker.detect(canvas);
+      if (croppedResult?.landmarks?.length) {
+        return {
+          ...croppedResult,
+          landmarks: croppedResult.landmarks.map((hand) => hand.map((point) => ({
+            ...point,
+            x: (source.x + point.x * source.width) / state.image.width,
+            y: (source.y + point.y * source.height) / state.image.height
+          })))
+        };
+      }
+    }
+    return null;
+  } catch {
+    handDetectionError = true;
+    return null;
+  }
+}
+
+function updateHandGuides(result) {
+  const directHands = result?.landmarks || [];
+  const holisticHands = [result?.leftHandLandmarks?.[0], result?.rightHandLandmarks?.[0]].filter(Boolean);
+  const hands = directHands.length ? directHands : holisticHands;
+  const guides = hands
+    .map(handLandmarksToImageFrame)
+    .filter(Boolean);
+  state.handGuides = guides;
+  return guides;
+}
+
+function updateArmGuides(result) {
+  const pose = result?.poseLandmarks?.[0] || result?.poseLandmarks || [];
+  if (!pose.length || !state.image) return [];
+  const frame = getImageFrame();
+  const point = (index) => pose[index];
+  const toFrame = (landmark) => ({
+    x: frame.offsetX + landmark.x * frame.drawWidth,
+    y: frame.offsetY + landmark.y * frame.drawHeight
+  });
+  const pairs = [[11, 13, 15], [12, 14, 16]];
+  return pairs.map(([shoulderIndex, elbowIndex, wristIndex]) => {
+    const shoulder = point(shoulderIndex);
+    const elbow = point(elbowIndex);
+    const wrist = point(wristIndex);
+    if (!shoulder || !elbow || !wrist) return null;
+    if ((shoulder.visibility ?? 1) < 0.35 || (elbow.visibility ?? 1) < 0.35 || (wrist.visibility ?? 1) < 0.35) return null;
+    return {
+      ...toFrame(wrist),
+      width: Math.hypot((elbow.x - wrist.x) * frame.drawWidth, (elbow.y - wrist.y) * frame.drawHeight),
+      fingerWidth: 0,
+      fingerReferenceCm: 2,
+      centralFingerCount: 0,
+      armFallback: true,
+      shoulder: toFrame(shoulder),
+      elbow: toFrame(elbow)
+    };
+  }).filter(Boolean);
+}
+
+function createFaceDetectionInput(image, scale = 1) {
+  if (!image || scale === 1) return image;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(image.width * scale);
+  canvas.height = Math.round(image.height * scale);
+  const detectionContext = canvas.getContext("2d", { alpha: false });
+  detectionContext.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+function createFaceDetectionCrop(image, crop, scale = 1.5) {
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(crop.width * scale);
+  canvas.height = Math.round(crop.height * scale);
+  const detectionContext = canvas.getContext("2d", { alpha: false });
+  detectionContext.drawImage(
+    image,
+    crop.x,
+    crop.y,
+    crop.width,
+    crop.height,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+  return canvas;
+}
+
+function mapCropLandmarksToImage(landmarks, crop, image) {
+  return landmarks.map((landmark) => ({
+    ...landmark,
+    x: (crop.x + landmark.x * crop.width) / image.width,
+    y: (crop.y + landmark.y * crop.height) / image.height
+  }));
+}
+
+async function detectWithMediaPipe(image) {
+  const landmarker = await getMediaPipeFaceLandmarker();
+  const firstPass = landmarker.detect(image);
+  if (firstPass?.faceLandmarks?.[0]) return firstPass.faceLandmarks[0];
+
+  // Small faces in portrait photos can be lost during the model's first
+  // resize. A second, enlarged pass improves detection without uploading data.
+  const enlargedInput = createFaceDetectionInput(image, 1.5);
+  const enlargedPass = landmarker.detect(enlargedInput);
+  if (enlargedPass?.faceLandmarks?.[0]) return enlargedPass.faceLandmarks[0];
+
+  // Analyse smaller upper-image regions as well. This gives a distant face
+  // more pixels while keeping the coordinates mapped to the original photo.
+  const upperHeight = image.height * 0.78;
+  const crops = [
+    { x: 0, y: 0, width: image.width, height: upperHeight },
+    { x: 0, y: 0, width: image.width * 0.68, height: upperHeight },
+    { x: image.width * 0.32, y: 0, width: image.width * 0.68, height: upperHeight }
+  ];
+  for (const crop of crops) {
+    const cropInput = createFaceDetectionCrop(image, crop, 1.8);
+    const cropPass = landmarker.detect(cropInput);
+    if (cropPass?.faceLandmarks?.[0]) {
+      return mapCropLandmarksToImage(cropPass.faceLandmarks[0], crop, image);
+    }
+  }
+  return null;
+}
+
 async function detectFaceInImageFrame() {
-  if (!state.image || !("FaceDetector" in window)) return null;
+  if (!state.image) return null;
+  faceDetectionError = false;
 
   let bitmap = null;
   try {
-    const detector = new FaceDetector({ fastMode: true, maxDetectedFaces: 3 });
-    const detectorInput = "createImageBitmap" in window
-      ? await createImageBitmap(state.image)
-      : state.image;
-    if (detectorInput !== state.image) bitmap = detectorInput;
-    const faces = await detector.detect(detectorInput);
-    if (!faces.length) return null;
+    if ("FaceDetector" in window) {
+      const detector = new FaceDetector({ fastMode: true, maxDetectedFaces: 3 });
+      const detectorInput = "createImageBitmap" in window
+        ? await createImageBitmap(state.image)
+        : state.image;
+      if (detectorInput !== state.image) bitmap = detectorInput;
+      const faces = await detector.detect(detectorInput);
+      const face = faces
+        .map((item) => item.boundingBox)
+        .sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
+      const nativeFace = faceBoxToImageFrame(face);
+      if (nativeFace) return nativeFace;
+    }
 
-    const face = faces
-      .map((item) => item.boundingBox)
-      .sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
-    const frame = getImageFrame();
-
-    return {
-      x: frame.offsetX + (face.x / state.image.width) * frame.drawWidth,
-      y: frame.offsetY + (face.y / state.image.height) * frame.drawHeight,
-      width: (face.width / state.image.width) * frame.drawWidth,
-      height: (face.height / state.image.height) * frame.drawHeight
-    };
+    const landmarks = await detectWithMediaPipe(state.image);
+    return faceLandmarksToImageFrame(landmarks);
   } catch {
+    faceDetectionError = true;
     return null;
   } finally {
     bitmap?.close?.();
@@ -1704,21 +2346,7 @@ function drawCanReferenceAsset(x, y, rect, radius) {
 
   const canImage = selectedCanReferenceImage();
   if (canImage.complete && canImage.naturalWidth > 0) {
-    if (canImage === classicCanReferenceImage) {
-      ctx.drawImage(
-        canImage,
-        CLASSIC_CAN_IMAGE_BOUNDS.x,
-        CLASSIC_CAN_IMAGE_BOUNDS.y,
-        CLASSIC_CAN_IMAGE_BOUNDS.width,
-        CLASSIC_CAN_IMAGE_BOUNDS.height,
-        x,
-        y,
-        rect.width,
-        rect.height
-      );
-    } else {
-      ctx.drawImage(canImage, x, y, rect.width, rect.height);
-    }
+    ctx.drawImage(canImage, x, y, rect.width, rect.height);
   } else {
     const gradient = ctx.createLinearGradient(x, y, x + rect.width, y);
     gradient.addColorStop(0, "#737c7b");
@@ -1841,6 +2469,34 @@ function drawMoveHandControl(point) {
     ctx.lineTo(fingerX, -8);
     ctx.stroke();
   }
+  ctx.restore();
+}
+
+function drawDetectedHandGuides() {
+  if (!state.referenceSlots.glasses?.virtual?.locked || state.referenceSlots.can || !state.handGuides.length) return;
+  ctx.save();
+  state.handGuides.forEach((guide, index) => {
+    if (guide.armFallback) {
+      ctx.strokeStyle = "rgba(245, 158, 11, 0.92)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(guide.shoulder.x, guide.shoulder.y);
+      ctx.lineTo(guide.elbow.x, guide.elbow.y);
+      ctx.lineTo(guide.x, guide.y);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(36, 160, 200, 0.95)";
+    ctx.fillStyle = "rgba(224, 248, 255, 0.9)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(guide.x, guide.y, 15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#164e63";
+    ctx.font = "700 13px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(index === 0 ? "Hand" : "Hand 2", guide.x, guide.y - 23);
+  });
   ctx.restore();
 }
 
@@ -1972,6 +2628,7 @@ function draw() {
   enhanceReferenceReadout();
   drawReferenceSlot("glasses");
   drawReferenceSlot("can");
+  drawDetectedHandGuides();
   drawVirtualReference();
   drawFaceDepthLine();
   updateRulerControl();
@@ -1990,6 +2647,16 @@ function setTool(tool) {
   els.bodyTool.classList.toggle("active", tool === "body");
   els.lengthCard?.classList.toggle("is-active", tool === "fish" && !state.measurementLocks.fish);
   els.heightCard?.classList.toggle("is-active", tool === "body" && !state.measurementLocks.body);
+  updateMeasureMenuState();
+}
+
+function updateMeasureMenuState(activeOverride = "") {
+  const active = activeOverride || (state.activeTool === "ref" ? state.referenceSlots.active === "can" ? "can" : "glasses" : state.activeTool === "fish" ? "length" : "width");
+  els.measureStepMenu?.querySelectorAll("[data-measure-menu]").forEach((button) => {
+    const isActive = button.dataset.measureMenu === active;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-current", isActive ? "step" : "false");
+  });
 }
 
 function updateRulerControl() {
@@ -2005,6 +2672,9 @@ function updateRulerControl() {
 
 function resetPoints(options = {}) {
   const clearImage = Boolean(options.clearImage);
+  state.handGuides = [];
+  state.handDepth = { available: false, relative: 0, scale: 1, label: "" };
+  state.referenceDepth.canBaselineHeight = null;
   if (clearImage) {
     state.image = null;
     state.imageDataUrl = "";
@@ -2012,6 +2682,10 @@ function resetPoints(options = {}) {
     if (els.manualPhotoInput) els.manualPhotoInput.value = "";
     if (els.cameraPhotoInput) els.cameraPhotoInput.value = "";
     if (els.manualEntryImage) els.manualEntryImage.removeAttribute("src");
+    if (els.manualSpeciesSelect) els.manualSpeciesSelect.value = "";
+    if (els.manualLengthInput) els.manualLengthInput.value = "";
+    if (els.manualWeightInput) els.manualWeightInput.value = "";
+    if (els.manualCatchNote) els.manualCatchNote.value = "";
     clearCatchLocation();
     clearManualCatchLocation();
     if (els.manualLocationPicker) els.manualLocationPicker.hidden = true;
@@ -2021,11 +2695,14 @@ function resetPoints(options = {}) {
     if (els.photoInputLabel) els.photoInputLabel.textContent = "Välj bild med fisken";
     resetZoom();
     setStatus("Redo");
+    document.body.classList.remove("measure-guided-active");
   } else {
     setStatus("Rensad");
   }
   state.virtualReference.enabled = false;
   state.virtualReference.referenceId = "glasses";
+  state.virtualReference.baseHeight = 150;
+  state.virtualReference.height = 150;
   state.virtualReference.selected = false;
   state.virtualReference.dragging = false;
   state.virtualReference.pointerAction = "";
@@ -2047,6 +2724,9 @@ function resetPoints(options = {}) {
   state.measurementLocks.fish = false;
   state.measurementLocks.body = false;
   state.rulerVisible = false;
+  if (els.referenceScaleRange) els.referenceScaleRange.value = "150";
+  if (els.mobileReferenceScale) els.mobileReferenceScale.value = "150";
+  if (els.mobileReferenceScaleValue) els.mobileReferenceScaleValue.textContent = "100%";
   els.faceDepthToolButton?.classList.remove("active");
   state.points.ref = [];
   state.points.fish = [];
@@ -2060,6 +2740,7 @@ function resetPoints(options = {}) {
   if (els.saveButton) els.saveButton.disabled = true;
   renderReferenceReadout();
   renderResult(null);
+  updateManualEntryState();
   updateReferenceSpecificControls();
   updateSimpleReferenceButtons();
   updateReferenceLockButton();
@@ -2072,8 +2753,54 @@ function showMeasurementWorkspace() {
   const measureArea = document.querySelector(".measure-area");
   measureArea?.classList.remove("is-start", "is-manual");
   measureArea?.classList.add("is-guided-mode");
+  document.body.classList.add("measure-guided-active");
+  updateMeasureMenuState("glasses");
   if (measureArea) measureArea.dataset.flowStep = "2";
   if (els.photoInputLabel) els.photoInputLabel.textContent = "Mät ny fisk";
+}
+
+async function autoPlaceGlassesReference() {
+  const imageAtStart = state.image;
+  if (!imageAtStart || state.referenceSlots.glasses) return;
+
+  setStatus("Söker ansikte");
+  resizeCanvasToDisplay();
+  prepareGlassesReference();
+  const holistic = await detectHolisticInImage();
+  const holisticGuides = updateHandGuides(holistic);
+  const armGuides = updateArmGuides(holistic);
+  const directGuides = updateHandGuides(await detectHandsInImage());
+  const handGuides = directGuides.length ? directGuides : holisticGuides.length ? holisticGuides : armGuides;
+  state.handGuides = handGuides;
+  const holisticFace = faceLandmarksToImageFrame(holistic?.faceLandmarks?.[0]);
+  const face = holisticFace || await detectFaceInImageFrame();
+  if (imageAtStart !== state.image) return;
+
+  if (face) {
+    placeGlassesAtPoint(
+      {
+        x: face.x + face.width / 2,
+        y: face.y + face.height * 0.43
+      },
+      automaticGlassesWidth(face),
+      "Ansikte hittat – glasögon placerade",
+      face.rotationDeg || 0
+    );
+    if (handGuides.length) {
+      setStatus(handGuides.some((guide) => guide.armFallback)
+        ? "Armarnas V hittad – glasögon placerade"
+        : "Ansikte och händer hittade – glasögon placerade");
+      await placeHandReference({ autoAdvance: true });
+    } else {
+      await placeHandReference({ autoAdvance: true });
+    }
+    return;
+  }
+
+  setStatus(faceDetectionError
+    ? "Ansiktsmodellen kunde inte laddas – välj Glasögon"
+    : "Ansikte hittades inte – välj Glasögon");
+  draw();
 }
 
 function showManualEntry() {
@@ -2084,11 +2811,13 @@ function showManualEntry() {
   const measureArea = document.querySelector(".measure-area");
   measureArea?.classList.add("is-manual");
   measureArea?.classList.remove("is-start", "is-guided-mode");
+  document.body.classList.remove("measure-guided-active");
   if (measureArea) measureArea.dataset.flowStep = "manual";
   if (els.manualEntryImage && state.imageDataUrl) {
     els.manualEntryImage.src = state.imageDataUrl;
     els.manualEntryImage.alt = "Uppladdad bild på fångsten";
   }
+  updateManualEntryState();
 }
 
 function showMeasureStart() {
@@ -2098,7 +2827,14 @@ function showMeasureStart() {
   const measureArea = document.querySelector(".measure-area");
   measureArea?.classList.add("is-start");
   measureArea?.classList.remove("is-manual", "is-guided-mode");
+  document.body.classList.remove("measure-guided-active");
   if (measureArea) measureArea.dataset.flowStep = "1";
+}
+
+function cancelGuidedMeasurement() {
+  resetPoints({ clearImage: true });
+  showMeasureStart();
+  draw();
 }
 
 async function readImageFile(file, onLoaded) {
@@ -2122,12 +2858,12 @@ function setMeasurementImage(image, dataUrl) {
   state.referenceSlots.active = "glasses";
   showMeasurementWorkspace();
   draw();
+  window.setTimeout(() => { void autoPlaceGlassesReference(); }, 0);
 }
 
 async function persistManualCatch() {
   if (savingManualCatch) return;
   const speciesId = els.manualSpeciesSelect?.value || "";
-  const parseManualNumber = (value) => Number(String(value ?? "").trim().replace(",", "."));
   const lengthCm = parseManualNumber(els.manualLengthInput?.value);
   const weightKg = parseManualNumber(els.manualWeightInput?.value);
   const species = state.species.find((item) => item.id === speciesId);
@@ -2136,7 +2872,8 @@ async function persistManualCatch() {
     return;
   }
 
-  const isBigplus = species.minCm > 0 && lengthCm >= species.minCm;
+  const status = manualCatchStatus(species, lengthCm);
+  const isBigplus = status === "BIGPLUS";
   const measurement = {
     speciesId,
     species: species.name,
@@ -2145,7 +2882,7 @@ async function persistManualCatch() {
     weightKg,
     bodyCm: null,
     minCm: species.minCm || 0,
-    status: isBigplus ? "BIGPLUS" : "Mätt",
+    status,
     isBigplus,
     confidence: "Manuell",
     disclaimer: "Mått och vikt registrerade manuellt."
@@ -2160,7 +2897,7 @@ async function persistManualCatch() {
     weightKg,
     measurement,
     userId: currentUserId(),
-    note: "Manuell registrering",
+    note: els.manualCatchNote?.value || "Manuell registrering",
     photo: state.imageDataUrl,
     competitionIds: currentMemberships(),
     ...(selectedManualCatchLocation ? { location: selectedManualCatchLocation } : {})
@@ -2192,7 +2929,7 @@ async function persistManualCatch() {
     alert(error.message);
   } finally {
     savingManualCatch = false;
-    if (els.saveManualCatchButton) els.saveManualCatchButton.disabled = false;
+    updateManualEntryState();
   }
 }
 
@@ -2213,6 +2950,9 @@ function renderResult(result) {
     if (els.resultSpeciesLatin) els.resultSpeciesLatin.textContent = "--";
     if (els.measureStatusSummary) els.measureStatusSummary.textContent = "–";
     if (els.measureStatusSummaryText) els.measureStatusSummaryText.textContent = "Ej mätt";
+    if (els.guidedPerspectiveResult) els.guidedPerspectiveResult.textContent = "Ingen burkjustering registrerad.";
+    if (els.guidedResultPopup) els.guidedResultPopup.hidden = true;
+    updateMeasureProgress();
     return;
   }
 
@@ -2232,19 +2972,32 @@ function renderResult(result) {
   if (els.resultSpeciesLatin) els.resultSpeciesLatin.textContent = selectedSpecies?.latinName || latinNames[selectedSpecies?.id] || "Fisk";
   if (els.measureStatusSummary) els.measureStatusSummary.textContent = result.status === "BIGPLUS" ? "BIGPLUS" : result.status;
   if (els.measureStatusSummaryText) els.measureStatusSummaryText.textContent = result.status === "BIGPLUS" ? "Fångsten är godkänd" : "Kontrollera måttet";
+  if (els.guidedLengthResult) els.guidedLengthResult.textContent = formatCm(result.lengthCm);
+  if (els.guidedHeightResult) els.guidedHeightResult.textContent = result.bodyCm ? formatCm(result.bodyCm) : `-- ${preferredUnit()}`;
+  if (els.guidedResultStatus) {
+    els.guidedResultStatus.textContent = result.status === "BIGPLUS"
+      ? "Måtten är ungefärliga och resultatet uppfyller Bigplus-gränsen."
+      : "Måtten är ungefärliga. Kontrollera resultatet innan du sparar.";
+  }
+  if (els.guidedPerspectiveResult) els.guidedPerspectiveResult.textContent = canPerspectiveLabel();
+  if (els.guidedResultPopup && document.body.classList.contains("measure-guided-active")) {
+    els.guidedResultPopup.hidden = false;
+  }
   updateMeasureTargetSummary();
+  updateMeasureProgress();
 }
 
 async function calculate() {
   const fishPixels = polylineDistance(state.points.fish);
   const bodyPixels = bodyMeasurementPixels();
   const referenceScaleCmPerPixel = combinedReferenceScaleCmPerPixel();
+  const guidedMode = document.body.classList.contains("measure-guided-active");
 
   if (!state.image) {
     setStatus("Välj bild");
     return;
   }
-  if (!els.speciesSelect.value) {
+  if (!els.speciesSelect.value && !guidedMode) {
     setStatus("Välj art");
     els.speciesSelect.focus();
     return;
@@ -2270,7 +3023,7 @@ async function calculate() {
     bodyPixels: state.points.body.length >= 2 ? bodyPixels : null,
     refCm: referenceScaleCmPerPixel,
     calibrationFactor: 1,
-    speciesId: els.speciesSelect.value,
+    speciesId: els.speciesSelect.value || "pike",
     minCm: Number(els.minSize.value),
     referenceMode: state.referenceSlots.can ? "can-hand" : "glasses-depth",
     faceDepthCm: faceDepthDistanceCm()
@@ -2357,7 +3110,7 @@ function clearManualCatchLocation() {
     manualLocationPickerMap?.removeLayer(manualLocationPickerMarker);
     manualLocationPickerMarker = null;
   }
-  if (els.manualLocationLabel) els.manualLocationLabel.textContent = "Valfritt: markera platsen pa kartan";
+  if (els.manualLocationLabel) els.manualLocationLabel.textContent = "Valfritt: markera platsen på kartan";
 }
 
 async function useCurrentCatchLocation() {
@@ -2437,6 +3190,7 @@ async function persistCatch() {
   } finally {
     savingCatch = false;
     if (els.saveButton) els.saveButton.disabled = false;
+    updateMeasureProgress();
   }
 }
 
@@ -2595,10 +3349,10 @@ function prepareGlassesReference() {
   updateReferenceSpecificControls();
 }
 
-function placeGlassesAtPoint(point, width, status = "Glasögon placerade") {
+function placeGlassesAtPoint(point, width, status = "Glasögon placerade", rotationDeg = 0) {
   const frame = getImageFrame();
   const targetWidth = Number.isFinite(width)
-    ? clamp(width, 70, 230)
+    ? clamp(width, 70, 280)
     : clamp(frame.drawWidth * 0.24, 82, 180);
   const targetHeight = referenceVisualHeight(targetWidth, "glasses");
   const groundY = point.y + targetHeight / 2;
@@ -2611,7 +3365,7 @@ function placeGlassesAtPoint(point, width, status = "Glasögon placerade") {
     referenceId: "glasses",
     x: point.x - targetWidth / 2,
     groundY,
-    rotationDeg: 0,
+    rotationDeg,
     status
   });
 }
@@ -2653,8 +3407,9 @@ async function placeGlassesReference() {
         x: face.x + face.width / 2,
         y: face.y + face.height * 0.43
       },
-      face.width * 0.78,
-      "Ansikte hittat"
+      automaticGlassesWidth(face),
+      "Ansikte hittat",
+      face.rotationDeg || 0
     );
     return;
   }
@@ -2681,10 +3436,20 @@ function startFaceDepthLine() {
   draw();
 }
 
-function placeHandReference() {
+async function placeHandReference({ autoAdvance = false } = {}) {
   if (!state.image) {
     setStatus("Ladda bild först");
     return;
+  }
+
+  if (!state.handGuides.length) {
+    setStatus("Söker händer");
+    updateHandGuides(await detectHandsInImage());
+    if (!state.handGuides.length) {
+      const holisticResult = await detectHolisticInImage();
+      updateHandGuides(holisticResult);
+      if (!state.handGuides.length) state.handGuides = updateArmGuides(holisticResult);
+    }
   }
 
   if (!["can-330", "can-330-slim"].includes(els.referenceSelect.value)) {
@@ -2692,25 +3457,78 @@ function placeHandReference() {
     els.customReferenceWrap.style.display = "none";
   }
 
-  els.autoPerspectiveToggle.checked = true;
-  els.depthModeSelect.value = "fish";
-  setCalibrationPercent(80);
+  // The can is a fixed-size calibration object. Moving it must not change its
+  // visual size; only the explicit size control may do that.
+  els.autoPerspectiveToggle.checked = false;
+  els.depthModeSelect.value = "manual";
+  setCalibrationPercent(100);
   els.referenceRotationRange.value = "0";
 
   const guide = fishGuide();
-  const baseHeight = Number(els.referenceScaleRange.value) || 150;
-  const anchorY = guide?.centerY ?? els.canvas.height * 0.55;
-  const estimatedHeight = Math.max(42, baseHeight * perspectiveScaleForY(anchorY));
+  const handGuide = state.handGuides
+    .slice()
+    .sort((a, b) => {
+      if (!guide) return b.y - a.y;
+      const targetX = guide.centerX;
+      const targetY = guide.centerY;
+      return Math.hypot(a.x - targetX, a.y - targetY) - Math.hypot(b.x - targetX, b.y - targetY);
+    })[0];
+  const armFallback = Boolean(handGuide?.armFallback);
+  // Glasses and can use different visual dimensions. Do not reuse the
+  // glasses height when creating the can after face detection.
+  const glassesBasedHeight = glassesBasedCanHeight();
+  const baseHeight = glassesBasedHeight || 150;
+  // The visible palm is only part of the hand silhouette in a photo. Use a
+  // larger local can anchor so the hand covers roughly 70% of the can side.
+  const handSizedHeight = handGuide && !glassesBasedHeight
+    ? clamp((handGuide.width / 0.56) * 0.97, baseHeight * 0.9, baseHeight * 1.6)
+    : 0;
+  // Keep the can's physical scale independent from the weak relative z
+  // estimate. The explicit size control remains the only way to resize it.
+  const fingerSpanBasedHeight = handGuide?.fingerSpanPixels && handGuide.fingerSpanCm
+    ? clamp((handGuide.fingerSpanPixels / handGuide.fingerSpanCm) * CAN_HEIGHT_CM, 42, 700)
+    : 0;
+  const singleFingerBasedHeight = handGuide?.fingerWidth && handGuide.visibleFingerCount === 1
+    ? clamp((handGuide.fingerWidth / FINGER_WIDTH_CM) * CAN_HEIGHT_CM, 42, 700)
+    : 0;
+  // Finger span is the physical cue at the fish plane. It may enlarge the
+  // can, but never shrink the glasses-based starting reference.
+  const estimatedHeight = Math.max(42, baseHeight, handSizedHeight, fingerSpanBasedHeight, singleFingerBasedHeight);
+  state.virtualReference.baseHeight = estimatedHeight;
+  state.virtualReference.height = estimatedHeight;
+  if (!Number.isFinite(state.referenceDepth.canBaselineHeight)) {
+    state.referenceDepth.canBaselineHeight = estimatedHeight;
+  }
+  if (handGuide) {
+    els.referenceScaleRange.value = String(Math.round(estimatedHeight));
+  }
+  if (els.mobileReferenceScale) els.mobileReferenceScale.value = String(Math.round(estimatedHeight));
+  if (els.mobileReferenceScaleValue) els.mobileReferenceScaleValue.textContent = `${Math.round((estimatedHeight / 150) * 100)}%`;
   const estimatedWidth = estimatedHeight * 0.42;
-  const handX = guide ? guide.head.x - estimatedWidth * 0.5 : els.canvas.width * 0.35;
-  const handY = guide ? guide.centerY : els.canvas.height * 0.58;
+  const handX = handGuide
+    ? handGuide.x - estimatedWidth * 0.5
+    : guide ? guide.head.x - estimatedWidth * 0.5 : els.canvas.width * 0.5;
+  const handY = handGuide?.y ?? (guide ? guide.centerY : els.canvas.height * 0.62);
 
   placeVirtualReference({
     x: handX,
     groundY: handY + estimatedHeight / 2,
     rotationDeg: 0,
-    status: guide ? "Handläge" : "Markera fisk först"
+    status: handGuide
+      ? armFallback ? "Armarnas V hittad – kontrollera burkens storlek" : "Hand hittad – placera burken"
+      : "Hand hittades inte – justera burken manuellt"
   });
+  if (autoAdvance && handGuide) {
+    setTool("fish");
+    updateMeasureMenuState("length");
+    setStatus(armFallback
+      ? "Armarnas V hittad – kontrollera burken och markera längden"
+      : "Burk placerad – markera längden");
+  } else if (autoAdvance) {
+    setTool("fish");
+    updateMeasureMenuState("length");
+    setStatus("Burk placerad – kontrollera placeringen och markera längden");
+  }
 }
 
 function placeSelectedSimpleReference(status) {
@@ -3007,11 +3825,18 @@ async function boot() {
   els.customReferenceWrap.style.display = "none";
   updateReferenceSpecificControls();
   updateSimpleReferenceButtons();
+  updateManualEntryState();
   renderCatches(getLocalCatches(currentUserId()).slice(-30).reverse());
 
   try {
     const [references, species] = await Promise.all([getReferences(), getSpecies()]);
-    state.references = references;
+    const calibrationReferences = new Map(DEFAULT_REFERENCES.map((item) => [item.id, item]));
+    state.references = references.map((item) => {
+      const calibrated = calibrationReferences.get(item.id);
+      return calibrated
+        ? { ...item, sizeCm: calibrated.sizeCm, widthCm: calibrated.widthCm, heightCm: calibrated.heightCm, note: calibrated.note }
+        : item;
+    });
     state.species = species;
     const storedReferences = getStoredReferences();
     state.references = [
@@ -3542,6 +4367,7 @@ els.speciesSelect.addEventListener("change", () => {
   const selected = state.species.find((item) => item.id === els.speciesSelect.value);
   els.minSize.value = selected?.minCm ?? 0;
   updateMeasureTargetSummary();
+  updateMeasureProgress();
 });
 
 els.zoomOutButton.addEventListener("click", () => setZoom(state.view.zoom / 1.25));
@@ -3608,7 +4434,36 @@ bindReferencePaletteItem(els.paletteCan, "can-330");
 els.manualCaptureButton?.addEventListener("click", () => els.manualPhotoInput?.click());
 els.guidedCaptureButton?.addEventListener("click", () => els.photoInput?.click());
 els.cameraCaptureButton?.addEventListener("click", () => els.cameraPhotoInput?.click());
+els.changeMeasurePhotoButton?.addEventListener("click", () => els.photoInput?.click());
+els.cancelMeasureButton?.addEventListener("click", cancelGuidedMeasurement);
+els.guidedMeasureButton?.addEventListener("click", () => { void calculate(); });
+els.guidedResultPopupClose?.addEventListener("click", () => {
+  if (els.guidedResultPopup) els.guidedResultPopup.hidden = true;
+});
+els.measureStepMenu?.querySelectorAll("[data-measure-menu]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const step = button.dataset.measureMenu;
+    if (step === "glasses") {
+      els.paletteGlasses?.click();
+      setTool("ref");
+    } else if (step === "can") {
+      els.paletteCan?.click();
+      setTool("ref");
+      if (state.image) void placeHandReference();
+    } else if (step === "length") {
+      setTool("fish");
+      setStatus(state.points.fish.length >= 2 ? "Justera längden" : "Markera längden på fisken");
+    } else if (step === "width") {
+      setTool("body");
+      setStatus(state.points.body.length >= 2 ? "Justera bredden" : "Markera bredden på fisken");
+    }
+    updateMeasureMenuState(step);
+  });
+});
 els.saveManualCatchButton?.addEventListener("click", persistManualCatch);
+els.manualSpeciesSelect?.addEventListener("change", updateManualEntryState);
+els.manualLengthInput?.addEventListener("input", updateManualEntryState);
+els.manualWeightInput?.addEventListener("input", updateManualEntryState);
 els.chooseManualCatchLocation?.addEventListener("click", chooseManualCatchLocation);
 els.clearManualCatchLocation?.addEventListener("click", clearManualCatchLocation);
 els.manualBackButton?.addEventListener("click", () => {

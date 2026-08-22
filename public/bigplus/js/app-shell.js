@@ -18,7 +18,7 @@ import { renderJournal, saveJournalTrip } from "./shell/journal.js";
 import { createCatchDeleteController } from "./shell/catch-delete.js";
 import { createCatchShareController } from "./shell/catch-share.js";
 import { createCatchViewController } from "./shell/catch-view-controller.js?v=20260816-catches-map-depth-89";
-import { createWeatherController } from "./shell/weather-controller.js?v=20260812-weather-redesign-74";
+import { createWeatherController } from "./shell/weather-controller.js?v=20260822-weather-canvas-layout-4";
 import { createMapSharingController } from "./shell/map-sharing.js";
 import { createRemoteDataController } from "./shell/remote-data-controller.js";
 import { createGroupController } from "./shell/group-controller.js";
@@ -50,7 +50,7 @@ let measureModulePromise = null;
 
 function ensureMeasureModule() {
   if (!measureModulePromise) {
-    measureModulePromise = import("./main.js?v=20260803-measure-lazy");
+measureModulePromise = import("./main.js?v=20260822-finger-span-correction-2");
   }
   return measureModulePromise;
 }
