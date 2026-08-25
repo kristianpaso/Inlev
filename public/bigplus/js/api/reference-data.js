@@ -6,6 +6,7 @@ export const DEFAULT_REFERENCES = [
   { id: "can-330-slim", name: "33 cl burk smal", sizeCm: 14.5, note: "Smal burk, ca 58 mm bred och 145 mm hög." },
   { id: "can-500", name: "50 cl burk", sizeCm: 16.8, note: "Vanlig hög burk, ungefärlig höjd." },
   { id: "glasses", name: "Glasögon", sizeCm: 14, widthCm: 14, heightCm: 5, note: "Kalibrerad storlek: 14 cm bred och 5 cm hög." },
+  { id: "ring-2cm", name: "Referensring för finger", sizeCm: 2.25, widthCm: 2.25, heightCm: 2.25, note: "Ytterbredd 2,25 cm och innerhål 2 cm. Placeras på ett synligt finger." },
   { id: "card", name: "Bankkort", sizeCm: 8.56, note: "Kortets långsida enligt ISO-format." },
   { id: "snus", name: "Snusdosa", sizeCm: 7.0, note: "Ungefärlig diameter." },
   { id: "custom", name: "Egen referens", sizeCm: null, note: "Ange verklig längd i centimeter." }

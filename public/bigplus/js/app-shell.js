@@ -18,12 +18,12 @@ import { renderJournal, saveJournalTrip } from "./shell/journal.js";
 import { createCatchDeleteController } from "./shell/catch-delete.js";
 import { createCatchShareController } from "./shell/catch-share.js";
 import { createCatchViewController } from "./shell/catch-view-controller.js?v=20260816-catches-map-depth-89";
-import { createWeatherController } from "./shell/weather-controller.js?v=20260822-weather-canvas-layout-4";
+import { createWeatherController } from "./shell/weather-controller.js?v=20260824-weather-rain-profile-12";
 import { createMapSharingController } from "./shell/map-sharing.js";
 import { createRemoteDataController } from "./shell/remote-data-controller.js";
 import { createGroupController } from "./shell/group-controller.js";
 import { createProfileController } from "./shell/profile-controller.js";
-import { renderProfileLevelDashboard } from "./shell/profile-levels.js";
+import { renderProfileLevelDashboard } from "./shell/profile-levels.js?v=20260824-profile-reference-1";
 import { createAuthController } from "./shell/auth-controller.js";
 import { compressImageFile } from "./shell/image-utils.js";
 import { accounts, currentAccount, ensureDemoAccount, ensureMemberCode } from "./shell/account.js";
@@ -50,7 +50,7 @@ let measureModulePromise = null;
 
 function ensureMeasureModule() {
   if (!measureModulePromise) {
-measureModulePromise = import("./main.js?v=20260822-finger-span-correction-2");
+  measureModulePromise = import("./main.js?v=20260825-ring-scale-fix-9");
   }
   return measureModulePromise;
 }
@@ -590,6 +590,20 @@ function bind() {
   $("#closeProfileMissionModal")?.addEventListener("click", closeProfileMissionModal);
   $("#profileMissionModal")?.addEventListener("click", (event) => {
     if (event.target?.id === "profileMissionModal") closeProfileMissionModal();
+  });
+  const closeProfileLevelModal = () => {
+    const modal = $("#profileLevelModal");
+    if (modal) modal.hidden = true;
+  };
+  const openProfileLevelModal = () => {
+    refreshProfileLevelDashboard();
+    const modal = $("#profileLevelModal");
+    if (modal) modal.hidden = false;
+  };
+  $("#profileShowAllLevels")?.addEventListener("click", openProfileLevelModal);
+  $("#closeProfileLevelModal")?.addEventListener("click", closeProfileLevelModal);
+  $("#profileLevelModal")?.addEventListener("click", (event) => {
+    if (event.target?.id === "profileLevelModal") closeProfileLevelModal();
   });
   const closeLiveSettings = () => {
     const modal = $("#liveSettingsModal");

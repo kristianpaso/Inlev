@@ -63,6 +63,7 @@ const state = {
     active: "glasses",
     glasses: null,
     can: null,
+    ring: null,
     fish: null
   },
   view: {
@@ -93,10 +94,26 @@ const state = {
     active: false
   },
   handGuides: [],
+  fingerRing: {
+    available: false,
+    pixels: 0,
+    referencePixels: 0,
+    point: null,
+    rotationDeg: 0,
+    label: ""
+  },
   handDepth: {
     available: false,
     relative: 0,
     scale: 1,
+    label: ""
+  },
+  poseContext: {
+    available: false,
+    sameShoulderHeight: false,
+    armReach: 0,
+    armAngle: 0,
+    confidence: 0,
     label: ""
   },
   referenceDepth: {
@@ -287,14 +304,22 @@ const CLASSIC_CAN_IMAGE_BOUNDS = {
 // Keep the automatic overlay tied to the physical reference dimensions. Any
 // perspective correction comes from the detected hand depth, not a sample-
 // specific percentage.
-const AUTO_CAN_SIZE_FACTOR = 1.2;
+const AUTO_CAN_SIZE_FACTOR = 1.12;
 const FINGER_WIDTH_CM = 2;
+const RING_OUTER_WIDTH_CM = 2.25;
+const RING_HOLE_WIDTH_CM = 2;
+const FINGER_PROXY_FACTOR = 3.52;
+const CAN_REFERENCE_CORRECTION = 0.76;
 const CAN_HEIGHT_CM = 11.5;
 const FULL_GRIP_SPAN_CORRECTION = 4 / 3;
 const glassesReferenceImage = new Image();
 glassesReferenceImage.decoding = "async";
 glassesReferenceImage.src = "/bigplus/assets/glasses-reference.png?v=20260720";
 glassesReferenceImage.addEventListener("load", draw);
+const fingerRingReferenceImage = new Image();
+fingerRingReferenceImage.decoding = "async";
+fingerRingReferenceImage.src = "/bigplus/assets/ring-reference.png?v=20260824-ring-2cm";
+fingerRingReferenceImage.addEventListener("load", draw);
 
 function setStatus(text) {
   if (els.connectionStatus) els.connectionStatus.textContent = text;
@@ -643,6 +668,7 @@ function isGlassesReference() {
 function referenceSlotNameForId(referenceId = els.referenceSelect.value) {
   if (referenceId === "glasses") return "glasses";
   if (referenceId === "can-330") return "can";
+  if (referenceId === "ring-2cm") return "ring";
   if (referenceId === "fish-reference") return "fish";
   return "";
 }
@@ -1160,6 +1186,7 @@ function loadReferenceSlot(slotName, selected = true) {
 function slotCalibrationFactor(slot) {
   if (!slot) return 1;
   const base = slot.virtual?.calibrationFactor || 1;
+  if (slot.referenceId === "can-330") return base * CAN_REFERENCE_CORRECTION;
   return slot.referenceId === "glasses"
     ? base * (1 - (slot.virtual?.faceDepthOffset || 0))
     : base;
@@ -1167,13 +1194,16 @@ function slotCalibrationFactor(slot) {
 
 function referenceScalesForCalculation() {
   syncActiveReferenceSlot();
-  const slots = [state.referenceSlots.glasses, state.referenceSlots.can].filter(Boolean);
+  const slots = [state.referenceSlots.ring, state.referenceSlots.can, state.referenceSlots.glasses].filter(Boolean);
   const scales = slots
     .filter((slot) => slot.points?.length === 2 && distance(slot.points) > 0)
     .map((slot) => ({
       referenceId: slot.referenceId,
       scaleCmPerPixel: (slot.refCm * slotCalibrationFactor(slot)) / distance(slot.points)
     }));
+
+  const ring = scales.find((item) => item.referenceId === "ring-2cm");
+  if (ring) return [ring];
 
   // The can is the physical scale at the fish's plane. Glasses and hand depth
   // describe the perspective context, but changing the can size must change
@@ -1223,8 +1253,31 @@ function canPerspectiveLabel() {
 function glassesBasedCanHeight() {
   const glasses = state.referenceSlots.glasses;
   const glassesPixels = glasses?.points?.length === 2 ? distance(glasses.points) : 0;
-  const objectDepthScale = state.handDepth.available ? clamp(state.handDepth.scale || 1, 0.75, 1.35) : 1;
+  const objectDepthScale = combinedObjectDepthScale();
   return glassesPixels ? glassesPixels * (11.5 / 14) * objectDepthScale * AUTO_CAN_SIZE_FACTOR : 0;
+}
+
+function combinedObjectDepthScale() {
+  const handScale = state.handDepth.available ? clamp(state.handDepth.scale || 1, 0.88, 1.12) : null;
+  const pose = state.poseContext;
+  // Pose z is useful only as a gentle correction. It is not metric depth.
+  const poseScale = pose?.available && Number.isFinite(pose.wristZ)
+    ? clamp(1 - pose.wristZ * 0.08, 0.94, 1.06)
+    : null;
+  if (handScale === null && poseScale === null) return 1;
+  if (handScale === null) return poseScale;
+  if (poseScale === null) return handScale;
+  const poseWeight = pose.sameShoulderHeight ? 0.35 : 0.15;
+  return clamp(handScale * (1 - poseWeight) + poseScale * poseWeight, 0.88, 1.12);
+}
+
+function fingerPlaneScale() {
+  if (!state.fingerRing.available || state.fingerRing.pixels <= 0) return 1;
+  const glasses = state.referenceSlots.glasses;
+  const glassesPixels = glasses?.points?.length === 2 ? distance(glasses.points) : 0;
+  const referencePixels = state.fingerRing.referencePixels || glassesPixels * (RING_HOLE_WIDTH_CM / 14);
+  if (!referencePixels) return 1;
+  return clamp(state.fingerRing.pixels / referencePixels, 0.85, 1.45);
 }
 
 function selectedReferenceWidthRatio(referenceId = activeReferenceId()) {
@@ -1233,6 +1286,7 @@ function selectedReferenceWidthRatio(referenceId = activeReferenceId()) {
     return reference.widthCm / reference.heightCm;
   }
   if (referenceId === "glasses") return 1;
+  if (referenceId === "ring-2cm") return 1024 / 417;
   if (referenceId === "can-330") return 0.57;
   if (referenceId === "can-330-slim") return 0.4;
   if (referenceId === "can-500") return 0.39;
@@ -1385,7 +1439,7 @@ function rotateLocalPoint(centerX, centerY, x, y, angle) {
 function updateVirtualReferencePoints() {
   if (!state.virtualReference.enabled) return;
   const rect = virtualReferenceGeometry();
-  if (isGlassesReference()) {
+  if (isGlassesReference() || activeReferenceId() === "ring-2cm") {
     state.points.ref = [
       rotateLocalPoint(rect.centerX, rect.centerY, -rect.width / 2, 0, rect.angle),
       rotateLocalPoint(rect.centerX, rect.centerY, rect.width / 2, 0, rect.angle)
@@ -1432,7 +1486,7 @@ function referenceSlotContainsPoint(slotName, point) {
 }
 
 function referenceSlotAtPoint(point) {
-  const slotNames = ["glasses", "can"];
+  const slotNames = ["glasses", "can", "ring"];
   return slotNames.find((slotName) => referenceSlotContainsPoint(slotName, point)) || "";
 }
 
@@ -1811,6 +1865,40 @@ function handLandmarksToImageFrame(landmarks) {
   const fingerSpanCm = visibleFingerCount >= 3
     ? 4 * FINGER_WIDTH_CM
     : Math.max(FINGER_WIDTH_CM, visibleFingerCount * FINGER_WIDTH_CM);
+  // Use only the three central fingers. The thumb and little finger are poor
+  // references because their angles and visible widths vary too much.
+  const fingerCandidates = [
+    { tip: 12, dip: 11, name: "långfinger" },
+    { tip: 8, dip: 7, name: "pekfinger" },
+    { tip: 16, dip: 15, name: "ringfinger" }
+  ].filter(({ tip, dip }) => point(tip) && point(dip));
+  const selectedFinger = fingerCandidates
+    .sort((a, b) => point(a.tip).y - point(b.tip).y)[0] || null;
+  const upperFinger = selectedFinger ? {
+    x: frame.offsetX + ((point(selectedFinger.tip).x + point(selectedFinger.dip).x) / 2) * frame.drawWidth,
+    y: frame.offsetY + ((point(selectedFinger.tip).y + point(selectedFinger.dip).y) / 2) * frame.drawHeight
+  } : null;
+  const upperFingerRotationDeg = selectedFinger
+    ? Math.atan2(
+        point(selectedFinger.tip).y - point(selectedFinger.dip).y,
+        point(selectedFinger.tip).x - point(selectedFinger.dip).x
+      ) * 180 / Math.PI
+    : 0;
+  // A ring is sized from the selected finger segment plus the knuckle span.
+  // Landmarks have no finger edges, so the palm span provides a stable width
+  // fallback while the local segment keeps the result responsive to scale.
+  const selectedFingerLengthPx = selectedFinger
+    ? Math.hypot(
+        (point(selectedFinger.tip).x - point(selectedFinger.dip).x) * frame.drawWidth,
+        (point(selectedFinger.tip).y - point(selectedFinger.dip).y) * frame.drawHeight
+      )
+    : 0;
+  // The model gives reliable joints, but not the visible finger edges. Use the
+  // knuckle span as a calibrated proxy so the 2 cm ring opening matches the
+  // finger instead of the much shorter raw landmark distance.
+  const upperFingerPixels = selectedFingerLengthPx > 0
+    ? Math.max(selectedFingerLengthPx * 1.2, palmWidth * frame.drawWidth * FINGER_PROXY_FACTOR)
+    : 0;
   return {
     x: frame.offsetX + grip.x * frame.drawWidth,
     y: frame.offsetY + grip.y * frame.drawHeight,
@@ -1818,6 +1906,10 @@ function handLandmarksToImageFrame(landmarks) {
     // Palm-to-finger conversion is intentionally conservative: the
     // landmark span is wider than the visible finger itself.
     fingerWidth: visibleFingerCount >= 1 ? palmWidth * frame.drawWidth : 0,
+    upperFinger,
+    upperFingerPixels,
+    upperFingerRotationDeg,
+    selectedFinger: selectedFinger?.name || "",
     fingerSpanPixels: visibleFingerCount >= 3
       ? palmWidth * frame.drawWidth * FULL_GRIP_SPAN_CORRECTION
       : palmWidth * frame.drawWidth,
@@ -1833,6 +1925,7 @@ function handLandmarksToImageFrame(landmarks) {
 }
 
 function updateHandDepthEstimate(result) {
+  updateArmPoseContext(result);
   const face = result?.faceLandmarks?.[0];
   const hands = [result?.leftHandLandmarks?.[0], result?.rightHandLandmarks?.[0]].filter(Boolean);
   if (!face?.length || !hands.length) {
@@ -1878,6 +1971,96 @@ function updateHandDepthEstimate(result) {
     label: relative > 0.08 ? "handen framför ansiktet" : relative < -0.08 ? "handen bakom ansiktet" : "handen nära ansiktsplanet"
   };
   return state.handDepth;
+}
+
+function resetPoseContext() {
+  state.poseContext = {
+    available: false,
+    sameShoulderHeight: false,
+    armReach: 0,
+    armAngle: 0,
+    confidence: 0,
+    label: ""
+  };
+}
+
+function updateArmPoseContext(result) {
+  const pose = result?.poseLandmarks?.[0] || result?.poseLandmarks || [];
+  if (!pose.length || !state.image) {
+    state.poseContext = {
+      available: false,
+      sameShoulderHeight: false,
+      armReach: 0,
+      armAngle: 0,
+      confidence: 0,
+      label: ""
+    };
+    return state.poseContext;
+  }
+
+  const frame = getImageFrame();
+  const toFrame = (landmark) => ({
+    x: frame.offsetX + landmark.x * frame.drawWidth,
+    y: frame.offsetY + landmark.y * frame.drawHeight
+  });
+  const visible = (landmark) => landmark && (landmark.visibility ?? 1) >= 0.35;
+  const angleAt = (a, b, c) => {
+    const ab = { x: a.x - b.x, y: a.y - b.y };
+    const cb = { x: c.x - b.x, y: c.y - b.y };
+    const denominator = Math.hypot(ab.x, ab.y) * Math.hypot(cb.x, cb.y);
+    if (!denominator) return null;
+    return Math.acos(clamp((ab.x * cb.x + ab.y * cb.y) / denominator, -1, 1)) * 180 / Math.PI;
+  };
+  const arms = [[11, 13, 15], [12, 14, 16]]
+    .map(([shoulderIndex, elbowIndex, wristIndex]) => {
+      const shoulder = pose[shoulderIndex];
+      const elbow = pose[elbowIndex];
+      const wrist = pose[wristIndex];
+      if (![shoulder, elbow, wrist].every(visible)) return null;
+      const shoulderPoint = toFrame(shoulder);
+      const elbowPoint = toFrame(elbow);
+      const wristPoint = toFrame(wrist);
+      return {
+        shoulder: shoulderPoint,
+        elbow: elbowPoint,
+        wrist: wristPoint,
+        reach: Math.hypot(shoulderPoint.x - wristPoint.x, shoulderPoint.y - wristPoint.y),
+        angle: angleAt(shoulderPoint, elbowPoint, wristPoint),
+        wristZ: wrist.z || 0
+      };
+    })
+    .filter(Boolean);
+  const fish = fishGuide();
+  if (!arms.length) {
+    state.poseContext = {
+      available: false,
+      sameShoulderHeight: false,
+      armReach: 0,
+      armAngle: 0,
+      confidence: 0,
+      label: ""
+    };
+    return state.poseContext;
+  }
+  const shoulderY = arms.reduce((sum, arm) => sum + arm.shoulder.y, 0) / arms.length;
+  const wristY = arms.reduce((sum, arm) => sum + arm.wrist.y, 0) / arms.length;
+  const fishHeightDelta = fish ? Math.abs(fish.centerY - shoulderY) / Math.max(1, frame.drawHeight) : 1;
+  const sameShoulderHeight = fishHeightDelta < 0.16 || Math.abs(wristY - shoulderY) / Math.max(1, frame.drawHeight) < 0.16;
+  const armReach = arms.reduce((sum, arm) => sum + arm.reach, 0) / arms.length;
+  const armAngle = arms.reduce((sum, arm) => sum + (arm.angle || 90), 0) / arms.length;
+  const confidence = clamp(arms.length / 2 * (sameShoulderHeight ? 1 : 0.65), 0, 1);
+  state.poseContext = {
+    available: true,
+    sameShoulderHeight,
+    armReach,
+    armAngle,
+    confidence,
+    wristZ: arms.reduce((sum, arm) => sum + arm.wristZ, 0) / arms.length,
+    shoulderY,
+    wristY,
+    label: sameShoulderHeight ? "fisk nära axelhöjd" : "armposition osäker"
+  };
+  return state.poseContext;
 }
 
 async function detectHolisticInImage() {
@@ -1960,10 +2143,25 @@ function updateHandGuides(result) {
     .map(handLandmarksToImageFrame)
     .filter(Boolean);
   state.handGuides = guides;
+  const upperGuide = guides
+    .filter((guide) => guide.upperFinger && guide.upperFingerPixels > 0)
+    .sort((a, b) => a.upperFinger.y - b.upperFinger.y)[0];
+  const fallbackGuide = guides
+    .filter((guide) => guide.width > 0)
+    .sort((a, b) => a.y - b.y)[0];
+  const fallbackPoint = fallbackGuide
+    ? { x: fallbackGuide.x, y: fallbackGuide.y }
+    : null;
+  state.fingerRing = upperGuide
+    ? { available: true, pixels: upperGuide.upperFingerPixels, referencePixels: 0, point: upperGuide.upperFinger, rotationDeg: upperGuide.upperFingerRotationDeg, label: `Ring · ${upperGuide.selectedFinger || "finger"} · ytterbredd 2,25 cm · hål 2 cm` }
+    : fallbackGuide
+      ? { available: true, pixels: Math.max(8, fallbackGuide.width * 0.24), referencePixels: 0, point: fallbackPoint, rotationDeg: 0, label: "Ring · finger hittad · ytterbredd 2,25 cm · hål 2 cm" }
+      : { available: false, pixels: 0, referencePixels: 0, point: null, rotationDeg: 0, label: "" };
   return guides;
 }
 
 function updateArmGuides(result) {
+  updateArmPoseContext(result);
   const pose = result?.poseLandmarks?.[0] || result?.poseLandmarks || [];
   if (!pose.length || !state.image) return [];
   const frame = getImageFrame();
@@ -2500,6 +2698,42 @@ function drawDetectedHandGuides() {
   ctx.restore();
 }
 
+function drawFingerRingReference() {
+  if (!state.fingerRing.available || !state.fingerRing.point || !state.fingerRing.pixels) return;
+  const pixelsPerCm = state.fingerRing.pixels / RING_HOLE_WIDTH_CM;
+  const referencePixels = state.fingerRing.pixels * (RING_OUTER_WIDTH_CM / RING_HOLE_WIDTH_CM);
+  state.fingerRing.referencePixels = referencePixels;
+  const center = {
+    x: state.fingerRing.point.x,
+    y: state.fingerRing.point.y
+  };
+  // The detection proxy is deliberately enlarged for metric calculation.
+  // Render the ring from the underlying finger width so it fits visually.
+  const displayPixels = Math.max(10, (pixelsPerCm * RING_OUTER_WIDTH_CM) / FINGER_PROXY_FACTOR);
+  const imageWidth = displayPixels * 1.2;
+  const imageHeight = displayPixels * 0.52;
+  ctx.save();
+  ctx.translate(center.x, center.y);
+  ctx.rotate((state.fingerRing.rotationDeg || 0) * Math.PI / 180);
+  if (fingerRingReferenceImage.complete && fingerRingReferenceImage.naturalWidth > 0) {
+    ctx.drawImage(fingerRingReferenceImage, -imageWidth / 2, -imageHeight / 2, imageWidth, imageHeight);
+  } else {
+    ctx.strokeStyle = "#fbbf24";
+    ctx.fillStyle = "rgba(251, 191, 36, 0.16)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, imageWidth / 2, imageHeight / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.rotate(-(state.fingerRing.rotationDeg || 0) * Math.PI / 180);
+  ctx.fillStyle = "#fff7d6";
+  ctx.font = "800 12px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Ring 2,25 cm · hål 2 cm", 0, -imageHeight / 2 - 8);
+  ctx.restore();
+}
+
 function drawVirtualReference(referenceId = state.virtualReference.referenceId || els.referenceSelect.value) {
   if (!state.virtualReference.enabled) return;
 
@@ -2509,6 +2743,7 @@ function drawVirtualReference(referenceId = state.virtualReference.referenceId |
   const y = -rect.height / 2;
 
   const glassesReference = referenceId === "glasses";
+  const ringReference = referenceId === "ring-2cm";
   if (glassesReference) {
     if (!drawGlassesReferenceAsset(x, y, rect)) {
       ctx.save();
@@ -2533,6 +2768,17 @@ function drawVirtualReference(referenceId = state.virtualReference.referenceId |
       ctx.fillRect(x + rect.width * 0.04, y + rect.height * 0.12, rect.width * 0.35, rect.height * 0.76);
       ctx.fillRect(x + rect.width * 0.61, y + rect.height * 0.12, rect.width * 0.35, rect.height * 0.76);
       ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+  } else if (ringReference) {
+    if (fingerRingReferenceImage.complete && fingerRingReferenceImage.naturalWidth > 0) {
+      ctx.save();
+      ctx.translate(rect.centerX, rect.centerY);
+      ctx.rotate(rect.angle);
+      const ringDisplayScale = 0.3;
+      const displayWidth = rect.width * ringDisplayScale;
+      const displayHeight = rect.height * ringDisplayScale;
+      ctx.drawImage(fingerRingReferenceImage, -displayWidth / 2, -displayHeight / 2, displayWidth, displayHeight);
       ctx.restore();
     }
   } else {
@@ -2628,8 +2874,10 @@ function draw() {
   enhanceReferenceReadout();
   drawReferenceSlot("glasses");
   drawReferenceSlot("can");
+  drawReferenceSlot("ring");
   drawDetectedHandGuides();
   drawVirtualReference();
+  // Keep the ring visible as its own object, even when the can overlaps the hand.
   drawFaceDepthLine();
   updateRulerControl();
   drawLengthRuler();
@@ -2651,7 +2899,9 @@ function setTool(tool) {
 }
 
 function updateMeasureMenuState(activeOverride = "") {
-  const active = activeOverride || (state.activeTool === "ref" ? state.referenceSlots.active === "can" ? "can" : "glasses" : state.activeTool === "fish" ? "length" : "width");
+  const active = activeOverride || (state.activeTool === "ref"
+    ? state.referenceSlots.active === "can" ? "can" : state.referenceSlots.active === "ring" ? "ring" : "glasses"
+    : state.activeTool === "fish" ? "length" : "width");
   els.measureStepMenu?.querySelectorAll("[data-measure-menu]").forEach((button) => {
     const isActive = button.dataset.measureMenu === active;
     button.classList.toggle("is-active", isActive);
@@ -2673,7 +2923,9 @@ function updateRulerControl() {
 function resetPoints(options = {}) {
   const clearImage = Boolean(options.clearImage);
   state.handGuides = [];
+  state.fingerRing = { available: false, pixels: 0, referencePixels: 0, point: null, rotationDeg: 0, label: "" };
   state.handDepth = { available: false, relative: 0, scale: 1, label: "" };
+  resetPoseContext();
   state.referenceDepth.canBaselineHeight = null;
   if (clearImage) {
     state.image = null;
@@ -2721,6 +2973,7 @@ function resetPoints(options = {}) {
   state.referenceSlots.active = "glasses";
   state.referenceSlots.glasses = null;
   state.referenceSlots.can = null;
+  state.referenceSlots.ring = null;
   state.measurementLocks.fish = false;
   state.measurementLocks.body = false;
   state.rulerVisible = false;
@@ -2769,9 +3022,27 @@ async function autoPlaceGlassesReference() {
   const holistic = await detectHolisticInImage();
   const holisticGuides = updateHandGuides(holistic);
   const armGuides = updateArmGuides(holistic);
-  const directGuides = updateHandGuides(await detectHandsInImage());
+  // Keep a successful Holistic hand result when the direct hand pass returns
+  // nothing. An empty retry must never clear a usable finger point.
+  const directHandResult = await detectHandsInImage();
+  const directGuides = directHandResult ? updateHandGuides(directHandResult) : [];
   const handGuides = directGuides.length ? directGuides : holisticGuides.length ? holisticGuides : armGuides;
   state.handGuides = handGuides;
+  if (!state.fingerRing.point) {
+    const ringGuide = handGuides
+      .filter((guide) => guide.upperFinger && guide.upperFingerPixels > 0)
+      .sort((a, b) => a.upperFinger.y - b.upperFinger.y)[0];
+    if (ringGuide) {
+      state.fingerRing = {
+        available: true,
+        pixels: ringGuide.upperFingerPixels,
+        referencePixels: 0,
+        point: ringGuide.upperFinger,
+        rotationDeg: ringGuide.upperFingerRotationDeg,
+        label: `Ring · ${ringGuide.selectedFinger || "finger"} · ytterbredd 2,25 cm · hål 2 cm`
+      };
+    }
+  }
   const holisticFace = faceLandmarksToImageFrame(holistic?.faceLandmarks?.[0]);
   const face = holisticFace || await detectFaceInImageFrame();
   if (imageAtStart !== state.image) return;
@@ -2791,8 +3062,10 @@ async function autoPlaceGlassesReference() {
         ? "Armarnas V hittad – glasögon placerade"
         : "Ansikte och händer hittade – glasögon placerade");
       await placeHandReference({ autoAdvance: true });
+      if (state.fingerRing.point) await placeRingReference({ automatic: true });
     } else {
       await placeHandReference({ autoAdvance: true });
+      if (state.fingerRing.point) await placeRingReference({ automatic: true });
     }
     return;
   }
@@ -3379,6 +3652,13 @@ function defaultPalettePoint(referenceId) {
     };
   }
 
+  if (referenceId === "ring-2cm") {
+    return {
+      x: state.fingerRing.point?.x || frame.offsetX + frame.drawWidth * 0.5,
+      y: state.fingerRing.point?.y || frame.offsetY + frame.drawHeight * 0.58
+    };
+  }
+
   return {
     x: frame.offsetX + frame.drawWidth * 0.18,
     y: frame.offsetY + frame.drawHeight * 0.58
@@ -3442,15 +3722,14 @@ async function placeHandReference({ autoAdvance = false } = {}) {
     return;
   }
 
+  setStatus("Söker händer och armposition");
+  const holisticResult = await detectHolisticInImage();
+  const armGuides = updateArmGuides(holisticResult);
+  if (!state.handGuides.length) updateHandGuides(holisticResult);
   if (!state.handGuides.length) {
-    setStatus("Söker händer");
     updateHandGuides(await detectHandsInImage());
-    if (!state.handGuides.length) {
-      const holisticResult = await detectHolisticInImage();
-      updateHandGuides(holisticResult);
-      if (!state.handGuides.length) state.handGuides = updateArmGuides(holisticResult);
-    }
   }
+  if (!state.handGuides.length) state.handGuides = armGuides;
 
   if (!["can-330", "can-330-slim"].includes(els.referenceSelect.value)) {
     els.referenceSelect.value = "can-330";
@@ -3462,6 +3741,7 @@ async function placeHandReference({ autoAdvance = false } = {}) {
   els.autoPerspectiveToggle.checked = false;
   els.depthModeSelect.value = "manual";
   setCalibrationPercent(100);
+  state.virtualReference.rotationDeg = 0;
   els.referenceRotationRange.value = "0";
 
   const guide = fishGuide();
@@ -3491,9 +3771,16 @@ async function placeHandReference({ autoAdvance = false } = {}) {
   const singleFingerBasedHeight = handGuide?.fingerWidth && handGuide.visibleFingerCount === 1
     ? clamp((handGuide.fingerWidth / FINGER_WIDTH_CM) * CAN_HEIGHT_CM, 42, 700)
     : 0;
+  const fingerRingBasedHeight = state.fingerRing.available
+    ? clamp((state.fingerRing.pixels / FINGER_WIDTH_CM) * CAN_HEIGHT_CM * combinedObjectDepthScale(), baseHeight * 0.92, baseHeight * 1.28)
+    : 0;
+  const fingerDepthAdjustedHeight = baseHeight * fingerPlaneScale();
   // Finger span is the physical cue at the fish plane. It may enlarge the
   // can, but never shrink the glasses-based starting reference.
-  const estimatedHeight = Math.max(42, baseHeight, handSizedHeight, fingerSpanBasedHeight, singleFingerBasedHeight);
+  const poseAdjustment = state.poseContext.available && state.poseContext.sameShoulderHeight
+    ? clamp(combinedObjectDepthScale(), 0.94, 1.06)
+    : 1;
+  const estimatedHeight = Math.max(42, baseHeight * poseAdjustment, fingerDepthAdjustedHeight, handSizedHeight, fingerSpanBasedHeight, singleFingerBasedHeight, fingerRingBasedHeight);
   state.virtualReference.baseHeight = estimatedHeight;
   state.virtualReference.height = estimatedHeight;
   if (!Number.isFinite(state.referenceDepth.canBaselineHeight)) {
@@ -3515,7 +3802,11 @@ async function placeHandReference({ autoAdvance = false } = {}) {
     groundY: handY + estimatedHeight / 2,
     rotationDeg: 0,
     status: handGuide
-      ? armFallback ? "Armarnas V hittad – kontrollera burkens storlek" : "Hand hittad – placera burken"
+      ? armFallback
+        ? "Armarnas V hittad – kontrollera burkens storlek"
+        : state.poseContext.sameShoulderHeight
+          ? "Hand och axelhöjd hittad – placera burken"
+          : "Hand hittad – kontrollera armarnas djup"
       : "Hand hittades inte – justera burken manuellt"
   });
   if (autoAdvance && handGuide) {
@@ -3523,11 +3814,39 @@ async function placeHandReference({ autoAdvance = false } = {}) {
     updateMeasureMenuState("length");
     setStatus(armFallback
       ? "Armarnas V hittad – kontrollera burken och markera längden"
-      : "Burk placerad – markera längden");
+      : state.poseContext.sameShoulderHeight
+        ? "Axelhöjd och handläge hittade – kontrollera burken och markera längden"
+        : "Burk placerad – kontrollera armarnas djup och markera längden");
   } else if (autoAdvance) {
     setTool("fish");
     updateMeasureMenuState("length");
     setStatus("Burk placerad – kontrollera placeringen och markera längden");
+  }
+}
+
+async function placeRingReference({ automatic = false } = {}) {
+  if (!state.image) {
+    setStatus("Ladda bild först");
+    return;
+  }
+
+  setStatus("Söker ett finger");
+  const holisticResult = await detectHolisticInImage();
+  updateHandGuides(holisticResult);
+  if (!state.fingerRing.point) {
+    updateHandGuides(await detectHandsInImage());
+  }
+
+  if (state.fingerRing.point) {
+    placePaletteReference("ring-2cm");
+    setStatus("Ring placerad automatiskt på finger");
+  } else {
+    if (automatic) {
+      setStatus("Inget finger hittades – ring väntar på en synlig hand");
+      return;
+    }
+    placePaletteReference("ring-2cm");
+    setStatus("Finger hittades inte – flytta ringen till ett finger");
   }
 }
 
@@ -3602,6 +3921,28 @@ function placePaletteReference(referenceId, point = null) {
   setCalibrationPercent(100);
   updateReferenceSpecificControls();
   updateSimpleReferenceButtons();
+
+  if (referenceId === "ring-2cm") {
+    const fingerPoint = point || state.fingerRing.point || defaultPalettePoint(referenceId);
+    const outerPixels = state.fingerRing.pixels > 0
+      ? state.fingerRing.pixels * (RING_OUTER_WIDTH_CM / RING_HOLE_WIDTH_CM)
+      : 72;
+    const ringHeight = clamp(outerPixels / selectedReferenceWidthRatio(referenceId), 28, 180);
+    const ringWidth = ringHeight * selectedReferenceWidthRatio(referenceId);
+    // The ring is calibrated directly from the finger. Do not inherit the
+    // can/glasses perspective correction, or its scale changes after placement.
+    els.autoPerspectiveToggle.checked = false;
+    els.depthModeSelect.value = "manual";
+    els.referenceScaleRange.value = String(Math.round(ringHeight));
+    placeVirtualReference({
+      referenceId,
+      x: fingerPoint.x - ringWidth / 2,
+      groundY: fingerPoint.y + ringHeight / 2,
+      rotationDeg: state.fingerRing.rotationDeg || 0,
+      status: state.fingerRing.point ? "Ring placerad vid finger" : "Ring placerad – flytta den till fingret"
+    });
+    return;
+  }
 
   const center = point || defaultPalettePoint(referenceId);
   const height = Number(els.referenceScaleRange.value) || 150;
@@ -4450,6 +4791,10 @@ els.measureStepMenu?.querySelectorAll("[data-measure-menu]").forEach((button) =>
       els.paletteCan?.click();
       setTool("ref");
       if (state.image) void placeHandReference();
+    } else if (step === "ring") {
+      els.referenceSelect.value = "ring-2cm";
+      setTool("ref");
+      void placeRingReference();
     } else if (step === "length") {
       setTool("fish");
       setStatus(state.points.fish.length >= 2 ? "Justera längden" : "Markera längden på fisken");

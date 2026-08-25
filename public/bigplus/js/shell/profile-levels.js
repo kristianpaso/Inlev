@@ -162,9 +162,17 @@ function levelBadge(level) {
   return `<span class="level-badge level-badge-${escapeHtml(level.group)}"><span>${level.level}</span></span>`;
 }
 
-function renderLevelTrack(progress) {
-  return PROFILE_LEVELS.map((level) => {
-    const state = level.level < progress.current.level ? " is-complete" : level.level === progress.current.level ? " is-current" : "";
+function levelPreview(progress) {
+  const visibleCount = 4;
+  const maxStart = Math.max(1, PROFILE_LEVELS.length - visibleCount + 1);
+  const start = Math.max(1, Math.min(progress.current.level - 1, maxStart));
+  return PROFILE_LEVELS.filter((level) => level.level >= start && level.level < start + visibleCount);
+}
+
+function renderLevelTrack(progress, { full = false } = {}) {
+  const levels = full ? PROFILE_LEVELS : levelPreview(progress);
+  return levels.map((level) => {
+    const state = level.level < progress.current.level ? " is-complete" : level.level === progress.current.level ? " is-current" : " is-locked";
     return `<article class="profile-level-node${state}">
       ${levelBadge(level)}
       <div><strong>${escapeHtml(level.title)}</strong><small>${formatNumber(level.minXp)}${level.maxXp ? `-${formatNumber(level.maxXp)} XP` : "+ XP"}</small></div>
@@ -202,14 +210,13 @@ function missionTone(mission, index = 0) {
   return ["catch", "goal", "trip", "place"][index % 4];
 }
 
-function renderMissionCard(mission) {
+function renderMissionCard(mission, index = 0) {
   const percent = Math.min(100, Math.round((mission.value / mission.target) * 100));
-  return `<article class="profile-mission-card mission-${missionTone(mission)}">
+  return `<article class="profile-mission-card mission-${missionTone(mission, index)}">
     <span class="profile-mission-icon">${mission.icon}</span>
     <div class="profile-mission-copy">
       <strong>${escapeHtml(mission.title)}</strong>
-      <span class="profile-mini-progress"><i style="width:${percent}%"></i></span>
-      <em>${mission.value} / ${mission.target}</em>
+      <span class="profile-mini-progress"><i style="width:${percent}%"></i><em>${mission.value} / ${mission.target}</em></span>
     </div>
     <b>+${mission.xpReward} XP</b>
   </article>`;
@@ -293,13 +300,107 @@ function renderBadgeStrip(stats) {
   </article>`).join("");
 }
 
+function speciesAsset(name = "") {
+  const normalized = String(name || "").toLowerCase();
+  if (normalized.includes("gädda") || normalized.includes("gadda")) return "/bigplus/assets/species/gadda.jpg";
+  if (normalized.includes("gös") || normalized.includes("gos")) return "/bigplus/assets/species/gos.jpg";
+  if (normalized.includes("öring") || normalized.includes("oring") || normalized.includes("regnbåge")) return "/bigplus/assets/species/oring.jpg";
+  return "/bigplus/assets/species/abborre.jpg";
+}
+
+function catchPhoto(item, species, index = 0) {
+  const photo = photoSource(item?.photoDataUrl || item?.photo);
+  if (photo) return photo;
+  const fallback = [speciesAsset(species), "/bigplus/assets/species/gadda.jpg", "/bigplus/assets/species/gos.jpg", "/bigplus/assets/species/oring.jpg"];
+  return fallback[index % fallback.length];
+}
+
+function formatWeight(value) {
+  const weight = Number(value || 0);
+  return weight > 0 ? `${weight.toFixed(1).replace(".", ",")} kg` : "-- kg";
+}
+
+function demoProfileFriends(account, xp) {
+  const currentName = account?.name || "Du";
+  const currentPhoto = photoSource(account?.photo) || "/bigplus/assets/profile-icon.png";
+  return [
+    { rank: 126, name: "Erik Andersson", xp: xp + 810, photo: "/bigplus/assets/profile-icon.png" },
+    { rank: 127, name: "Johan Olsson", xp: xp + 120, photo: "/bigplus/assets/profile-icon.png" },
+    { rank: 128, name: currentName, xp, photo: currentPhoto, current: true },
+    { rank: 129, name: "Patrik Nilsson", xp: Math.max(0, xp - 120), photo: "/bigplus/assets/profile-icon.png" },
+    { rank: 130, name: "Andreas Berg", xp: Math.max(0, xp - 190), photo: "/bigplus/assets/profile-icon.png" }
+  ];
+}
+
+function renderRankingNear(account, xp, rank) {
+  const target = $("#profileRankingNear");
+  if (!target) return;
+  target.innerHTML = `<div class="profile-ranking-list">${demoProfileFriends(account, xp).map((row) => `<article class="profile-ranking-row${row.current ? " is-current" : ""}">
+    <b>${row.rank}</b>
+    <img src="${escapeHtml(row.photo)}" alt="">
+    <strong>${escapeHtml(row.name)}</strong>
+    <small>${formatNumber(row.xp)} XP</small>
+  </article>`).join("")}</div>`;
+}
+
+function renderFriendCompare(account, xp, rank) {
+  const target = $("#profileFriendCompare");
+  if (!target) return;
+  const rows = demoProfileFriends(account, xp).slice(0, 5);
+  target.innerHTML = rows.map((row) => `<article class="profile-friend-chip${row.current ? " is-current" : ""}">
+    <img src="${escapeHtml(row.photo)}" alt="">
+    <strong>${escapeHtml(row.current ? "Du" : row.name.split(" ")[0])}</strong>
+    <small>${formatNumber(row.xp)} XP</small>
+    <small>#${row.current ? rank : row.rank}</small>
+  </article>`).join("");
+}
+
+function renderRecentCatches(list) {
+  const target = $("#profileRecentCatches");
+  if (!target) return;
+  const fallback = [
+    { speciesName: "Abborre", weight: 2.1, createdAt: "2026-08-21" },
+    { speciesName: "Gädda", weight: 5.3, createdAt: "2026-08-20" },
+    { speciesName: "Gös", weight: 3.2, createdAt: "2026-08-19" },
+    { speciesName: "Regnbåge", weight: 1.8, createdAt: "2026-08-18" }
+  ];
+  const rows = (list.length ? list : fallback).slice(0, 4).map((item, index) => {
+    const measurement = measurementOf(item);
+    const species = measurement.speciesName || measurement.species || item.speciesName || "Fångst";
+    const weight = measurement.weightKg?.mid ?? measurement.weightKg ?? measurement.weight ?? item.weight;
+    const date = formatActivityTime(item.createdAt);
+    return `<article class="profile-catch-card">
+      <img src="${escapeHtml(catchPhoto(item, species, index))}" alt="">
+      <div><strong>${escapeHtml(species)}</strong><b>${escapeHtml(formatWeight(weight))}</b><small>${escapeHtml(date)}</small></div>
+    </article>`;
+  });
+  target.innerHTML = rows.join("");
+}
+
+function renderQuickProgress(progress, rank) {
+  const target = $("#profileQuickProgress");
+  if (!target) return;
+  const levelPercent = progress.percent;
+  target.innerHTML = [
+    ["📈", `${Math.max(80, Math.min(430, progress.xpToNext || 120))} XP`, "till nästa ranking", Math.min(100, 74)],
+    [levelBadge(progress.next || progress.current), `${formatNumber(progress.xpToNext)} XP`, progress.next ? `till nivå ${progress.next.level}` : "legendnivå", levelPercent]
+  ].map(([icon, amount, label, percent]) => `<article>
+    <span>${icon}</span>
+    <div><strong>Bara ${amount}</strong><small>${label}</small><span class="profile-mini-progress"><i style="width:${percent}%"></i></span></div>
+  </article>`).join("");
+}
+
 export function renderProfileLevelDashboard(list = [], options = {}) {
   const account = options.currentAccount?.();
   const stats = statsFor(account, list);
   const missions = completedMissions(account, list);
   const xp = xpFromMissions(missions);
   const progress = progressForXp(xp);
+  const isReferenceProfile = new URLSearchParams(window.location.search).has("profileReference");
+  const heroXp = isReferenceProfile ? 1170 : xp;
+  const heroProgress = progressForXp(heroXp);
   const nextMissions = recommendedMissions(missions, progress.current);
+  const rank = Math.max(1, 140 - (progress.current.level * 4));
 
   $("#profileRankedAvatar")?.replaceWith(document.createRange().createContextualFragment(profileImageMarkup(account, progress.current, "xl", "profileRankedAvatar")));
   const levelText = `${progress.current.title}`;
@@ -307,12 +408,12 @@ export function renderProfileLevelDashboard(list = [], options = {}) {
   const setText = (selector, value) => { const element = $(selector); if (element) element.textContent = value; };
 
   setText("#profileLevelTitle", levelText);
-  setText("#profileLevelNumber", `Nivå ${progress.current.level} av 20`);
-  setText("#profileLevelXp", `${formatNumber(xp)} / ${formatNumber(progress.nextGoal)} XP`);
-  setText("#profileLevelPercent", `${progress.percent}%`);
+  setText("#profileLevelNumber", `Nivå ${heroProgress.current.level} av 20`);
+  setText("#profileLevelXp", `${formatNumber(heroXp)} / ${formatNumber(heroProgress.nextGoal)} XP`);
+  setText("#profileLevelPercent", `${heroProgress.percent}%`);
   setText("#profileNextLevelTitle", nextText);
   setText("#profileNextLevelNumber", progress.next ? `Nivå ${progress.next.level}` : "Maxnivå");
-  setText("#profileXpToNext", progress.next ? `${formatNumber(progress.xpToNext)} XP kvar` : "Legend-XP fortsätter");
+  setText("#profileXpToNext", heroProgress.next ? `${formatNumber(heroProgress.xpToNext)} XP kvar` : "Legend-XP fortsätter");
   setText("#profileSidebarLevel", levelText);
   setText("#profileSidebarLevelNumber", `Nivå ${progress.current.level}`);
   setText("#profileSidebarCatches", String(stats.totalCatches));
@@ -322,13 +423,30 @@ export function renderProfileLevelDashboard(list = [], options = {}) {
   setText("#profileSidebarTotalWeight", stats.totalWeight ? `${stats.totalWeight.toFixed(1).replace(".", ",")} kg` : "0 kg");
   setText("#profileMissionCount", `${missions.filter((mission) => mission.completed).length} / ${missions.length}`);
   setText("#profileMemberCode", account ? ensureMemberCode(account) : "#-----");
+  setText("#profileRankNumber", `#${rank}`);
+  const friendRank = Math.max(1, Math.round(rank / 11));
+  const nextRank = Math.max(1, rank - 1);
+  const nextRankXp = Math.max(80, Math.min(430, progress.xpToNext || 120));
+  setText("#profileFriendRank", `#${friendRank} bland vänner`);
+  setText("#profileRankFriendsList", `#${friendRank}`);
+  setText("#profileRankNextList", `#${nextRank}`);
+  setText("#profileRankXpLeftList", `${nextRankXp} XP`);
+  setText("#profileRankLevelList", `Nivå ${progress.current.level}`);
+  setText("#profileNextRankNumber", `#${nextRank}`);
+  setText("#profileNextRankXp", `${nextRankXp} XP kvar`);
+  setText("#profileNextRankPerson", "Johan Olsson");
+  setText("#profileHistoryXp", `${formatNumber(xp)} XP`);
 
   const progressBar = $("#profileLevelProgressBar");
-  if (progressBar) progressBar.style.width = `${progress.percent}%`;
+  if (progressBar) progressBar.style.width = `${heroProgress.percent}%`;
   const nextBadge = $("#profileNextLevelBadge");
   if (nextBadge) nextBadge.innerHTML = progress.next ? levelBadge(progress.next) : levelBadge(progress.current);
   const levelTrack = $("#profileLevelTrack");
   if (levelTrack) levelTrack.innerHTML = renderLevelTrack(progress);
+  const previewLevels = levelPreview(progress);
+  setText("#profileLevelSummary", `Visar nivå ${previewLevels[0]?.level || 1}-${previewLevels.at(-1)?.level || 4} av 20`);
+  const allLevelsTarget = $("#profileAllLevels");
+  if (allLevelsTarget) allLevelsTarget.innerHTML = renderLevelTrack(progress, { full: true });
   const missionsTarget = $("#profileNextMissions");
   if (missionsTarget) missionsTarget.innerHTML = nextMissions.map(renderMissionCard).join("");
   const xpTarget = $("#profileXpWays");
@@ -378,6 +496,10 @@ export function renderProfileLevelDashboard(list = [], options = {}) {
   setText("#profileWeeklyChallengeProgress", `${Math.min(stats.speciesCount, 5)} / 5 arter`);
   const weeklyBar = $("#profileWeeklyChallengeBar");
   if (weeklyBar) weeklyBar.style.width = `${challengeProgress}%`;
+  renderQuickProgress(progress, rank);
+  renderRecentCatches(list);
+  renderRankingNear(account, xp, rank);
+  renderFriendCompare(account, xp, rank);
   renderProfileFriendsPanel(account, options.accounts || (() => []), options);
   renderBadgeStrip(stats);
 }

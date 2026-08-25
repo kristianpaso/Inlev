@@ -14,7 +14,7 @@
         visibility: hidden;
       }
     </style>
-    <link rel="stylesheet" href="/bigplus/css/bigplus.css?v=20260822-weather-canvas-layout-4">
+    <link rel="stylesheet" href="/bigplus/css/bigplus.css?v=20260825-weather-smhi-calibration-1">
     <link rel="stylesheet" href="/bigplus/vendor/maplibre-gl.css?v=20260806-weather-1">
   </head>
   <body class="auth-required auth-bootstrap-pending">
@@ -60,6 +60,14 @@
         </section>
         </div>
       </section>
+
+      <nav class="mobile-bottom-nav" aria-label="Mobil navigation">
+        <button class="mobile-bottom-nav-button" type="button" data-view="home"><span class="mobile-bottom-nav-icon">⌂</span><span>Hem</span></button>
+        <button class="mobile-bottom-nav-button" type="button" data-view="catches"><span class="mobile-bottom-nav-icon">◈</span><span>Fångster</span></button>
+        <button class="mobile-bottom-nav-button" type="button" data-view="weather"><span class="mobile-bottom-nav-icon weather-nav-icon" aria-hidden="true"></span><span>Väder</span></button>
+        <button class="mobile-bottom-nav-button" type="button" data-view="measure"><span class="mobile-bottom-nav-icon">＋</span><span>Mät</span></button>
+        <button class="mobile-bottom-nav-button" type="button" data-view="profile"><span class="mobile-bottom-nav-icon">○</span><span>Profil</span></button>
+      </nav>
 
       <section class="workspace" hidden>
         <aside class="panel controls-panel">
@@ -143,6 +151,10 @@
             <button class="measure-step-menu-button" type="button" data-measure-menu="can" aria-label="Skapa burk" title="Skapa burk">
               <img src="/bigplus/assets/can-calibration.png" alt="">
               <span>Burk</span>
+            </button>
+            <button class="measure-step-menu-button" type="button" data-measure-menu="ring" aria-label="Skapa ring" title="Skapa ring vid finger">
+              <img src="/bigplus/assets/ring-reference.png" alt="">
+              <span>Ring</span>
             </button>
             <button class="measure-step-menu-button" type="button" data-measure-menu="length" aria-label="Mät längd" title="Mät längd">
               <span class="measure-step-menu-icon" aria-hidden="true">↔</span>
@@ -511,6 +523,12 @@
             </div>
             <div class="weather-smhi-compare" id="weatherSmhiCompare">
               <button type="button" id="weatherSmhiOverlayButton" aria-pressed="false">Visa SMHI ovanpå</button>
+              <div class="weather-smhi-calibration" id="weatherSmhiCalibration" hidden aria-label="Justera BIGPLUS mot SMHI">
+                <div class="weather-smhi-calibration-heading"><strong>Justera överlagring</strong><output id="weatherSmhiCalibrationValue">0 px / 0 px</output></div>
+                <label>Sidled (+ = höger) <input id="weatherSmhiCalibrationX" type="range" min="-200" max="200" step="1" value="0"></label>
+                <label>Höjd (+ = nedåt) <input id="weatherSmhiCalibrationY" type="range" min="-200" max="200" step="1" value="0"></label>
+                <button type="button" id="weatherSmhiCalibrationReset">Återställ</button>
+              </div>
             </div>
             <div class="weather-heatmap-legend" id="weatherHeatmapLegend" aria-label="Skala för aktivt väderlager"></div>
             <div class="weather-time-dock">
@@ -550,8 +568,29 @@
               </div>
             </section>
           </aside>
+          <section class="weather-forecast-strip" id="weatherForecastList" aria-label="Timmprognos"></section>
         </section>
-        <section class="weather-forecast-strip" id="weatherForecastList" aria-label="Timmprognos"></section>
+        <section class="weather-fishing-profile" id="weatherFishingProfile" aria-labelledby="weatherFishingProfileTitle">
+          <div class="weather-fishing-profile-head">
+            <div>
+              <p class="weather-kicker">FISKEPROFIL</p>
+              <h2 id="weatherFishingProfileTitle">Gädda · väderlägen</h2>
+              <p>Lägg till dina egna regler för vind, djup och väder. Matchningar visas på kartans vatten.</p>
+            </div>
+            <form class="weather-species-rule-form" id="weatherSpeciesRuleForm">
+              <label>Art<select id="weatherSpeciesSelect"><option value="Gädda">Gädda</option><option value="Abborre">Abborre</option><option value="Gös">Gös</option></select></label>
+              <label>Namn<input id="weatherSpeciesName" type="text" maxlength="32" placeholder="Mitt väderläge"></label>
+              <label>Färg<input id="weatherSpeciesColor" type="color" value="#38e8a5" aria-label="Färg för väderläget"></label>
+              <label>Vind min<input id="weatherSpeciesWindMin" type="number" min="0" step="0.1" value="2"></label>
+              <label>Vind max<input id="weatherSpeciesWindMax" type="number" min="0" step="0.1" value="9"></label>
+              <label>Djup min<input id="weatherSpeciesDepthMin" type="number" min="0" step="0.5" value="1"></label>
+              <label>Djup max<input id="weatherSpeciesDepthMax" type="number" min="0" step="0.5" value="5"></label>
+              <button class="primary-button compact-button" type="submit">+ Lägg till läge</button>
+            </form>
+          </div>
+          <div class="weather-species-list" id="weatherSpeciesList"></div>
+          <div class="weather-species-results" id="weatherSpeciesResults" aria-live="polite"></div>
+        </section>
         <section class="weather-insights-grid" aria-label="Väderanalys">
           <article class="weather-insight-card weather-best-window" id="weatherBestWindow"></article>
           <article class="weather-insight-card weather-sun-card" id="weatherSunLight"></article>
@@ -765,96 +804,131 @@
         <div class="achievement-grid achievement-grid-detailed" id="achievementGrid"></div>
       </section>
 
-      <section class="app-view profile-rank-view" id="profileView" data-app-view="profile" hidden>
-        <div class="profile-page-grid">
-          <aside class="profile-left-rail">
-            <section class="profile-id-panel">
+      <section class="app-view profile-rank-view profile-reference-view" id="profileView" data-app-view="profile" hidden>
+        <div class="profile-reference-shell">
+          <section class="profile-reference-hero">
+            <article class="profile-id-panel profile-hero-card">
               <span id="profileRankedAvatar" class="ranked-avatar ranked-avatar-xl rank-blue" data-level="1">
                 <span class="ranked-avatar-frame"><span class="ranked-avatar-photo avatar-placeholder" id="profileAvatar">B</span></span>
                 <strong>1</strong>
               </span>
-              <div class="profile-name-row">
-                <h2 id="profileName">Logga in</h2>
-                <button class="profile-edit-button" type="button" id="profileSettingsButton" aria-label="InstÅllningar" title="InstÅllningar"></button>
-              </div>
-              <p id="profileEmail">Logga in för att få ett eget konto.</p>
-              <div class="profile-rank-title"><span></span><strong id="profileSidebarLevel">Nybörjare</strong><small id="profileSidebarLevelNumber">Nivå 1</small></div>
-              <div class="member-code-line"><strong id="profileMemberCode">#-----</strong><button class="member-code-copy" id="copyMemberCode" type="button">Kopiera</button></div>
-              <div class="profile-live-controls" id="profileLiveControlSlot"><div class="live-controls"><button class="live-toggle" id="liveStatusButton" type="button" aria-pressed="false"><span class="live-dot" aria-hidden="true"></span><span id="liveStatusLabel">Aktivera LIVE</span></button></div><div class="profile-live-channel" id="profileLiveChannel" hidden></div></div>
-              <div class="profile-side-stats">
-                <span><small>Fångster</small><strong id="profileSidebarCatches">0</strong></span>
-                <span><small>Fisketurer</small><strong id="profileSidebarTrips">0</strong></span>
-                <span><small>Arter</small><strong id="profileSidebarSpecies">0</strong></span>
-                <span><small>Högsta vikt</small><strong><span id="profileSidebarTopWeight">0</span></strong></span>
-              </div>
-              <div class="profile-streak-card"><span></span><div><strong>Streak</strong><small>Bäst: 14 dagar</small></div><b>7 dagar</b></div>
-              <div class="profile-premium-card"><span></span><div><strong>BIGPLUS Premium</strong><small>Gör ut 2025-09-15</small></div></div>
-            </section>
-
-            <section class="profile-compare-panel">
-              <h2>Jmför med vänner</h2>
-              <p>Se hur du ligger till i rankingen.</p>
-              <button class="secondary-button" type="button" data-go-view="competitions">Visa ranking</button>
-            </section>
-          </aside>
-
-          <div class="profile-main-column">
-            <div class="view-heading compact-heading profile-heading">
-              <div><p class="eyebrow blue-eyebrow">MIN NIV</p><h1 id="profileHeading">Min niv</h1><p id="profileAccountHint">Fiska mer, lär mer och klättra i rankingen.</p></div>
-              <div class="profile-heading-actions"><button class="secondary-button profile-info-button" type="button" id="profileAuthButton">S fungerar niver</button></div>
-            </div>
-
-            <section class="profile-level-hero">
-              <div class="profile-current-level">
-                <span class="level-badge level-badge-blue"><span>1</span></span>
-                <div>
-                  <small>Aktuell niv</small>
-                  <h2 id="profileLevelTitle">Nybörjare</h2>
-                  <em id="profileLevelNumber">Nivå 1 av 20</em>
-                  <p><strong id="profileLevelXp">0 / 500 XP</strong><span id="profileLevelPercent">0%</span></p>
-                  <span class="profile-level-progress"><i id="profileLevelProgressBar" style="width:0%"></i></span>
-                  <small>Du klättrar snabbast når fångster, turer och journal vxer tillsammans.</small>
+              <div class="profile-hero-copy">
+                <div class="profile-name-row">
+                  <h2 id="profileName">Logga in</h2>
+                  <button class="profile-edit-button" type="button" id="profileSettingsButton" aria-label="Inställningar" title="Inställningar"></button>
                 </div>
+                <p id="profileEmail">Logga in för att få ett eget konto.</p>
+                <div class="profile-rank-title"><strong id="profileSidebarLevel">Nybörjare</strong><small id="profileSidebarLevelNumber">Nivå 1</small></div>
+                <div class="member-code-line"><strong id="profileMemberCode">#-----</strong><button class="member-code-copy" id="copyMemberCode" type="button">Kopiera</button></div>
+                <div class="profile-live-controls" id="profileLiveControlSlot"><div class="live-controls"><button class="live-toggle" id="liveStatusButton" type="button" aria-pressed="false"><span class="live-dot" aria-hidden="true"></span><span id="liveStatusLabel">Aktivera LIVE</span></button></div><div class="profile-live-channel" id="profileLiveChannel" hidden></div></div>
               </div>
-              <div class="profile-next-level">
-                <div><small>Nästa niv</small><h3 id="profileNextLevelTitle">Kastare</h3><em id="profileNextLevelNumber">Nivå 2</em><strong id="profileXpToNext">500 XP kvar</strong></div>
-                <span id="profileNextLevelBadge"><span class="level-badge level-badge-green"><span>2</span></span></span>
+            </article>
+
+            <article class="profile-rank-card">
+              <div class="profile-rank-total-card">
+                <span class="profile-rank-crown" aria-hidden="true">🏆</span>
+                <small>Totalt av alla medlemmar</small>
+                <strong id="profileRankNumber">#128</strong>
+                <em>i Sverige</em>
+                <span id="profileFriendRank">#12 bland vänner</span>
               </div>
-            </section>
+              <div class="profile-rank-side-list">
+                <span><small>Bland vänner</small><strong id="profileRankFriendsList">#12</strong></span>
+                <span><small>Nästa placering</small><strong id="profileRankNextList">#127</strong></span>
+                <span><small>XP kvar</small><strong id="profileRankXpLeftList">120 XP</strong></span>
+                <span><small>Din nivå</small><strong id="profileRankLevelList">Nivå 3</strong></span>
+              </div>
+            </article>
 
-            <section class="profile-level-map">
-              <div class="section-heading"><h2>Alla niver</h2><span>Totalt: 20 niver</span></div>
-              <div class="profile-level-track" id="profileLevelTrack"></div>
-            </section>
+            <article class="profile-next-placement-card">
+              <small>NÄSTA PLACERING</small>
+              <strong id="profileNextRankNumber">#127</strong>
+              <span id="profileNextRankXp">120 XP kvar</span>
+              <p>Passera <b id="profileNextRankPerson">Johan Olsson</b></p>
+            </article>
+          </section>
 
-            <section class="profile-motivation-grid">
-              <article class="profile-panel profile-next-goals"><div class="section-heading"><h2>Dina nästa mÅl</h2><span id="profileMissionCount">0 / 0</span></div><div id="profileNextMissions"></div><button class="text-button" type="button" id="profileShowAllMissions">Visa andra uppdrag </button></article>
-              <article class="profile-panel profile-xp-panel"><div class="section-heading"><h2>Hur du tjnar XP</h2></div><div id="profileXpWays"></div><button class="text-button" type="button" id="profileShowXpMissions">Visa allt att tjna XP </button></article>
-              <article class="profile-panel profile-activity-panel"><div class="section-heading"><h2>Nylig aktivitet</h2></div><div id="profileRecentActivity"></div><button class="text-button" type="button" data-go-view="catches">Visa all aktivitet </button></article>
-            </section>
+          <section class="profile-hero-xp-band" aria-label="Din XP-progress">
+            <div>
+              <span class="profile-level-progress">
+                <i id="profileLevelProgressBar" style="width:0%"></i>
+                <span class="profile-progress-copy"><strong id="profileLevelXp">0 / 500 XP</strong><small id="profileXpToNext">500 XP kvar</small></span>
+                <b id="profileLevelPercent">0%</b>
+              </span>
+            </div>
+          </section>
 
-            <section class="profile-history-grid">
-              <article class="profile-panel profile-history-panel"><div class="section-heading"><h2>Nivåhistorik</h2><select aria-label="Period"><option>Senaste 90 dagarna</option></select></div><div class="profile-history-chart"><span style="height:12%"></span><span style="height:20%"></span><span style="height:24%"></span><span style="height:34%"></span><span style="height:42%"></span><span style="height:57%"></span><span style="height:66%"></span><span style="height:78%"></span><span style="height:90%"></span><b>3 250 XP</b></div><button class="text-button" type="button">Se all historik och statistik </button></article>
-              <article class="profile-panel profile-badge-panel"><div class="section-heading"><h2>Utvalda märken</h2><button class="text-button" type="button" data-go-view="achievements">Visa alla</button></div><div class="profile-featured-badges" id="profileFeaturedBadges"></div></article>
-            </section>
+          <div class="profile-reference-grid">
+            <main class="profile-reference-main">
+              <section class="profile-panel profile-next-goals">
+                <div class="section-heading"><h2>⚡ Klättra snabbare - gör detta nu</h2><span id="profileMissionCount">0 / 0</span></div>
+                <div id="profileNextMissions"></div>
+                <div class="profile-progress-pair" id="profileQuickProgress"></div>
+                <button class="text-button" type="button" id="profileShowAllMissions">Visa andra uppdrag →</button>
+              </section>
 
-            <section class="dashboard-section friends-section profile-friends-management">
-              <div class="section-heading"><div><span class="section-kicker">GEMENSKAP</span><h2>Vänner</h2><p>FÅlj framsteg, se LIVE-status och jmför era stärsta fiskar.</p></div></div>
-              <form class="friend-add-form" id="friendAddForm"><label class="sr-only" for="friendSearchInput">Sk vn</label><input id="friendSearchInput" type="search" placeholder="Sk medlemsnummer, namn eller e-post"><button class="primary-button" type="submit">Sk medlem</button></form>
-              <div class="friend-suggestions" id="friendSuggestions"></div>
-              <div class="friend-list" id="friendList"></div>
-              <div class="friend-tournaments" id="friendTournamentList"></div>
-            </section>
-            <button class="secondary-button logout-button" id="logoutButton" type="button" hidden>Logga ut</button>
+              <section class="profile-stats-boost-row">
+                <article class="profile-panel achievement-summary">
+                  <h2>Din statistik</h2>
+                  <div class="achievement-mini-grid">
+                    <span><strong id="profileCatchCount">0</strong><small>Fångster</small></span>
+                    <span><strong id="profileSidebarTrips">0</strong><small>Fisketurer</small></span>
+                    <span><strong id="profileSidebarSpecies">0</strong><small>Arter</small></span>
+                    <span><strong>7 dagar</strong><small>Streak</small></span>
+                    <span><strong id="profileSidebarTotalWeight">0 kg</strong><small>Högsta vikt</small></span>
+                  </div>
+                  <span class="profile-hidden-stat" hidden><strong id="profileSidebarCatches">0</strong><strong id="profileSidebarTopWeight">0</strong><strong id="profileBigplusCount">0</strong><strong id="profileCompetitionCount">0</strong></span>
+                </article>
+                <article class="profile-panel profile-weekly-panel">
+                  <div class="section-heading"><h2>Veckans boost</h2><span>5 dagar kvar</span></div>
+                  <h3>Fånga 5 arter denna vecka</h3>
+                  <span class="profile-level-progress"><i id="profileWeeklyChallengeBar" style="width:0%"></i></span>
+                  <small id="profileWeeklyChallengeProgress">0 / 5 arter</small>
+                  <div class="profile-weekly-reward"><b>150 XP</b><span>Utmanings-märke</span></div>
+                </article>
+              </section>
+
+              <section class="profile-content-grid">
+                <article class="profile-panel profile-recent-catches-panel">
+                  <div class="section-heading"><h2>Senaste fångster</h2><button class="text-button" type="button" data-go-view="catches">Visa alla</button></div>
+                  <div class="profile-recent-catches" id="profileRecentCatches"></div>
+                </article>
+                <article class="profile-panel profile-activity-panel">
+                  <div class="section-heading"><h2>Aktivitet</h2><button class="text-button" type="button" data-go-view="catches">Visa alla</button></div>
+                  <div id="profileRecentActivity"></div>
+                </article>
+                <article class="profile-panel profile-history-panel">
+                  <div class="section-heading"><h2>Din XP-resa</h2><select aria-label="Period"><option>Senaste 90 dagarna</option></select></div>
+                  <div class="profile-history-chart"><span style="height:12%"></span><span style="height:20%"></span><span style="height:24%"></span><span style="height:34%"></span><span style="height:42%"></span><span style="height:57%"></span><span style="height:66%"></span><span style="height:78%"></span><span style="height:90%"></span><b id="profileHistoryXp">0 XP</b></div>
+                </article>
+                <article class="profile-panel profile-level-map">
+                  <div class="section-heading"><div><h2>Din nivåresa</h2><span id="profileLevelSummary">Visar dina närmaste nivåer</span></div><button class="text-button" type="button" id="profileShowAllLevels">Visa alla nivåer</button></div>
+                  <div class="profile-level-track" id="profileLevelTrack"></div>
+                </article>
+              </section>
+
+              <section class="dashboard-section friends-section profile-friends-management">
+                <div class="section-heading"><div><span class="section-kicker">GEMENSKAP</span><h2>Vänner</h2><p>Följ framsteg, se LIVE-status och jämför era största fiskar.</p></div></div>
+                <form class="friend-add-form" id="friendAddForm"><label class="sr-only" for="friendSearchInput">Sök vän</label><input id="friendSearchInput" type="search" placeholder="Sök medlemsnummer, namn eller e-post"><button class="primary-button" type="submit">Sök medlem</button></form>
+                <div class="friend-suggestions" id="friendSuggestions"></div>
+                <div class="friend-list" id="friendList"></div>
+                <div class="friend-tournaments" id="friendTournamentList"></div>
+              </section>
+              <button class="secondary-button logout-button" id="logoutButton" type="button" hidden>Logga ut</button>
+            </main>
+
+            <aside class="profile-reference-side">
+              <section class="profile-panel profile-ranking-panel">
+                <div class="section-heading"><h2>Ranking - nära dig</h2></div>
+                <div id="profileRankingNear"></div>
+                <button class="secondary-button" type="button" data-go-view="competitions">Visa full ranking →</button>
+              </section>
+              <section class="profile-panel profile-badge-panel"><div class="section-heading"><h2>Utvalda märken</h2><button class="text-button" type="button" data-go-view="achievements">Visa alla</button></div><div class="profile-featured-badges" id="profileFeaturedBadges"></div></section>
+              <section class="profile-panel profile-compare-panel"><div class="section-heading"><h2>Jämför med vänner</h2><button class="text-button" type="button" data-go-view="profile">Visa alla</button></div><div class="profile-friend-compare" id="profileFriendCompare"></div></section>
+              <section class="profile-panel profile-online-panel"><div class="section-heading"><h2>Vänner</h2></div><div id="profileOnlineFriends"></div></section>
+            </aside>
           </div>
-
-          <aside class="profile-right-rail">
-            <section class="profile-panel profile-online-panel"><div class="section-heading"><h2>Vänner</h2><button class="text-button" type="button" data-go-view="profile">Visa alla </button></div><div id="profileOnlineFriends"></div></section>
-            <section class="profile-panel profile-weekly-panel"><div class="section-heading"><h2>Veckans utmaning</h2><span>5 dagar kvar</span></div><h3>Fånga 5 arter denna vecka</h3><p>Fiska och registrera 5 olika arter.</p><span class="profile-level-progress"><i id="profileWeeklyChallengeBar" style="width:0%"></i></span><small id="profileWeeklyChallengeProgress">0 / 5 arter</small><div class="profile-weekly-reward"><b>150 XP</b><span>Utmanings-märke</span></div><button class="primary-button" type="button">Visa alla utmaningar</button></section>
-            <section class="profile-panel achievement-summary"><h2>Prestationer</h2><div class="achievement-mini-grid"><span><strong id="profileCatchCount">0</strong><small>Fångster</small></span><span><strong id="profileBigplusCount">0</strong><small>Bigplus</small></span><span><strong id="profileCompetitionCount">0</strong><small>Vunna tävlingar</small></span></div><small>Total vikt: <strong id="profileSidebarTotalWeight">0 kg</strong></small></section>
-          </aside>
         </div>
-        <div class="profile-bottom-tip"><span></span><strong>Tips!</strong> Logga dina fångster regelbundet för att klättra snabbare i niverna.</div>
       </section>
 
       <section class="auth-modal live-modal" id="liveSettingsModal" hidden>
@@ -872,6 +946,14 @@
           <button class="modal-close" id="closeProfileMissionModal" type="button" aria-label="Stng"></button>
           <p class="eyebrow blue-eyebrow">UPPDRAG</p><h2 id="profileMissionModalTitle">Alla uppdrag</h2><p class="auth-intro">Välj nästa steg i din niväresa.</p>
           <div class="profile-all-missions-list" id="profileAllMissions"></div>
+        </div>
+      </section>
+
+      <section class="auth-modal profile-level-modal" id="profileLevelModal" hidden>
+        <div class="auth-dialog profile-level-dialog" role="dialog" aria-modal="true" aria-labelledby="profileLevelModalTitle">
+          <button class="modal-close" id="closeProfileLevelModal" type="button" aria-label="Stäng"></button>
+          <p class="eyebrow blue-eyebrow">NIVÅER</p><h2 id="profileLevelModalTitle">Alla nivåer</h2><p class="auth-intro">Se hela resan från första fångsten till legendnivå.</p>
+          <div class="profile-level-track profile-all-levels-track" id="profileAllLevels"></div>
         </div>
       </section>
 
@@ -944,8 +1026,8 @@
       window.BIGPLUS_API_TARGET = window.BIGPLUS_API_TARGET || "";
       window.BIGPLUS_RENDER_API_ROOT = window.BIGPLUS_RENDER_API_ROOT || "https://bigplus-api.onrender.com/api/bigplus";
     </script>
-    <script src="/bigplus/vendor/maplibre-gl.js?v=20260806-weather-1" defer></script>
-    <script type="module" src="/bigplus/js/app-shell.js?v=20260822-weather-canvas-layout-4"></script>
+    <script src="/bigplus/vendor/maplibre-gl.js?v=20260823-weather-map-2"></script>
+    <script type="module" src="/bigplus/js/app-shell.js?v=20260824-weather-rain-profile-12"></script>
     <script>
       document.addEventListener("DOMContentLoaded", () => {
         const mapButton = document.getElementById("showCatchesMap");

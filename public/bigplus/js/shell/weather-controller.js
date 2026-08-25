@@ -9,6 +9,8 @@ const DEFAULT_POINT = { lat: 58.39, lon: 15.62, label: "Roxen, Linköping" };
 const WEATHER_PLACE_KEY = "bigplus_weather_place";
 const WEATHER_RECENT_PLACES_KEY = "bigplus_weather_recent_places";
 const WEATHER_LOCK_KEY = "bigplus_weather_location_locked";
+const WEATHER_SPECIES_RULES_KEY = "bigplus_weather_species_rules";
+const WEATHER_SMHI_CALIBRATION_KEY = "bigplus_weather_smhi_calibration";
 const EMPTY_FEATURE_COLLECTION = { type: "FeatureCollection", features: [] };
 const WEATHER_MAX_ZOOM = 22;
 // Keep the map geographically useful at city level while leaving a small
@@ -38,7 +40,9 @@ const RADAR_BOUNDS = [[5.28496, 69.78109], [29.799664, 69.419691], [23.727184, 5
 // The honeycomb is generated in the radar image's pixel space. This keeps
 // every hexagon anchored to the same SMHI pixel even when MapLibre pitches,
 // rotates, pans, or zooms the map.
-const RADAR_HEX_RADIUS_PX = 2.45;
+// Smaller cells preserve narrow SMHI bands and reveal more of the source
+// raster instead of turning a whole radar return into a few large blobs.
+const RADAR_HEX_RADIUS_PX = 1.35;
 const RADAR_CELL_SIZE = 3;
 const WEATHER_ICON_ASSETS = Array.from({ length: 10 }, (_, index) => `/bigplus/assets/weather/weather-${index + 1}.png`);
 
@@ -56,6 +60,18 @@ const PIKE_WEATHER_RULES = [
   { name: "Hård vind", wind: [9, 13], rating: "🟠", score: 1, spot: "Skyddade områden", depth: "2–6 m", lure: "Tung shad", color: "Kontrastfärg" },
   { name: "Het + klar + vindstilla", wind: [0, 2], clouds: [0, 25], temp: [24, 40], rating: "🔴/🟡", score: 2, spot: "Djup, skuggzoner", depth: "6–12+ m", lure: "Tung softbait", color: "Naturfärg" }
 ];
+
+function readWeatherSpeciesRules() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(WEATHER_SPECIES_RULES_KEY) || "null");
+    if (Array.isArray(parsed) && parsed.length) return parsed.slice(0, 24);
+  } catch {}
+  return [{ species: "Gädda", name: "Lätt regn + vind", wind: [4, 8], depth: [1, 3], spot: "Grundvik, inlopp, vass", lure: "Shad", color: "Firetiger, chartreuse", rating: "🔥" }];
+}
+
+function saveWeatherSpeciesRules(rules) {
+  localStorage.setItem(WEATHER_SPECIES_RULES_KEY, JSON.stringify(rules.slice(0, 24)));
+}
 
 const layerLabels = {
   rain: "Regn",
@@ -78,10 +94,10 @@ function fishingLightStyle() {
       }
     },
     layers: [
-      { id: "background", type: "background", paint: { "background-color": "#062b35" } },
-      { id: "landcover-wood", type: "fill", source: "openmaptiles", "source-layer": "landcover", filter: ["match", ["get", "class"], ["wood", "forest", "grass", "scrub"], true, false], paint: { "fill-color": "#0b3431", "fill-opacity": 0.96 } },
-      { id: "landcover-rough", type: "fill", source: "openmaptiles", "source-layer": "landcover", filter: ["match", ["get", "class"], ["rock", "heath", "tundra", "sand", "glacier"], true, false], paint: { "fill-color": "#18433d", "fill-opacity": 0.9 } },
-      { id: "landuse-soft", type: "fill", source: "openmaptiles", "source-layer": "landuse", paint: { "fill-color": "#103a39", "fill-opacity": 0.88 } },
+      { id: "background", type: "background", paint: { "background-color": "#062c4d" } },
+      { id: "landcover-wood", type: "fill", source: "openmaptiles", "source-layer": "landcover", filter: ["match", ["get", "class"], ["wood", "forest", "grass", "scrub"], true, false], paint: { "fill-color": "#0b3f61", "fill-opacity": 0.96 } },
+      { id: "landcover-rough", type: "fill", source: "openmaptiles", "source-layer": "landcover", filter: ["match", ["get", "class"], ["rock", "heath", "tundra", "sand", "glacier"], true, false], paint: { "fill-color": "#155071", "fill-opacity": 0.9 } },
+      { id: "landuse-soft", type: "fill", source: "openmaptiles", "source-layer": "landuse", paint: { "fill-color": "#104b6c", "fill-opacity": 0.88 } },
       { id: "water", type: "fill", source: "openmaptiles", "source-layer": "water", paint: { "fill-color": "#073b74", "fill-opacity": 1 } },
       { id: "water-shadow", type: "line", source: "openmaptiles", "source-layer": "water", paint: { "line-color": "#0f79c2", "line-opacity": 0.76, "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.5, 10, 1.8] } },
       { id: "waterway", type: "line", source: "openmaptiles", "source-layer": "waterway", paint: { "line-color": "#1c8bd0", "line-opacity": 0.98, "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.8, 12, 2.7] } },
@@ -240,6 +256,8 @@ export function createWeatherController({ userCatches }) {
   let activeIndex = 0;
   let activeLayer = "rain";
   let smhiRadarOnTop = false;
+  let smhiCalibration = readSmhiCalibration();
+  let speciesRules = readWeatherSpeciesRules();
   let locationLocked = readLocationLock();
   let fishingNow = false;
   let radarRequestId = 0;
@@ -262,6 +280,113 @@ let rainStrengthIconsPromise = null;
   let pikeWeatherMarker = null;
   const rainShapeSeed = Math.random() * 1000;
   let mapIsTilted = false;
+  let selectedLandscape = null;
+  let selectedLandscapeBounds = null;
+
+  function readSmhiCalibration() {
+    try {
+      const value = JSON.parse(localStorage.getItem(WEATHER_SMHI_CALIBRATION_KEY) || "null");
+      return {
+        x: Math.max(-200, Math.min(200, Number(value?.x) || 0)),
+        y: Math.max(-200, Math.min(200, Number(value?.y) || 0))
+      };
+    } catch {
+      return { x: 0, y: 0 };
+    }
+  }
+
+  function saveSmhiCalibration() {
+    localStorage.setItem(WEATHER_SMHI_CALIBRATION_KEY, JSON.stringify(smhiCalibration));
+  }
+
+  // Keep this as a screen-space adjustment so the user can compare the two
+  // layers directly without baking a guessed geographic offset into the radar decoder.
+  function applySmhiCalibration(coordinate) {
+    if (!map || !smhiRadarOnTop || (!smhiCalibration.x && !smhiCalibration.y)) return coordinate;
+    const projected = map.project(coordinate);
+    const adjusted = map.unproject({ x: projected.x + smhiCalibration.x, y: projected.y + smhiCalibration.y });
+    return [adjusted.lng, adjusted.lat];
+  }
+
+  function renderSmhiCalibrationControl() {
+    const panel = $("#weatherSmhiCalibration");
+    const xInput = $("#weatherSmhiCalibrationX");
+    const yInput = $("#weatherSmhiCalibrationY");
+    const value = $("#weatherSmhiCalibrationValue");
+    if (!panel || !xInput || !yInput || !value) return;
+    panel.hidden = !smhiRadarOnTop;
+    xInput.value = String(smhiCalibration.x);
+    yInput.value = String(smhiCalibration.y);
+    const signed = (number) => `${number > 0 ? "+" : ""}${number}`;
+    value.textContent = `${signed(smhiCalibration.x)} px / ${signed(smhiCalibration.y)} px`;
+    if (panel.dataset.smhiBound === "true") return;
+    const update = () => {
+      smhiCalibration = {
+        x: Math.max(-200, Math.min(200, Number(xInput.value) || 0)),
+        y: Math.max(-200, Math.min(200, Number(yInput.value) || 0))
+      };
+      saveSmhiCalibration();
+      renderSmhiCalibrationControl();
+      updateRainCloudSource();
+      renderRainAnimationFrame();
+      map?.triggerRepaint();
+    };
+    xInput.addEventListener("input", update);
+    yInput.addEventListener("input", update);
+    $("#weatherSmhiCalibrationReset")?.addEventListener("click", () => {
+      smhiCalibration = { x: 0, y: 0 };
+      saveSmhiCalibration();
+      renderSmhiCalibrationControl();
+      updateRainCloudSource();
+      renderRainAnimationFrame();
+      map?.triggerRepaint();
+    });
+    panel.dataset.smhiBound = "true";
+  }
+
+  function weatherFeatureBounds(feature) {
+    const pairs = [];
+    const visit = (value) => {
+      if (Array.isArray(value) && value.length >= 2 && Number.isFinite(Number(value[0])) && Number.isFinite(Number(value[1]))) {
+        pairs.push([Number(value[0]), Number(value[1])]);
+        return;
+      }
+      if (Array.isArray(value)) value.forEach(visit);
+    };
+    visit(feature?.geometry?.coordinates);
+    if (!pairs.length) return null;
+    const west = Math.min(...pairs.map(([lon]) => lon));
+    const east = Math.max(...pairs.map(([lon]) => lon));
+    const south = Math.min(...pairs.map(([, lat]) => lat));
+    const north = Math.max(...pairs.map(([, lat]) => lat));
+    if (west === east && south === north) return { west: west - 1.35, east: east + 1.35, south: south - 0.85, north: north + 0.85 };
+    return { west, east, south, north };
+  }
+
+  function focusLandscape(feature) {
+    const center = weatherFeatureCenter(feature);
+    const name = feature?.properties?.["name:sv"] || feature?.properties?.name || "Landskap";
+    if (!center || !map) return false;
+    selectedLandscape = { name, center };
+    selectedLandscapeBounds = weatherFeatureBounds(feature);
+    map.getSource("weather-landscape-focus")?.setData({ type: "FeatureCollection", features: [{ type: "Feature", geometry: { type: "Point", coordinates: center }, properties: { name } }] });
+    [["landcover-wood", "fill-opacity", 0.42], ["landcover-rough", "fill-opacity", 0.42], ["landuse-soft", "fill-opacity", 0.38], ["water", "fill-opacity", 0.66]].forEach(([layer, property, value]) => { if (map.getLayer(layer)) map.setPaintProperty(layer, property, value); });
+    map.easeTo({ center, zoom: Math.min(9.5, Math.max(map.getZoom(), 7.4)), duration: 650 });
+    const status = $("#weatherStatus");
+    if (status) status.textContent = `${name} är valt landskapsfokus.`;
+    return true;
+  }
+
+  function clearLandscapeFocus() {
+    if (!selectedLandscape) return;
+    selectedLandscape = null;
+    selectedLandscapeBounds = null;
+    map.getSource("weather-landscape-focus")?.setData(EMPTY_FEATURE_COLLECTION);
+    [["landcover-wood", "fill-opacity", 0.78], ["landcover-rough", "fill-opacity", 0.74], ["landuse-soft", "fill-opacity", 0.72], ["water", "fill-opacity", 0.9]].forEach(([layer, property, value]) => { if (map.getLayer(layer)) map.setPaintProperty(layer, property, value); });
+    const status = $("#weatherStatus");
+    if (status) status.textContent = "Hela kartans väder visas.";
+    scheduleRainViewportUpdate();
+  }
 
   async function loadInitialPoint() {
     if (initialLocationAttempted) return loadPoint(activePoint);
@@ -319,12 +444,41 @@ let rainStrengthIconsPromise = null;
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, width, height);
     if (!rainViewportVisible() || !rainClouds.length) return;
-    const tiltFactor = Math.min(1, Math.max(0, (map.getPitch() - 8) / 34));
-    if (tiltFactor <= 0) return;
     const bounds = map.getBounds?.();
     if (!bounds) return;
-    const seconds = timestamp / 1000;
     const clouds = rainCloudsForViewport();
+    const tiltFactor = Math.min(1, Math.max(0, (map.getPitch() - 8) / 34));
+    let gradientCells = 0;
+    for (const cell of clouds) {
+      if (gradientCells >= 720 || !bounds.contains([cell.lon, cell.lat])) continue;
+      const corners = radarHoneycombPolygon(cell)?.[0]?.map(([lon, lat]) => map.project([lon, lat])) || [];
+      if (corners.length < 6) continue;
+      const minX = Math.min(...corners.map((point) => point.x));
+      const maxX = Math.max(...corners.map((point) => point.x));
+      const minY = Math.min(...corners.map((point) => point.y));
+      const maxY = Math.max(...corners.map((point) => point.y));
+      if (maxX < -30 || minX > width + 30 || maxY < -30 || minY > height + 30) continue;
+      const center = map.project(applySmhiCalibration([cell.lon, cell.lat]));
+      const radius = Math.max(8, Math.max(...corners.map((point) => Math.hypot(point.x - center.x, point.y - center.y))));
+      const [red, green, blue] = rainLevelRgb(cell.level);
+      const edgeAlpha = Math.min(0.62, 0.28 + Number(cell.level || 0) * 0.07 + (Number(cell.coverage) || 0) * 0.2);
+      const gradient = context.createRadialGradient(center.x, center.y, radius * 0.08, center.x, center.y, radius * 1.03);
+      gradient.addColorStop(0, `rgba(${red},${green},${blue},0.025)`);
+      gradient.addColorStop(0.52, `rgba(${red},${green},${blue},${Math.max(0.055, edgeAlpha * 0.2)})`);
+      gradient.addColorStop(0.86, `rgba(${red},${green},${blue},${edgeAlpha * 0.68})`);
+      gradient.addColorStop(1, `rgba(${red},${green},${blue},${edgeAlpha})`);
+      context.save();
+      context.beginPath();
+      corners.forEach((point, index) => index ? context.lineTo(point.x, point.y) : context.moveTo(point.x, point.y));
+      context.closePath();
+      context.clip();
+      context.fillStyle = gradient;
+      context.fill();
+      context.restore();
+      gradientCells += 1;
+    }
+    if (tiltFactor <= 0) return;
+    const seconds = timestamp / 1000;
     let drawn = 0;
     for (const cell of clouds) {
       if (drawn >= 520 || !bounds.contains([cell.lon, cell.lat]) || !cell.polygon?.[0]) continue;
@@ -382,7 +536,7 @@ let rainStrengthIconsPromise = null;
     const tick = (timestamp) => {
       rainAnimationRaf = 0;
       renderRainAnimationFrame(timestamp);
-      if (rainViewportVisible() && rainClouds.length) rainAnimationRaf = window.requestAnimationFrame(tick);
+      if (rainViewportVisible() && rainClouds.length && Number(map?.getPitch?.()) > 8) rainAnimationRaf = window.requestAnimationFrame(tick);
     };
     rainAnimationRaf = window.requestAnimationFrame(tick);
   }
@@ -415,39 +569,40 @@ let rainStrengthIconsPromise = null;
     return { lon: longitude * 180 / Math.PI, lat: latitude * 180 / Math.PI };
   }
 
-  function radarPixelToLngLat(x, y, width, height) {
-    // Use the exact same quadrilateral as the MapLibre SMHI image source.
-    // This keeps every derived hexagon on top of the raster pixel it came
-    // from instead of mixing two different projections.
-    // MapLibre positions the image bounds at the outer pixel edges. Using
-    // width/height here keeps cell edges and raster pixels on the same line.
-    const horizontal = Math.min(1, Math.max(0, x / Math.max(1, width)));
-    const vertical = Math.min(1, Math.max(0, y / Math.max(1, height)));
-    const toMercator = ([longitude, latitude]) => {
-      const clampedLatitude = Math.max(-85.05112878, Math.min(85.05112878, latitude));
-      const radians = clampedLatitude * Math.PI / 180;
-      const sine = Math.sin(radians);
-      return { x: (longitude + 180) / 360, y: 0.5 - Math.log((1 + sine) / (1 - sine)) / (4 * Math.PI) };
-    };
-    const fromMercator = (point) => ({
+  function radarLngLatToMercator([longitude, latitude]) {
+    const clampedLatitude = Math.max(-85.05112878, Math.min(85.05112878, latitude));
+    const radians = clampedLatitude * Math.PI / 180;
+    const sine = Math.sin(radians);
+    return { x: (longitude + 180) / 360, y: 0.5 - Math.log((1 + sine) / (1 - sine)) / (4 * Math.PI) };
+  }
+
+  function radarMercatorToLngLat(point) {
+    return {
       lon: point.x * 360 - 180,
       lat: Math.atan(Math.sinh(Math.PI - 2 * Math.PI * point.y)) * 180 / Math.PI
-    });
-    const topLeft = toMercator(RADAR_BOUNDS[0]);
-    const topRight = toMercator(RADAR_BOUNDS[1]);
-    const bottomRight = toMercator(RADAR_BOUNDS[2]);
-    const bottomLeft = toMercator(RADAR_BOUNDS[3]);
-    const top = [
-      topLeft.x + (topRight.x - topLeft.x) * horizontal,
-      topLeft.y + (topRight.y - topLeft.y) * horizontal
-    ];
-    const bottom = [
-      bottomLeft.x + (bottomRight.x - bottomLeft.x) * horizontal,
-      bottomLeft.y + (bottomRight.y - bottomLeft.y) * horizontal
-    ];
-    return fromMercator({
-      x: top[0] + (bottom[0] - top[0]) * vertical,
-      y: top[1] + (bottom[1] - top[1]) * vertical
+    };
+  }
+
+  function radarPixelToLngLat(x, y, width, height) {
+    // Keep decoded SMHI cells on the same bilinear quad as MapLibre's flat
+    // image source so the vector overlay and raster remain aligned.
+    // MapLibre maps the first and last image pixels to the two source edges.
+    // Using width/height here leaves the decoded overlay fractionally inside
+    // the raster and accumulates a visible drift across the full composite.
+    const horizontal = Math.min(1, Math.max(0, x / Math.max(1, width - 1)));
+    const vertical = Math.min(1, Math.max(0, y / Math.max(1, height - 1)));
+    const [topLeft, topRight, bottomRight, bottomLeft] = RADAR_BOUNDS.map(radarLngLatToMercator);
+    const top = {
+      x: topLeft.x + (topRight.x - topLeft.x) * horizontal,
+      y: topLeft.y + (topRight.y - topLeft.y) * horizontal
+    };
+    const bottom = {
+      x: bottomLeft.x + (bottomRight.x - bottomLeft.x) * horizontal,
+      y: bottomLeft.y + (bottomRight.y - bottomLeft.y) * horizontal
+    };
+    return radarMercatorToLngLat({
+      x: top.x + (bottom.x - top.x) * vertical,
+      y: top.y + (bottom.y - top.y) * vertical
     });
   }
 
@@ -473,13 +628,13 @@ let rainStrengthIconsPromise = null;
     const centerY = Number(cloud?.centerY ?? cloud?.y) || 0;
     const points = Array.from({ length: 6 }, (_, index) => {
       const angle = -Math.PI / 2 + index * (Math.PI / 3);
-      const { lon, lat } = radarPixelToLngLat(
+      const point = radarPixelToLngLat(
         centerX + Math.cos(angle) * radius * scale,
         centerY + Math.sin(angle) * radius * scale,
         width,
         height
       );
-      return [lon, lat];
+      return applySmhiCalibration([point.lon + (Number(cloud?.rainLonOffset) || 0), point.lat + (Number(cloud?.rainLatOffset) || 0)]);
     });
     points.push(points[0]);
     return [points];
@@ -494,11 +649,14 @@ let rainStrengthIconsPromise = null;
   function radarCellLevel(red, green, blue) {
     const max = Math.max(red, green, blue);
     const min = Math.min(red, green, blue);
-    if (max < 100 || max - min < 24) return null;
+    if (max < 45) return null;
     if (red > 190 && green < 150) return 3;
     if (red > 170 && green > 140 && blue < 100) return 2;
     if (green > 100 && green > red * 1.12 && green > blue * 0.86) return 1;
     if (blue > 115 && blue > red * 1.2 && blue > green * 1.05) return 0;
+    // SMHI also returns pale/grey and low-saturation radar marks. Keep those
+    // as light rain instead of dropping them from the BIGPLUS grid.
+    if (max - min < 38 && max > 85) return 0;
     return null;
   }
 
@@ -581,17 +739,19 @@ let rainStrengthIconsPromise = null;
       : own;
     // Lift the original cell colour toward a soft highlight while retaining
     // a small amount of the neighbouring colour at shared edges.
-    const mixed = own.map((value, index) => Math.min(255, Math.round(value * 0.56 + neighbourAverage[index] * 0.14 + 255 * 0.30)));
+    const connectedBoost = neighbours.length ? 0.12 : 0;
+    const mixed = own.map((value, index) => Math.min(255, Math.round(value * (0.72 + connectedBoost) + neighbourAverage[index] * 0.16 + 255 * 0.08)));
     return `rgb(${mixed.join(",")})`;
   }
 
   function rainHexFillOpacity(cloud, neighbours = [], boundaryDistance = 0) {
-    // A closed honeycomb cell is 70% transparent. Each open side makes the
-    // cell 10 percentage points less transparent, so exposed cells remain
-    // legible without losing the soft map underneath.
+    // Keep the polygon body quiet. The canvas gradient supplies the soft
+    // edge-to-center falloff, so no nested polygon or hard inner edge is
+    // needed inside the hexagon.
     const openSides = Math.max(0, 6 - neighbours.length);
-    const edgeFade = Math.min(0.16, 0.12 / (Math.max(0, Number(boundaryDistance) || 0) + 1));
-    return Math.max(0.1, 0.7 - openSides * 0.1 - edgeFade);
+    const edgeFade = Math.min(0.12, 0.08 / (Math.max(0, Number(boundaryDistance) || 0) + 1));
+    const intensityBoost = Math.min(0.12, (Number(cloud?.level) || 0) * 0.045 + (Number(cloud?.coverage) || 0) * 0.08);
+    return Math.max(0.08, Math.min(0.32, 0.12 + intensityBoost + (neighbours.length ? 0.025 : 0) - openSides * 0.012 - edgeFade));
   }
 
   function rainHexBorderOpacity(neighbours, boundaryDistance = 0) {
@@ -599,7 +759,7 @@ let rainStrengthIconsPromise = null;
     // points per open side. The edge-distance fade softens large clusters.
     const openSides = Math.max(0, 6 - neighbours.length);
     const edgeFade = Math.min(0.12, 0.09 / (Math.max(0, Number(boundaryDistance) || 0) + 1));
-    return Math.max(0.1, 0.7 - openSides * 0.05 - edgeFade);
+    return Math.max(0.12, 0.88 - openSides * 0.035 - edgeFade);
   }
 
   function rainCloudFeatureCollection(clouds = rainCloudsForViewport()) {
@@ -607,20 +767,29 @@ let rainStrengthIconsPromise = null;
     const boundaryDistanceMap = rainCloudBoundaryDistanceMap(clouds, neighbourMap);
     return {
       type: "FeatureCollection",
-      features: clouds.map((cloud) => ({
-        type: "Feature",
-        geometry: { type: "Polygon", coordinates: radarHoneycombPolygon(cloud) },
-        properties: {
-          level: cloud.level,
-          coverage: cloud.coverage,
-          fillOpacity: rainHexFillOpacity(cloud, rainCloudNeighbours(cloud, clouds, neighbourMap), boundaryDistanceMap.get(`${cloud.gridColumn}:${cloud.gridRow}`) || 0),
-          borderColor: blendedHexBorderColor(cloud, clouds, rainCloudNeighbours(cloud, clouds, neighbourMap)),
-          borderOpacity: rainHexBorderOpacity(rainCloudNeighbours(cloud, clouds, neighbourMap), boundaryDistanceMap.get(`${cloud.gridColumn}:${cloud.gridRow}`) || 0),
-          intensity: Number(cloud.level) === 0
-            ? Math.min(1, 0.18 + (Number(cloud.coverage) || 0) * 0.42)
-            : Math.min(1, (Number(cloud.level) || 0) / 3 * 0.78 + (Number(cloud.coverage) || 0) * 0.22)
-        }
-      }))
+      features: clouds.map((cloud) => {
+        const neighbours = rainCloudNeighbours(cloud, clouds, neighbourMap);
+        const boundaryDistance = boundaryDistanceMap.get(`${cloud.gridColumn}:${cloud.gridRow}`) || 0;
+        const intensity = Number(cloud.level) === 0
+          ? Math.min(1, 0.18 + (Number(cloud.coverage) || 0) * 0.42)
+          : Math.min(1, (Number(cloud.level) || 0) / 3 * 0.78 + (Number(cloud.coverage) || 0) * 0.22);
+        const windDirection = finiteWeatherNumber(currentItem()?.windDirectionDeg);
+        return {
+          type: "Feature",
+          geometry: { type: "Polygon", coordinates: radarHoneycombPolygon(cloud) },
+          properties: {
+            level: cloud.level,
+            coverage: cloud.coverage,
+            connected: neighbours.length > 0,
+            fillOpacity: rainHexFillOpacity(cloud, neighbours, boundaryDistance),
+            borderColor: blendedHexBorderColor(cloud, clouds, neighbours),
+            borderOpacity: rainHexBorderOpacity(neighbours, boundaryDistance),
+            intensity,
+            windDirection: windDirection == null ? 0 : (windDirection + 180) % 360,
+            showWind: windDirection != null && ((Number(cloud.gridColumn) + Number(cloud.gridRow)) % 4 === 0)
+          }
+        };
+      })
     };
   }
 
@@ -629,7 +798,7 @@ let rainStrengthIconsPromise = null;
       type: "FeatureCollection",
       features: baseCollection.features.map((feature, index) => ({
         type: "Feature",
-        geometry: { type: "Polygon", coordinates: radarHoneycombRingPolygon(clouds[index], 1, 0.84) },
+        geometry: { type: "Polygon", coordinates: radarHoneycombPolygon(clouds[index]) },
         properties: {
           level: feature.properties.level,
           fillOpacity: feature.properties.fillOpacity
@@ -643,7 +812,7 @@ let rainStrengthIconsPromise = null;
       type: "FeatureCollection",
       features: baseCollection.features.map((feature, index) => ({
         type: "Feature",
-        geometry: { type: "Polygon", coordinates: radarHoneycombRingPolygon(clouds[index], 0.84, 0.64) },
+        geometry: { type: "Polygon", coordinates: radarHoneycombRingPolygon(clouds[index], 0.84, 0.58) },
         properties: {
           level: feature.properties.level,
           fadeOpacity: Math.max(0.02, Number(feature.properties.fillOpacity) - 0.025)
@@ -657,10 +826,13 @@ let rainStrengthIconsPromise = null;
       type: "FeatureCollection",
       features: baseCollection.features.map((feature, index) => ({
         type: "Feature",
-        geometry: { type: "Polygon", coordinates: radarHoneycombPolygon(clouds[index], 0.64) },
+        geometry: { type: "Polygon", coordinates: radarHoneycombPolygon(clouds[index], 0.58) },
         properties: {
           level: feature.properties.level,
-          coreOpacity: Math.max(0.02, Number(feature.properties.fillOpacity) - 0.05)
+          // The center is intentionally very transparent: about 90% of the
+          // map remains visible, while the outer frame carries the strength.
+          coreOpacity: Math.min(0.1, 0.08 + Number(feature.properties.intensity || 0) * 0.02),
+          intensity: feature.properties.intensity
         }
       }))
     };
@@ -677,7 +849,7 @@ let rainStrengthIconsPromise = null;
       const iconIndex = level >= 3 ? 5 : level === 2 ? 4 : level === 1 ? 3 : coverage > 0.45 ? 2 : 1;
       features.push({
         type: "Feature",
-        geometry: { type: "Point", coordinates: [cloud.lon, cloud.lat] },
+        geometry: { type: "Point", coordinates: applySmhiCalibration([cloud.lon, cloud.lat]) },
         properties: { kind: "intensity", level, coverage, rainIcon: `rain-strength-${iconIndex}` }
       });
       const ringSize = level >= 2 ? 4 : coverage > 0.35 ? 3 : 2;
@@ -691,7 +863,7 @@ let rainStrengthIconsPromise = null;
         const intensityJitter = 0.72 + ((Math.sin(phase * 2.1) + 1) / 2) * 0.58;
         features.push({
           type: "Feature",
-          geometry: { type: "Point", coordinates: [cloud.lon + Math.cos(angle) * lonStep * distance, cloud.lat + Math.sin(angle) * latStep * distance] },
+          geometry: { type: "Point", coordinates: applySmhiCalibration([cloud.lon + Math.cos(angle) * lonStep * distance, cloud.lat + Math.sin(angle) * latStep * distance]) },
           properties: { kind: "heat", level, coverage, heatWeight: Math.min(1, baseWeight * intensityJitter) }
         });
       }
@@ -708,17 +880,20 @@ let rainStrengthIconsPromise = null;
 
   function rainCloudsForViewport() {
     if (!rainViewportVisible()) return [];
+    const sourceClouds = rainCloudsForSelectedTime();
     const bounds = map.getBounds?.();
-    if (!bounds) return rainClouds;
+    if (!bounds) return sourceClouds;
     const longitudeSpan = Math.max(0.2, bounds.getEast() - bounds.getWest());
     const latitudeSpan = Math.max(0.2, bounds.getNorth() - bounds.getSouth());
     const lonPadding = Math.max(longitudeSpan * RAIN_VIEW_BUFFER_RATIO, 0.7);
     const latPadding = Math.max(latitudeSpan * RAIN_VIEW_BUFFER_RATIO, 0.45);
-    const west = bounds.getWest() - lonPadding;
-    const east = bounds.getEast() + lonPadding;
-    const south = bounds.getSouth() - latPadding;
-    const north = bounds.getNorth() + latPadding;
-    return rainClouds.filter((cloud) => {
+    const viewport = { west: bounds.getWest() - lonPadding, east: bounds.getEast() + lonPadding, south: bounds.getSouth() - latPadding, north: bounds.getNorth() + latPadding };
+    const scope = selectedLandscapeBounds;
+    const west = scope ? Math.max(viewport.west, scope.west - 0.35) : viewport.west;
+    const east = scope ? Math.min(viewport.east, scope.east + 0.35) : viewport.east;
+    const south = scope ? Math.max(viewport.south, scope.south - 0.25) : viewport.south;
+    const north = scope ? Math.min(viewport.north, scope.north + 0.25) : viewport.north;
+    return sourceClouds.filter((cloud) => {
       if (cloud.lon >= west && cloud.lon <= east && cloud.lat >= south && cloud.lat <= north) return true;
       const polygon = cloud.polygon?.[0] || [];
       if (!polygon.length) return false;
@@ -726,6 +901,42 @@ let rainStrengthIconsPromise = null;
       const latitudes = polygon.map(([, lat]) => lat);
       return Math.max(...longitudes) >= west && Math.min(...longitudes) <= east && Math.max(...latitudes) >= south && Math.min(...latitudes) <= north;
     });
+  }
+
+  function rainCloudsForSelectedTime() {
+    if (!rainClouds.length) return rainClouds;
+    const movement = selectedRainMovement();
+    if (!movement.latOffset && !movement.lonOffset) return rainClouds;
+    return rainClouds.map((cloud) => ({ ...cloud, lat: cloud.lat + movement.latOffset, lon: cloud.lon + movement.lonOffset, rainLatOffset: movement.latOffset, rainLonOffset: movement.lonOffset }));
+  }
+
+  function selectedRainMovement() {
+    // Comparison mode must use the same observed radar frame as SMHI. A
+    // forecast displacement here would make BIGPLUS cells look offset even
+    // though they were decoded from the same PNG.
+    if (smhiRadarOnTop) return { latOffset: 0, lonOffset: 0 };
+    const selectedMs = Date.parse(currentItem()?.time || "");
+    const radarMs = Date.parse(radar?.time || radar?.updatedAt || "");
+    if (!Number.isFinite(selectedMs) || !Number.isFinite(radarMs)) return { latOffset: 0, lonOffset: 0 };
+    const minutes = Math.max(-90, Math.min(240, (selectedMs - radarMs) / 60000));
+    if (Math.abs(minutes) < 2) return { latOffset: 0, lonOffset: 0 };
+    const item = currentItem() || {};
+    const speed = finiteWeatherNumber(item.windSpeedMs);
+    const incomingDirection = finiteWeatherNumber(item.windDirectionDeg);
+    if (speed == null || incomingDirection == null || speed < 0.25) return { latOffset: 0, lonOffset: 0 };
+    const distanceKm = Math.min(120, Math.max(-45, speed * minutes * 60 / 1000));
+    const movementDirection = (incomingDirection + 180) % 360;
+    const radians = movementDirection * Math.PI / 180;
+    const latOffset = Math.cos(radians) * distanceKm / 111.32;
+    const lonOffset = Math.sin(radians) * distanceKm / (111.32 * Math.max(Math.cos(activePoint.lat * Math.PI / 180), 0.2));
+    return { latOffset, lonOffset };
+  }
+
+  function updateRadarOverlayCoordinates() {
+    const source = map?.getSource("smhi-radar");
+    if (!source?.setCoordinates) return;
+    const movement = selectedRainMovement();
+    source.setCoordinates(RADAR_BOUNDS.map(([lon, lat]) => [lon + movement.lonOffset, lat + movement.latOffset]));
   }
 
   function rainCloudMarkerCells() {
@@ -742,13 +953,15 @@ let rainStrengthIconsPromise = null;
 
   function updateRainLayerVisibility() {
     const visible = rainViewportVisible();
-    ["weather-rain-heatmap-soft", "weather-rain-heatmap", "weather-rain-glow", "weather-rain-intensity-icons", "weather-rain-3d"].forEach((layerId) => {
+    ["weather-rain-heatmap", "weather-rain-glow", "weather-rain-intensity-icons", "weather-rain-3d"].forEach((layerId) => {
       if (map?.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", "none");
     });
+    if (map?.getLayer("weather-rain-heatmap-soft")) map.setLayoutProperty("weather-rain-heatmap-soft", "visibility", visible ? "visible" : "none");
     if (map?.getLayer("weather-rain-grid")) map.setLayoutProperty("weather-rain-grid", "visibility", visible ? "visible" : "none");
-    if (map?.getLayer("weather-rain-cell-fade")) map.setLayoutProperty("weather-rain-cell-fade", "visibility", visible ? "visible" : "none");
-    if (map?.getLayer("weather-rain-cell-core")) map.setLayoutProperty("weather-rain-cell-core", "visibility", visible ? "visible" : "none");
+    if (map?.getLayer("weather-rain-cell-fade")) map.setLayoutProperty("weather-rain-cell-fade", "visibility", "none");
+    if (map?.getLayer("weather-rain-cell-core")) map.setLayoutProperty("weather-rain-cell-core", "visibility", "none");
     if (map?.getLayer("weather-rain-grid-border")) map.setLayoutProperty("weather-rain-grid-border", "visibility", visible ? "visible" : "none");
+    if (map?.getLayer("weather-rain-wind")) map.setLayoutProperty("weather-rain-wind", "visibility", visible ? "visible" : "none");
     // SMHI is the comparison layer and must remain visible at the overview
     // zoom too; the local BIGPLUS hexagon layer still respects its own detail
     // zoom threshold above.
@@ -783,6 +996,7 @@ let rainStrengthIconsPromise = null;
     map?.getSource("weather-rain-cell-fade")?.setData(fade);
     map?.getSource("weather-rain-cell-core")?.setData(core);
     map?.getSource("weather-rain-points")?.setData(points);
+    updateRadarOverlayCoordinates();
   }
 
   function ensureRainStrengthIconLayer() {
@@ -1141,6 +1355,64 @@ let rainStrengthIconsPromise = null;
     }).slice(0, 8);
   }
 
+  function weatherFeatureCenter(feature) {
+    const pairs = [];
+    const visit = (value) => {
+      if (Array.isArray(value) && value.length >= 2 && Number.isFinite(Number(value[0])) && Number.isFinite(Number(value[1]))) {
+        pairs.push([Number(value[0]), Number(value[1])]);
+        return;
+      }
+      if (Array.isArray(value)) value.forEach(visit);
+    };
+    visit(feature?.geometry?.coordinates);
+    if (!pairs.length) return null;
+    return pairs.reduce((sum, pair) => [sum[0] + pair[0], sum[1] + pair[1]], [0, 0]).map((value) => value / pairs.length);
+  }
+
+  function distanceKm(a, b) {
+    const lat1 = Number(a?.lat) * Math.PI / 180;
+    const lat2 = Number(b?.lat) * Math.PI / 180;
+    const dLat = lat2 - lat1;
+    const dLon = (Number(b?.lon) - Number(a?.lon)) * Math.PI / 180;
+    const value = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    return 6371 * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(Math.max(0, 1 - value)));
+  }
+
+  function renderWeatherSpeciesProfile() {
+    const list = $("#weatherSpeciesList");
+    const result = $("#weatherSpeciesResults");
+    if (!list || !result) return;
+    list.innerHTML = speciesRules.map((rule, index) => `<article class="weather-species-rule"><i class="weather-species-swatch" style="--species-color:${escapeHtml(rule.colorHex || "#38e8a5")}" aria-hidden="true"></i><div><strong>${escapeHtml(rule.species)}</strong><b>${escapeHtml(rule.name || "Eget väderläge")}</b></div><span>${rule.wind[0]}–${rule.wind[1]} m/s</span><span>${rule.depth[0]}–${rule.depth[1]} m</span><span>${escapeHtml(rule.spot)}</span><span>${escapeHtml(rule.lure)}</span><span>${escapeHtml(rule.color || "Vald färg")}</span><button type="button" data-weather-species-delete="${index}" aria-label="Ta bort ${escapeHtml(rule.name || rule.species)}">×</button></article>`).join("");
+    const current = currentItem() || {};
+    const matches = speciesRules.filter((rule) => inRange(finiteWeatherNumber(current.windSpeedMs), rule.wind)).length;
+    result.innerHTML = `<strong>${matches ? `${matches} väderläge${matches === 1 ? "" : "n"} matchar just nu` : "Ingen regel matchar helt just nu"}</strong><span>Vattenmarkeringar inom cirka 100 mil visas när kartans vattenlager är synliga.</span>`;
+    updateSpeciesMatchSource();
+  }
+
+  function updateSpeciesMatchSource() {
+    const source = map?.getSource("weather-species-matches");
+    if (!source || !map?.isStyleLoaded?.()) return;
+    const layers = WATER_FEATURE_LAYERS.filter((layerId) => map.getLayer(layerId));
+    if (!layers.length) return;
+    const current = currentItem() || {};
+    const wind = finiteWeatherNumber(current.windSpeedMs);
+    const origin = { lat: activePoint.lat, lon: activePoint.lon };
+    const seen = new Set();
+    const features = map.queryRenderedFeatures({ layers }).map((feature) => {
+      const center = weatherFeatureCenter(feature);
+      const name = feature.properties?.["name:sv"] || feature.properties?.name;
+      if (!center || !name || seen.has(name)) return null;
+      seen.add(name);
+      const point = { lat: center[1], lon: center[0] };
+      if (distanceKm(origin, point) > 1000) return null;
+      const score = speciesRules.reduce((best, rule) => Math.max(best, inRange(wind, rule.wind) ? 1 : 0), 0);
+      if (!score) return null;
+       const rule = speciesRules.find((candidate) => inRange(wind, candidate.wind));
+       return { type: "Feature", geometry: { type: "Point", coordinates: center }, properties: { name, score, ruleColor: rule?.colorHex || "#42f59b", ruleName: rule?.name || "Väderläge" } };
+    }).filter(Boolean).slice(0, 60);
+    source.setData({ type: "FeatureCollection", features });
+  }
+
   function ensureMap() {
     const target = $("#weatherMap");
     if (!target || !window.maplibregl) return;
@@ -1180,11 +1452,15 @@ let rainStrengthIconsPromise = null;
       map.on("zoom", () => { updateWeatherLocationMarkerScale(); updateRainMapScale(); scheduleRainViewportUpdate(); scheduleRainAnimation(); });
       map.on("resize", () => { updateRainMapScale(); scheduleRainViewportUpdate(); scheduleRainAnimation(); });
       map.on("move", () => { scheduleRainViewportUpdate(); scheduleRainAnimation(); });
-      map.on("moveend", () => { updateWeatherLocationMarker(); updateRainMotionSource(); refreshRainMapMarkers(); });
+      map.on("moveend", () => { updateWeatherLocationMarker(); updateRainMotionSource(); refreshRainMapMarkers(); updateSpeciesMatchSource(); });
       map.on("zoomend", () => { updateWeatherLocationMarker(); updateWeatherLocationMarkerScale(); updateRainMotionSource(); refreshRainMapMarkers(); });
       map.on("rotate", scheduleRainAnimation);
       map.on("pitch", () => { updateRain3DPresentation(); scheduleRainAnimation(); });
       map.on("click", (event) => {
+        const landscapeLayer = map.getLayer("weather-landscape-hit") ? ["weather-landscape-hit"] : [];
+        const landscapeFeature = landscapeLayer.length ? map.queryRenderedFeatures(event.point, { layers: landscapeLayer })[0] : null;
+        if (landscapeFeature && focusLandscape(landscapeFeature)) return;
+        clearLandscapeFocus();
         if (locationLocked) {
           const status = $("#weatherStatus");
           if (status) status.textContent = "Platsen är låst. Lås upp för att välja en annan plats.";
@@ -1236,6 +1512,13 @@ let rainStrengthIconsPromise = null;
     if (!map.getSource("weather-rain-cell-fade")) map.addSource("weather-rain-cell-fade", { type: "geojson", data: EMPTY_FEATURE_COLLECTION });
     if (!map.getSource("weather-rain-cell-core")) map.addSource("weather-rain-cell-core", { type: "geojson", data: EMPTY_FEATURE_COLLECTION });
     if (!map.getSource("weather-rain-points")) map.addSource("weather-rain-points", { type: "geojson", data: EMPTY_FEATURE_COLLECTION });
+    if (!map.getSource("weather-species-matches")) map.addSource("weather-species-matches", { type: "geojson", data: EMPTY_FEATURE_COLLECTION });
+    if (!map.getSource("weather-landscape-focus")) map.addSource("weather-landscape-focus", { type: "geojson", data: EMPTY_FEATURE_COLLECTION });
+    if (!map.getLayer("weather-landscape-focus-ring")) map.addLayer({ id: "weather-landscape-focus-ring", type: "circle", source: "weather-landscape-focus", paint: { "circle-color": "rgba(57, 239, 190, .12)", "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 34, 9, 96], "circle-stroke-color": "#75ffe0", "circle-stroke-width": 2, "circle-opacity": 0.7 } });
+    if (!map.getLayer("weather-landscape-hit")) map.addLayer({ id: "weather-landscape-hit", type: "circle", source: "openmaptiles", "source-layer": "place", filter: ["all", ["has", "name"], ["match", ["get", "class"], "region", true, "state", true, "county", true, false]], minzoom: 4, maxzoom: 9, paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 18, 8, 30], "circle-opacity": 0, "circle-stroke-opacity": 0 } });
+    if (!map.getLayer("weather-landscape-focus")) map.addLayer({ id: "weather-landscape-focus", type: "symbol", source: "weather-landscape-focus", layout: { "text-field": ["get", "name"], "text-size": ["interpolate", ["linear"], ["zoom"], 5, 13, 9, 19], "text-font": ["Noto Sans Bold"], "text-offset": [0, 1.3] }, paint: { "text-color": "#9fffe2", "text-halo-color": "#03233d", "text-halo-width": 2 } });
+    if (!map.getLayer("weather-species-match-dot")) map.addLayer({ id: "weather-species-match-dot", type: "circle", source: "weather-species-matches", paint: { "circle-color": ["coalesce", ["get", "ruleColor"], "#42f59b"], "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 4, 10, 7, 15, 10], "circle-opacity": 0.88, "circle-stroke-color": "#d8fff0", "circle-stroke-width": 2 } });
+    if (!map.getLayer("weather-species-match-label")) map.addLayer({ id: "weather-species-match-label", type: "symbol", source: "weather-species-matches", layout: { "text-field": ["get", "name"], "text-size": 10, "text-offset": [0, -1.4], "text-allow-overlap": false }, paint: { "text-color": ["coalesce", ["get", "ruleColor"], "#d8fff0"], "text-halo-color": "#062c4d", "text-halo-width": 1.2 } });
     if (!map.getLayer("weather-rain-heatmap-soft")) map.addLayer({
       id: "weather-rain-heatmap-soft",
       type: "heatmap",
@@ -1272,7 +1555,7 @@ let rainStrengthIconsPromise = null;
       paint: {
         "fill-antialias": true,
         "fill-color": ["match", ["get", "level"], 3, "#ff1848", 2, "#ffe800", 1, "#26ff74", "#00dcff"],
-        "fill-opacity": ["coalesce", ["get", "fillOpacity"], 0.58],
+        "fill-opacity": ["coalesce", ["get", "fillOpacity"], 0.16],
         "fill-outline-color": "rgba(0,0,0,0)"
       }
     });
@@ -1307,9 +1590,30 @@ let rainStrengthIconsPromise = null;
       layout: { visibility: "none", "line-cap": "round", "line-join": "round" },
       paint: {
         "line-color": ["coalesce", ["get", "borderColor"], "#244d5b"],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 3, 1.2, 7, 1.6, 11, 2.1, 14, 2.7],
-        "line-opacity": ["*", ["coalesce", ["get", "borderOpacity"], 0.84], 0.7],
-        "line-blur": 0.82
+        "line-width": ["interpolate", ["linear"], ["zoom"], 3, 1.7, 7, 2.2, 11, 2.8, 14, 3.4],
+        "line-opacity": ["*", ["coalesce", ["get", "borderOpacity"], 0.88], 0.94],
+        "line-blur": 0.58
+      }
+    });
+    if (!map.getLayer("weather-rain-wind")) map.addLayer({
+      id: "weather-rain-wind",
+      type: "symbol",
+      source: "weather-rain-clouds",
+      filter: ["==", ["get", "showWind"], true],
+      layout: {
+        visibility: "none",
+        "text-field": "➤",
+        "text-size": ["interpolate", ["linear"], ["zoom"], 3, 5, 7, 7, 12, 10],
+        "text-rotate": ["get", "windDirection"],
+        "text-rotation-alignment": "map",
+        "text-allow-overlap": true,
+        "text-ignore-placement": true
+      },
+      paint: {
+        "text-color": "#e9fbff",
+        "text-halo-color": "rgba(3, 35, 69, .8)",
+        "text-halo-width": 1.1,
+        "text-opacity": 0.72
       }
     });
     if (!map.getLayer("weather-rain-glow")) map.addLayer({
@@ -1337,7 +1641,7 @@ let rainStrengthIconsPromise = null;
         "fill-extrusion-opacity": 0
       }
     });
-    ["weather-rain-heatmap-soft", "weather-rain-heatmap", "weather-rain-glow", "weather-rain-intensity-icons", "weather-rain-cell-fade", "weather-rain-cell-core", "weather-rain-grid-border", "weather-rain-3d", "weather-rain-motion-line", "weather-rain-motion-head", "weather-rain-motion-label"].forEach((layerId) => {
+    ["weather-rain-heatmap-soft", "weather-rain-heatmap", "weather-rain-glow", "weather-rain-intensity-icons", "weather-rain-cell-fade", "weather-rain-cell-core", "weather-rain-grid-border", "weather-rain-wind", "weather-rain-3d", "weather-rain-motion-line", "weather-rain-motion-head", "weather-rain-motion-label", "weather-species-match-dot", "weather-species-match-label"].forEach((layerId) => {
       if (map.getLayer(layerId) && map.getLayer("weather-label")) map.moveLayer(layerId, "weather-label");
     });
     updateRain3DPresentation();
@@ -1351,12 +1655,15 @@ let rainStrengthIconsPromise = null;
         smhiRadarOnTop = !smhiRadarOnTop;
         if (smhiRadarOnTop) setRadarLayer();
         updateSmhiRadarPresentation();
+        updateRainCloudSource();
+        renderRainAnimationFrame();
       });
       button.dataset.smhiBound = "true";
     }
     button.classList.toggle("is-active", smhiRadarOnTop);
     button.setAttribute("aria-pressed", String(smhiRadarOnTop));
     button.textContent = smhiRadarOnTop ? "SMHI ovanpå" : "Visa SMHI ovanpå";
+    renderSmhiCalibrationControl();
   }
 
   function updateSmhiRadarPresentation() {
@@ -1391,6 +1698,8 @@ let rainStrengthIconsPromise = null;
     } else if ((radarImageUrl !== radarUrl || radarCoordinatesKey !== coordinatesKey) && typeof radarSource.updateImage === "function") {
       radarSource.updateImage({ url: radarUrl, coordinates });
     }
+    const source = map.getSource("smhi-radar");
+    if (source?.setWarp) source.setWarp("flat");
     radarImageUrl = radarUrl;
     radarCoordinatesKey = coordinatesKey;
     if (!map.getLayer("smhi-radar")) {
@@ -1422,6 +1731,7 @@ let rainStrengthIconsPromise = null;
     if (!map || !map.isStyleLoaded()) return;
     ensureWeatherLayers();
     setRadarLayer();
+    updateRadarOverlayCoordinates();
     const item = currentItem();
     const paint = layerPaint(activeLayer, item || {});
     const gust = finiteWeatherNumber(item?.windGustMs);
@@ -1444,6 +1754,7 @@ let rainStrengthIconsPromise = null;
     });
     updateWeatherLocationMarker();
     updateRainMotionSource();
+    updateSpeciesMatchSource();
     ["weather-rain-motion-line", "weather-rain-motion-head", "weather-rain-motion-label"].forEach((layerId) => {
       if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", activeLayer === "rain" && radar?.imageUrl ? "visible" : "none");
     });
@@ -1758,6 +2069,7 @@ let rainStrengthIconsPromise = null;
     renderPlaceLists();
     renderForecastList();
     renderPikeRecommendation();
+    renderWeatherSpeciesProfile();
     if (radar?.imageUrl) {
       const radarUrl = radar.imageUrl.startsWith("/") ? `${API_ROOT}${radar.imageUrl}` : radar.imageUrl;
       loadRainClouds(radarUrl);
@@ -1776,15 +2088,17 @@ let rainStrengthIconsPromise = null;
     } catch {
       // A requested timestamp may be between SMHI radar frames.
     }
-    // SMHI radar is an observation/composite, not a forecast layer. A slider
-    // time can fall between radar frames or be several hours ahead, so always
-    // prefer the latest available image for the optional comparison overlay.
-    // The forecast slider still controls the Bigplus weather data separately.
-    try {
-      const latest = await getWeatherRadar();
-      if (latest?.imageUrl) result = latest;
-    } catch {
-      // Keep a requested-time image if the latest-image request is unavailable.
+    // SMHI has observations only. Keep the loaded image for future forecast
+    // steps so BIGPLUS can render an estimated movement instead of clearing
+    // the map or reusing a visibly stale position.
+    if (!result?.imageUrl && radar?.imageUrl) result = radar;
+    if (!result?.imageUrl) {
+      try {
+        const latest = await getWeatherRadar();
+        if (latest?.imageUrl) result = latest;
+      } catch {
+        // The existing radar frame remains usable when refresh is unavailable.
+      }
     }
     if (requestId !== radarRequestId) return;
     radar = result;
@@ -1941,6 +2255,28 @@ let rainStrengthIconsPromise = null;
       if (!button || button.disabled) return;
       const trip = plannerPlaces()[Number(button.dataset.weatherTrip)];
       if (trip) loadPoint({ lat: trip.lat, lon: trip.lon, label: trip.label });
+    });
+    $("#weatherSpeciesRuleForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const number = (id, fallback) => Number.isFinite(Number($(id)?.value)) ? Number($(id).value) : fallback;
+      const windMin = number("#weatherSpeciesWindMin", 2);
+      const windMax = Math.max(windMin, number("#weatherSpeciesWindMax", 9));
+      const depthMin = number("#weatherSpeciesDepthMin", 1);
+      const depthMax = Math.max(depthMin, number("#weatherSpeciesDepthMax", 5));
+       const species = $("#weatherSpeciesSelect")?.value || "Gädda";
+       const name = $("#weatherSpeciesName")?.value.trim() || `${species} · eget väderläge`;
+       const colorHex = $("#weatherSpeciesColor")?.value || "#38e8a5";
+       speciesRules = [{ species, name, colorHex, wind: [windMin, windMax], depth: [depthMin, depthMax], spot: "Vatten inom vald radie", lure: "Ditt val", color: "Eget färgläge", rating: "⭐" }, ...speciesRules];
+      saveWeatherSpeciesRules(speciesRules);
+      renderWeatherSpeciesProfile();
+    });
+    $("#weatherSpeciesList")?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-weather-species-delete]");
+      if (!button) return;
+      speciesRules.splice(Number(button.dataset.weatherSpeciesDelete), 1);
+      if (!speciesRules.length) speciesRules = readWeatherSpeciesRules();
+      saveWeatherSpeciesRules(speciesRules);
+      renderWeatherSpeciesProfile();
     });
   }
 
