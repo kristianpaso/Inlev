@@ -5,3 +5,13 @@
 [functions]
   node_bundler = "esbuild"
   external_node_modules = ["@netlify/blobs"]
+
+[[headers]]
+  for = "/bigplus"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/bigplus/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"

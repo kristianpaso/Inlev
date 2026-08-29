@@ -78,14 +78,29 @@ export function createHomeWidgets(deps) {
     const friends = [...remote, ...local]
       .filter((friend) => friend && String(friend.id || friend._id || "") !== String(account.id))
       .filter((friend, index, items) => items.findIndex((item) => String(item.id || item._id || "") === String(friend.id || friend._id || "")) === index)
-      .sort((a, b) => Number(isLive(b.id || b._id)) - Number(isLive(a.id || a._id)) || String(a.name || "").localeCompare(String(b.name || ""), "sv"))
       .slice(0, 10);
-    target.innerHTML = friends.length
-      ? friends.map((friend) => {
-        const live = isLive(friend.id || friend._id);
-        return `<article class="home-friend-online-row"><span class="competition-avatar">${escapeHtml((friend.name || "F").slice(0, 1).toUpperCase())}${live ? '<i aria-hidden="true"></i>' : ""}</span><span><strong>${escapeHtml(friend.name || "Fiskare")}</strong><small>${live ? "Fiskar just nu" : "Inte LIVE just nu"}</small></span>${live ? "<b>LIVE</b>" : "<b aria-hidden=\"true\"></b>"}</article>`;
-      }).join("")
-      : `<div class="empty-list"><strong>Inga v\u00e4nner \u00e4nnu</strong><span>L\u00e4gg till v\u00e4nner f\u00f6r att se deras LIVE-status h\u00e4r.</span></div>`;
+    const profiles = [account, ...friends].filter(Boolean);
+    const rows = profiles.map((profile) => {
+      const id = String(profile.id || profile._id || "");
+      const list = deps.catches().filter((item) => String(item.userId || "") === id);
+      const bigplusCount = list.filter(isBigplusCatch).length;
+      const speciesCount = new Set(list.map((item) => {
+        const measurement = item.measurement || item;
+        return measurement.speciesName || measurement.species;
+      }).filter(Boolean)).size;
+      return {
+        id,
+        name: id === String(account.id) ? "Du" : (profile.name || "Fiskare"),
+        live: isLive(id),
+        score: (bigplusCount * 200) + (list.length * 60) + (speciesCount * 120) + (completedAchievementCount(list) * 70)
+      };
+    })
+      .filter((row, index, items) => row.id && items.findIndex((item) => item.id === row.id) === index)
+      .sort((a, b) => b.score - a.score || (a.name === "Du" ? -1 : 0) || a.name.localeCompare(b.name, "sv"))
+      .slice(0, 4);
+    target.innerHTML = rows.length
+      ? rows.map((row, index) => `<article class="home-friend-online-row home-ranking-row"><b>${index + 1}</b><span class="competition-avatar">${escapeHtml(row.name.slice(0, 1).toUpperCase())}${row.live ? '<i aria-hidden="true"></i>' : ""}</span><span><strong>${escapeHtml(row.name)}</strong><small>${row.live ? "LIVE just nu" : "Bigplus XP"}</small></span><strong>${row.score.toLocaleString("sv-SE")} XP</strong></article>`).join("")
+      : `<div class="empty-list"><strong>Ingen ranking \u00e4nnu</strong><span>M\u00e4t en Bigplus-f\u00e5ngst f\u00f6r att starta topplistan.</span></div>`;
   }
 
   function renderHomeTournament() {

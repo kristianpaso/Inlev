@@ -3,7 +3,7 @@ setlocal
 
 cd /d "%~dp0"
 
-set "BIGPLUS_SOURCE=C:\Users\krist\Documents\Codex\2026-07-18\j\outputs\bigplus-project"
+set "BIGPLUS_SOURCE=D:\Bigplus"
 
 echo === Inlev / Bigplus: Git-status ===
 git status --short

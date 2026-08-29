@@ -12,6 +12,9 @@
   saveLocalCatch
 } from "./api.js?v=20260731-modules";
 import { compressImageFile } from "./shell/image-utils.js";
+import { analyzeFishMeasurement } from "./measurement-engine.js?v=20260829-depth-v1";
+import { segmentFish } from "./fish-segmentation.js?v=20260829-measure-v7";
+import { buildDepthContext, getDepthFeatureConfig, requestDepthAnalysis } from "./depth-estimator.js?v=20260829-depth-v1";
 
 const state = {
   references: [],
@@ -94,6 +97,7 @@ const state = {
     active: false
   },
   handGuides: [],
+  handCalibration: null,
   fingerRing: {
     available: false,
     pixels: 0,
@@ -108,6 +112,14 @@ const state = {
     scale: 1,
     label: ""
   },
+  // The first V1 line is only a starting suggestion until the user confirms it.
+  v1SeedLine: false,
+  v1AnalysisPending: false,
+  v1LandmarksConfirmed: false,
+  v1LandmarksDetected: false,
+  v1Segmentation: null,
+  depthAnalysis: null,
+  depthAnalysisId: "",
   poseContext: {
     available: false,
     sameShoulderHeight: false,
@@ -155,8 +167,14 @@ const els = {
   guidedResultPopupClose: document.querySelector("#guidedResultPopupClose"),
   guidedLengthResult: document.querySelector("#guidedLengthResult"),
   guidedHeightResult: document.querySelector("#guidedHeightResult"),
+  guidedSpeciesResult: document.querySelector("#guidedSpeciesResult"),
+  guidedConfidenceResult: document.querySelector("#guidedConfidenceResult"),
+  guidedRangeResult: document.querySelector("#guidedRangeResult"),
+  guidedVersionResult: document.querySelector("#guidedVersionResult"),
+  guidedResultChecks: document.querySelector("#guidedResultChecks"),
   guidedResultStatus: document.querySelector("#guidedResultStatus"),
   guidedPerspectiveResult: document.querySelector("#guidedPerspectiveResult"),
+  guidedResultAdjust: document.querySelector("#guidedResultAdjust"),
   changeMeasurePhotoButton: document.querySelector("#changeMeasurePhotoButton"),
   cancelMeasureButton: document.querySelector("#cancelMeasureButton"),
   cameraCaptureButton: document.querySelector("#cameraCaptureButton"),
@@ -199,6 +217,14 @@ const els = {
   addReferenceButton: document.querySelector("#addReferenceButton"),
   removeReferenceButton: document.querySelector("#removeReferenceButton"),
   speciesSelect: document.querySelector("#speciesSelect"),
+  handCalibrationButton: document.querySelector("#handCalibrationButton"),
+  handCalibrationDialog: document.querySelector("#handCalibrationDialog"),
+  handCalibrationForm: document.querySelector("#handCalibrationForm"),
+  handCalibrationFront: document.querySelector("#handCalibrationFront"),
+  handCalibrationSide: document.querySelector("#handCalibrationSide"),
+  calibratedFingerWidth: document.querySelector("#calibratedFingerWidth"),
+  handCalibrationStatus: document.querySelector("#handCalibrationStatus"),
+  handCalibrationSave: document.querySelector("#handCalibrationSave"),
   minSize: document.querySelector("#minSize"),
   refTool: document.querySelector("#refTool"),
   fishTool: document.querySelector("#fishTool"),
@@ -293,7 +319,7 @@ let manualLocationPickerMarker = null;
 let selectedManualCatchLocation = null;
 const classicCanReferenceImage = new Image();
 classicCanReferenceImage.decoding = "async";
-classicCanReferenceImage.src = "/bigplus/assets/can-calibration.png?v=20260821";
+classicCanReferenceImage.src = "/bigplus/assets/can-ring-calibration.png?v=20260825-ring-can-1";
 classicCanReferenceImage.addEventListener("load", draw);
 const CLASSIC_CAN_IMAGE_BOUNDS = {
   x: 0,
@@ -309,6 +335,7 @@ const FINGER_WIDTH_CM = 2;
 const RING_OUTER_WIDTH_CM = 2.25;
 const RING_HOLE_WIDTH_CM = 2;
 const FINGER_PROXY_FACTOR = 3.52;
+const FINGER_CALC_FACTOR = 2.90;
 const CAN_REFERENCE_CORRECTION = 0.76;
 const CAN_HEIGHT_CM = 11.5;
 const FULL_GRIP_SPAN_CORRECTION = 4 / 3;
@@ -469,29 +496,36 @@ function updateProgressItem(name, options = {}) {
 }
 
 function updateMeasureProgress() {
-  if (!els.measureProgressPanel) return;
   const hasImage = Boolean(state.image);
+  const referenceFreeMode = document.body.classList.contains("measure-v1-active");
   const referencesLocked = Boolean(
     state.referenceSlots.glasses?.virtual?.locked &&
     state.referenceSlots.can?.virtual?.locked
   );
   const hasAnyReference = Boolean(state.referenceSlots.glasses || state.referenceSlots.can);
-  const lengthReady = state.points.fish.length >= 2;
+  const lengthReady = state.points.fish.length >= 2
+    && (!referenceFreeMode || !state.v1SeedLine);
   const heightReady = state.points.body.length >= 2;
   const lengthLocked = Boolean(state.measurementLocks.fish);
   const heightLocked = Boolean(state.measurementLocks.body);
   const hasResult = Boolean(state.lastResult);
-  const guidedMeasureReady = Boolean(
-    hasImage &&
-    state.referenceSlots.glasses &&
-    state.referenceSlots.can &&
-    lengthReady &&
-    heightReady
-  );
+  const guidedMeasureReady = referenceFreeMode
+    ? Boolean(hasImage && lengthReady)
+    : Boolean(hasImage && state.referenceSlots.glasses && state.referenceSlots.can && lengthReady && heightReady);
+  const guidedButtonEnabled = referenceFreeMode ? hasImage : guidedMeasureReady;
+  const canUseGuidedButton = guidedButtonEnabled && !state.v1AnalysisPending;
   els.guidedMeasureButton?.classList.toggle("is-ready", guidedMeasureReady);
+  els.guidedMeasureButton?.classList.toggle("is-analyzing", state.v1AnalysisPending);
   if (els.guidedMeasureButton) {
-    els.guidedMeasureButton.disabled = !guidedMeasureReady;
-    els.guidedMeasureButton.setAttribute("aria-disabled", String(!guidedMeasureReady));
+    els.guidedMeasureButton.disabled = !canUseGuidedButton;
+    els.guidedMeasureButton.setAttribute("aria-disabled", String(!canUseGuidedButton));
+    const label = els.guidedMeasureButton.querySelector(".measure-tool-label");
+    if (label) label.textContent = state.v1AnalysisPending ? "Analyserar..." : "Mät fisken";
+    els.guidedMeasureButton.title = state.v1AnalysisPending
+      ? "Analyserar bilden"
+      : guidedMeasureReady
+      ? "Räkna ut fiskens längd"
+      : "Markera först fiskens nos och stjärt i bilden";
   }
 
   if (els.measurePhotoProgress) els.measurePhotoProgress.textContent = hasImage ? "Vald" : "Väntar";
@@ -1202,22 +1236,44 @@ function referenceScalesForCalculation() {
       scaleCmPerPixel: (slot.refCm * slotCalibrationFactor(slot)) / distance(slot.points)
     }));
 
-  const ring = scales.find((item) => item.referenceId === "ring-2cm");
-  if (ring) return [ring];
+  const lockedRing = scales.find((item) => item.referenceId === "ring-2cm");
+  const detectedRing = state.fingerRing.available && state.fingerRing.pixels > 0
+    ? {
+        referenceId: "ring-finger-auto",
+        scaleCmPerPixel: RING_HOLE_WIDTH_CM / state.fingerRing.pixels,
+        confidence: 0.78,
+        weight: 0.88,
+        method: "ring_finger"
+      }
+    : null;
+  const ring = lockedRing || detectedRing;
 
-  // The can is the physical scale at the fish's plane. Glasses and hand depth
-  // describe the perspective context, but changing the can size must change
-  // the measured fish length.
+  // The can is the primary physical scale at the fish's plane. A visible ring
+  // calibrates an uncertain can, but does not replace it: this lets both the
+  // can size control and the known 2 cm finger opening affect the result.
   const glasses = state.referenceSlots.glasses;
   const can = scales.find((item) => item.referenceId === "can-330");
-  if (can) {
-    return [can];
+  const candidates = [];
+  if (can) candidates.push({ ...can, method: "can", confidence: 0.55, weight: 0.55 });
+  if (ring) candidates.push({ ...ring, method: lockedRing ? "ring" : "ring_finger", confidence: lockedRing ? 0.72 : 0.78, weight: lockedRing ? 0.72 : 0.88 });
+  if (can && ring) {
+    const ringToCan = clamp(ring.scaleCmPerPixel / can.scaleCmPerPixel, 0.70, 1.30);
+    candidates.push({
+      referenceId: "can-ring-calibrated",
+      method: "can_ring_fusion",
+      scaleCmPerPixel: can.scaleCmPerPixel * Math.pow(ringToCan, 0.35),
+      confidence: 0.68,
+      weight: 0.78
+    });
   }
+  if (candidates.length) return candidates;
 
+  // Glasses and hand depth describe the perspective context when no physical
+  // object reference has been placed.
   if (glasses?.points?.length === 2 && distance(glasses.points) > 0 && state.handDepth.available) {
     const objectDepthScale = clamp(state.handDepth.scale || 1, 0.75, 1.35);
     const facePlaneScale = (glasses.refCm * (glasses.virtual?.calibrationFactor || 1)) / distance(glasses.points);
-    return [{ referenceId: "hand-fish-plane", scaleCmPerPixel: facePlaneScale / objectDepthScale }];
+    return [{ referenceId: "hand-fish-plane", method: "face_depth", scaleCmPerPixel: facePlaneScale / objectDepthScale, confidence: 0.35, weight: 0.20 }];
   }
 
   if (scales.length) return scales;
@@ -1241,6 +1297,9 @@ function canPerspectiveRatio() {
 }
 
 function canPerspectiveLabel() {
+  if (state.fingerRing.available && state.fingerRing.pixels > 0) {
+    return "Ringreferensen används för fiskens plan och skala.";
+  }
   const ratio = canPerspectiveRatio();
   if (ratio === null) return "Ingen burkjustering registrerad.";
   const change = Math.round(Math.abs(ratio - 1) * 100);
@@ -2146,17 +2205,9 @@ function updateHandGuides(result) {
   const upperGuide = guides
     .filter((guide) => guide.upperFinger && guide.upperFingerPixels > 0)
     .sort((a, b) => a.upperFinger.y - b.upperFinger.y)[0];
-  const fallbackGuide = guides
-    .filter((guide) => guide.width > 0)
-    .sort((a, b) => a.y - b.y)[0];
-  const fallbackPoint = fallbackGuide
-    ? { x: fallbackGuide.x, y: fallbackGuide.y }
-    : null;
   state.fingerRing = upperGuide
     ? { available: true, pixels: upperGuide.upperFingerPixels, referencePixels: 0, point: upperGuide.upperFinger, rotationDeg: upperGuide.upperFingerRotationDeg, label: `Ring · ${upperGuide.selectedFinger || "finger"} · ytterbredd 2,25 cm · hål 2 cm` }
-    : fallbackGuide
-      ? { available: true, pixels: Math.max(8, fallbackGuide.width * 0.24), referencePixels: 0, point: fallbackPoint, rotationDeg: 0, label: "Ring · finger hittad · ytterbredd 2,25 cm · hål 2 cm" }
-      : { available: false, pixels: 0, referencePixels: 0, point: null, rotationDeg: 0, label: "" };
+    : { available: false, pixels: 0, referencePixels: 0, point: null, rotationDeg: 0, label: "" };
   return guides;
 }
 
@@ -2709,7 +2760,7 @@ function drawFingerRingReference() {
   };
   // The detection proxy is deliberately enlarged for metric calculation.
   // Render the ring from the underlying finger width so it fits visually.
-  const displayPixels = Math.max(10, (pixelsPerCm * RING_OUTER_WIDTH_CM) / FINGER_PROXY_FACTOR);
+  const displayPixels = Math.max(10, (pixelsPerCm * RING_OUTER_WIDTH_CM) / 1.75);
   const imageWidth = displayPixels * 1.2;
   const imageHeight = displayPixels * 0.52;
   ctx.save();
@@ -2735,6 +2786,7 @@ function drawFingerRingReference() {
 }
 
 function drawVirtualReference(referenceId = state.virtualReference.referenceId || els.referenceSelect.value) {
+  if (document.documentElement.dataset.measureMode === "v1") return;
   if (!state.virtualReference.enabled) return;
 
   const rect = virtualReferenceGeometry();
@@ -2866,6 +2918,7 @@ function draw() {
   const { offsetX, offsetY, drawWidth, drawHeight } = getImageFrame();
 
   ctx.drawImage(state.image, offsetX, offsetY, drawWidth, drawHeight);
+  drawV1SegmentationOverlay();
   updateVirtualReferencePoints();
   state.virtualReference.faceDepthOffset = selectedFaceDepthOffset();
   syncActiveReferenceSlot();
@@ -2876,7 +2929,9 @@ function draw() {
   drawReferenceSlot("can");
   drawReferenceSlot("ring");
   drawDetectedHandGuides();
-  drawVirtualReference();
+  // V1 is reference-free. Keep the legacy renderer available for older flows,
+  // but never let it add a reference object to the new measurement screen.
+  if (document.documentElement.dataset.measureMode !== "v1") drawVirtualReference();
   // Keep the ring visible as its own object, even when the can overlaps the hand.
   drawFaceDepthLine();
   updateRulerControl();
@@ -2885,6 +2940,25 @@ function draw() {
   drawMeasurementArrowLine(state.points.body, "#d97706", "höjd");
   updateChecklist();
   updateGuidedOverlay();
+  ctx.restore();
+}
+
+function drawV1SegmentationOverlay() {
+  const outline = state.v1Segmentation?.outline;
+  if (!document.body.classList.contains("measure-v1-active") || !Array.isArray(outline) || outline.length < 3) return;
+  const points = outline.map(imagePointToCanvas);
+  const zoom = Math.max(state.view.zoom, 0.1);
+  ctx.save();
+  ctx.strokeStyle = "rgba(47, 196, 150, 0.9)";
+  ctx.lineWidth = 1.5 / zoom;
+  ctx.setLineDash([6 / zoom, 4 / zoom]);
+  ctx.beginPath();
+  points.forEach((current, index) => {
+    if (index === 0) ctx.moveTo(current.x, current.y);
+    else ctx.lineTo(current.x, current.y);
+  });
+  ctx.closePath();
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -2922,9 +2996,12 @@ function updateRulerControl() {
 
 function resetPoints(options = {}) {
   const clearImage = Boolean(options.clearImage);
+  delete document.documentElement.dataset.measureMode;
   state.handGuides = [];
   state.fingerRing = { available: false, pixels: 0, referencePixels: 0, point: null, rotationDeg: 0, label: "" };
   state.handDepth = { available: false, relative: 0, scale: 1, label: "" };
+  state.depthAnalysis = null;
+  state.depthAnalysisId = "";
   resetPoseContext();
   state.referenceDepth.canBaselineHeight = null;
   if (clearImage) {
@@ -2947,7 +3024,8 @@ function resetPoints(options = {}) {
     if (els.photoInputLabel) els.photoInputLabel.textContent = "Välj bild med fisken";
     resetZoom();
     setStatus("Redo");
-    document.body.classList.remove("measure-guided-active");
+    document.body.classList.remove("measure-guided-active", "measure-v1-active");
+    document.querySelector(".measure-area")?.classList.remove("is-v1-mode");
   } else {
     setStatus("Rensad");
   }
@@ -2984,6 +3062,11 @@ function resetPoints(options = {}) {
   state.points.ref = [];
   state.points.fish = [];
   state.points.body = [];
+  state.v1SeedLine = false;
+  state.v1AnalysisPending = false;
+  state.v1LandmarksConfirmed = false;
+  state.v1LandmarksDetected = false;
+  state.v1Segmentation = null;
   if (els.referenceSelect) els.referenceSelect.value = "glasses";
   if (els.speciesSelect) els.speciesSelect.value = "";
   if (els.minSize) els.minSize.value = 0;
@@ -3005,9 +3088,28 @@ function showMeasurementWorkspace() {
   els.manualEntryPanel?.classList.add("hidden");
   const measureArea = document.querySelector(".measure-area");
   measureArea?.classList.remove("is-start", "is-manual");
-  measureArea?.classList.add("is-guided-mode");
+  measureArea?.classList.add("is-guided-mode", "is-v1-mode");
+  document.documentElement.dataset.measureMode = "v1";
   document.body.classList.add("measure-guided-active");
-  updateMeasureMenuState("glasses");
+  document.body.classList.add("measure-v1-active");
+  // V1 starts without physical reference objects. Clear stale objects from
+  // a previous measurement before the new image is drawn.
+  state.referenceSlots = { glasses: null, can: null, ring: null, fish: null, active: "glasses" };
+  state.virtualReference.enabled = false;
+  state.virtualReference.selected = false;
+  state.virtualReference.locked = false;
+  state.virtualReference.dragging = false;
+  state.fingerRing = { available: false, pixels: 0, referencePixels: 0, point: null, rotationDeg: 0, label: "" };
+  state.handGuides = [];
+  state.handDepth = { available: false, relative: 0, scale: 1, label: "" };
+  state.depthAnalysis = null;
+  state.poseContext = { available: false, sameShoulderHeight: false, confidence: 0, label: "" };
+  state.v1SeedLine = false;
+  state.v1LandmarksConfirmed = false;
+  state.v1LandmarksDetected = false;
+  state.v1Segmentation = null;
+  setTool("fish");
+  updateMeasureMenuState("length");
   if (measureArea) measureArea.dataset.flowStep = "2";
   if (els.photoInputLabel) els.photoInputLabel.textContent = "Mät ny fisk";
 }
@@ -3083,8 +3185,9 @@ function showManualEntry() {
   els.manualEntryPanel?.classList.remove("hidden");
   const measureArea = document.querySelector(".measure-area");
   measureArea?.classList.add("is-manual");
-  measureArea?.classList.remove("is-start", "is-guided-mode");
-  document.body.classList.remove("measure-guided-active");
+  measureArea?.classList.remove("is-start", "is-guided-mode", "is-v1-mode");
+  document.body.classList.remove("measure-guided-active", "measure-v1-active");
+  delete document.documentElement.dataset.measureMode;
   if (measureArea) measureArea.dataset.flowStep = "manual";
   if (els.manualEntryImage && state.imageDataUrl) {
     els.manualEntryImage.src = state.imageDataUrl;
@@ -3099,8 +3202,9 @@ function showMeasureStart() {
   document.querySelector(".measure-area")?.classList.remove("is-manual");
   const measureArea = document.querySelector(".measure-area");
   measureArea?.classList.add("is-start");
-  measureArea?.classList.remove("is-manual", "is-guided-mode");
-  document.body.classList.remove("measure-guided-active");
+  measureArea?.classList.remove("is-manual", "is-guided-mode", "is-v1-mode");
+  document.body.classList.remove("measure-guided-active", "measure-v1-active");
+  delete document.documentElement.dataset.measureMode;
   if (measureArea) measureArea.dataset.flowStep = "1";
 }
 
@@ -3123,15 +3227,149 @@ async function readImageFile(file, onLoaded) {
 }
 
 function setMeasurementImage(image, dataUrl) {
+  const v1Requested = document.documentElement.dataset.measureMode === "v1"
+    || document.body.classList.contains("measure-v1-active");
   state.image = image;
   state.imageDataUrl = dataUrl;
+  state.depthAnalysisId = `measurement-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  state.depthAnalysis = null;
   resetZoom();
   resetPoints();
+  state.v1AnalysisPending = v1Requested;
   els.referenceSelect.value = "glasses";
   state.referenceSlots.active = "glasses";
   showMeasurementWorkspace();
   draw();
-  window.setTimeout(() => { void autoPlaceGlassesReference(); }, 0);
+  if (v1Requested) {
+    setStatus("Analyserar bilden med AI");
+    updateMeasureProgress();
+    void analyzeV1FishImage(image);
+  }
+  if (!v1Requested) {
+    window.setTimeout(() => { void autoPlaceGlassesReference(); }, 0);
+  }
+}
+
+function imagePointToCanvas(point) {
+  const frame = getImageFrame();
+  const imageWidth = state.image?.naturalWidth || state.image?.width || 1;
+  const imageHeight = state.image?.naturalHeight || state.image?.height || 1;
+  return {
+    x: frame.offsetX + (point.x / imageWidth) * frame.drawWidth,
+    y: frame.offsetY + (point.y / imageHeight) * frame.drawHeight
+  };
+}
+
+function canvasPointToImage(point) {
+  const frame = getImageFrame();
+  const imageWidth = state.image?.naturalWidth || state.image?.width || 1;
+  const imageHeight = state.image?.naturalHeight || state.image?.height || 1;
+  return {
+    x: ((point.x - frame.offsetX) / Math.max(1, frame.drawWidth)) * imageWidth,
+    y: ((point.y - frame.offsetY) / Math.max(1, frame.drawHeight)) * imageHeight
+  };
+}
+
+async function analyzeV1FishImage(image) {
+  try {
+    const [segmentation, holistic] = await Promise.all([
+      segmentFish(image),
+      detectHolisticInImage().catch(() => null)
+    ]);
+    if (state.image !== image) return;
+    state.v1Segmentation = segmentation;
+    const holisticGuides = updateHandGuides(holistic);
+    const armGuides = updateArmGuides(holistic);
+    state.handGuides = holisticGuides.length ? holisticGuides : armGuides;
+    updateArmPoseContext(holistic);
+    const detectedPoints = segmentation.fishLandmarks?.centerline
+      || segmentation.fishLandmarks?.points
+      || [];
+    const modelLandmarksUsable = segmentation.modelBacked && detectedPoints.length >= 2;
+    if (modelLandmarksUsable) {
+      state.points.fish = detectedPoints.map(imagePointToCanvas);
+      state.v1LandmarksDetected = true;
+      state.v1SeedLine = false;
+      setStatus("Fisk hittad");
+    } else {
+      if (!segmentation.modelBacked) state.points.fish = [];
+      state.v1SeedLine = false;
+      state.v1LandmarksDetected = false;
+      setStatus(segmentation.maskAvailable ? "Konturen är osäker. Markera nos och stjärt" : "Markera nos och stjärt");
+    }
+    if (getDepthFeatureConfig().enabled && state.points.fish.length >= 2) {
+      const imageWidth = image.naturalWidth || image.width || 1;
+      const imageHeight = image.naturalHeight || image.height || 1;
+      const imageFrame = getImageFrame();
+      const faceFrame = faceLandmarksToImageFrame(holistic?.faceLandmarks?.[0]);
+      const faceTopLeft = faceFrame ? canvasPointToImage(faceFrame) : null;
+      const faceBox = faceFrame && faceTopLeft ? {
+        ...faceTopLeft,
+        width: faceFrame.width / Math.max(1, imageFrame.drawWidth) * imageWidth,
+        height: faceFrame.height / Math.max(1, imageFrame.drawHeight) * imageHeight
+      } : null;
+      const poseLandmarks = holistic?.poseLandmarks?.[0] || [];
+      const torsoLandmarks = [poseLandmarks[11], poseLandmarks[12], poseLandmarks[23], poseLandmarks[24]].filter(Boolean);
+      const torsoBox = torsoLandmarks.length >= 3 ? {
+        x: Math.min(...torsoLandmarks.map((point) => point.x)) * imageWidth,
+        y: Math.min(...torsoLandmarks.map((point) => point.y)) * imageHeight,
+        width: (Math.max(...torsoLandmarks.map((point) => point.x)) - Math.min(...torsoLandmarks.map((point) => point.x))) * imageWidth,
+        height: (Math.max(...torsoLandmarks.map((point) => point.y)) - Math.min(...torsoLandmarks.map((point) => point.y))) * imageHeight
+      } : null;
+      const depthContext = buildDepthContext({
+        segmentation,
+        fishPoints: state.points.fish.map(canvasPointToImage),
+        handGuides: state.handGuides.map((guide) => ({
+          ...canvasPointToImage(guide),
+          width: (Number(guide.width) || 0) / Math.max(1, imageFrame.drawWidth) * imageWidth,
+          confidence: guide.confidence
+        })),
+        width: imageWidth,
+        height: imageHeight,
+        faceBox,
+        torsoBox,
+        poseContext: state.poseContext
+      });
+      setStatus("Analyserar perspektiv");
+      state.depthAnalysis = await requestDepthAnalysis({
+        imageDataUrl: state.imageDataUrl,
+        analysisId: state.depthAnalysisId,
+        context: depthContext
+      });
+    }
+    state.v1AnalysisPending = false;
+    updateMeasureProgress();
+    draw();
+    await calculate();
+  } catch {
+    state.v1Segmentation = null;
+    state.points.fish = [];
+    state.v1SeedLine = false;
+    state.v1AnalysisPending = false;
+    state.v1LandmarksDetected = false;
+    setStatus("Markera nos och stjärt");
+    updateMeasureProgress();
+    draw();
+    await calculate();
+  }
+}
+
+function seedV1FishLandmarks() {
+  if (!state.image || !document.body.classList.contains("measure-v1-active")) return;
+  resizeCanvasToDisplay();
+  const frame = getImageFrame();
+  const y = frame.offsetY + frame.drawHeight * 0.58;
+  const left = frame.offsetX + frame.drawWidth * 0.12;
+  const right = frame.offsetX + frame.drawWidth * 0.88;
+  state.points.fish = [
+    { x: left, y },
+    { x: right, y }
+  ];
+  // This is only a temporary editing guide. It is not a detected fish mask
+  // and must never be reported as confirmed nose/tail landmarks.
+  state.v1SeedLine = true;
+  state.v1LandmarksConfirmed = false;
+  state.v1LandmarksDetected = false;
 }
 
 async function persistManualCatch() {
@@ -3218,12 +3456,23 @@ function renderResult(result) {
     if (els.bodyDepthResult) els.bodyDepthResult.textContent = `-- ${preferredUnit()}`;
     if (els.limitResult) els.limitResult.textContent = `-- ${preferredUnit()}`;
     if (els.confidenceResult) els.confidenceResult.textContent = "--";
+    const rangeResult = document.querySelector("#measurementRangeResult");
+    const confidenceLevel = document.querySelector("#measurementConfidenceLevel");
+    const analysisList = document.querySelector("#measurementAnalysisList");
+    if (rangeResult) rangeResult.textContent = "--";
+    if (confidenceLevel) confidenceLevel.textContent = "--";
+    if (analysisList) analysisList.replaceChildren();
     if (els.resultPhoto) els.resultPhoto.removeAttribute("src");
     if (els.resultSpecies) els.resultSpecies.textContent = "--";
     if (els.resultSpeciesLatin) els.resultSpeciesLatin.textContent = "--";
     if (els.measureStatusSummary) els.measureStatusSummary.textContent = "–";
     if (els.measureStatusSummaryText) els.measureStatusSummaryText.textContent = "Ej mätt";
     if (els.guidedPerspectiveResult) els.guidedPerspectiveResult.textContent = "Ingen burkjustering registrerad.";
+    if (els.guidedSpeciesResult) els.guidedSpeciesResult.textContent = "Fisk";
+    if (els.guidedConfidenceResult) els.guidedConfidenceResult.textContent = "--";
+    if (els.guidedRangeResult) els.guidedRangeResult.textContent = "--";
+    if (els.guidedVersionResult) els.guidedVersionResult.textContent = "V1 Beta";
+    if (els.guidedResultChecks) els.guidedResultChecks.replaceChildren();
     if (els.guidedResultPopup) els.guidedResultPopup.hidden = true;
     updateMeasureProgress();
     return;
@@ -3233,26 +3482,86 @@ function renderResult(result) {
   if (els.bigStatus) els.bigStatus.classList.add(statusClass);
   if (els.bigStatus?.querySelector("strong")) els.bigStatus.querySelector("strong").textContent = result.status;
   if (els.lengthResult) els.lengthResult.textContent = formatCm(result.lengthCm);
-  if (els.weightResult) els.weightResult.textContent = formatKgRange(result.weightKg);
+  if (els.weightResult) els.weightResult.textContent = result.weightKg ? formatKgRange(result.weightKg) : "-- kg";
   if (els.bodyDepthResult) els.bodyDepthResult.textContent = result.bodyCm ? formatCm(result.bodyCm) : `-- ${preferredUnit()}`;
   if (els.limitResult) els.limitResult.textContent = result.minCm > 0 ? formatCm(result.minCm) : "Kolla";
-  if (els.confidenceResult) els.confidenceResult.textContent = result.confidence === "body" ? "Bättre" : result.confidence === "high" ? "Hög" : result.confidence === "local" ? "Lokal" : "Mellan";
+  const confidence = typeof result.confidence === "object" ? result.confidence : { level: result.confidence === "high" ? "high" : "medium", score: null };
+  if (els.confidenceResult) els.confidenceResult.textContent = confidence.level === "very_high" ? "Mycket hög" : confidence.level === "high" ? "Hög" : confidence.level === "low" ? "Låg" : "Mellan";
+  const rangeResult = document.querySelector("#measurementRangeResult");
+  const confidenceLevel = document.querySelector("#measurementConfidenceLevel");
+  const analysisList = document.querySelector("#measurementAnalysisList");
+  if (rangeResult) rangeResult.textContent = Number.isFinite(result.rangeMinCm) && Number.isFinite(result.rangeMaxCm)
+    ? `${formatCm(result.rangeMinCm)}–${formatCm(result.rangeMaxCm)}`
+    : "--";
+  if (confidenceLevel) confidenceLevel.textContent = `${confidence.level}${Number.isFinite(confidence.score) ? ` (${confidence.score}/100)` : ""}`;
+  if (analysisList) {
+    const analysis = result.analysis || {};
+    const checks = [
+      [analysis.noseVisible && analysis.tailVisible, analysis.noseVisible && analysis.tailVisible ? "Nos och stjärt hittades" : "Nos och stjärt behöver kontrolleras"],
+      [analysis.bothHandsUsed, "Två händer användes som skala"],
+      [analysis.calibratedHandUsed, "Din handkalibrering användes"],
+      [analysis.perspectiveCorrected, "Perspektivet korrigerades"],
+      [analysis.speciesMorphologyVerified, "Artens kroppsproportioner kontrollerades"]
+    ];
+    analysisList.replaceChildren(...checks.map(([ok, label]) => {
+      const item = document.createElement("li");
+      item.className = ok ? "is-complete" : "is-pending";
+      item.textContent = `${ok ? "✓" : "•"} ${label}`;
+      return item;
+    }));
+  }
   if (els.disclaimer) els.disclaimer.textContent = result.disclaimer;
-  const selectedSpecies = state.species.find((item) => item.id === els.speciesSelect.value);
+  const selectedSpecies = state.species.find((item) => item.id === (result.speciesId || els.speciesSelect.value));
   if (els.resultPhoto && state.imageDataUrl) els.resultPhoto.src = state.imageDataUrl;
-  if (els.resultSpecies) els.resultSpecies.textContent = selectedSpecies?.name || "Annan art";
+  if (els.resultSpecies) els.resultSpecies.textContent = result.species || selectedSpecies?.name || "Annan art";
   const latinNames = { pike: "Esox lucius", perch: "Perca fluviatilis", zander: "Sander lucioperca", trout: "Salmo trutta", salmon: "Salmo salar", char: "Salvelinus alpinus", cod: "Gadus morhua" };
-  if (els.resultSpeciesLatin) els.resultSpeciesLatin.textContent = selectedSpecies?.latinName || latinNames[selectedSpecies?.id] || "Fisk";
+  if (els.resultSpeciesLatin) els.resultSpeciesLatin.textContent = result.speciesLatinName || selectedSpecies?.latinName || latinNames[selectedSpecies?.id] || "Fisk";
   if (els.measureStatusSummary) els.measureStatusSummary.textContent = result.status === "BIGPLUS" ? "BIGPLUS" : result.status;
   if (els.measureStatusSummaryText) els.measureStatusSummaryText.textContent = result.status === "BIGPLUS" ? "Fångsten är godkänd" : "Kontrollera måttet";
   if (els.guidedLengthResult) els.guidedLengthResult.textContent = formatCm(result.lengthCm);
   if (els.guidedHeightResult) els.guidedHeightResult.textContent = result.bodyCm ? formatCm(result.bodyCm) : `-- ${preferredUnit()}`;
-  if (els.guidedResultStatus) {
-    els.guidedResultStatus.textContent = result.status === "BIGPLUS"
-      ? "Måtten är ungefärliga och resultatet uppfyller Bigplus-gränsen."
-      : "Måtten är ungefärliga. Kontrollera resultatet innan du sparar.";
+  if (els.guidedSpeciesResult) els.guidedSpeciesResult.textContent = result.species || selectedSpecies?.name || "Fisk";
+  if (els.guidedConfidenceResult) {
+    const confidenceLabel = confidence.level === "very_high" ? "Mycket hög" : confidence.level === "high" ? "Hög" : confidence.level === "medium" ? "Medel" : "Låg";
+    els.guidedConfidenceResult.textContent = `${confidenceLabel}${Number.isFinite(confidence.score) ? ` ${confidence.score}/100` : ""}`;
   }
-  if (els.guidedPerspectiveResult) els.guidedPerspectiveResult.textContent = canPerspectiveLabel();
+  if (els.guidedRangeResult) els.guidedRangeResult.textContent = Number.isFinite(result.rangeMinCm) && Number.isFinite(result.rangeMaxCm)
+    ? `${formatCm(result.rangeMinCm)}-${formatCm(result.rangeMaxCm)}` : "--";
+  if (els.guidedVersionResult) els.guidedVersionResult.textContent = result.measurementVersion || "V1 Beta";
+  if (els.guidedResultChecks) {
+    const analysis = result.analysis || {};
+    const landmarksConfirmed = Boolean(analysis.fishLandmarksDetected);
+    const segmentationUsed = Boolean(analysis.fishSegmentationUsed);
+    const segmentationModelBacked = Boolean(analysis.fishSegmentationModelBacked);
+    const depthModelAvailable = Boolean(analysis.actualDepthModelAvailable);
+    const depthUsed = Boolean(analysis.depthUsed);
+    const checks = [
+      [landmarksConfirmed, landmarksConfirmed ? "Nos och stjärt är markerade" : "Markera nos och stjärt manuellt"],
+      [segmentationUsed, segmentationModelBacked ? "Fisksegmentering med tränad modell" : "Preliminär fisksegmentering hittade fiskområdet"],
+      [depthUsed, depthUsed ? "Djup och perspektiv korrigerades" : depthModelAvailable ? "Djupanalys klar, men korrigering avvaktade" : "Djupmodell saknas i V1 Beta"],
+      [analysis.speciesMorphologyVerified, analysis.speciesMorphologyVerified ? "Artens proportioner kontrollerades" : "Artproportioner används inte som säker mätning"]
+    ];
+    els.guidedResultChecks.replaceChildren(...checks.map(([ok, label]) => {
+      const item = document.createElement("li");
+      item.className = ok ? "is-complete" : "is-pending";
+      item.textContent = `${ok ? "✓" : "!"} ${label}`;
+      return item;
+    }));
+  }
+  if (els.guidedResultStatus) {
+    els.guidedResultStatus.textContent = !result.analysis?.fishLandmarksDetected
+      ? "Flytta markörerna till fiskens nos och stjärt innan du sparar."
+      : !result.analysis?.fishSegmentationModelBacked
+        ? "En preliminär lokal fisksegmentering används. Kontrollera alltid nos och stjärt innan du sparar."
+        : result.status === "BIGPLUS"
+          ? "Måtten är ungefärliga och resultatet uppfyller Bigplus-gränsen."
+          : "Måtten är ungefärliga. Kontrollera resultatet innan du sparar.";
+  }
+  if (els.guidedPerspectiveResult) els.guidedPerspectiveResult.textContent = result.analysis?.depthUsed
+    ? `Djupanalys korrigerade perspektivet (${Math.round((result.analysis.depthConfidence || 0) * 100)}/100).`
+    : result.analysis?.actualDepthModelAvailable
+      ? "Djupanalys klar men gav ingen säker korrigering."
+    : "Djupmodellen kunde inte användas i denna analys.";
   if (els.guidedResultPopup && document.body.classList.contains("measure-guided-active")) {
     els.guidedResultPopup.hidden = false;
   }
@@ -3260,11 +3569,56 @@ function renderResult(result) {
   updateMeasureProgress();
 }
 
+function updateHandCalibrationStatus() {
+  if (!els.handCalibrationStatus) return;
+  const frontReady = Boolean(els.handCalibrationFront?.files?.length);
+  const sideReady = Boolean(els.handCalibrationSide?.files?.length);
+  els.handCalibrationStatus.textContent = frontReady && sideReady
+    ? "Två bilder valda. Kontrollera pekfingerbredden och spara kalibreringen."
+    : "Ringen är 20,0 mm invändigt. Välj båda bilderna innan du sparar.";
+}
+
+function saveHandCalibration() {
+  const fingerWidth = Number(els.calibratedFingerWidth?.value);
+  const frontReady = Boolean(els.handCalibrationFront?.files?.length);
+  const sideReady = Boolean(els.handCalibrationSide?.files?.length);
+  if (!frontReady || !sideReady || !Number.isFinite(fingerWidth) || fingerWidth < 10 || fingerWidth > 35) {
+    updateHandCalibrationStatus();
+    setStatus("Välj två bilder och ange fingerbredd");
+    return false;
+  }
+  const now = new Date().toISOString();
+  state.handCalibration = {
+    userId: currentUserId(),
+    referenceInnerDiameterMm: 20,
+    indexFingerWidthMm: fingerWidth,
+    indexFingerDepthMm: null,
+    middleFingerWidthMm: null,
+    handWidthMm: null,
+    handLengthMm: null,
+    calibrationConfidence: 0.72,
+    createdAt: state.handCalibration?.createdAt || now,
+    updatedAt: now
+  };
+  localStorage.setItem("bigplus_hand_calibration", JSON.stringify(state.handCalibration));
+  setStatus("Handkalibrering sparad");
+  invalidateResult();
+  draw();
+  return true;
+}
+
 async function calculate() {
-  const fishPixels = polylineDistance(state.points.fish);
+  const guidedMode = document.body.classList.contains("measure-guided-active");
+  const referenceFreeMode = document.body.classList.contains("measure-v1-active");
+  // Reference-free V1 uses the uploaded image as its metric coordinate space.
+  // Canvas points include display scaling/device pixels and cannot be mixed
+  // with the image's natural height in the estimate.
+  const fishPointsForMeasurement = referenceFreeMode
+    ? state.points.fish.map(canvasPointToImage)
+    : state.points.fish;
+  const fishPixels = polylineDistance(fishPointsForMeasurement);
   const bodyPixels = bodyMeasurementPixels();
   const referenceScaleCmPerPixel = combinedReferenceScaleCmPerPixel();
-  const guidedMode = document.body.classList.contains("measure-guided-active");
 
   if (!state.image) {
     setStatus("Välj bild");
@@ -3275,43 +3629,88 @@ async function calculate() {
     els.speciesSelect.focus();
     return;
   }
-  if (!referenceScaleCmPerPixel) {
+  if (!referenceFreeMode && !referenceScaleCmPerPixel) {
     setStatus("Placera referens");
     return;
   }
-  if (state.points.fish.length < 2) {
+  if (state.points.fish.length < 2 || (referenceFreeMode && state.v1SeedLine)) {
     setStatus("Markera längd");
     return;
   }
-  if (state.points.body.length < 2) {
-    setStatus("Markera höjd");
-    return;
-  }
+  // Height is optional in V1. A missing body guide lowers confidence but must
+  // not block a useful length estimate.
   lockMeasurement("fish");
   lockMeasurement("body");
 
+  const speciesId = els.speciesSelect.value || "pike";
   const payload = {
     refPixels: 1,
     fishPixels,
     bodyPixels: state.points.body.length >= 2 ? bodyPixels : null,
-    refCm: referenceScaleCmPerPixel,
+    refCm: referenceScaleCmPerPixel || 0,
     calibrationFactor: 1,
-    speciesId: els.speciesSelect.value || "pike",
+    speciesId,
     minCm: Number(els.minSize.value),
-    referenceMode: state.referenceSlots.can ? "can-hand" : "glasses-depth",
-    faceDepthCm: faceDepthDistanceCm()
+    referenceMode: referenceFreeMode ? "reference-free-v1" : state.referenceSlots.can ? "can-hand" : state.referenceSlots.ring ? "ring-hand" : "glasses-depth",
+    faceDepthCm: faceDepthDistanceCm(),
+    measurementVersion: "BIGPLUS_MEASURE_V1"
   };
 
   try {
     setStatus("Räknar");
-    let result;
-    try {
-      result = await calculateMeasurement(payload);
-    } catch {
-      result = calculateMeasurementOffline(payload, state.species);
-    }
+    const selectedSpecies = state.species.find((item) => item.id === speciesId);
+    const measurementInput = {
+      fishPoints: fishPointsForMeasurement,
+      bodyPx: bodyPixels,
+      scaleCmPerPixel: referenceScaleCmPerPixel,
+      referenceFreeMode,
+      imageWidthPx: state.image?.naturalWidth || state.image?.width || 0,
+      imageHeightPx: state.image?.naturalHeight || state.image?.height || 0,
+      referenceScales: referenceScalesForCalculation(),
+      speciesId,
+      speciesName: selectedSpecies?.name,
+      minCm: Number(els.minSize.value),
+      handGuides: state.handGuides,
+      handCalibration: state.handCalibration || null,
+      perspectiveScale: combinedObjectDepthScale(),
+      weightKg: Number(els.manualWeightInput?.value || 0),
+      fishVisibilityScore: state.v1Segmentation?.maskAvailable
+        ? clamp(Number(state.v1Segmentation.visiblePercentage) || 0.6, 0.4, 0.95)
+        : state.points.fish.length >= 2 && state.v1LandmarksConfirmed ? 0.86 : 0.45,
+      fishLandmarksDetected: state.v1LandmarksDetected || state.v1LandmarksConfirmed,
+      fishSegmentationAvailable: Boolean(state.v1Segmentation?.maskAvailable),
+      fishSegmentationModelBacked: Boolean(state.v1Segmentation?.modelBacked),
+      depthModelAvailable: Boolean(state.depthAnalysis?.ok),
+      depthAnalysis: state.depthAnalysis?.ok ? state.depthAnalysis : null
+    };
+    const resultWithoutDepth = analyzeFishMeasurement({ ...measurementInput, depthAnalysis: null, depthModelAvailable: false });
+    const resultWithDepth = state.depthAnalysis?.ok
+      ? analyzeFishMeasurement(measurementInput)
+      : resultWithoutDepth;
+    const result = state.depthAnalysis?.shadowMode ? resultWithoutDepth : resultWithDepth;
+    result.depthComparison = state.depthAnalysis?.ok
+      ? { withoutDepth: resultWithoutDepth.lengthCm, withDepth: resultWithDepth.lengthCm, mode: state.depthAnalysis.shadowMode ? "shadow" : "active" }
+      : null;
     state.lastResult = result;
-    state.lastPayload = payload;
+    state.lastPayload = {
+      ...payload,
+      estimatedLengthCm: result.lengthCm,
+      rangeMinCm: result.rangeMinCm,
+      rangeMaxCm: result.rangeMaxCm,
+      uncertaintyCm: result.uncertaintyCm,
+      confidence: result.confidence,
+      estimates: result.estimates,
+      analysis: result.analysis,
+      models: result.models,
+      depth: result.depth,
+      depthComparison: result.depthComparison,
+      landmarks: {
+        noseTip: state.points.fish[0] || null,
+        tailTip: state.points.fish[state.points.fish.length - 1] || null,
+        bodyPoints: state.points.body
+      },
+      manuallyAdjusted: state.v1LandmarksConfirmed
+    };
     els.saveButton.disabled = false;
     renderResult(result);
     setStatus(result.status);
@@ -4157,6 +4556,12 @@ async function boot() {
     customReference
   ].filter(Boolean);
   state.species = DEFAULT_SPECIES;
+  try {
+    const savedCalibration = JSON.parse(localStorage.getItem("bigplus_hand_calibration") || "null");
+    if (savedCalibration && Number(savedCalibration.referenceInnerDiameterMm) === 20) state.handCalibration = savedCalibration;
+  } catch {
+    state.handCalibration = null;
+  }
   renderReferenceOptions();
   renderSpeciesOptions();
   els.referenceSelect.value = "glasses";
@@ -4287,6 +4692,10 @@ els.canvas.addEventListener("click", (event) => {
   const requiredPoints = requiredMeasurementPoints(state.activeTool);
   if (points.length >= requiredPoints) points.length = 0;
   points.push(point);
+  if (state.activeTool === "fish") {
+    state.v1SeedLine = false;
+    if (points.length >= requiredPoints) state.v1LandmarksConfirmed = true;
+  }
   if (points.length === requiredPoints) {
     const completedTool = state.activeTool;
     if (completedTool === "fish" || completedTool === "body") {
@@ -4444,6 +4853,10 @@ els.canvas.addEventListener("pointermove", (event) => {
     const points = state.points[state.pointDrag.tool];
     if (points?.[state.pointDrag.index]) {
       points[state.pointDrag.index] = point;
+      if (state.pointDrag.tool === "fish") {
+        state.v1SeedLine = false;
+        state.v1LandmarksConfirmed = true;
+      }
       state.pointDrag.moved = true;
       invalidateResult();
       els.canvas.style.cursor = "grabbing";
@@ -4711,6 +5124,19 @@ els.speciesSelect.addEventListener("change", () => {
   updateMeasureProgress();
 });
 
+els.handCalibrationButton?.addEventListener("click", () => {
+  updateHandCalibrationStatus();
+  if (typeof els.handCalibrationDialog?.showModal === "function") els.handCalibrationDialog.showModal();
+  else els.handCalibrationDialog?.setAttribute("open", "open");
+});
+els.handCalibrationFront?.addEventListener("change", updateHandCalibrationStatus);
+els.handCalibrationSide?.addEventListener("change", updateHandCalibrationStatus);
+els.handCalibrationForm?.addEventListener("submit", (event) => {
+  if (event.submitter !== els.handCalibrationSave) return;
+  event.preventDefault();
+  if (saveHandCalibration()) els.handCalibrationDialog?.close();
+});
+
 els.zoomOutButton.addEventListener("click", () => setZoom(state.view.zoom / 1.25));
 els.zoomInButton.addEventListener("click", () => setZoom(state.view.zoom * 1.25));
 els.zoomResetButton.addEventListener("click", () => {
@@ -4772,14 +5198,50 @@ els.checkCan?.querySelector(".check-label")?.addEventListener("click", () => edi
 els.checklistNextButton?.addEventListener("click", finishChecklistStep);
 bindReferencePaletteItem(els.paletteGlasses, "glasses");
 bindReferencePaletteItem(els.paletteCan, "can-330");
-els.manualCaptureButton?.addEventListener("click", () => els.manualPhotoInput?.click());
-els.guidedCaptureButton?.addEventListener("click", () => els.photoInput?.click());
-els.cameraCaptureButton?.addEventListener("click", () => els.cameraPhotoInput?.click());
+els.manualCaptureButton?.addEventListener("click", () => {
+  delete document.documentElement.dataset.measureMode;
+  els.manualPhotoInput?.click();
+});
+els.guidedCaptureButton?.addEventListener("click", () => {
+  document.documentElement.dataset.measureMode = "v1";
+  els.photoInput?.click();
+});
+els.cameraCaptureButton?.addEventListener("click", () => {
+  document.documentElement.dataset.measureMode = "v1";
+  els.cameraPhotoInput?.click();
+});
 els.changeMeasurePhotoButton?.addEventListener("click", () => els.photoInput?.click());
 els.cancelMeasureButton?.addEventListener("click", cancelGuidedMeasurement);
-els.guidedMeasureButton?.addEventListener("click", () => { void calculate(); });
+els.guidedMeasureButton?.addEventListener("click", () => {
+  const hasConfirmedPoints = state.points.fish.length >= 2
+    && (!document.body.classList.contains("measure-v1-active") || !state.v1SeedLine)
+    && (state.v1LandmarksDetected || state.v1LandmarksConfirmed);
+  if (!hasConfirmedPoints) {
+    state.points.fish = [];
+    state.v1SeedLine = false;
+    state.v1LandmarksDetected = false;
+    state.v1LandmarksConfirmed = false;
+    invalidateResult();
+    setTool("fish");
+    setStatus("Klicka på fiskens nos och stjärt");
+    draw();
+    return;
+  }
+  void calculate();
+});
 els.guidedResultPopupClose?.addEventListener("click", () => {
   if (els.guidedResultPopup) els.guidedResultPopup.hidden = true;
+});
+els.guidedResultAdjust?.addEventListener("click", () => {
+  if (!document.body.classList.contains("measure-v1-active")) return;
+  if (els.guidedResultPopup) els.guidedResultPopup.hidden = true;
+  state.v1SeedLine = true;
+  state.v1LandmarksConfirmed = false;
+  state.v1LandmarksDetected = false;
+  unlockMeasurement("fish");
+  setTool("fish");
+  setStatus("Dra ändpunkterna till nos och stjärt");
+  draw();
 });
 els.measureStepMenu?.querySelectorAll("[data-measure-menu]").forEach((button) => {
   button.addEventListener("click", () => {

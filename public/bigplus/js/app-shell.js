@@ -18,17 +18,18 @@ import { renderJournal, saveJournalTrip } from "./shell/journal.js";
 import { createCatchDeleteController } from "./shell/catch-delete.js";
 import { createCatchShareController } from "./shell/catch-share.js";
 import { createCatchViewController } from "./shell/catch-view-controller.js?v=20260816-catches-map-depth-89";
-import { createWeatherController } from "./shell/weather-controller.js?v=20260824-weather-rain-profile-12";
+import { createWeatherController } from "./shell/weather-controller.js?v=20260828-weather-map-alignment-1";
 import { createMapSharingController } from "./shell/map-sharing.js";
 import { createRemoteDataController } from "./shell/remote-data-controller.js";
 import { createGroupController } from "./shell/group-controller.js";
 import { createProfileController } from "./shell/profile-controller.js";
-import { renderProfileLevelDashboard } from "./shell/profile-levels.js?v=20260824-profile-reference-1";
+import { renderProfileLevelDashboard } from "./shell/profile-levels.js?v=20260828-profile-reference-restore-1";
 import { createAuthController } from "./shell/auth-controller.js";
 import { compressImageFile } from "./shell/image-utils.js";
 import { accounts, currentAccount, ensureDemoAccount, ensureMemberCode } from "./shell/account.js";
 import { friendIds } from "./shell/friends.js";
 import { createFriendController } from "./shell/friend-controller.js";
+import { createDuelController } from "./shell/duel-controller.js";
 import { favoriteCompetition, setFavoriteCompetition } from "./shell/preferences.js";
 import {
   competitionMetricLabel,
@@ -50,7 +51,7 @@ let measureModulePromise = null;
 
 function ensureMeasureModule() {
   if (!measureModulePromise) {
-  measureModulePromise = import("./main.js?v=20260825-ring-scale-fix-9");
+    measureModulePromise = import("./main.js?v=20260829-depth-v2");
   }
   return measureModulePromise;
 }
@@ -287,6 +288,8 @@ async function loadRemoteCompetitions() { return remoteDataController.loadRemote
 
 const groupController = createGroupController({ $, authApiRoot: AUTH_API_ROOT, currentAccount, escapeHtml, openAuth });
 
+const duelController = createDuelController({ authApiRoot: AUTH_API_ROOT, currentAccount });
+
 async function loadGroups() { return groupController.loadGroups(); }
 async function createGroup() { return groupController.createGroup(); }
 
@@ -340,6 +343,7 @@ function showView(view) {
   if (view === "home" || view === "competitions") renderCompetitions();
   if (view === "journal") renderJournal();
   if (view === "weather") weatherController.renderWeather();
+  if (view === "duels") duelController.open();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -396,6 +400,7 @@ function bind() {
   $("#journalTripForm")?.addEventListener("submit", saveJournalTrip);
   $("#createCompetitionButton")?.addEventListener("click", createCompetition);
   $("#competitionForm")?.addEventListener("submit", saveCompetition);
+  duelController.bind();
   $("#competitionSpeciesAll")?.addEventListener("change", (event) => {
     document.querySelectorAll('input[name="competitionSpecies"]').forEach((input) => {
       input.disabled = event.target.checked;
@@ -463,20 +468,6 @@ function bind() {
     renderCatchDetail(row.dataset.catchId);
     window.setTimeout(() => zoomToCatchOnMap(row.dataset.catchId), 0);
   });
-  $("#catchPageLatestList")?.addEventListener("click", (event) => {
-    const row = event.target.closest("[data-catch-id]");
-    if (!row) return;
-    renderCatchDetail(row.dataset.catchId, { overlay: true });
-    window.setTimeout(() => zoomToCatchOnMap(row.dataset.catchId), 0);
-  });
-  $("#catchPageLatestList")?.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    const row = event.target.closest("[data-catch-id]");
-    if (!row) return;
-    event.preventDefault();
-    renderCatchDetail(row.dataset.catchId, { overlay: true });
-    window.setTimeout(() => zoomToCatchOnMap(row.dataset.catchId), 0);
-  });
   $("#allCatchList")?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     if (event.target.closest("#catchDetail")) return;
@@ -495,6 +486,20 @@ function bind() {
     $("#catchMapPanel").hidden = false;
     renderCatchMap();
   });
+  $("#catchPageLatestList")?.addEventListener("click", (event) => {
+    const row = event.target.closest("[data-catch-id]");
+    if (!row) return;
+    renderCatchDetail(row.dataset.catchId, { overlay: true });
+    window.setTimeout(() => zoomToCatchOnMap(row.dataset.catchId), 0);
+  });
+  $("#catchPageLatestList")?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const row = event.target.closest("[data-catch-id]");
+    if (!row) return;
+    event.preventDefault();
+    renderCatchDetail(row.dataset.catchId, { overlay: true });
+    window.setTimeout(() => zoomToCatchOnMap(row.dataset.catchId), 0);
+  });
   $("#showCurrentLocationOnMap")?.addEventListener("click", () => showCurrentLocationOnMap());
   document.addEventListener("bigplus:catch-map-mode", (event) => setCatchMapMode(event.detail?.mode));
   document.addEventListener("bigplus:catch-map-layer", (event) => setCatchMapLayer(event.detail?.layer));
@@ -506,12 +511,17 @@ function bind() {
       panel.classList.remove("is-open");
       return;
     }
+    const mapPanel = $("#catchMapPanel");
+    if (mapPanel && panel.parentElement !== mapPanel) mapPanel.append(panel);
+    if (mapPanel) {
+      mapPanel.hidden = false;
+      renderCatchMap();
+    }
     panel.hidden = false;
     panel.classList.add("is-open");
     renderMapSharePanel();
     // Refresh both lists so a newly accepted friend or newly saved catch is available immediately.
     await Promise.all([loadRemoteFriends(), loadSharedMapData()]);
-    panel.scrollIntoView({ behavior: "smooth", block: "start" });
   });
   $("#closeMapSharePanel")?.addEventListener("click", () => {
     const panel = $("#mapSharePanel");
@@ -590,20 +600,6 @@ function bind() {
   $("#closeProfileMissionModal")?.addEventListener("click", closeProfileMissionModal);
   $("#profileMissionModal")?.addEventListener("click", (event) => {
     if (event.target?.id === "profileMissionModal") closeProfileMissionModal();
-  });
-  const closeProfileLevelModal = () => {
-    const modal = $("#profileLevelModal");
-    if (modal) modal.hidden = true;
-  };
-  const openProfileLevelModal = () => {
-    refreshProfileLevelDashboard();
-    const modal = $("#profileLevelModal");
-    if (modal) modal.hidden = false;
-  };
-  $("#profileShowAllLevels")?.addEventListener("click", openProfileLevelModal);
-  $("#closeProfileLevelModal")?.addEventListener("click", closeProfileLevelModal);
-  $("#profileLevelModal")?.addEventListener("click", (event) => {
-    if (event.target?.id === "profileLevelModal") closeProfileLevelModal();
   });
   const closeLiveSettings = () => {
     const modal = $("#liveSettingsModal");
@@ -773,3 +769,12 @@ async function loadInitialRemoteData() {
 }
 
 authController.bootstrap();
+
+
+
+
+
+
+
+
+

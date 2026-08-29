@@ -48,18 +48,22 @@ export function renderHomeAchievements(list) {
   const achievements = achievementOverview(list);
   const completed = achievements.filter(([, value, goal]) => value >= goal).length;
   const badgeIcons = [
-    `<img src="${achievementBadgeImage("Din f" + "\u00f6rsta Bigplus")}" alt="" loading="lazy">`,
-    `<img src="${achievementBadgeImage("5 arter f" + "\u00e5ngade")}" alt="" loading="lazy">`,
-    `<img src="${achievementBadgeImage("G" + "\u00e4dda")}" alt="" loading="lazy">`
+    ["F\u00e5ngare", "Din f" + "\u00f6rsta Bigplus", "Niv\u00e5 8"],
+    ["Artuppt\u00e4ckare", "5 arter f" + "\u00e5ngade", `${countSpecies(list)} arter`],
+    ["G\u00e4ddj\u00e4garen", "G" + "\u00e4dda", "90+ cm"],
+    ["Verifierad", "F\u00f6rsta verifierade", "Godk\u00e4nd"],
+    ["Streak", "7 dagars streak", "7 dagar"],
+    ["V\u00e4nskapsm\u00e4rke", "L\u00e4gg till en v\u00e4n", "Community"]
   ];
-  const badges = badgeIcons.map((icon, index) => {
+  const badges = badgeIcons.map(([title, assetName, meta], index) => {
+    const icon = `<img src="${achievementBadgeImage(assetName)}" alt="" loading="lazy">`;
     const complete = index < completed;
     const label = complete ? "Uppl" + "\u00e5st badge" : "Ej uppl" + "\u00e5st badge";
-    return `<span class="home-badge-icon home-badge-icon-${index + 1}${complete ? " is-complete" : ""}" aria-label="${label}">${icon}</span>`;
+    return `<span class="home-badge-icon home-badge-icon-${index + 1}${complete ? " is-complete" : ""}" aria-label="${label}">${icon}<strong>${escapeHtml(title)}</strong><small>${escapeHtml(meta)}</small></span>`;
   }).join("");
   const progress = achievements.length ? Math.round((completed / achievements.length) * 100) : 0;
 
-  target.innerHTML = `<div class="home-achievement-overview"><div class="home-badge-icon-row">${badges}</div><div class="home-achievement-progress-label"><strong>${completed} / ${achievements.length} m\u00e4rken uppl\u00e5sta</strong><button class="text-button" type="button" data-go-view="achievements">Visa alla</button></div><div class="home-achievement-progress"><i style="width:${progress}%"></i></div></div>`;
+  target.innerHTML = `<div class="home-achievement-overview"><div class="home-badge-icon-row">${badges}</div><div class="home-achievement-progress-label"><strong>${completed} / ${achievements.length} m\u00e4rken uppl\u00e5sta</strong></div><div class="home-achievement-progress"><i style="width:${progress}%"></i></div></div>`;
 }
 
 export function renderHomeNextBadge(list) {
@@ -68,7 +72,7 @@ export function renderHomeNextBadge(list) {
 
   const achievementSection = document.querySelector(".home-achievement-section");
   const badgeSection = target.closest(".home-badge-section");
-  if (achievementSection && badgeSection && achievementSection.nextElementSibling !== badgeSection) achievementSection.after(badgeSection);
+  if (!document.querySelector(".home-dashboard-v2") && achievementSection && badgeSection && achievementSection.nextElementSibling !== badgeSection) achievementSection.after(badgeSection);
   target.closest(".home-badge-section")?.querySelector(".section-heading h2")?.replaceChildren(document.createTextNode("P" + "\u00e5b" + "\u00f6rjade achievements"));
 
   const definitions = achievementOverview(list);
@@ -76,9 +80,10 @@ export function renderHomeNextBadge(list) {
   const notStarted = definitions.filter((item) => item[1] === 0 && item[1] < item[2]);
   const progressItems = [...started, ...notStarted].slice(0, 3);
 
-  target.innerHTML = `<div class="home-progress-achievement-list">${progressItems.map(([name, value, goal, text]) => {
+  target.innerHTML = `<div class="home-progress-achievement-list">${progressItems.map(([name, value, goal, text], index) => {
     const progress = Math.min(100, value / goal * 100);
-    return `<article class="home-progress-achievement"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(text)}</small><span class="achievement-progress"><i style="width:${progress}%"></i></span><small>${value} / ${goal} (${Math.round(progress)}%)</small></article>`;
+    const reward = [150, 100, 200][index] || 75;
+    return `<article class="home-progress-achievement"><span class="home-progress-icon" aria-hidden="true">${["\u{1F41F}", "\u26A1", "\u{1F3C6}"][index] || "\u2726"}</span><span><strong>${escapeHtml(name)}</strong><small>${escapeHtml(text)}</small><span class="achievement-progress"><i style="width:${progress}%"></i></span></span><b>${value} / ${goal}</b><em>Bel\u00f6ning ${reward} XP</em></article>`;
   }).join("")}</div>`;
 }
 

@@ -296,6 +296,34 @@ router.get("/weather/geocode", async (req, res, next) => {
   }
 });
 
+router.get("/weather/map/route", async (req, res, next) => {
+  try {
+    const mode = req.query.mode === "walking" ? "walking" : "driving";
+    const rawCoordinates = String(req.query.coordinates || "");
+    const coordinates = rawCoordinates.split(";").map((pair) => {
+      const [longitude, latitude] = pair.split(",").map(Number);
+      return Number.isFinite(longitude) && Number.isFinite(latitude) && Math.abs(longitude) <= 180 && Math.abs(latitude) <= 90
+        ? [longitude, latitude]
+        : null;
+    });
+    if (coordinates.length < 2 || coordinates.length > 10 || coordinates.some((coordinate) => !coordinate)) return res.status(400).json({ error: "Ogiltiga ruttkoordinater." });
+    const profile = mode === "walking" ? "https://routing.openstreetmap.de/routed-foot/route/v1/driving" : "https://router.project-osrm.org/route/v1/driving";
+    const url = `${profile}/${coordinates.map(([longitude, latitude]) => `${longitude},${latitude}`).join(";")}?overview=full&geometries=geojson&steps=false&continue_straight=false`;
+    const result = await fetchCachedJson(cacheKey("map-route", { mode, coordinates: rawCoordinates }), url, { identify: true, fallbackSeconds: 900 });
+    const route = result.data?.routes?.[0];
+    if (!route?.geometry?.coordinates?.length) return res.status(404).json({ error: "Ingen körbar väg hittades." });
+    res.set(cacheHeaders(900)).json({
+      source: mode === "walking" ? "OpenStreetMap routing, gång" : "OpenStreetMap routing, bil",
+      mode,
+      distance: route.distance,
+      duration: route.duration,
+      coordinates: route.geometry.coordinates
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/weather/radar", async (req, res, next) => {
   try {
     const radar = req.query.time ? await fetchRadarForTime(req.query.time) : await fetchLatestRadar();

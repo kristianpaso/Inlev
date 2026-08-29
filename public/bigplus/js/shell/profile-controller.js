@@ -17,7 +17,7 @@
     [$("#homeProfileName"), $("#profileName")].forEach((el) => { if (el) el.textContent = name; });
     if ($("#profileHeading")) $("#profileHeading").textContent = "Min niv\u00e5";
     if ($("#homeGreeting")) $("#homeGreeting").textContent = "Hej!";
-    if ($("#homeProfileSubtitle")) $("#homeProfileSubtitle").textContent = account ? "F\u00f6lj dina f\u00e5ngster och kl\u00e4ttra i Bigplus." : "Logga in f\u00f6r att se din profil och dina f\u00e5ngster.";
+    if ($("#homeProfileSubtitle")) $("#homeProfileSubtitle").textContent = account ? "Fler f\u00e5ngster. Nya arter. H\u00f6gre niv\u00e5er. Du \u00e4r p\u00e5 v\u00e4g upp - forts\u00e4tt s\u00e5 h\u00e4r!" : "Logga in f\u00f6r att se din profil och dina f\u00e5ngster.";
     if ($("#profileEmail")) $("#profileEmail").textContent = account?.email || "Logga in f\u00f6r att f\u00e5 ett eget konto.";
     if ($("#homeProfileLocation")) $("#homeProfileLocation").textContent = account ? account.email : "Logga in f\u00f6r att spara dina f\u00e5ngster.";
     if ($("#profileAccountHint")) $("#profileAccountHint").textContent = account ? "Dina f\u00e5ngster h\u00f6r ihop med ditt Bigplus-konto." : "Dina f\u00e5ngster sparas lokalt p\u00e5 den h\u00e4r enheten.";

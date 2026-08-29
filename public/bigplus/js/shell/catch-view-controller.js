@@ -679,15 +679,55 @@ export function createCatchViewController({
     renderProfileLevelDashboard?.(list);
     renderHomeCompetitionRank();
     const bigplusCount = list.filter(isBigplusCatch).length;
+    const achievementCount = completedAchievementCount(list);
+    const uniqueCatchDays = [...new Set(list.map((item) => {
+      const timestamp = new Date(item.createdAt || measurementFor(item).createdAt || 0).getTime();
+      return timestamp ? new Date(timestamp).toISOString().slice(0, 10) : "";
+    }).filter(Boolean))].sort().reverse();
+    let streak = 0;
+    for (let index = 0; index < uniqueCatchDays.length; index += 1) {
+      if (index === 0) {
+        streak = 1;
+        continue;
+      }
+      const current = new Date(`${uniqueCatchDays[index - 1]}T00:00:00`);
+      const next = new Date(`${uniqueCatchDays[index]}T00:00:00`);
+      if (Math.round((current - next) / 86400000) === 1) streak += 1;
+      else break;
+    }
+    const bestCatch = list.reduce((best, item) => {
+      const length = Number(measurementFor(item).lengthCm || measurementFor(item).length || 0);
+      return length > best.length ? { item, length } : best;
+    }, { item: null, length: 0 });
+    const xp = (bigplusCount * 200) + (list.length * 60) + (species.length * 120) + (achievementCount * 70);
+    const level = Math.max(1, Math.min(20, Math.floor(xp / 360) + 1));
+    const nextLevelXp = level >= 20 ? xp : level * 360;
+    const previousLevelXp = (level - 1) * 360;
+    const levelProgress = level >= 20 ? 100 : Math.max(6, Math.min(100, ((xp - previousLevelXp) / Math.max(1, nextLevelXp - previousLevelXp)) * 100));
     const competitionWins = list.filter((item) => (item.measurement || item).competitionWon).length;
     [$("#statCatches"), $("#profileCatchCount")].forEach((el) => { if (el) el.textContent = list.length; });
     [$("#statBigplus"), $("#profileBigplusCount")].forEach((el) => { if (el) el.textContent = bigplusCount; });
-    if ($("#statAchievements")) $("#statAchievements").textContent = completedAchievementCount(list);
+    if ($("#statAchievements")) $("#statAchievements").textContent = achievementCount;
+    setText("#statSpecies", species.length);
+    setText("#statSpeciesHint", `av 20 i appen`);
+    setText("#statStreak", `${streak} dagar`);
+    setText("#statStreakHint", streak ? "Stark vecka!" : "Kom ig\u00e5ng idag");
+    setText("#statBest", bestCatch.length ? `${bestCatch.length.toFixed(1)} cm` : "-- cm");
+    setText("#statBestSpecies", bestCatch.item ? speciesNameFor(bestCatch.item) : "M\u00e4t din f\u00f6rsta fisk");
+    setText("#homeLevelNumber", level);
+    setText("#homeDevelopmentXp", xp.toLocaleString("sv-SE"));
+    setText("#homeDevelopmentXpTotal", xp.toLocaleString("sv-SE"));
+    setText("#homeNextLevel", level >= 20 ? "Legendniv\u00e5" : `Niv\u00e5 ${level + 1}`);
+    setText("#homeDevelopmentHint", level >= 20 ? "Legend-XP forts\u00e4tter." : `${Math.max(0, nextLevelXp - xp)} XP kvar till n\u00e4sta niv\u00e5`);
+    const levelBar = $("#homeDevelopmentProgress");
+    if (levelBar) levelBar.style.width = `${levelProgress}%`;
     const rank = calculateBigplusRank(catches());
     if ($("#statRank")) $("#statRank").textContent = rank ? `#${rank}` : "--";
+    setText("#homeDevelopmentRank", rank ? `#${rank}` : "--");
+    setText("#homeTopRegionCount", rank && rank <= 10 ? "1" : "0");
     setStatChange("statCatchesChange", recentWindowDelta(list, () => true));
     setStatChange("statBigplusChange", recentWindowDelta(list, isBigplusCatch));
-    setStatChange("statAchievementsChange", Math.max(0, completedAchievementCount(list) - completedAchievementCount(list.filter((item) => new Date(item.createdAt || 0).getTime() < Date.now() - (7 * 86400000)))));
+    setStatChange("statAchievementsChange", Math.max(0, achievementCount - completedAchievementCount(list.filter((item) => new Date(item.createdAt || 0).getTime() < Date.now() - (7 * 86400000)))));
     const rankCutoff = Date.now() - (7 * 86400000);
     const previousRank = calculateBigplusRank(catches().filter((item) => new Date(item.createdAt || 0).getTime() < rankCutoff));
     setStatChange("statRankChange", rank && previousRank && previousRank > rank ? previousRank - rank : 0, "platser denna vecka");

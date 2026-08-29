@@ -10,7 +10,9 @@ const WEATHER_PLACE_KEY = "bigplus_weather_place";
 const WEATHER_RECENT_PLACES_KEY = "bigplus_weather_recent_places";
 const WEATHER_LOCK_KEY = "bigplus_weather_location_locked";
 const WEATHER_SPECIES_RULES_KEY = "bigplus_weather_species_rules";
-const WEATHER_SMHI_CALIBRATION_KEY = "bigplus_weather_smhi_calibration";
+// Calibration is intentionally global and starts clean. Older saved values
+// were created by the local screen/top warp and moved cells away from SMHI.
+const WEATHER_SMHI_CALIBRATION_KEY = "bigplus_weather_smhi_calibration_v3";
 const EMPTY_FEATURE_COLLECTION = { type: "FeatureCollection", features: [] };
 const WEATHER_MAX_ZOOM = 22;
 // Keep the map geographically useful at city level while leaving a small
@@ -287,11 +289,13 @@ let rainStrengthIconsPromise = null;
     try {
       const value = JSON.parse(localStorage.getItem(WEATHER_SMHI_CALIBRATION_KEY) || "null");
       return {
-        x: Math.max(-200, Math.min(200, Number(value?.x) || 0)),
-        y: Math.max(-200, Math.min(200, Number(value?.y) || 0))
+        x: Math.max(-800, Math.min(800, Number(value?.x) || 0)),
+        y: Math.max(-800, Math.min(800, Number(value?.y) || 0)),
+        lonOffset: Number.isFinite(Number(value?.lonOffset)) ? Number(value.lonOffset) : null,
+        latOffset: Number.isFinite(Number(value?.latOffset)) ? Number(value.latOffset) : null
       };
     } catch {
-      return { x: 0, y: 0 };
+      return { x: 0, y: 0, lonOffset: null, latOffset: null };
     }
   }
 
@@ -299,13 +303,32 @@ let rainStrengthIconsPromise = null;
     localStorage.setItem(WEATHER_SMHI_CALIBRATION_KEY, JSON.stringify(smhiCalibration));
   }
 
-  // Keep this as a screen-space adjustment so the user can compare the two
-  // layers directly without baking a guessed geographic offset into the radar decoder.
+  function geographicOffsetForScreenOffset(x, y) {
+    if (!map) return { lonOffset: 0, latOffset: 0 };
+    const center = map.getCenter();
+    const projected = map.project([center.lng, center.lat]);
+    const adjusted = map.unproject({ x: projected.x + x, y: projected.y + y });
+    return { lonOffset: adjusted.lng - center.lng, latOffset: adjusted.lat - center.lat };
+  }
+
+  function migrateSmhiCalibrationToMap() {
+    if (!map) return;
+    let changed = false;
+    if (smhiCalibration.lonOffset == null || smhiCalibration.latOffset == null) {
+      smhiCalibration = { ...smhiCalibration, ...geographicOffsetForScreenOffset(smhiCalibration.x, smhiCalibration.y) };
+      changed = true;
+    }
+    if (changed) saveSmhiCalibration();
+  }
+
+  // Store the calibration geographically. A screen-space offset grows and
+  // shrinks while zooming; a longitude/latitude offset stays locked to the map.
   function applySmhiCalibration(coordinate) {
-    if (!map || !smhiRadarOnTop || (!smhiCalibration.x && !smhiCalibration.y)) return coordinate;
-    const projected = map.project(coordinate);
-    const adjusted = map.unproject({ x: projected.x + smhiCalibration.x, y: projected.y + smhiCalibration.y });
-    return [adjusted.lng, adjusted.lat];
+    if (!smhiRadarOnTop || smhiCalibration.lonOffset == null || smhiCalibration.latOffset == null) return coordinate;
+    return [
+      coordinate[0] + smhiCalibration.lonOffset,
+      coordinate[1] + smhiCalibration.latOffset
+    ];
   }
 
   function renderSmhiCalibrationControl() {
@@ -314,16 +337,20 @@ let rainStrengthIconsPromise = null;
     const yInput = $("#weatherSmhiCalibrationY");
     const value = $("#weatherSmhiCalibrationValue");
     if (!panel || !xInput || !yInput || !value) return;
+    migrateSmhiCalibrationToMap();
     panel.hidden = !smhiRadarOnTop;
     xInput.value = String(smhiCalibration.x);
     yInput.value = String(smhiCalibration.y);
     const signed = (number) => `${number > 0 ? "+" : ""}${number}`;
-    value.textContent = `${signed(smhiCalibration.x)} px / ${signed(smhiCalibration.y)} px`;
+    value.textContent = `${signed(smhiCalibration.x)} px / ${signed(smhiCalibration.y)} px · global`;
     if (panel.dataset.smhiBound === "true") return;
     const update = () => {
+      const x = Math.max(-800, Math.min(800, Number(xInput.value) || 0));
+      const y = Math.max(-800, Math.min(800, Number(yInput.value) || 0));
       smhiCalibration = {
-        x: Math.max(-200, Math.min(200, Number(xInput.value) || 0)),
-        y: Math.max(-200, Math.min(200, Number(yInput.value) || 0))
+        x,
+        y,
+        ...geographicOffsetForScreenOffset(x, y)
       };
       saveSmhiCalibration();
       renderSmhiCalibrationControl();
@@ -334,7 +361,7 @@ let rainStrengthIconsPromise = null;
     xInput.addEventListener("input", update);
     yInput.addEventListener("input", update);
     $("#weatherSmhiCalibrationReset")?.addEventListener("click", () => {
-      smhiCalibration = { x: 0, y: 0 };
+      smhiCalibration = { x: 0, y: 0, lonOffset: 0, latOffset: 0 };
       saveSmhiCalibration();
       renderSmhiCalibrationControl();
       updateRainCloudSource();
@@ -448,9 +475,14 @@ let rainStrengthIconsPromise = null;
     if (!bounds) return;
     const clouds = rainCloudsForViewport();
     const tiltFactor = Math.min(1, Math.max(0, (map.getPitch() - 8) / 34));
+    // Keep the cell center quiet and let the colour build toward the frame.
+    // The MapLibre fill below remains deliberately light so this soft pass
+    // becomes the visible rain body without creating a second hard polygon.
     let gradientCells = 0;
     for (const cell of clouds) {
-      if (gradientCells >= 720 || !bounds.contains([cell.lon, cell.lat])) continue;
+      const verticalFraction = Math.max(0, Math.min(1, (Number(cell.centerY ?? cell.y) || 0) / Math.max(1, (Number(cell.radarHeight) || 1) - 1)));
+      const calibratedCenter = applySmhiCalibration([cell.lon, cell.lat], verticalFraction);
+      if (gradientCells >= 720 || !bounds.contains(calibratedCenter)) continue;
       const corners = radarHoneycombPolygon(cell)?.[0]?.map(([lon, lat]) => map.project([lon, lat])) || [];
       if (corners.length < 6) continue;
       const minX = Math.min(...corners.map((point) => point.x));
@@ -458,7 +490,7 @@ let rainStrengthIconsPromise = null;
       const minY = Math.min(...corners.map((point) => point.y));
       const maxY = Math.max(...corners.map((point) => point.y));
       if (maxX < -30 || minX > width + 30 || maxY < -30 || minY > height + 30) continue;
-      const center = map.project(applySmhiCalibration([cell.lon, cell.lat]));
+      const center = map.project(calibratedCenter);
       const radius = Math.max(8, Math.max(...corners.map((point) => Math.hypot(point.x - center.x, point.y - center.y))));
       const [red, green, blue] = rainLevelRgb(cell.level);
       const edgeAlpha = Math.min(0.62, 0.28 + Number(cell.level || 0) * 0.07 + (Number(cell.coverage) || 0) * 0.2);
@@ -481,7 +513,9 @@ let rainStrengthIconsPromise = null;
     const seconds = timestamp / 1000;
     let drawn = 0;
     for (const cell of clouds) {
-      if (drawn >= 520 || !bounds.contains([cell.lon, cell.lat]) || !cell.polygon?.[0]) continue;
+      const verticalFraction = Math.max(0, Math.min(1, (Number(cell.centerY ?? cell.y) || 0) / Math.max(1, (Number(cell.radarHeight) || 1) - 1)));
+      const calibratedCenter = applySmhiCalibration([cell.lon, cell.lat], verticalFraction);
+      if (drawn >= 520 || !bounds.contains(calibratedCenter) || !cell.polygon?.[0]) continue;
       const corners = radarHoneycombPolygon(cell)?.[0]?.map(([lon, lat]) => map.project([lon, lat])) || [];
       if (corners.length < 6) continue;
       const topIndex = corners.reduce((best, point, index) => point.y < corners[best].y ? index : best, 0);
@@ -583,27 +617,30 @@ let rainStrengthIconsPromise = null;
     };
   }
 
+  function radarQuadPoint(topLeft, topRight, bottomRight, bottomLeft, horizontal, vertical) {
+    // MapLibre's image source renders the supplied quad as two textured
+    // triangles. Use the same piecewise-affine interpolation for decoded
+    // pixels instead of a bilinear surface, which bends the radar field and
+    // makes one side drift away from SMHI.
+    const point = (a, b, c, wa, wb, wc) => ({
+      x: a.x * wa + b.x * wb + c.x * wc,
+      y: a.y * wa + b.y * wb + c.y * wc
+    });
+    if (vertical <= horizontal) {
+      return point(topLeft, topRight, bottomRight, 1 - horizontal, horizontal - vertical, vertical);
+    }
+    return point(topLeft, bottomRight, bottomLeft, 1 - vertical, horizontal, vertical - horizontal);
+  }
+
   function radarPixelToLngLat(x, y, width, height) {
-    // Keep decoded SMHI cells on the same bilinear quad as MapLibre's flat
-    // image source so the vector overlay and raster remain aligned.
-    // MapLibre maps the first and last image pixels to the two source edges.
-    // Using width/height here leaves the decoded overlay fractionally inside
-    // the raster and accumulates a visible drift across the full composite.
+    // Keep decoded SMHI cells on the exact same quad as the MapLibre image
+    // source. MapLibre maps the first and last image pixels to the two source
+    // edges; the pixel-space sampling and the raster therefore share one
+    // coordinate system at every zoom, pitch and bearing.
     const horizontal = Math.min(1, Math.max(0, x / Math.max(1, width - 1)));
     const vertical = Math.min(1, Math.max(0, y / Math.max(1, height - 1)));
     const [topLeft, topRight, bottomRight, bottomLeft] = RADAR_BOUNDS.map(radarLngLatToMercator);
-    const top = {
-      x: topLeft.x + (topRight.x - topLeft.x) * horizontal,
-      y: topLeft.y + (topRight.y - topLeft.y) * horizontal
-    };
-    const bottom = {
-      x: bottomLeft.x + (bottomRight.x - bottomLeft.x) * horizontal,
-      y: bottomLeft.y + (bottomRight.y - bottomLeft.y) * horizontal
-    };
-    return radarMercatorToLngLat({
-      x: top.x + (bottom.x - top.x) * vertical,
-      y: top.y + (bottom.y - top.y) * vertical
-    });
+    return radarMercatorToLngLat(radarQuadPoint(topLeft, topRight, bottomRight, bottomLeft, horizontal, vertical));
   }
 
   function radarCellPolygon(x, y, size, width, height) {
@@ -628,13 +665,17 @@ let rainStrengthIconsPromise = null;
     const centerY = Number(cloud?.centerY ?? cloud?.y) || 0;
     const points = Array.from({ length: 6 }, (_, index) => {
       const angle = -Math.PI / 2 + index * (Math.PI / 3);
+      const pointY = centerY + Math.sin(angle) * radius * scale;
       const point = radarPixelToLngLat(
         centerX + Math.cos(angle) * radius * scale,
-        centerY + Math.sin(angle) * radius * scale,
+        pointY,
         width,
         height
       );
-      return applySmhiCalibration([point.lon + (Number(cloud?.rainLonOffset) || 0), point.lat + (Number(cloud?.rainLatOffset) || 0)]);
+      return applySmhiCalibration(
+        [point.lon + (Number(cloud?.rainLonOffset) || 0), point.lat + (Number(cloud?.rainLatOffset) || 0)],
+        pointY / Math.max(1, height - 1)
+      );
     });
     points.push(points[0]);
     return [points];
@@ -849,7 +890,7 @@ let rainStrengthIconsPromise = null;
       const iconIndex = level >= 3 ? 5 : level === 2 ? 4 : level === 1 ? 3 : coverage > 0.45 ? 2 : 1;
       features.push({
         type: "Feature",
-        geometry: { type: "Point", coordinates: applySmhiCalibration([cloud.lon, cloud.lat]) },
+        geometry: { type: "Point", coordinates: applySmhiCalibration([cloud.lon, cloud.lat], (Number(cloud.centerY ?? cloud.y) || 0) / Math.max(1, (Number(cloud.radarHeight) || 1) - 1)) },
         properties: { kind: "intensity", level, coverage, rainIcon: `rain-strength-${iconIndex}` }
       });
       const ringSize = level >= 2 ? 4 : coverage > 0.35 ? 3 : 2;
@@ -863,7 +904,7 @@ let rainStrengthIconsPromise = null;
         const intensityJitter = 0.72 + ((Math.sin(phase * 2.1) + 1) / 2) * 0.58;
         features.push({
           type: "Feature",
-          geometry: { type: "Point", coordinates: applySmhiCalibration([cloud.lon + Math.cos(angle) * lonStep * distance, cloud.lat + Math.sin(angle) * latStep * distance]) },
+          geometry: { type: "Point", coordinates: applySmhiCalibration([cloud.lon + Math.cos(angle) * lonStep * distance, cloud.lat + Math.sin(angle) * latStep * distance], (Number(cloud.centerY ?? cloud.y) || 0) / Math.max(1, (Number(cloud.radarHeight) || 1) - 1)) },
           properties: { kind: "heat", level, coverage, heatWeight: Math.min(1, baseWeight * intensityJitter) }
         });
       }
@@ -894,8 +935,10 @@ let rainStrengthIconsPromise = null;
     const south = scope ? Math.max(viewport.south, scope.south - 0.25) : viewport.south;
     const north = scope ? Math.min(viewport.north, scope.north + 0.25) : viewport.north;
     return sourceClouds.filter((cloud) => {
-      if (cloud.lon >= west && cloud.lon <= east && cloud.lat >= south && cloud.lat <= north) return true;
-      const polygon = cloud.polygon?.[0] || [];
+      const verticalFraction = Math.max(0, Math.min(1, (Number(cloud.centerY ?? cloud.y) || 0) / Math.max(1, (Number(cloud.radarHeight) || 1) - 1)));
+      const calibratedCenter = applySmhiCalibration([cloud.lon, cloud.lat], verticalFraction);
+      if (calibratedCenter[0] >= west && calibratedCenter[0] <= east && calibratedCenter[1] >= south && calibratedCenter[1] <= north) return true;
+      const polygon = radarHoneycombPolygon(cloud)?.[0] || cloud.polygon?.[0] || [];
       if (!polygon.length) return false;
       const longitudes = polygon.map(([lon]) => lon);
       const latitudes = polygon.map(([, lat]) => lat);
@@ -1358,10 +1401,7 @@ let rainStrengthIconsPromise = null;
   function weatherFeatureCenter(feature) {
     const pairs = [];
     const visit = (value) => {
-      if (Array.isArray(value) && value.length >= 2 && Number.isFinite(Number(value[0])) && Number.isFinite(Number(value[1]))) {
-        pairs.push([Number(value[0]), Number(value[1])]);
-        return;
-      }
+      if (Array.isArray(value) && value.length >= 2 && Number.isFinite(Number(value[0])) && Number.isFinite(Number(value[1]))) { pairs.push([Number(value[0]), Number(value[1])]); return; }
       if (Array.isArray(value)) value.forEach(visit);
     };
     visit(feature?.geometry?.coordinates);
@@ -1698,8 +1738,6 @@ let rainStrengthIconsPromise = null;
     } else if ((radarImageUrl !== radarUrl || radarCoordinatesKey !== coordinatesKey) && typeof radarSource.updateImage === "function") {
       radarSource.updateImage({ url: radarUrl, coordinates });
     }
-    const source = map.getSource("smhi-radar");
-    if (source?.setWarp) source.setWarp("flat");
     radarImageUrl = radarUrl;
     radarCoordinatesKey = coordinatesKey;
     if (!map.getLayer("smhi-radar")) {
@@ -2294,6 +2332,12 @@ let rainStrengthIconsPromise = null;
       loadRadar();
     }
   }
+
+  window.addEventListener("bigplus:maplibre-ready", () => {
+    if (!document.querySelector('[data-app-view="weather"]:not([hidden])')) return;
+    ensureMap();
+    map?.resize();
+  }, { passive: true });
 
   return { bind, renderWeather };
 }

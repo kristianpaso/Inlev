@@ -14,7 +14,56 @@
         visibility: hidden;
       }
     </style>
-    <link rel="stylesheet" href="/bigplus/css/bigplus.css?v=20260825-weather-smhi-calibration-1">
+    <style id="measure-beta-visibility-style">
+      /* Beta measurement controls stay out of the initial upload screen. */
+      .measure-area .measure-beta-only {
+        display: none !important;
+      }
+      .measure-area.is-guided-mode:not(.is-start) .measure-step-menu.measure-beta-only {
+        display: grid !important;
+      }
+      .measure-area.is-guided-mode:not(.is-start) .measure-canvas-toolbar.measure-beta-only {
+        display: flex !important;
+      }
+      .measure-area.is-guided-mode:not(.is-start) .reference-palette.measure-beta-only {
+        display: grid !important;
+      }
+      /* V1 is reference-free: never let legacy reference controls leak into it. */
+      html[data-measure-mode="v1"] .measure-area .measure-step-menu,
+      html[data-measure-mode="v1"] .measure-area .measure-flow-steps,
+      html[data-measure-mode="v1"] .measure-area .reference-palette,
+      html[data-measure-mode="v1"] .measure-area .reference-readout,
+      html[data-measure-mode="v1"] .measure-area .measurement-palette,
+      html[data-measure-mode="v1"] .measure-area .measure-reference-note,
+      html[data-measure-mode="v1"] .measure-area .mobile-reference-controls,
+      html[data-measure-mode="v1"] .measure-area #handCalibrationButton,
+      html[data-measure-mode="v1"] .measure-area .result-panel {
+        display: none !important;
+      }
+      /* The measurement page is now owned by the new V1 flow. Keep the old
+         sidebar, reference cards and legacy result surface out of the page. */
+      .workspace > .controls-panel,
+      .workspace > .result-panel,
+      .measure-area .measure-step-menu,
+      .measure-area .measure-flow-steps,
+      .measure-area .measure-progress-panel,
+      .measure-area .simple-toolbar,
+      .measure-area .reference-palette,
+      .measure-area .measure-reference-note,
+      .measure-area .reference-readout,
+      .measure-area .measurement-palette,
+      .measure-area .measure-tip-card,
+      .measure-area .measure-options-row,
+      .measure-area .measure-actions,
+      .measure-area .mobile-reference-controls {
+        display: none !important;
+      }
+      /* V1 keeps only the photo actions and the single measurement command. */
+      html[data-measure-mode="v1"] .measure-area.is-guided-mode:not(.is-start) .measure-canvas-toolbar.measure-beta-only {
+        display: flex !important;
+      }
+    </style>
+    <link rel="stylesheet" href="/bigplus/css/bigplus.css?v=20260829-measure-v6">
     <link rel="stylesheet" href="/bigplus/vendor/maplibre-gl.css?v=20260806-weather-1">
   </head>
   <body class="auth-required auth-bootstrap-pending">
@@ -49,6 +98,7 @@
           <button class="nav-button" type="button" data-view="weather"><span class="nav-icon weather-nav-icon" aria-hidden="true"></span><span>Väder</span></button>
           <button class="nav-button" type="button" data-view="measure"><img class="nav-icon" src="/bigplus/assets/mat-fisken-icon.png" alt=""><span>Mät</span></button>
           <button class="nav-button" type="button" data-view="competitions"><img class="nav-icon" src="/bigplus/assets/rank-icon.png" alt=""><span>Tävlingar</span></button>
+          <button class="nav-button" type="button" data-view="duels"><span class="nav-icon duel-nav-icon" aria-hidden="true">⚔</span><span>Duellen</span></button>
           <button class="nav-button" type="button" data-view="profile"><img class="nav-icon" src="/bigplus/assets/profile-icon.png" alt=""><span>Profil</span></button>
           <button class="nav-button" type="button" data-view="journal"><span class="nav-icon journal-nav-icon" aria-hidden="true">J</span><span>Fisketurer</span></button>
         </nav>
@@ -64,6 +114,7 @@
       <nav class="mobile-bottom-nav" aria-label="Mobil navigation">
         <button class="mobile-bottom-nav-button" type="button" data-view="home"><span class="mobile-bottom-nav-icon">⌂</span><span>Hem</span></button>
         <button class="mobile-bottom-nav-button" type="button" data-view="catches"><span class="mobile-bottom-nav-icon">◈</span><span>Fångster</span></button>
+        <button class="mobile-bottom-nav-button" type="button" data-view="duels"><span class="mobile-bottom-nav-icon">⚔</span><span>Duellen</span></button>
         <button class="mobile-bottom-nav-button" type="button" data-view="weather"><span class="mobile-bottom-nav-icon weather-nav-icon" aria-hidden="true"></span><span>Väder</span></button>
         <button class="mobile-bottom-nav-button" type="button" data-view="measure"><span class="mobile-bottom-nav-icon">＋</span><span>Mät</span></button>
         <button class="mobile-bottom-nav-button" type="button" data-view="profile"><span class="mobile-bottom-nav-icon">○</span><span>Profil</span></button>
@@ -81,7 +132,7 @@
             <input id="customReference" type="number" min="1" step="0.1" value="10">
           </div>
 
-          <div class="virtual-reference">
+          <div class="virtual-reference" hidden aria-hidden="true">
             <h2>Referens i bild</h2>
             <button class="secondary-button compact-button" id="placeReferenceButton" type="button">Placera vald referens</button>
             <button class="secondary-button compact-button" id="placeGlassesReferenceButton" type="button">Placera på ansikte</button>
@@ -112,7 +163,7 @@
             </div>
             <div class="hint">Placera automatiskt eller dra referensen för att flytta. Dra rutan för storlek och pricken för rotation.</div>
           </div>
-          <div class="add-reference hidden-menu">
+          <div class="add-reference hidden-menu" hidden aria-hidden="true">
             <h2>Lägg till referens</h2>
             <div class="field">
               <label for="newReferenceName">Föremål</label>
@@ -126,46 +177,23 @@
             <button class="secondary-button compact-button" id="removeReferenceButton" type="button">Ta bort vald egen</button>
           </div>
 
-          <div class="field inline-field">
+          <div class="field inline-field" hidden aria-hidden="true">
             <label for="minSize">Minimimått</label>
             <input id="minSize" type="number" min="0" step="1">
           </div>
 
-          <div class="tool-grid" role="group" aria-label="Markeringsverktyg">
+          <div class="tool-grid" role="group" aria-label="Markeringsverktyg" hidden aria-hidden="true">
             <button class="tool-button active" id="refTool" type="button">Referens</button>
             <button class="tool-button" id="fishTool" type="button">Längd</button>
             <button class="tool-button" id="bodyTool" type="button">Höjd</button>
           </div>
 
-          <div class="hint">
+          <div class="hint" hidden aria-hidden="true">
             Lägg referensen parallellt med fisken. Markera först längd från nos till stjärt, sedan höjd där fisken är som högst. Klicka på längdlinjen för att lägga till en böjning och följ fiskens form.
           </div>
         </aside>
 
         <section class="measure-area">
-          <nav class="measure-step-menu" id="measureStepMenu" aria-label="Mätsteg">
-            <button class="measure-step-menu-button" type="button" data-measure-menu="glasses" aria-label="Skapa glasögon" title="Skapa glasögon">
-              <img src="/bigplus/assets/glasses-reference.png" alt="">
-              <span>Glasögon</span>
-            </button>
-            <button class="measure-step-menu-button" type="button" data-measure-menu="can" aria-label="Skapa burk" title="Skapa burk">
-              <img src="/bigplus/assets/can-calibration.png" alt="">
-              <span>Burk</span>
-            </button>
-            <button class="measure-step-menu-button" type="button" data-measure-menu="ring" aria-label="Skapa ring" title="Skapa ring vid finger">
-              <img src="/bigplus/assets/ring-reference.png" alt="">
-              <span>Ring</span>
-            </button>
-            <button class="measure-step-menu-button" type="button" data-measure-menu="length" aria-label="Mät längd" title="Mät längd">
-              <span class="measure-step-menu-icon" aria-hidden="true">↔</span>
-              <span>Längd</span>
-            </button>
-            <button class="measure-step-menu-button" type="button" data-measure-menu="width" aria-label="Mät bredd" title="Mät bredd">
-              <span class="measure-step-menu-icon" aria-hidden="true">↕</span>
-              <span>Bredd</span>
-            </button>
-          </nav>
-          <button class="guided-measure-button" id="guidedMeasureButton" type="button" disabled>Mät fisken</button>
           <div class="guided-result-popup" id="guidedResultPopup" hidden role="dialog" aria-modal="false" aria-labelledby="guidedResultTitle">
             <div class="guided-result-popup-heading">
               <div>
@@ -173,6 +201,13 @@
                 <h2 id="guidedResultTitle">Fiskens mått</h2>
               </div>
               <button class="guided-result-popup-close" id="guidedResultPopupClose" type="button" aria-label="Stäng resultat">X</button>
+            </div>
+            <div class="guided-result-species">
+              <div>
+                <span>IDENTIFIERAD ART</span>
+                <strong id="guidedSpeciesResult">Fisk</strong>
+              </div>
+              <span class="guided-confidence-badge" id="guidedConfidenceResult">--</span>
             </div>
             <div class="guided-result-metrics">
               <div>
@@ -184,19 +219,29 @@
                 <strong id="guidedHeightResult">-- cm</strong>
               </div>
             </div>
+            <div class="guided-result-details">
+              <div>
+                <span>Troligt intervall</span>
+                <strong id="guidedRangeResult">--</strong>
+              </div>
+              <div>
+                <span>Mätversion</span>
+                <strong id="guidedVersionResult">V1 Beta</strong>
+              </div>
+            </div>
             <p id="guidedResultStatus">Resultatet är ungefärligt.</p>
-            <p class="guided-result-perspective" id="guidedPerspectiveResult">Ingen burkjustering registrerad.</p>
+              <p class="guided-result-perspective" id="guidedPerspectiveResult">Ingen burkjustering registrerad.</p>
+              <ul class="guided-result-checks" id="guidedResultChecks"></ul>
+              <div class="guided-result-actions">
+                <button class="guided-result-adjust" id="guidedResultAdjust" type="button">Justera mätpunkter</button>
+              </div>
           </div>
-          <div class="measure-action-menu" aria-label="Bildåtgärder">
-            <button class="measure-action-button" id="changeMeasurePhotoButton" type="button">Byt bild</button>
-            <button class="measure-action-button is-cancel" id="cancelMeasureButton" type="button">Avbryt mätning</button>
-          </div>
-          <div class="measure-flow-steps" aria-label="Mätsteg">
+          <div class="measure-flow-steps" aria-label="Mätsteg" hidden aria-hidden="true">
             <span class="measure-flow-step is-active" data-measure-step="1">1. Bild</span>
             <span class="measure-flow-arrow" aria-hidden="true">&rarr;</span>
             <span class="measure-flow-step" data-measure-step="2">2. Mät fisken</span>
           </div>
-          <div class="measure-progress-panel" id="measureProgressPanel" aria-live="polite">
+          <div class="measure-progress-panel" id="measureProgressPanel" aria-live="polite" hidden aria-hidden="true">
             <div class="measure-progress-item" data-progress-item="photo">
               <span>Bild</span>
               <strong id="measurePhotoProgress">Väntar</strong>
@@ -218,29 +263,12 @@
               <strong id="measureResultProgress">Väntar</strong>
             </div>
           </div>
-          <div class="simple-toolbar" aria-label="Snabbval">
+          <div class="simple-toolbar" aria-label="Snabbval" hidden aria-hidden="true">
             <input class="simple-file-input" id="photoInput" type="file" accept="image/*">
             <button class="secondary-button simple-clear-button" id="clearButton" type="button">Rensa markeringarna</button>
             <button class="secondary-button simple-reset-button" id="resetButton" type="button">Mät ny fisk</button>
           </div>
-          <div class="reference-palette reference-palette-top" aria-label="Skapa referens">
-            <button class="reference-palette-item" id="paletteGlasses" type="button" draggable="true" data-reference-id="glasses">
-              <img src="/bigplus/assets/glasses-reference.png" alt="" loading="lazy" decoding="async">
-              <span>Skapa glasögon</span>
-              <span class="reference-palette-lock check-lock" id="lockGlassesPalette" role="button" tabindex="0" aria-label="Lås glasögon" title="Lås glasögon"><span class="lock-icon" aria-hidden="true"></span></span>
-            </button>
-            <button class="reference-palette-item" id="paletteCan" type="button" draggable="true" data-reference-id="can-330">
-              <img src="/bigplus/assets/can-calibration.png" alt="" loading="lazy" decoding="async">
-              <span>Skapa burk</span>
-              <span class="reference-palette-lock check-lock" id="lockCanPalette" role="button" tabindex="0" aria-label="Lås burk" title="Lås burk"><span class="lock-icon" aria-hidden="true"></span></span>
-            </button>
-            <button class="reference-palette-item reference-palette-fish" id="paletteFishReference" type="button" draggable="true" data-reference-id="fish-reference">
-              <img src="/bigplus/assets/species/gadda.jpg" alt="" loading="lazy" decoding="async">
-              <span>Skapa fiskreferens</span>
-              <span class="reference-palette-lock check-lock" id="lockFishPalette" role="button" tabindex="0" aria-label="Lås fiskreferens" title="Lås fiskreferens"><span class="lock-icon" aria-hidden="true"></span></span>
-            </button>
-          </div>
-          <p class="measure-reference-note">Glasögon och burk ger skalan. Fiskreferensen är valfri och kan läggas över fisken för en tydligare uppskattning.</p>
+          <!-- Legacy reference palette removed. V1 starts from the uploaded photo. -->
           <div class="measure-stage">
             <div class="canvas-wrap">
               <div class="zoom-toolbar" aria-label="Zooma bild">
@@ -249,6 +277,20 @@
                 <button class="zoom-button" id="zoomInButton" type="button" aria-label="Zooma in">+</button>
                 <button class="zoom-button reset-zoom" id="zoomResetButton" type="button">100%</button>
               </div>
+              <div class="measure-canvas-toolbar measure-beta-only" aria-label="Mätverktyg">
+                <button class="guided-measure-button" id="guidedMeasureButton" type="button" disabled title="Markera först fiskens nos och stjärt i bilden">
+                  <span class="measure-tool-icon" aria-hidden="true">⟷</span>
+                  <span class="measure-tool-label">Mät fisken</span>
+                </button>
+                <button class="measure-action-button" id="changeMeasurePhotoButton" type="button" aria-label="Byt bild" title="Byt bild">
+                  <span class="measure-tool-icon" aria-hidden="true">↻</span>
+                  <span>Byt bild</span>
+                </button>
+                <button class="measure-action-button is-cancel" id="cancelMeasureButton" type="button" aria-label="Avbryt mätning" title="Avbryt mätning">
+                  <span class="measure-tool-icon" aria-hidden="true">×</span>
+                  <span>Avbryt</span>
+                </button>
+              </div>
               <canvas id="measureCanvas" width="1000" height="680"></canvas>
               <div class="empty-state measure-start-panel" id="emptyState">
                 <input class="simple-file-input" id="manualPhotoInput" type="file" accept="image/*">
@@ -256,13 +298,14 @@
                 <p class="measure-start-eyebrow">REGISTRERA FÅNGST</p>
                 <h2>HAR DU BILD PÅ DIN FÅNGST?</h2>
                 <p>Välj ett av alternativen som passar dig</p>
-                <div class="measure-start-actions">
-                  <button class="primary-button measure-start-button" id="manualCaptureButton" type="button">REGISTRERA FÅNGST</button>
-                  <div class="upload-divider"><span>eller</span></div>
-                  <button class="beta-button measure-start-button" id="guidedCaptureButton" type="button">REGISTRERA FÅNGST MED APPEN <b>BETA</b></button>
-                  <div class="upload-divider"><span>eller</span></div>
-                  <button class="secondary-button measure-start-button" id="cameraCaptureButton" type="button">TA BILD NU</button>
-                </div>
+  <div class="measure-start-actions">
+    <button class="primary-button measure-start-button" id="manualCaptureButton" type="button">REGISTRERA FÅNGST</button>
+    <div class="upload-divider"><span>eller</span></div>
+    <button class="beta-button measure-start-button" id="guidedCaptureButton" type="button">REGISTRERA FÅNGST MED APPEN <b>V1. BETA</b></button>
+    <a class="measure-annotation-link" href="/bigplus/fish-annotation.html">ANNOTERA FISKMASKER</a>
+    <div class="upload-divider"><span>eller</span></div>
+    <button class="secondary-button measure-start-button" id="cameraCaptureButton" type="button">TA BILD NU</button>
+  </div>
               </div>
               <div class="manual-entry-panel hidden" id="manualEntryPanel">
                 <p class="measure-start-eyebrow">MANUELL REGISTRERING</p>
@@ -336,6 +379,7 @@
           <div class="measure-options-row">
             <label for="speciesSelect">Art</label>
             <select id="speciesSelect"><option value="">Välj art</option></select>
+            <button class="secondary-button compact-button" id="handCalibrationButton" type="button">Kalibrera min hand</button>
           </div>
           <div class="measure-actions">
             <button class="primary-button measure-calculate-button" id="calculateButton" type="button">Mät fisken</button>
@@ -373,6 +417,11 @@
               <strong id="confidenceResult">--</strong>
             </div>
           </div>
+          <div class="measurement-confidence-card" id="measurementConfidenceCard">
+            <div><span>Troligt intervall</span><strong id="measurementRangeResult">--</strong></div>
+            <div><span>Mätsäkerhet</span><strong id="measurementConfidenceLevel">--</strong></div>
+          </div>
+          <ul class="measurement-analysis-list" id="measurementAnalysisList" aria-label="Analys som användes"></ul>
 
           <div class="field">
             <label for="catchNote">Anteckning</label>
@@ -398,7 +447,7 @@
         </aside>
       </section>
 
-      <section class="app-view dashboard-view" id="homeView" data-app-view="home">
+      <section class="app-view dashboard-view home-dashboard-v2" id="homeView" data-app-view="home">
         <section class="home-welcome-row">
           <button class="avatar-placeholder home-avatar" type="button" id="homeAvatar" aria-label="ppna profilmeny">B</button>
           <div class="home-welcome-copy"><h1 id="homeGreeting">Hej!</h1><h2 id="homeProfileName">Logga in</h2><p id="homeProfileSubtitle">Logga in för att se din profil och dina fångster.</p><small class="home-member-since"> Personligt konto</small></div>
@@ -414,6 +463,8 @@
           <div class="stat-item"><img class="stat-icon stat-image" src="/bigplus/assets/bigplus-icon.png" alt=""><div class="stat-content"><span class="stat-label">Bigplus</span><strong id="statBigplus">0</strong><small class="stat-change" id="statBigplusChange" hidden></small></div></div>
           <div class="stat-item"><img class="stat-icon stat-image" src="/bigplus/assets/rank-icon.png" alt=""><div class="stat-content"><span class="stat-label">Rank</span><strong id="statRank">--</strong><small class="stat-change" id="statRankChange" hidden></small></div></div>
           <div class="stat-item"><img class="stat-icon stat-image" src="/bigplus/assets/achievements-icon.png" alt=""><div class="stat-content"><span class="stat-label">Achievements</span><strong id="statAchievements">0</strong><small class="stat-change" id="statAchievementsChange" hidden></small></div></div>
+          <div class="stat-item"><span class="home-stat-symbol">🔥</span><div class="stat-content"><span class="stat-label">Streak</span><strong id="statStreak">0 dagar</strong><small id="statStreakHint">Börja idag!</small></div></div>
+          <div class="stat-item"><span class="home-stat-symbol">★</span><div class="stat-content"><span class="stat-label">Personbästa</span><strong id="statBest">-- cm</strong><small id="statBestSpecies">Gädda</small></div></div>
         </article>
         <section class="dashboard-section home-personal-best-section">
           <div class="section-heading"><div><h2>Personbästa</h2><p>Livstid är ditt manuella rekord. Bigplus är bästa godkända fångst.</p></div><button class="text-button" type="button" data-go-view="profile">Redigera</button></div>
@@ -525,8 +576,8 @@
               <button type="button" id="weatherSmhiOverlayButton" aria-pressed="false">Visa SMHI ovanpå</button>
               <div class="weather-smhi-calibration" id="weatherSmhiCalibration" hidden aria-label="Justera BIGPLUS mot SMHI">
                 <div class="weather-smhi-calibration-heading"><strong>Justera överlagring</strong><output id="weatherSmhiCalibrationValue">0 px / 0 px</output></div>
-                <label>Sidled (+ = höger) <input id="weatherSmhiCalibrationX" type="range" min="-200" max="200" step="1" value="0"></label>
-                <label>Höjd (+ = nedåt) <input id="weatherSmhiCalibrationY" type="range" min="-200" max="200" step="1" value="0"></label>
+                <label>Sidled (+ = höger) <input id="weatherSmhiCalibrationX" type="range" min="-800" max="800" step="1" value="0"></label>
+                <label>Höjd (+ = nedåt) <input id="weatherSmhiCalibrationY" type="range" min="-800" max="800" step="1" value="0"></label>
                 <button type="button" id="weatherSmhiCalibrationReset">Återställ</button>
               </div>
             </div>
@@ -665,7 +716,91 @@
         <section class="dashboard-section leaderboard-section"><div class="section-heading"><h2>Topplistan</h2><span class="group-hint">Mina vänner</span></div><div id="bigplusLeaderboard" class="leaderboard-grid"></div></section>
       </section>
 
+      <section class="app-view duels-view" id="duelsView" data-app-view="duels" hidden>
+        <header class="duels-hero">
+          <div class="duels-hero-copy">
+            <span class="duels-hero-mark" aria-hidden="true">⚔</span>
+            <div><p class="eyebrow">BIGPLUS COMMUNITY</p><h1>Duellen</h1><p>Två alternativ. Ett val. Vad tycker fiskarna?</p></div>
+          </div>
+          <div class="duels-hero-stats"><span><strong id="duelHeroVotes">0</strong><small>röster idag</small></span><span><strong id="duelHeroActive">0</strong><small>aktiva dueller</small></span><span><strong id="duelHeroOnline">842</strong><small>online</small></span></div>
+        </header>
+        <div class="duels-layout">
+          <main class="duels-main-column">
+            <section class="duel-daily-section" aria-labelledby="duelDailyHeading">
+              <div class="duels-section-label"><span>🔥</span><h2 id="duelDailyHeading">Dagens duell</h2><span class="duels-live-pill">Pågår nu</span></div>
+              <div id="duelDailyCard"></div>
+            </section>
+            <section class="duels-feed-section" aria-labelledby="duelFeedHeading">
+              <div class="section-heading"><div><h2 id="duelFeedHeading">Rösta vidare</h2><p>Snabba frågor från Bigplus-communityn.</p></div><div class="duel-filter-tabs" role="tablist"><button class="active" type="button" data-duel-filter="all">Alla</button><button type="button" data-duel-filter="popular">Populära</button><button type="button" data-duel-filter="new">Nya</button></div></div>
+              <div id="duelFeed" class="duel-feed-grid"></div>
+            </section>
+            <section class="duel-create-section" aria-labelledby="duelCreateHeading">
+              <div class="duel-create-heading"><span class="duel-create-plus" aria-hidden="true">+</span><div><h2 id="duelCreateHeading">Skapa duell</h2><p>Håll det enkelt, roligt och respektfullt.</p></div></div>
+              <form id="duelForm" class="duel-form">
+                <label>Fråga<input id="duelQuestionInput" maxlength="120" required placeholder="Ställ din fråga här..."></label>
+                <label>Alternativ A<input id="duelOptionAInput" maxlength="50" required placeholder="T.ex. Jigg"></label>
+                <label>Alternativ B<input id="duelOptionBInput" maxlength="50" required placeholder="T.ex. Jerkbait"></label>
+                <label>Kategori<select id="duelCategoryInput"><option value="fish_species">Fiskarter</option><option value="lures">Beten</option><option value="gear">Utrustning</option><option value="brands">Märken</option><option value="methods">Metoder</option><option value="places">Platser</option><option value="boat">Båt</option><option value="weather">Väder</option><option value="fun">För skojs skull</option></select></label>
+                <button class="primary-button duel-submit-button" type="submit">＋ Publicera duell</button>
+              </form>
+              <p id="duelFormMessage" class="duel-form-message" role="status"></p>
+            </section>
+          </main>
+          <aside class="duels-side-column">
+            <section class="duel-side-panel"><div class="duel-side-title"><span>▥</span><h2>Dagens stats</h2></div><div class="duel-stat-list"><div><b>◫</b><span><strong id="duelStatVotes">0</strong><small>röster idag</small></span></div><div><b>⚔</b><span><strong id="duelStatActive">0</strong><small>aktiva dueller</small></span></div><div><b>♟</b><span><strong>842</strong><small>online just nu</small></span></div></div></section>
+            <section class="duel-side-panel"><div class="duel-side-title"><span>↗</span><h2>Trending</h2></div><ol id="duelTrendingList" class="duel-trending-list"></ol><button class="secondary-button duel-wide-button" type="button" data-duel-filter="popular">Visa populära</button></section>
+            <section class="duel-side-panel"><div class="duel-side-title"><span>▰</span><h2>Kategorier</h2></div><div id="duelCategories" class="duel-category-list"></div></section>
+          </aside>
+        </div>
+      </section>
+
       <section class="app-view journal-view journal-planner-view" id="journalView" data-app-view="journal" hidden>
+        <header class="journal-create-hero">
+          <div class="journal-create-hero-copy"><img src="/bigplus/assets/catch-page/next-challenge-fish.png" alt="" aria-hidden="true"><div><h1>Skapa din fisketur</h1><p>Planera, utforska och f&aring;nga minnen f&ouml;r livet! &#128161; &#10024;</p></div></div>
+          <button class="journal-reset-route" id="journalResetRoute" type="button">&#8635; &nbsp; Rensa rutt</button>
+        </header>
+        <div class="journal-reference-layout">
+          <div class="journal-reference-left">
+            <section class="journal-reference-panel journal-destination-panel">
+              <div class="journal-reference-heading"><h2>&#128205; L&auml;gg till destination</h2><button type="button" class="journal-collapse-button" aria-label="F&auml;ll ihop destination" title="F&auml;ll ihop destination">&#8963;</button></div>
+              <label class="journal-field-label">Destination / Platsnamn<input id="journalDestinationInput" type="text" placeholder="T.ex. Grynnan, Norrviken..." autocomplete="off"></label>
+              <div class="journal-reference-row"><label class="journal-field-label">Tid d&auml;r<select id="journalStayTime"><option>1 h 30 min</option><option>1 h 15 min</option><option>2 h</option><option>45 min</option></select></label><button id="journalRecommendedTime" type="button" class="journal-mini-button">&#9728; &nbsp; Rek. tid</button></div>
+              <fieldset class="journal-reference-fieldset"><legend>F&auml;rds&auml;tt</legend><div class="journal-segmented"><button type="button" class="active" data-journal-transport="boat">&#9973; &nbsp; B&aring;t</button><button type="button" data-journal-transport="car">&#128663; &nbsp; Bil</button></div></fieldset>
+              <label class="journal-field-label">B&aring;tmodell<select id="journalBoatModel"><option>Silver Hawk BR 540</option><option>Buster XL</option><option>Hobie Pro Angler</option></select></label>
+              <label class="journal-field-label">Motor (hk)<select id="journalBoatMotor"><option>60 hk</option><option>40 hk</option><option>100 hk</option></select></label>
+              <label class="journal-field-label">M&aring;lart<select id="journalTargetSpecies"><option>G&auml;dda</option><option>Abborre</option><option>G&ouml;s</option></select></label>
+              <fieldset class="journal-reference-fieldset"><legend>Prioritet</legend><div class="journal-priority-segment"><button type="button" data-journal-priority="low">&#9733; L&aring;g</button><button type="button" class="active" data-journal-priority="medium">Medel</button><button type="button" data-journal-priority="high">H&ouml;g</button></div></fieldset>
+              <button class="journal-reference-primary-button" id="journalAddDestinationButton" type="button">+ &nbsp; <span id="journalDestinationActionLabel">L&auml;gg till destination</span></button>
+            </section>
+            <section class="journal-reference-panel journal-goal-create-panel"><h2>&#127919; L&auml;gg till m&aring;l f&ouml;r turen</h2><p>S&auml;tt m&aring;l f&ouml;r en grym dag p&aring; vattnet!</p><button class="journal-goal-button" id="journalAddGoalButton" type="button">+ &nbsp; L&auml;gg till m&aring;l</button></section>
+            <section class="journal-reference-panel journal-notes-reference"><div class="journal-reference-heading"><h2>&#128221; Anteckningar &amp; packlista</h2><button type="button" class="journal-more-button" id="journalReferenceNotesButton" aria-label="&Ouml;ppna anteckningar och packlista">&hellip;</button></div><p>Skriv anteckningar eller se packlistan</p><div class="journal-notes-actions"><button type="button" data-journal-note-action="notes">&#128221;</button><button type="button" data-journal-note-action="pack">&#128230;</button><button type="button" data-journal-note-action="fuel">&#9981;</button><button type="button" data-journal-note-action="camera">&#128247;</button><button type="button" data-journal-note-action="more">&hellip;</button></div></section>
+          </div>
+          <div class="journal-reference-center">
+            <section class="journal-reference-map-panel">
+              <div id="journalMapReference" class="journal-map-reference-canvas" aria-label="Interaktiv karta f&ouml;r att planera fisketuren"></div>
+              <div class="journal-reference-map-stats"><span><b>&#8734;</b><small>Total str&auml;cka</small><strong id="journalReferenceDistance">28,4 km</strong></span><span><b>&#9201;</b><small>Total tid</small><strong>6 h 30 min</strong></span><span><b>&#9973;</b><small id="journalReferenceRouteLabel">B&aring;t via vatten</small><strong id="journalReferenceTravelTime">1 h 35 min</strong></span><span><b>&#128031;</b><small>Planerad fisketid</small><strong>4 h 45 min</strong></span></div>
+              <div class="journal-mode-switcher" id="journalModeSwitcher" role="tablist" aria-label="L&auml;ge f&ouml;r fisketur"><button type="button" role="tab" data-journal-mode="create">+ &nbsp; Skapa l&auml;ge</button><button type="button" role="tab" data-journal-mode="edit">&#9998; &nbsp; Redigera l&auml;ge</button></div>
+              <div class="journal-mode-context" id="journalModeContext"><strong id="journalModeTitle">Redigera din plan</strong><span id="journalModeDescription">&Auml;ndra stopp, f&auml;rds&auml;tt och m&aring;l direkt p&aring; kartan.</span></div>
+              <div class="journal-map-quick-layers" id="journalMapQuickLayers" aria-label="Viktiga kartlager"><button class="active" type="button" data-journal-quick-layer="boat_ramps">&#9973; B&aring;tramper</button><button class="active" type="button" data-journal-quick-layer="parking">P Parkering</button><button class="active" type="button" data-journal-quick-layer="restaurant">&#127860; Mat</button><button class="active" type="button" data-journal-quick-layer="camping">&#9968; Camping</button><button class="active" type="button" data-journal-quick-layer="fuel">&#9981; Br&auml;nsle</button><button class="active" type="button" data-journal-quick-layer="weather">&#9728; V&auml;der</button></div>
+              <div class="journal-route-mode-badge" id="journalRouteModeBadge">&#9973; &nbsp; Rutten f&ouml;ljer vatten</div>
+              <div class="journal-map-reference-hint" id="journalMapReferenceHint"><strong>Klicka p&aring; kartan</strong><span>f&ouml;r att l&auml;gga till destination</span></div>
+              <form class="journal-destination-dialog" id="journalDestinationDialog" hidden><div class="journal-dialog-heading"><strong>Ny destination</strong><button type="button" id="journalDestinationDialogClose" aria-label="St&auml;ng">&times;</button></div><label class="journal-field-label">Platsnamn<input id="journalDialogName" type="text" placeholder="Till exempel Vassvik" maxlength="60" required></label><div class="journal-dialog-grid"><label class="journal-field-label">Typ<select id="journalDialogType"><option value="fishing">Fiske</option><option value="boat_ramp">B&aring;tramp</option><option value="parking">Parkering</option><option value="restaurant">Mat</option><option value="camping">Camping</option><option value="fuel">Br&auml;nsle</option><option value="other">Annat</option></select></label><label class="journal-field-label">Tid h&auml;r<select id="journalDialogDuration"><option value="30">30 min</option><option value="45" selected>45 min</option><option value="60">1 tim</option><option value="90">1 h 30</option><option value="120">2 tim</option></select></label></div><div class="journal-dialog-actions"><button type="button" class="journal-dialog-secondary" id="journalDestinationDialogCancel">Avbryt</button><button type="submit" class="journal-reference-primary-button">L&auml;gg till</button></div></form>
+              <div class="journal-reference-map-controls"><button id="journalReferenceZoomIn" type="button" aria-label="Zooma in">+</button><button id="journalReferenceZoomOut" type="button" aria-label="Zooma ut">&minus;</button><button id="journalReferenceFitRoute" type="button" aria-label="Visa hela rutten">&#10148;</button></div>
+              <div class="journal-reference-map-tabs" id="journalReferenceMapTabs" role="tablist" aria-label="Kartlager"><button type="button" class="active" data-journal-reference-layer="map">Karta</button><button type="button" data-journal-reference-layer="satellite">Satellit</button><button type="button" data-journal-reference-layer="depth">Djup</button><button type="button" data-journal-reference-layer="roads">V&auml;gar</button><button type="button" data-journal-reference-layer="wind">Vind</button><button type="button" aria-label="Fler kartlager">&#9776;</button></div>
+            </section>
+            <div class="journal-reference-lower-grid">
+              <section class="journal-reference-panel journal-timeline-reference"><div class="journal-reference-heading"><h2>&#128208; Egen f&auml;rdlinje</h2></div><div id="journalReferenceTimeline" class="journal-reference-timeline"></div><footer><span>Total tid:</span><strong>~7 h 15 min</strong></footer></section>
+              <section class="journal-reference-panel journal-pack-reference"><div class="journal-reference-heading"><h2>&#128230; Packlista</h2></div><div class="journal-reference-checklist"><label><input type="checkbox" checked data-journal-save="ref-rod"> Sp&ouml;n &amp; rullar</label><label><input type="checkbox" checked data-journal-save="ref-baits"> Beten &amp; tackel</label><label><input type="checkbox" checked data-journal-save="ref-float"> Flytv&auml;star</label><label><input type="checkbox" checked data-journal-save="ref-food"> Kylv&auml;ska &amp; mat</label><label><input type="checkbox" data-journal-save="ref-sun"> Solskydd</label><label><input type="checkbox" data-journal-save="ref-aid"> F&ouml;rsta hj&auml;lpen</label></div><button class="journal-link-button" type="button" id="journalReferencePackButton">Visa hela packlistan</button></section>
+              <section class="journal-reference-panel journal-weather-reference"><div class="journal-reference-heading"><h2>&#9729; V&auml;der &amp; vind</h2></div><div class="journal-reference-weather-row"><span><small>08:00</small><b>&#9728;</b><strong>14&deg;</strong><em>5 m/s</em></span><span><small>11:00</small><b>&#9728;</b><strong>16&deg;</strong><em>4 m/s</em></span><span><small>14:00</small><b>&#9925;</b><strong>18&deg;</strong><em>5 m/s</em></span><span><small>17:00</small><b>&#9728;</b><strong>17&deg;</strong><em>4 m/s</em></span><span><small>20:00</small><b>&#9728;</b><strong>15&deg;</strong><em>3 m/s</em></span></div><p>Vind SW &nbsp; &middot; &nbsp; Byar upp till 7 m/s</p><button class="journal-link-button" type="button" data-go-view="weather">Visa detaljerad prognos &rsaquo;</button></section>
+            </div>
+          </div>
+          <aside class="journal-reference-right">
+            <section class="journal-reference-panel journal-plan-reference"><div class="journal-reference-heading"><h2 id="journalReferencePlanTitle">&#9876; Din plan</h2><span id="journalReferencePlanSummary">4 stopp &nbsp;&middot;&nbsp; 56 km</span></div><div id="journalReferencePlanStops"></div><button class="journal-dashed-button" id="journalReferenceAddStop" type="button">+ &nbsp; L&auml;gg till destination</button></section>
+            <section class="journal-reference-panel journal-tour-goals-reference"><div class="journal-reference-heading"><h2>&#127919; M&aring;l f&ouml;r turen</h2></div><div class="journal-tour-goal-grid"><button type="button" id="journalGoalPike">&#128031;<strong>F&aring;nga g&auml;dda</strong></button><button type="button">&#127800;<strong>Prova jigg</strong></button><button type="button">&#9201;<strong>Fiska 45 min<br>vid grynnan</strong></button><button type="button">&#128247;<strong>Ta foto och<br>logga f&aring;ngst</strong></button></div><button class="journal-goal-button" id="journalReferenceAddTourGoal" type="button">+ &nbsp; L&auml;gg till m&aring;l</button></section>
+            <section class="journal-reference-panel journal-ready-reference"><h2>&#128276; Redo att byta spot</h2><p>N&auml;sta stopp: <strong id="journalNextStopName">Krokviken</strong></p><hr><small>Tid kvar p&aring; nuvarande stopp</small><strong class="journal-ready-time">01:15:00</strong><p>Vi tipsar om att forts&auml;tta fiska h&auml;r!</p><button id="journalNextStopButton" type="button">Hoppa till n&auml;sta stopp</button></section>
+          </aside>
+        </div>
+        <footer class="journal-reference-actions"><button class="journal-reference-start-button" id="journalReferenceStartButton" type="button">&#9973; &nbsp; Starta resa</button><button id="journalReferenceSaveButton" type="button">&#9635; &nbsp; Spara plan</button><button id="journalReferenceShareButton" type="button">&#128101; &nbsp; Dela med v&auml;nner</button><span id="journalReferenceStatus" role="status"></span></footer>
         <div class="journal-planner-shell">
           <aside class="journal-trip-sidebar" aria-label="Fisketurens plan">
             <div class="journal-trip-title-row">
@@ -929,7 +1064,6 @@
             </aside>
           </div>
         </div>
-      </section>
 
       <section class="auth-modal live-modal" id="liveSettingsModal" hidden>
         <div class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="liveSettingsTitle">
@@ -946,14 +1080,6 @@
           <button class="modal-close" id="closeProfileMissionModal" type="button" aria-label="Stng"></button>
           <p class="eyebrow blue-eyebrow">UPPDRAG</p><h2 id="profileMissionModalTitle">Alla uppdrag</h2><p class="auth-intro">Välj nästa steg i din niväresa.</p>
           <div class="profile-all-missions-list" id="profileAllMissions"></div>
-        </div>
-      </section>
-
-      <section class="auth-modal profile-level-modal" id="profileLevelModal" hidden>
-        <div class="auth-dialog profile-level-dialog" role="dialog" aria-modal="true" aria-labelledby="profileLevelModalTitle">
-          <button class="modal-close" id="closeProfileLevelModal" type="button" aria-label="Stäng"></button>
-          <p class="eyebrow blue-eyebrow">NIVÅER</p><h2 id="profileLevelModalTitle">Alla nivåer</h2><p class="auth-intro">Se hela resan från första fångsten till legendnivå.</p>
-          <div class="profile-level-track profile-all-levels-track" id="profileAllLevels"></div>
         </div>
       </section>
 
@@ -1022,12 +1148,55 @@
       </section>
     </main>
 
+    <dialog class="hand-calibration-dialog" id="handCalibrationDialog" aria-labelledby="handCalibrationTitle">
+      <form method="dialog" class="hand-calibration-form" id="handCalibrationForm">
+        <div class="dialog-heading">
+          <div>
+            <span class="eyebrow">PERSONLIG REFERENS</span>
+            <h2 id="handCalibrationTitle">Kalibrera min hand</h2>
+          </div>
+          <button class="icon-button" id="handCalibrationClose" value="cancel" type="submit" aria-label="Stäng">×</button>
+        </div>
+        <p class="dialog-intro">Använd BIGPLUS-ringen med 20 mm innerdiameter. Ta två tydliga bilder där ringen sitter runt pekfingret.</p>
+        <div class="calibration-upload-grid">
+          <label class="calibration-upload-card" for="handCalibrationFront">
+            <strong>Bild A</strong><span>Handen framifrån</span><input id="handCalibrationFront" type="file" accept="image/*">
+          </label>
+          <label class="calibration-upload-card" for="handCalibrationSide">
+            <strong>Bild B</strong><span>Handen från sidan</span><input id="handCalibrationSide" type="file" accept="image/*">
+          </label>
+        </div>
+        <label class="calibration-number" for="calibratedFingerWidth">Uppmätt pekfingerbredd (mm)
+          <input id="calibratedFingerWidth" type="number" min="10" max="35" step="0.1" value="19.6">
+        </label>
+        <p class="calibration-note" id="handCalibrationStatus">Ringen är 20,0 mm invändigt. Kalibreringen används först när den sparats.</p>
+        <div class="dialog-actions">
+          <button class="secondary-button" id="handCalibrationCancel" value="cancel" type="submit">Avbryt</button>
+          <button class="primary-button" id="handCalibrationSave" value="default" type="submit">Spara handkalibrering</button>
+        </div>
+      </form>
+    </dialog>
+
     <script>
       window.BIGPLUS_API_TARGET = window.BIGPLUS_API_TARGET || "";
       window.BIGPLUS_RENDER_API_ROOT = window.BIGPLUS_RENDER_API_ROOT || "https://bigplus-api.onrender.com/api/bigplus";
     </script>
-    <script src="/bigplus/vendor/maplibre-gl.js?v=20260823-weather-map-2"></script>
-    <script type="module" src="/bigplus/js/app-shell.js?v=20260824-weather-rain-profile-12"></script>
+    <script src="/bigplus/vendor/maplibre-gl.js?v=20260825-weather-map-3" onerror="window.dispatchEvent(new Event('bigplus:maplibre-missing'))"></script>
+    <script>
+      (() => {
+        const loadMapLibreFallback = () => {
+          if (window.maplibregl || document.querySelector('script[data-bigplus-maplibre-fallback]')) return;
+          const script = document.createElement('script');
+          script.dataset.bigplusMaplibreFallback = 'true';
+          script.src = '/bigplus/vendor/maplibre-gl.js?v=20260825-weather-map-3-fallback';
+          script.onload = () => window.dispatchEvent(new Event('bigplus:maplibre-ready'));
+          document.head.appendChild(script);
+        };
+        window.addEventListener('bigplus:maplibre-missing', loadMapLibreFallback, { once: true });
+        window.addEventListener('load', () => { if (!window.maplibregl) loadMapLibreFallback(); }, { once: true });
+      })();
+    </script>
+    <script type="module" src="/bigplus/js/app-shell.js?v=20260829-depth-v2"></script>
     <script>
       document.addEventListener("DOMContentLoaded", () => {
         const mapButton = document.getElementById("showCatchesMap");

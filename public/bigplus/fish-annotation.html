@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BIGPLUS | Fisksmasker</title>
+  <link rel="stylesheet" href="/bigplus/css/fish-annotation.css">
+</head>
+<body class="fish-annotation-page">
+  <main class="annotation-shell">
+    <header class="annotation-header">
+      <div>
+        <p class="annotation-kicker">BIGPLUS / DATAARBETE</p>
+        <h1>Skapa fisksmasker</h1>
+        <p class="annotation-lead">Ladda upp en bild, granska maskförslaget och spara ett träningspar.</p>
+      </div>
+      <a class="annotation-back" href="/bigplus/index.html">Till mätningen</a>
+    </header>
+
+    <section class="annotation-layout" aria-label="Annotering">
+      <aside class="annotation-controls">
+        <section class="control-section">
+          <h2>1. Bild</h2>
+          <label class="file-picker" for="originalImageInput">
+            <span>Välj originalbild</span>
+            <input id="originalImageInput" type="file" accept="image/*">
+          </label>
+          <p id="imageDetails" class="control-note">Ingen bild vald.</p>
+          <p id="analysisDetails" class="control-note analysis-details">Analyskopian skapas efter uppladdning.</p>
+        </section>
+
+        <section class="control-section">
+          <h2>2. Maskförslag</h2>
+          <button class="action-button action-button-primary" id="samAnalyzeButton" type="button" disabled>Analysera med SAM 2</button>
+          <button class="action-button action-button-prompt" id="samPromptButton" type="button" disabled>Klicka på fisken för SAM 2</button>
+          <button class="action-button" id="applyMaskButton" type="button" disabled>Använd importerad mask</button>
+          <label class="file-picker file-picker-secondary" for="maskImageInput">
+            <span>Välj maskbild</span>
+            <input id="maskImageInput" type="file" accept="image/*" disabled>
+          </label>
+          <p class="control-note">SAM 2 föreslår en mask. Om automatiken missar fisken, välj klickläget och klicka mitt på fisken.</p>
+          <div class="sam-candidate-panel" id="samCandidatePanel" hidden>
+            <div class="sam-candidate-heading">
+              <strong>Maskförslag</strong>
+              <span id="samCandidateSummary">0 st</span>
+            </div>
+            <div class="sam-candidate-list" id="samCandidateList" aria-label="SAM 2 maskförslag"></div>
+          </div>
+        </section>
+
+        <section class="control-section">
+          <h2>3. Granska</h2>
+          <div class="tool-row" role="group" aria-label="Penselläge">
+            <button class="tool-button is-active" id="addMaskButton" type="button" disabled>Lägg till</button>
+            <button class="tool-button" id="removeMaskButton" type="button" disabled>Ta bort</button>
+            <button class="tool-button" id="clearMaskButton" type="button" disabled>Rensa</button>
+          </div>
+          <label class="range-control" for="brushSizeInput">
+            <span>Penselstorlek <strong id="brushSizeValue">36 px</strong></span>
+            <input id="brushSizeInput" type="range" min="8" max="160" value="36" disabled>
+          </label>
+          <label class="range-control" for="overlayOpacityInput">
+            <span>Maskens synlighet <strong id="overlayOpacityValue">45%</strong></span>
+            <input id="overlayOpacityInput" type="range" min="15" max="80" value="45" disabled>
+          </label>
+        </section>
+
+        <section class="control-section control-section-save">
+          <h2>4. Spara</h2>
+          <button class="action-button action-button-save" id="saveAnnotationButton" type="button" disabled>Spara original + mask</button>
+          <p id="annotationStatus" class="annotation-status" role="status">Välj en bild för att börja.</p>
+        </section>
+      </aside>
+
+      <section class="annotation-stage-wrap">
+        <div class="annotation-stage" id="annotationStage">
+          <canvas id="annotationCanvas" aria-label="Bild med masköverlägg"></canvas>
+          <div class="empty-stage" id="emptyStage">
+            <span class="empty-stage-icon" aria-hidden="true">+</span>
+            <strong>Välj en originalbild</strong>
+            <span>Masken visas här för granskning.</span>
+          </div>
+        </div>
+        <div class="stage-footer">
+          <span id="maskDetails">Ingen mask ännu.</span>
+          <span id="maskLegend"><i aria-hidden="true"></i> Godkänd fiskmask</span>
+        </div>
+      </section>
+    </section>
+
+    <section class="annotation-library" aria-labelledby="libraryTitle">
+      <div class="library-heading">
+        <div>
+          <p class="annotation-kicker">SPARADE TRÄNINGSPAR</p>
+          <h2 id="libraryTitle">Bildbibliotek</h2>
+        </div>
+        <span id="libraryCount" class="library-count">0 sparade</span>
+      </div>
+      <div id="annotationTable" class="annotation-table" aria-live="polite">
+        <div id="libraryEmpty" class="library-empty">Sparade originalbilder och godkända masker visas här.</div>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="/bigplus/js/fish-annotation.js?v=20260829-original-under-mask-v1"></script>
+</body>
+</html>

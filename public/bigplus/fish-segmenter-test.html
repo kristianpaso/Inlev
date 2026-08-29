@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BIGPLUS Fish Segmenter Test</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; padding: 24px; background: #07151d; color: #eef7fa; }
+    main { max-width: 980px; margin: 0 auto; }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    p { color: #b8cbd1; }
+    .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 18px 0; }
+    input, button { font: inherit; }
+    input { max-width: 100%; }
+    button { border: 0; border-radius: 6px; padding: 10px 14px; background: #16a85a; color: white; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: wait; }
+    #status { min-height: 24px; color: #7fd9ff; }
+    .stage { background: #102832; border: 1px solid #31505b; border-radius: 8px; padding: 12px; }
+    canvas { display: block; width: 100%; height: auto; background: #0b1e27; }
+    pre { white-space: pre-wrap; margin: 16px 0 0; padding: 14px; background: #102832; border: 1px solid #31505b; border-radius: 8px; color: #d7edf2; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Fish segmenter</h1>
+    <p>Intern testvy för BIGPLUS. Den visar den verkliga modellens mask när en verifierad modell finns, annars den lokala fallbacken.</p>
+    <div class="toolbar">
+      <input id="imageInput" type="file" accept="image/*">
+      <button id="analyzeButton" type="button" disabled>Analysera bild</button>
+      <span id="status" role="status">Välj en bild.</span>
+    </div>
+    <div class="stage">
+      <canvas id="preview" width="960" height="640"></canvas>
+    </div>
+    <pre id="details">Ingen analys ännu.</pre>
+  </main>
+  <script type="module">
+    import { segmentFish } from "./js/fish-segmentation.js";
+
+    const input = document.querySelector("#imageInput");
+    const analyzeButton = document.querySelector("#analyzeButton");
+    const status = document.querySelector("#status");
+    const details = document.querySelector("#details");
+    const canvas = document.querySelector("#preview");
+    const context = canvas.getContext("2d");
+    let selectedImage = null;
+
+    input.addEventListener("change", () => {
+      selectedImage = input.files?.[0] || null;
+      analyzeButton.disabled = !selectedImage;
+      status.textContent = selectedImage ? "Bild klar för analys." : "Välj en bild.";
+      details.textContent = "Ingen analys ännu.";
+      if (!selectedImage) return;
+      const image = new Image();
+      image.onload = () => {
+        const scale = Math.min(1, 960 / image.naturalWidth, 640 / image.naturalHeight);
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      };
+      image.src = URL.createObjectURL(selectedImage);
+    });
+
+    analyzeButton.addEventListener("click", async () => {
+      if (!selectedImage) return;
+      analyzeButton.disabled = true;
+      status.textContent = "Analyserar...";
+      try {
+        const result = await segmentFish(selectedImage);
+        drawResult(result);
+        details.textContent = JSON.stringify({
+          mode: result.mode,
+          modelBacked: result.modelBacked,
+          modelVersion: result.modelVersion,
+          visiblePercentage: result.visiblePercentage,
+          confidence: result.confidence,
+          boundingBox: result.boundingBox,
+          landmarks: result.landmarks,
+          maskAvailable: result.maskAvailable,
+        }, null, 2);
+        status.textContent = result.modelBacked
+          ? "Färdig: riktig fiskmodell användes."
+          : "Färdig: lokal fallback användes, inte en tränad modell.";
+      } catch (error) {
+        status.textContent = "Analysen misslyckades.";
+        details.textContent = error instanceof Error ? error.message : String(error);
+      } finally {
+        analyzeButton.disabled = false;
+      }
+    });
+
+    function drawResult(result) {
+      if (!result.outline?.length) return;
+      context.save();
+      context.strokeStyle = "#32d583";
+      context.lineWidth = Math.max(2, canvas.width / 320);
+      context.setLineDash([8, 5]);
+      context.beginPath();
+      result.outline.forEach((point, index) => {
+        const x = point.x * canvas.width;
+        const y = point.y * canvas.height;
+        if (index === 0) context.moveTo(x, y);
+        else context.lineTo(x, y);
+      });
+      context.stroke();
+      context.restore();
+    }
+  </script>
+</body>
+</html>
