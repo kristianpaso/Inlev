@@ -12,9 +12,9 @@
   saveLocalCatch
 } from "./api.js?v=20260731-modules";
 import { compressImageFile } from "./shell/image-utils.js";
-import { analyzeFishMeasurement } from "./measurement-engine.js?v=20260829-depth-v1";
-import { segmentFish } from "./fish-segmentation.js?v=20260829-measure-v7";
-import { buildDepthContext, getDepthFeatureConfig, requestDepthAnalysis } from "./depth-estimator.js?v=20260829-depth-v1";
+import { analyzeFishMeasurement } from "./measurement-engine.js?v=20260830-depth-v4";
+import { segmentFish } from "./fish-segmentation.js?v=20260830-measure-v10";
+import { buildDepthContext, getDepthFeatureConfig, requestDepthAnalysis } from "./depth-estimator.js?v=20260830-depth-v4";
 
 const state = {
   references: [],
@@ -118,6 +118,7 @@ const state = {
   v1LandmarksConfirmed: false,
   v1LandmarksDetected: false,
   v1Segmentation: null,
+  v1HumanScaleCmPerPixel: null,
   depthAnalysis: null,
   depthAnalysisId: "",
   poseContext: {
@@ -3067,6 +3068,7 @@ function resetPoints(options = {}) {
   state.v1LandmarksConfirmed = false;
   state.v1LandmarksDetected = false;
   state.v1Segmentation = null;
+  state.v1HumanScaleCmPerPixel = null;
   if (els.referenceSelect) els.referenceSelect.value = "glasses";
   if (els.speciesSelect) els.speciesSelect.value = "";
   if (els.minSize) els.minSize.value = 0;
@@ -3108,6 +3110,7 @@ function showMeasurementWorkspace() {
   state.v1LandmarksConfirmed = false;
   state.v1LandmarksDetected = false;
   state.v1Segmentation = null;
+  state.v1HumanScaleCmPerPixel = null;
   setTool("fish");
   updateMeasureMenuState("length");
   if (measureArea) measureArea.dataset.flowStep = "2";
@@ -3270,6 +3273,26 @@ function canvasPointToImage(point) {
   };
 }
 
+function estimateHumanScaleCmPerPixel(holistic, imageWidth, imageHeight) {
+  const pose = holistic?.poseLandmarks?.[0] || [];
+  const shoulders = [pose[11], pose[12]].filter((point) => Number.isFinite(point?.x) && Number.isFinite(point?.y));
+  const hips = [pose[23], pose[24]].filter((point) => Number.isFinite(point?.x) && Number.isFinite(point?.y));
+  if (shoulders.length < 2 || hips.length < 2) return null;
+  const shoulderY = (shoulders[0].y + shoulders[1].y) / 2;
+  const hipY = (hips[0].y + hips[1].y) / 2;
+  const torsoPixels = Math.abs(hipY - shoulderY) * imageHeight;
+  const shoulderPixels = Math.hypot(
+    (shoulders[0].x - shoulders[1].x) * imageWidth,
+    (shoulders[0].y - shoulders[1].y) * imageHeight
+  );
+  if (torsoPixels < imageHeight * 0.08 || shoulderPixels < imageWidth * 0.06) return null;
+  // A shoulder-to-hip span is a stable, coarse human scale for a person
+  // holding the fish. Depth Anything supplies the smaller perspective change.
+  const fromTorso = 58 / torsoPixels;
+  const fromShoulders = 40 / shoulderPixels;
+  return clamp((fromTorso * 0.68) + (fromShoulders * 0.32), 0.045, 0.22);
+}
+
 async function analyzeV1FishImage(image) {
   try {
     const [segmentation, holistic] = await Promise.all([
@@ -3278,6 +3301,9 @@ async function analyzeV1FishImage(image) {
     ]);
     if (state.image !== image) return;
     state.v1Segmentation = segmentation;
+    const imageWidth = image.naturalWidth || image.width || 1;
+    const imageHeight = image.naturalHeight || image.height || 1;
+    state.v1HumanScaleCmPerPixel = estimateHumanScaleCmPerPixel(holistic, imageWidth, imageHeight);
     const holisticGuides = updateHandGuides(holistic);
     const armGuides = updateArmGuides(holistic);
     state.handGuides = holisticGuides.length ? holisticGuides : armGuides;
@@ -3285,12 +3311,13 @@ async function analyzeV1FishImage(image) {
     const detectedPoints = segmentation.fishLandmarks?.centerline
       || segmentation.fishLandmarks?.points
       || [];
-    const modelLandmarksUsable = segmentation.modelBacked && detectedPoints.length >= 2;
-    if (modelLandmarksUsable) {
+    const landmarksUsable = detectedPoints.length >= 2;
+    const modelLandmarksUsable = segmentation.modelBacked && landmarksUsable;
+    if (landmarksUsable && segmentation.maskAvailable) {
       state.points.fish = detectedPoints.map(imagePointToCanvas);
-      state.v1LandmarksDetected = true;
+      state.v1LandmarksDetected = modelLandmarksUsable;
       state.v1SeedLine = false;
-      setStatus("Fisk hittad");
+      setStatus(modelLandmarksUsable ? "Fisk hittad" : "Maskförslag klart – kontrollera linjen");
     } else {
       if (!segmentation.modelBacked) state.points.fish = [];
       state.v1SeedLine = false;
@@ -3347,7 +3374,7 @@ async function analyzeV1FishImage(image) {
     state.v1SeedLine = false;
     state.v1AnalysisPending = false;
     state.v1LandmarksDetected = false;
-    setStatus("Markera nos och stjärt");
+    setStatus("Analysen misslyckades – markera nos och stjärt");
     updateMeasureProgress();
     draw();
     await calculate();
@@ -3680,6 +3707,7 @@ async function calculate() {
       fishLandmarksDetected: state.v1LandmarksDetected || state.v1LandmarksConfirmed,
       fishSegmentationAvailable: Boolean(state.v1Segmentation?.maskAvailable),
       fishSegmentationModelBacked: Boolean(state.v1Segmentation?.modelBacked),
+      humanScaleCmPerPixel: state.v1HumanScaleCmPerPixel,
       depthModelAvailable: Boolean(state.depthAnalysis?.ok),
       depthAnalysis: state.depthAnalysis?.ok ? state.depthAnalysis : null
     };
@@ -4629,6 +4657,10 @@ async function loadTestImage() {
 }
 
 els.photoInput.addEventListener("change", () => {
+  // The shared photo input is used by the V1 canvas toolbar as well as the
+  // first-upload flow. Always keep it in automatic measurement mode so a
+  // mobile upload cannot silently fall back to the legacy reference flow.
+  document.documentElement.dataset.measureMode = "v1";
   readImageFile(els.photoInput.files?.[0], setMeasurementImage);
 });
 

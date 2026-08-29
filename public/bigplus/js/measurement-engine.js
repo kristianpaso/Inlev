@@ -229,7 +229,21 @@ export function analyzeFishMeasurement(input) {
   const perspectiveScale = clamp(basePerspectiveScale * depthCorrectionFactor, 0.88, 1.2);
   const imageHeightPx = Number(input.imageHeightPx);
   const photoScale = imageHeightPx > 0 ? clamp(64 / imageHeightPx, 0.02, 0.12) : 0.064;
-  const baseLength = referenceScales.length ? fishPx * referenceScales[0].scaleCmPerPixel * perspectiveScale : fishPx * photoScale * perspectiveScale;
+  const humanScaleCmPerPixel = Number(input.humanScaleCmPerPixel);
+  const humanScaleAvailable = referenceFreeMode && Number.isFinite(humanScaleCmPerPixel) && humanScaleCmPerPixel > 0;
+  // Pose scale is useful context, but a single shoulder/hip estimate is too
+  // noisy to use as a direct ruler. Blend it with the image prior in log space
+  // and cap its influence so pose glitches cannot turn 90 cm into 170 cm.
+  const humanScaleRatio = humanScaleAvailable
+    ? clamp(humanScaleCmPerPixel / photoScale, 0.55, 3.8)
+    : 1;
+  const contextScaleCmPerPixel = humanScaleAvailable
+    ? clamp(photoScale * (humanScaleRatio ** 0.5), 0.03, 0.16)
+    : photoScale;
+  const baseScaleCmPerPixel = referenceScales.length
+    ? referenceScales[0].scaleCmPerPixel
+    : contextScaleCmPerPixel;
+  const baseLength = fishPx * baseScaleCmPerPixel * perspectiveScale;
   const bodyPx = Number(input.bodyPx) > 0 ? Number(input.bodyPx) : null;
   const estimates = referenceScales.map((reference) => ({
     method: reference.method,
@@ -245,6 +259,21 @@ export function analyzeFishMeasurement(input) {
       dependencies: depthCorrectionFactor !== 1 ? [reference.method, "depth"] : []
     }
   }));
+  if (humanScaleAvailable) estimates.push({
+    method: "human_context_scale_v1",
+    meanCm: fishPx * contextScaleCmPerPixel * perspectiveScale,
+    stdCm: Math.max(12, fishPx * contextScaleCmPerPixel * 0.24),
+    confidence: 0.32,
+    weight: 0.38,
+    group: "human",
+    diagnostics: {
+      rawScaleCmPerPixel: humanScaleCmPerPixel,
+      scaleCmPerPixel: contextScaleCmPerPixel,
+      source: "pose shoulder-to-hip scale blended with image prior",
+      depthAdjusted: depthCorrectionFactor !== 1,
+      dependencies: depthCorrectionFactor !== 1 ? ["human_torso", "depth"] : ["human_torso"]
+    }
+  });
   if (referenceFreeMode) estimates.push({
     method: "absolute_size_heuristic_v1",
     meanCm: baseLength,

@@ -51,7 +51,7 @@ let measureModulePromise = null;
 
 function ensureMeasureModule() {
   if (!measureModulePromise) {
-    measureModulePromise = import("./main.js?v=20260829-depth-v2");
+    measureModulePromise = import("./main.js?v=20260830-depth-v8");
   }
   return measureModulePromise;
 }

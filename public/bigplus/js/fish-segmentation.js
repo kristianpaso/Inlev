@@ -141,9 +141,12 @@ function geodesicComponentLandmarks(component, width, height, sourceWidth, sourc
   const minProjection = profiles.reduce((minimum, item) => Math.min(minimum, item.projection), Infinity);
   const maxProjection = profiles.reduce((maximum, item) => Math.max(maximum, item.projection), -Infinity);
   const projectionRange = Math.max(1, maxProjection - minProjection);
+  // The tail fan can bend away from the main body axis. Keep a wider end
+  // zone for endpoint selection so the far fin tip is not mistaken for the
+  // tail base, while the centerline still uses trimmed body cross-sections.
   const zoneFor = (side) => profiles.filter((item) => side === "min"
-    ? item.projection <= minProjection + projectionRange * 0.22
-    : item.projection >= maxProjection - projectionRange * 0.22);
+    ? item.projection <= minProjection + projectionRange * 0.30
+    : item.projection >= maxProjection - projectionRange * 0.30);
   const profileFor = (zone) => {
     const perpendicular = zone.map((item) => item.perpendicular);
     return {
@@ -534,9 +537,9 @@ async function segmentFishWithSam2(image, analysis) {
   const formData = new FormData();
   formData.append("image", upload, "bigplus-measure.jpg");
   const controller = typeof AbortController === "function" ? new AbortController() : null;
-  const timeout = window.setTimeout(() => controller?.abort(), 120000);
+  const timeout = window.setTimeout(() => controller?.abort(), 45000);
   try {
-    const response = await fetch(`${SAM2_MEASURE_ENDPOINT}?candidates=8&fast=1`, {
+    const response = await fetch(`${SAM2_MEASURE_ENDPOINT}?candidates=12&fast=1`, {
       method: "POST",
       body: formData,
       signal: controller?.signal
@@ -655,8 +658,6 @@ export async function segmentFish(image) {
   const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
   const width = Math.max(32, Math.round(sourceWidth * scale));
   const height = Math.max(32, Math.round(sourceHeight * scale));
-  const modelResult = await segmentFishWithModel(image, width, height, sourceWidth, sourceHeight);
-  if (modelResult) return modelResult;
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -672,5 +673,9 @@ export async function segmentFish(image) {
     sourceHeight
   });
   if (samResult) return samResult;
+  // The bundled browser model is a useful offline fallback, but the server
+  // candidate selector is better at separating a fish from the person/boat.
+  const modelResult = await segmentFishWithModel(image, width, height, sourceWidth, sourceHeight);
+  if (modelResult) return modelResult;
   return segmentFishPixels({ data: imageData.data, width, height, sourceWidth, sourceHeight });
 }

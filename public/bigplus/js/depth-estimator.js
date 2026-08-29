@@ -1,4 +1,6 @@
-const DEFAULT_ENDPOINT = "http://127.0.0.1:8300/api/measurement/depth";
+const DEFAULT_ENDPOINT = ["127.0.0.1", "localhost"].includes(window.location.hostname)
+  ? "http://127.0.0.1:8300/api/measurement/depth"
+  : "/api/measurement/depth";
 const cache = new Map();
 
 function truthy(value) {
