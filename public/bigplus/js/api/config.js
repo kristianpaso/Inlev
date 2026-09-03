@@ -13,11 +13,11 @@ function resolveApiRoot() {
     localStorage.setItem("bigplus_api_target", apiTarget);
   }
 
+  const isLocalFrontend = ["localhost", "127.0.0.1"].includes(window.location.hostname);
   const savedTarget = localStorage.getItem("bigplus_api_target");
-  if (savedTarget === "local") return LOCAL_API_ROOT;
+  if (isLocalFrontend && savedTarget === "local") return LOCAL_API_ROOT;
   if (savedTarget === "render") return RENDER_API_ROOT;
 
-  const isLocalFrontend = ["localhost", "127.0.0.1"].includes(window.location.hostname);
   return isLocalFrontend ? LOCAL_API_ROOT : RENDER_API_ROOT;
 }
 
