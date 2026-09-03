@@ -7,6 +7,7 @@ export function createAuthController({ accountKey, authApiRoot, currentAccount, 
   const bootstrapSessionTimeoutMs = isLocalBootstrap ? 4500 : 20000;
   const bootstrapRemoteDataTimeoutMs = isLocalBootstrap ? 4500 : 20000;
   const devAuthMode = isLocalBootstrap ? new URLSearchParams(window.location.search).get("devAuth") : "";
+  const isWorkspacePath = /^\/(?:bigplus\/)?(?:workspace|admin)\/?$/.test(window.location.pathname);
 
   function sleep(ms) {
     return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -37,6 +38,7 @@ export function createAuthController({ accountKey, authApiRoot, currentAccount, 
   }
 
   function startView() {
+    if (devAuthMode === "admin" || isWorkspacePath) return "workspace";
     return devAuthMode === "profile" ? "profile" : "home";
   }
 
@@ -89,7 +91,7 @@ export function createAuthController({ accountKey, authApiRoot, currentAccount, 
     $("#authModal").hidden = true;
     document.body.classList.remove("auth-required");
     setAppLoading(true, "Laddar din medlemsprofil...");
-    try { await loadInitialRemoteData(); showView("home"); } finally { setAppLoading(false); }
+    try { await loadInitialRemoteData(); showView(startView()); } finally { setAppLoading(false); }
   }
 
   function finishAuthBootstrap() {
@@ -103,14 +105,21 @@ export function createAuthController({ accountKey, authApiRoot, currentAccount, 
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), bootstrapSessionTimeoutMs);
     fetch(`${authApiRoot}/auth/me`, { credentials: "include", signal: controller.signal })
-      .then((response) => response.ok ? response.json() : null)
+      .then((response) => response.status === 401 ? { __unauthorized: true } : (response.ok ? response.json() : null))
       .then(async (data) => {
         if (!bootstrapActive) return;
+        if (data?.__unauthorized) {
+          localStorage.removeItem(accountKey); localStorage.removeItem(sessionKey); localStorage.removeItem("inlev_user");
+          openAuth("login");
+          try { renderAccount(); } catch (error) { console.error("Kunde inte återställa loginvyn", error); }
+          return;
+        }
         if (!data?.user) {
           if (currentAccount()) { renderAccount(); await loadInitialRemoteDataWithLimit(); showView(startView()); return; }
           if (useLocalDevAccount()) { await showLocalDevFallback(); return; }
           localStorage.removeItem(accountKey); localStorage.removeItem(sessionKey); localStorage.removeItem("inlev_user");
-          renderAccount(); openAuth("login"); return;
+          try { renderAccount(); } catch (error) { console.error("Kunde inte återställa loginvyn", error); }
+          openAuth("login"); return;
         }
         localStorage.setItem(accountKey, JSON.stringify([data.user]));
         localStorage.setItem(sessionKey, data.user.id);
@@ -122,11 +131,13 @@ export function createAuthController({ accountKey, authApiRoot, currentAccount, 
         if (currentAccount()) { renderAccount(); await loadInitialRemoteDataWithLimit(); showView(startView()); return; }
         if (useLocalDevAccount()) { await showLocalDevFallback(); return; }
         localStorage.removeItem(accountKey); localStorage.removeItem(sessionKey); localStorage.removeItem("inlev_user");
-        renderAccount(); openAuth("login");
+        try { renderAccount(); } catch (error) { console.error("Kunde inte återställa loginvyn", error); }
+        openAuth("login");
       })
       .finally(() => {
         window.clearTimeout(timeout);
         finishAuthBootstrap();
+        if (!currentAccount() && $("#authModal")?.hidden !== false) openAuth("login");
       });
   }
 

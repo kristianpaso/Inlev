@@ -39,6 +39,7 @@ function resolveFile(urlPath) {
   const firstSegment = trimmed.split("/")[0];
 
   if (!trimmed) return path.join(PUBLIC_DIR, "index.html");
+  if (["admin", "workspace"].includes(firstSegment) || trimmed === "bigplus/admin" || trimmed.startsWith("bigplus/admin/") || trimmed === "bigplus/workspace" || trimmed.startsWith("bigplus/workspace/")) return path.join(PUBLIC_DIR, "bigplus", "index.html");
   if (appRoutes.has(firstSegment) && (trimmed === firstSegment || trimmed.startsWith(`${firstSegment}/`))) {
     const directPath = path.join(PUBLIC_DIR, trimmed);
     if (fs.existsSync(directPath) && fs.statSync(directPath).isFile()) return directPath;

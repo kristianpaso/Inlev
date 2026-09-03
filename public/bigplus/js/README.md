@@ -4,6 +4,27 @@ Målet är att appen ska bli snabbare att ändra utan att varje fix kräver jakt
 
 ## Nuvarande modulgränser
 
+## Sidgränser
+
+Varje Bigplus-vy har en egen page-entrypoint under `pages/`. Dessa entrypoints
+samlar sidans implementation och exporterar endast det som `app-shell.js`
+behöver. Gemensamma DOM-, API-, storage- och formathelpers ligger kvar under
+`shell/` och ska inte kopieras in i en enskild sida.
+
+- `pages/home/` - Hemwidgets, fångstlista och personbästa
+- `pages/catches/` - Fångster, delning och fångstkarta
+- `pages/weather/` - Vädervyn
+- `pages/competitions/` - Tävlingar
+- `pages/profile/` - Profil och nivådashboard
+- `pages/journal/` - Fisketurer
+- `pages/duels/` - Duellen
+- `pages/auth/` - Inloggning och session
+- `pages/admin/` - Adminvyn
+
+`app-shell.js` är fortfarande den gemensamma orkestratorn eftersom vyerna
+ligger i samma SPA-entrypoint. Nästa steg kan vara att dela HTML och CSS per
+page, men det bör göras separat så befintliga vyer inte går sönder.
+
 - `api.js` är en kompatibel export-fil. Befintlig kod kan fortsätta importera från den.
 - `api/config.js` hanterar lokal/render API-adress och API-läge.
 - `api/http.js` innehåller gemensam `fetchJson`.

@@ -308,16 +308,21 @@ router.get("/weather/map/route", async (req, res, next) => {
     });
     if (coordinates.length < 2 || coordinates.length > 10 || coordinates.some((coordinate) => !coordinate)) return res.status(400).json({ error: "Ogiltiga ruttkoordinater." });
     const profile = mode === "walking" ? "https://routing.openstreetmap.de/routed-foot/route/v1/driving" : "https://router.project-osrm.org/route/v1/driving";
-    const url = `${profile}/${coordinates.map(([longitude, latitude]) => `${longitude},${latitude}`).join(";")}?overview=full&geometries=geojson&steps=false&continue_straight=false`;
-    const result = await fetchCachedJson(cacheKey("map-route", { mode, coordinates: rawCoordinates }), url, { identify: true, fallbackSeconds: 900 });
-    const route = result.data?.routes?.[0];
+    const url = `${profile}/${coordinates.map(([longitude, latitude]) => `${longitude},${latitude}`).join(";")}?overview=full&geometries=geojson&steps=false&continue_straight=false&alternatives=true`;
+    const result = await fetchCachedJson(cacheKey("map-route-v2", { mode, coordinates: rawCoordinates }), url, { identify: true, fallbackSeconds: 900 });
+    const routes = (Array.isArray(result.data?.routes) ? result.data.routes : [])
+      .filter((candidate) => candidate?.geometry?.coordinates?.length)
+      .sort((first, second) => Number(first.distance || Infinity) - Number(second.distance || Infinity));
+    const route = routes[0];
     if (!route?.geometry?.coordinates?.length) return res.status(404).json({ error: "Ingen körbar väg hittades." });
+    const alternatives = routes.slice(0, 3).map((candidate, index) => ({ index, distance: candidate.distance, duration: candidate.duration, coordinates: candidate.geometry.coordinates }));
     res.set(cacheHeaders(900)).json({
       source: mode === "walking" ? "OpenStreetMap routing, gång" : "OpenStreetMap routing, bil",
       mode,
       distance: route.distance,
       duration: route.duration,
-      coordinates: route.geometry.coordinates
+      coordinates: route.geometry.coordinates,
+      alternatives
     });
   } catch (error) {
     next(error);

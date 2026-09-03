@@ -1,0 +1,4 @@
+MongoDB kunde inte ansluta (försök 1). Nästa försök om 3 s: querySrv ETIMEOUT _mongodb._tcp.pasocluster.y7nqhop.mongodb.net
+MongoDB kunde inte ansluta (försök 2). Nästa försök om 6 s: querySrv ETIMEOUT _mongodb._tcp.pasocluster.y7nqhop.mongodb.net
+MongoDB kunde inte ansluta (försök 3). Nästa försök om 12 s: querySrv ETIMEOUT _mongodb._tcp.pasocluster.y7nqhop.mongodb.net
+MongoDB kunde inte ansluta (försök 4). Nästa försök om 24 s: querySrv ETIMEOUT _mongodb._tcp.pasocluster.y7nqhop.mongodb.net

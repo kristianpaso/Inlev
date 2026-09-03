@@ -4,9 +4,9 @@ import {
   SESSION_KEY
 } from "./shell/storage.js";
 import { escapeHtml } from "./shell/format.js";
-import { renderAchievementPage, renderHomeAchievements, renderHomeNextBadge } from "./shell/achievements.js";
+import { loadManagedAchievements, renderAchievementPage, renderHomeAchievements, renderHomeNextBadge } from "./shell/achievements.js";
 import { renderPersonalBestLists } from "./shell/personal-bests.js";
-import { AUTH_API_ROOT } from "./shell/api-root.js";
+import { AUTH_API_ROOT } from "./shell/api-root.js?v=20260902-local-test-api-1";
 import { hasLiveFlag, isLive, liveChannel, normalizeLiveChannel, renderLiveStatus, setLive, setLiveChannel } from "./shell/live.js";
 import { exposeAppLoading, setAppLoading } from "./shell/loading.js";
 import { homeCatchView, setHomeCatchView, updateHomeCatchView } from "./shell/home-catch-view.js";
@@ -14,22 +14,24 @@ import { createHomeWidgets } from "./shell/home-widgets.js";
 import { createLeaderboardRenderer } from "./shell/leaderboard.js";
 import { createCompetitionCardHelpers } from "./shell/competition-cards.js";
 import { createCompetitionController } from "./shell/competition-controller.js";
-import { renderJournal, saveJournalTrip } from "./shell/journal.js";
+import { renderJournal, saveJournalTrip } from "./shell/journal.js?v=20260903-journal-dark-design-20";
 import { createCatchDeleteController } from "./shell/catch-delete.js";
 import { createCatchShareController } from "./shell/catch-share.js";
 import { createCatchViewController } from "./shell/catch-view-controller.js?v=20260816-catches-map-depth-89";
-import { createWeatherController } from "./shell/weather-controller.js?v=20260828-weather-map-alignment-1";
+import { createWeatherController } from "./shell/weather-controller.js?v=20260901-weather-current-1";
 import { createMapSharingController } from "./shell/map-sharing.js";
 import { createRemoteDataController } from "./shell/remote-data-controller.js";
 import { createGroupController } from "./shell/group-controller.js";
 import { createProfileController } from "./shell/profile-controller.js";
 import { renderProfileLevelDashboard } from "./shell/profile-levels.js?v=20260828-profile-reference-restore-1";
-import { createAuthController } from "./shell/auth-controller.js";
+import { createAuthController } from "./shell/auth-controller.js?v=20260902-auth-failsafe-2";
 import { compressImageFile } from "./shell/image-utils.js";
 import { accounts, currentAccount, ensureDemoAccount, ensureMemberCode } from "./shell/account.js";
 import { friendIds } from "./shell/friends.js";
 import { createFriendController } from "./shell/friend-controller.js";
 import { createDuelController } from "./shell/duel-controller.js";
+import { createAdminController } from "./shell/admin-controller.js";
+import { createWorkspaceController } from "./shell/workspace-controller.js";
 import { favoriteCompetition, setFavoriteCompetition } from "./shell/preferences.js";
 import {
   competitionMetricLabel,
@@ -51,7 +53,7 @@ let measureModulePromise = null;
 
 function ensureMeasureModule() {
   if (!measureModulePromise) {
-    measureModulePromise = import("./main.js?v=20260830-depth-v8");
+    measureModulePromise = import("./main.js?v=20260901-segmentation-safety-1");
   }
   return measureModulePromise;
 }
@@ -311,17 +313,31 @@ const profileController = createProfileController({
   setPendingProfilePhoto: (next) => { pendingProfilePhoto = next; }
 });
 
-function renderAccount() { return profileController.renderAccount(); }
+function updateAdminNavigation() {
+  $$('[data-admin-only], [data-workspace-only]').forEach((item) => {
+    const visible = currentAccount()?.role === "admin";
+    item.hidden = !visible;
+    item.setAttribute("aria-hidden", String(!visible));
+  });
+}
+
+function renderAccount() { const result = profileController.renderAccount(); updateAdminNavigation(); return result; }
 function openProfileSettings() { return profileController.openProfileSettings(); }
 function updateSettingsPreview(photo, name) { return profileController.updateSettingsPreview(photo, name); }
 async function saveProfile(event) { return profileController.saveProfile(event); }
 function closeProfileMenu() { return profileController.closeProfileMenu(); }
 function toggleProfileMenu() { return profileController.toggleProfileMenu(); }
 
+const workspaceController = createWorkspaceController({ authApiRoot: AUTH_API_ROOT, currentAccount });
+
 function showView(view) {
   if (!currentAccount()) {
     document.body.classList.add("auth-required");
     openAuth("login");
+    return;
+  }
+  if ((view === "admin" || view === "workspace") && currentAccount()?.role !== "admin") {
+    showView("home");
     return;
   }
   document.body.classList.remove("auth-required");
@@ -334,6 +350,7 @@ function showView(view) {
   const authModal = $("#authModal");
   if (authModal) authModal.hidden = true;
   document.body.classList.toggle("measure-active", view === "measure");
+  document.body.classList.toggle("workspace-active", view === "workspace" || view === "admin");
   $$('[data-app-view]').forEach((section) => { section.hidden = section.dataset.appView !== view; });
   $$('[data-view]').forEach((button) => button.classList.toggle("active", button.dataset.view === view));
   const measure = $(".workspace");
@@ -344,6 +361,7 @@ function showView(view) {
   if (view === "journal") renderJournal();
   if (view === "weather") weatherController.renderWeather();
   if (view === "duels") duelController.open();
+  if (view === "workspace" || view === "admin") workspaceController.open();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -760,7 +778,8 @@ async function loadInitialRemoteData() {
   await Promise.all([
     loadRemoteCatches(),
     loadRemoteFriends(),
-    loadRemoteCompetitions()
+    loadRemoteCompetitions(),
+    loadManagedAchievements()
   ]);
   renderAccount();
   renderCatchLists();

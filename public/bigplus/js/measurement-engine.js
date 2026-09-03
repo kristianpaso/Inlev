@@ -34,6 +34,27 @@ const FUSION_CONFIG = {
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const pointDistance = (a, b) => Math.hypot((a?.x || 0) - (b?.x || 0), (a?.y || 0) - (b?.y || 0));
+// A pose-only torso scale changes with the fish direction and the crop.
+const HUMAN_CONTEXT_BASE_CORRECTION = 0.70;
+
+function humanContextScaleCorrection(fishPoints, imageWidthPx, imageHeightPx) {
+  const first = fishPoints[0];
+  const last = fishPoints[fishPoints.length - 1];
+  const dx = Number(last?.x) - Number(first?.x);
+  const dy = Number(last?.y) - Number(first?.y);
+  const directionLength = Math.hypot(dx, dy);
+  if (!Number.isFinite(directionLength) || directionLength <= 0) return HUMAN_CONTEXT_BASE_CORRECTION;
+  const verticalDirection = clamp(Math.abs(dy) / directionLength, 0, 1);
+  const imageAspect = imageWidthPx > 0 && imageHeightPx > 0 ? imageWidthPx / imageHeightPx : 1;
+  const tightPortraitCrop = verticalDirection > 0.35
+    ? clamp((1 - imageAspect) / 0.5, 0, 1)
+    : 0;
+  return clamp(
+    HUMAN_CONTEXT_BASE_CORRECTION + (verticalDirection * 0.22) + (tightPortraitCrop * 0.35),
+    0.65,
+    1.25
+  );
+}
 
 function polylineLength(points = []) {
   let length = 0;
@@ -238,7 +259,12 @@ export function analyzeFishMeasurement(input) {
     ? clamp(humanScaleCmPerPixel / photoScale, 0.55, 3.8)
     : 1;
   const contextScaleCmPerPixel = humanScaleAvailable
-    ? clamp(photoScale * (humanScaleRatio ** 0.5), 0.03, 0.16)
+    ? clamp(
+      photoScale * (humanScaleRatio ** 0.75)
+        * humanContextScaleCorrection(fishPoints, Number(input.imageWidthPx), imageHeightPx),
+      0.03,
+      0.16
+    )
     : photoScale;
   const baseScaleCmPerPixel = referenceScales.length
     ? referenceScales[0].scaleCmPerPixel
@@ -269,6 +295,7 @@ export function analyzeFishMeasurement(input) {
     diagnostics: {
       rawScaleCmPerPixel: humanScaleCmPerPixel,
       scaleCmPerPixel: contextScaleCmPerPixel,
+      directionCorrection: humanContextScaleCorrection(fishPoints, Number(input.imageWidthPx), imageHeightPx),
       source: "pose shoulder-to-hip scale blended with image prior",
       depthAdjusted: depthCorrectionFactor !== 1,
       dependencies: depthCorrectionFactor !== 1 ? ["human_torso", "depth"] : ["human_torso"]

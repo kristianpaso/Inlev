@@ -2,6 +2,33 @@ import { $ } from "./dom.js";
 import { achievementBadgeImage } from "./assets.js";
 import { isBigplusCatch } from "./catch-utils.js";
 import { escapeHtml } from "./format.js";
+import { API_ROOT } from "../api/config.js";
+
+let managedAchievements = null;
+
+export async function loadManagedAchievements() {
+  try {
+    const response = await fetch(`${API_ROOT}/achievements`, { credentials: "include" });
+    const data = await response.json().catch(() => []);
+    managedAchievements = response.ok && Array.isArray(data) && data.length ? data : null;
+  } catch {
+    managedAchievements = null;
+  }
+  return managedAchievements;
+}
+
+function metricValue(definition, list, options = {}) {
+  const measurements = list.map(measurementOf);
+  const bigplus = measurements.filter((item) => item.status === "BIGPLUS" || item.isBigplus);
+  if (definition.metric === "bigplusCount") return bigplus.length;
+  if (definition.metric === "speciesCount") return new Set(bigplus.map((item) => item.speciesName || item.species).filter(Boolean)).size;
+  if (definition.metric === "pikeOver100") return bigplus.filter((item) => Number(item.lengthCm || 0) >= 100 && String(item.speciesName || item.species || "").toLowerCase().includes("gädd")).length;
+  if (definition.metric === "friendCount") return options.friendIds?.().length || 0;
+  if (definition.metric === "competitionWins") return measurements.filter((item) => item.competitionWon).length;
+  if (definition.metric === "lengthOver100") return measurements.filter((item) => Number(item.lengthCm || 0) >= 100).length;
+  if (definition.metric === "streak") return 0;
+  return list.length;
+}
 
 function measurementOf(item) {
   return item.measurement || item;
@@ -103,7 +130,7 @@ export function renderAchievementPage(list, options = {}) {
     "Nors", "G" + "\u00e4rs", "Elritsa", "St" + "\u00e4m", "Lax", "\u00d6ring", "R" + "\u00f6ding", "Sik", "Sikl" + "\u00f6ja", "\u00c5l"
   ];
   const points = [10, 10, 25, 15, 40, 50, 25, 35, 30, 15, 20, 15, 20, 15, 80, 70, 80, 40, 35, 100];
-  const badges = species.map((name, index) => ({
+  let badges = species.map((name, index) => ({
     name,
     text: "F" + "\u00e5 en Bigplus p" + "\u00e5 " + name,
     value: hasSpecies(name) ? 1 : 0,
@@ -147,8 +174,20 @@ export function renderAchievementPage(list, options = {}) {
     { name: "100-klubben", text: "F\u00e5 en Bigplus \u00f6ver 100 cm", value: bigplus.filter((item) => Number(measurementOf(item).lengthCm || 0) >= 100).length, goal: 1, points: 120, icon: "100" }
   );
 
+  if (managedAchievements?.length) {
+    badges = managedAchievements.filter((item) => item.visible !== false).map((item) => ({
+      name: item.title,
+      text: item.description,
+      value: metricValue(item, list, { friendIds }),
+      goal: Math.max(1, Number(item.target) || 1),
+      points: Math.max(0, Number(item.points) || 0),
+      icon: "★",
+      image: item.image || ""
+    }));
+  }
+
   badges.forEach((item) => {
-    const image = achievementBadgeImage(item.name);
+    const image = item.image || achievementBadgeImage(item.name);
     if (image) item.icon = `<img src="${image}" alt="${escapeHtml(item.name)} badge" loading="lazy">`;
   });
   const completed = badges.filter((item) => item.value >= item.goal).length;

@@ -27,12 +27,17 @@ export function ensureMemberCode(account) {
 
 export function ensureDemoAccount() {
   const list = accounts();
-  if (list.some((account) => account.email === "admin")) return;
+  const existing = list.find((account) => account.email === "paso.kristian@gmail.com");
+  if (existing) {
+    if (existing.role !== "admin") localStorage.setItem(ACCOUNT_KEY, JSON.stringify(list.map((account) => account.id === existing.id ? { ...account, role: "admin" } : account)));
+    return;
+  }
   localStorage.setItem(ACCOUNT_KEY, JSON.stringify([...list, {
     id: "demo-admin",
-    email: "admin",
+    email: "paso.kristian@gmail.com",
     password: "Admin",
-    name: "Admin Paso"
+    name: "Admin Paso",
+    role: "admin"
   }]));
 }
 

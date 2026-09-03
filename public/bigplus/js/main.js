@@ -12,8 +12,8 @@
   saveLocalCatch
 } from "./api.js?v=20260731-modules";
 import { compressImageFile } from "./shell/image-utils.js";
-import { analyzeFishMeasurement } from "./measurement-engine.js?v=20260830-depth-v4";
-import { segmentFish } from "./fish-segmentation.js?v=20260830-measure-v10";
+import { analyzeFishMeasurement } from "./measurement-engine.js?v=20260830-depth-v7";
+import { segmentFish } from "./fish-segmentation.js?v=20260830-measure-v21";
 import { buildDepthContext, getDepthFeatureConfig, requestDepthAnalysis } from "./depth-estimator.js?v=20260830-depth-v4";
 
 const state = {
@@ -337,6 +337,10 @@ const RING_OUTER_WIDTH_CM = 2.25;
 const RING_HOLE_WIDTH_CM = 2;
 const FINGER_PROXY_FACTOR = 3.52;
 const FINGER_CALC_FACTOR = 2.90;
+// Hand landmarks estimate a knuckle span rather than the visible finger
+// width. Calibrate that proxy only for the automatic metric scale; the drawn
+// ring and hand guides keep their original display dimensions.
+const AUTO_FINGER_METRIC_CORRECTION = 1.4;
 const CAN_REFERENCE_CORRECTION = 0.76;
 const CAN_HEIGHT_CM = 11.5;
 const FULL_GRIP_SPAN_CORRECTION = 4 / 3;
@@ -1241,7 +1245,7 @@ function referenceScalesForCalculation() {
   const detectedRing = state.fingerRing.available && state.fingerRing.pixels > 0
     ? {
         referenceId: "ring-finger-auto",
-        scaleCmPerPixel: RING_HOLE_WIDTH_CM / state.fingerRing.pixels,
+        scaleCmPerPixel: RING_HOLE_WIDTH_CM / (state.fingerRing.pixels * AUTO_FINGER_METRIC_CORRECTION),
         confidence: 0.78,
         weight: 0.88,
         method: "ring_finger"
@@ -2945,8 +2949,9 @@ function draw() {
 }
 
 function drawV1SegmentationOverlay() {
-  const outline = state.v1Segmentation?.outline;
-  if (!document.body.classList.contains("measure-v1-active") || !Array.isArray(outline) || outline.length < 3) return;
+  const segmentation = state.v1Segmentation;
+  const outline = segmentation?.outline;
+  if (!document.body.classList.contains("measure-v1-active") || !segmentation?.modelBacked || !Array.isArray(outline) || outline.length < 3) return;
   const points = outline.map(imagePointToCanvas);
   const zoom = Math.max(state.view.zoom, 0.1);
   ctx.save();
@@ -3313,16 +3318,18 @@ async function analyzeV1FishImage(image) {
       || [];
     const landmarksUsable = detectedPoints.length >= 2;
     const modelLandmarksUsable = segmentation.modelBacked && landmarksUsable;
-    if (landmarksUsable && segmentation.maskAvailable) {
+    if (modelLandmarksUsable && segmentation.maskAvailable) {
       state.points.fish = detectedPoints.map(imagePointToCanvas);
-      state.v1LandmarksDetected = modelLandmarksUsable;
+      state.v1LandmarksDetected = true;
       state.v1SeedLine = false;
-      setStatus(modelLandmarksUsable ? "Fisk hittad" : "Maskförslag klart – kontrollera linjen");
+      setStatus("Fisk hittad");
     } else {
-      if (!segmentation.modelBacked) state.points.fish = [];
+      // A heuristic colour/form mask is not reliable enough to place a fish
+      // line or to feed the depth model. Never present it as segmentation.
+      state.points.fish = [];
       state.v1SeedLine = false;
       state.v1LandmarksDetected = false;
-      setStatus(segmentation.maskAvailable ? "Konturen är osäker. Markera nos och stjärt" : "Markera nos och stjärt");
+      setStatus("Ingen säker segmentering – markera nos och stjärt");
     }
     if (getDepthFeatureConfig().enabled && state.points.fish.length >= 2) {
       const imageWidth = image.naturalWidth || image.width || 1;
@@ -3344,7 +3351,7 @@ async function analyzeV1FishImage(image) {
         height: (Math.max(...torsoLandmarks.map((point) => point.y)) - Math.min(...torsoLandmarks.map((point) => point.y))) * imageHeight
       } : null;
       const depthContext = buildDepthContext({
-        segmentation,
+        segmentation: segmentation?.modelBacked ? segmentation : null,
         fishPoints: state.points.fish.map(canvasPointToImage),
         handGuides: state.handGuides.map((guide) => ({
           ...canvasPointToImage(guide),
@@ -3701,11 +3708,11 @@ async function calculate() {
       handCalibration: state.handCalibration || null,
       perspectiveScale: combinedObjectDepthScale(),
       weightKg: Number(els.manualWeightInput?.value || 0),
-      fishVisibilityScore: state.v1Segmentation?.maskAvailable
+      fishVisibilityScore: state.v1Segmentation?.modelBacked && state.v1Segmentation?.maskAvailable
         ? clamp(Number(state.v1Segmentation.visiblePercentage) || 0.6, 0.4, 0.95)
         : state.points.fish.length >= 2 && state.v1LandmarksConfirmed ? 0.86 : 0.45,
       fishLandmarksDetected: state.v1LandmarksDetected || state.v1LandmarksConfirmed,
-      fishSegmentationAvailable: Boolean(state.v1Segmentation?.maskAvailable),
+      fishSegmentationAvailable: Boolean(state.v1Segmentation?.modelBacked && state.v1Segmentation?.maskAvailable),
       fishSegmentationModelBacked: Boolean(state.v1Segmentation?.modelBacked),
       humanScaleCmPerPixel: state.v1HumanScaleCmPerPixel,
       depthModelAvailable: Boolean(state.depthAnalysis?.ok),

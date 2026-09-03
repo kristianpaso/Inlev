@@ -10,8 +10,16 @@
         min-height: 100vh;
         background: #f8fafc;
       }
-      body.auth-bootstrap-pending .app-shell {
+      body.auth-bootstrap-pending .app-shell > :not(.auth-modal) {
         visibility: hidden;
+      }
+      body.auth-bootstrap-pending .app-shell > .auth-modal {
+        visibility: visible !important;
+      }
+      body.auth-bootstrap-pending #authModal:not([hidden]) {
+        display: grid !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
       }
     </style>
     <style id="measure-beta-visibility-style">
@@ -63,11 +71,13 @@
         display: flex !important;
       }
     </style>
-    <link rel="stylesheet" href="/bigplus/css/bigplus.css?v=20260829-measure-v6">
+    <link rel="stylesheet" href="/bigplus/css/bigplus.css?v=20260903-profile-fullwidth-2">
+    <link rel="stylesheet" href="/bigplus/css/home.css?v=20260903-home-layout-10">
+    <link rel="stylesheet" href="/bigplus/css/workspace.css?v=20260901-workspace-1">
     <link rel="stylesheet" href="/bigplus/vendor/maplibre-gl.css?v=20260806-weather-1">
   </head>
   <body class="auth-required auth-bootstrap-pending">
-    <div class="app-loading-screen" id="appLoadingScreen" aria-hidden="false" aria-live="polite">
+    <div class="app-loading-screen" id="appLoadingScreen" hidden aria-hidden="true" aria-live="polite">
       <div class="app-loading-panel" role="status">
         <img src="/bigplus/assets/bigplus-logo-hd.png" alt="Bigplus">
         <span class="app-loading-spinner" aria-hidden="true"></span>
@@ -100,6 +110,7 @@
           <button class="nav-button" type="button" data-view="competitions"><img class="nav-icon" src="/bigplus/assets/rank-icon.png" alt=""><span>Tävlingar</span></button>
           <button class="nav-button" type="button" data-view="duels"><span class="nav-icon duel-nav-icon" aria-hidden="true">⚔</span><span>Duellen</span></button>
           <button class="nav-button" type="button" data-view="profile"><img class="nav-icon" src="/bigplus/assets/profile-icon.png" alt=""><span>Profil</span></button>
+          <button class="nav-button admin-nav-button" type="button" data-view="workspace" data-workspace-only hidden aria-hidden="true"><span class="nav-icon admin-nav-icon" aria-hidden="true">▦</span><span>Workspace</span></button>
           <button class="nav-button" type="button" data-view="journal"><span class="nav-icon journal-nav-icon" aria-hidden="true">J</span><span>Fisketurer</span></button>
         </nav>
         <div class="profile-menu" id="profileMenu" hidden>
@@ -118,6 +129,7 @@
         <button class="mobile-bottom-nav-button" type="button" data-view="weather"><span class="mobile-bottom-nav-icon weather-nav-icon" aria-hidden="true"></span><span>Väder</span></button>
         <button class="mobile-bottom-nav-button" type="button" data-view="measure"><span class="mobile-bottom-nav-icon">＋</span><span>Mät</span></button>
         <button class="mobile-bottom-nav-button" type="button" data-view="profile"><span class="mobile-bottom-nav-icon">○</span><span>Profil</span></button>
+        <button class="mobile-bottom-nav-button admin-mobile-nav-button" type="button" data-view="workspace" data-workspace-only hidden aria-hidden="true"><span class="mobile-bottom-nav-icon">▦</span><span>Workspace</span></button>
       </nav>
 
       <section class="workspace" hidden>
@@ -455,8 +467,8 @@
           <button class="hero-settings" type="button" data-go-view="profile" aria-label="ppna profil"></button>
         </section>
         <article class="home-feature-card">
-          <img src="/bigplus/assets/6420gram-83cm.jpg" alt="Fiskare med fångst">
-          <div class="home-feature-overlay"><h2>Mät din fångst</h2><p>Snabbt, enkelt och rättvist.<br>Visa vad du fångat!</p><button class="primary-button" type="button" data-go-view="measure">Mät ny fångst&nbsp; </button></div>
+           <img src="/bigplus/assets/home/home-background.png" alt="Fiskare på en sjö i skymningen">
+          <div class="home-feature-overlay"><h2>Fånga mer. <span>Väx i Bigplus.</span></h2><p>Mät din fångst, planera turer, klättra i nivåer och tävla med vänner.<br>Allt samlat – för dig som älskar fiske.</p><div class="home-hero-actions"><button class="home-hero-button measure" type="button" data-go-view="measure">◉&nbsp; MÄT FÅNGST</button><button class="home-hero-button tour" type="button" data-go-view="journal">●&nbsp; PLANERA TUR</button><button class="home-hero-button weather" type="button" data-go-view="weather">☁&nbsp; KOLLA VÄDER</button><button class="home-hero-button contest" type="button" data-go-view="competitions">♜&nbsp; TÄVLINGAR</button><button class="home-hero-button duel" type="button" data-go-view="duels">⚔&nbsp; DUELLEN</button><button class="home-hero-button friends" type="button" data-go-view="profile">♟&nbsp; VÄNNER</button></div></div><aside class="home-level-card" aria-label="Din nivå"><div class="home-level-badge">3</div><div><small>Din nivå</small><strong>Nivå 3</strong><em>Fritidsfiskare</em></div><div class="home-level-progress"><span></span></div><div class="home-level-meta"><span>1 170 / 1 800 XP</span><span>21%</span></div><small>Nästa nivå: Nivå 4<br>630 XP kvar</small></aside>
         </article>
         <article class="dashboard-card stats-card home-stats-card">
           <div class="stat-item"><img class="stat-icon stat-image" src="/bigplus/assets/totala-fangster-icon.png" alt=""><div class="stat-content"><span class="stat-label">Total fångster</span><strong id="statCatches">0</strong><small class="stat-change" id="statCatchesChange" hidden></small></div></div>
@@ -467,16 +479,14 @@
           <div class="stat-item"><span class="home-stat-symbol">★</span><div class="stat-content"><span class="stat-label">Personbästa</span><strong id="statBest">-- cm</strong><small id="statBestSpecies">Gädda</small></div></div>
         </article>
         <section class="dashboard-section home-personal-best-section">
-          <div class="section-heading"><div><h2>Personbästa</h2><p>Livstid är ditt manuella rekord. Bigplus är bästa godkända fångst.</p></div><button class="text-button" type="button" data-go-view="profile">Redigera</button></div>
-          <div class="personal-best-list" id="homePersonalBestList"></div>
+          <div class="section-heading"><h2>VÄDER NU</h2><button class="text-button" type="button" data-go-view="weather">Visa mer</button></div><div class="home-weather-preview"><div class="home-weather-main"><span>☁</span><strong>18°C</strong><small>Molnigt</small></div><p>⌖ Stockholm, Sverige</p><div class="home-weather-stats"><span>Vind<strong>3 m/s</strong></span><span>Lufttryck<strong>1015 hPa</strong></span><span>Luftfuktighet<strong>72%</strong></span></div><div class="home-weather-hours"><span>Nu<strong>18°</strong></span><span>12:00<strong>19°</strong></span><span>15:00<strong>20°</strong></span><span>18:00<strong>19°</strong></span><span>21:00<strong>17°</strong></span></div></div><div class="personal-best-list" id="homePersonalBestList" hidden></div>
         </section>
           <section class="dashboard-section home-latest-catches-section">
           <div class="section-heading home-catch-heading"><h2>Senaste fångster</h2><div class="home-catch-heading-actions"><div class="home-catch-view-toggle" role="group" aria-label="Visning av senaste fångster"><button class="view-toggle-button is-active" type="button" data-catch-view="list" aria-pressed="true" title="Visa som lista"><span aria-hidden="true"></span><span class="sr-only">Lista</span></button><button class="view-toggle-button" type="button" data-catch-view="grid" aria-pressed="false" title="Visa som bildrutnät"><span aria-hidden="true"></span><span class="sr-only">Bildrutnät</span></button></div><button class="text-button" type="button" data-go-view="catches">Visa alla</button></div></div>
           <div class="catch-list home-catch-list" id="homeCatchList"></div>
         </section>
         <section class="dashboard-section home-competition-section">
-          <div class="section-heading"><h2>Pågående tävlingar</h2><button class="text-button" type="button" data-go-view="competitions">Visa alla</button></div>
-          <div class="home-competition-list" id="homeCompetitionList"></div>
+          <div class="section-heading"><h2>KOMMANDE FISKETUR</h2><button class="text-button" type="button" data-go-view="journal">Visa alla</button></div><div class="home-tour-preview"><div class="home-map-preview"><span>●</span><span>●</span><span>●</span></div><h3>Öringjakt i Årsjön</h3><p>Årsjön, Värmland<br>Lördag 3 aug. 06:00</p><small>♧ 2 vänner　⌁ 4.5 km　◷ 6 h</small><button class="primary-button" type="button" data-go-view="journal">VISA TUR</button></div><div class="home-competition-list" id="homeCompetitionList" hidden></div>
         </section>
 
         <section class="dashboard-section home-achievement-section">
@@ -484,19 +494,18 @@
           <div id="homeAchievementList" class="home-achievement-list"></div>
         </section>
         <section class="dashboard-section home-tournament-section">
-          <div class="section-heading"><h2>Pågående turnering</h2><button class="text-button" type="button" data-go-view="competitions">Visa alla</button></div>
-          <div id="homeTournamentBlock"></div>
+          <div class="section-heading"><h2>VECKANS UTMANING</h2><span class="section-muted">5 dagar kvar</span></div><div class="home-challenge-preview"><h3>Fånga 5 arter denna vecka</h3><strong>4 / 5</strong><div class="home-challenge-progress"><span></span></div><b>Belöning: 150 XP</b><p>Andra utmaningar</p><div>🐟　Mät 3 gäddor över 80 cm <strong>1 / 3　›</strong></div></div><div id="homeTournamentBlock" hidden></div>
         </section>
+        <section class="dashboard-section home-species-section"><div class="section-heading"><h2>MÄT ÖVERSIKT</h2><button class="text-button" type="button" data-go-view="measure">Visa alla</button></div><div class="home-species-grid"><article><img src="/bigplus/assets/home/oring.png" alt="Öring"><strong>Öring</strong><small>42%</small></article><article><img src="/bigplus/assets/home/gadda.png" alt="Gädda"><strong>Gädda</strong><small>25%</small></article><article><img src="/bigplus/assets/home/abborre.png" alt="Abborre"><strong>Abborre</strong><small>17%</small></article><article><img src="/bigplus/assets/home/sik.png" alt="Sik"><strong>Sik</strong><small>16%</small></article></div></section>
         <section class="dashboard-section home-activity-section">
-          <div class="section-heading"><h2>Aktivitet</h2><button class="text-button" type="button" data-go-view="catches">Visa all aktivitet&nbsp; </button></div>
-          <div class="home-activity-list" id="homeActivityList"></div>
+          <div class="section-heading"><h2>DIN RANKING</h2><button class="text-button" type="button" data-go-view="competitions">Visa full ranking</button></div><div class="home-ranking-preview"><div><strong>#128</strong><span> i Sverige</span><b>+12 placeringar</b><div class="home-ranking-progress"></div><small>430 XP kvar till nästa placering</small></div><ol><li>126　Erik Andersson <span>1 980 XP</span></li><li>127　Johan Olsson <span>1 290 XP</span></li><li class="current">128　Kristian Paso <span>1 170 XP</span></li><li>129　Patrik Nilsson <span>1 050 XP</span></li><li>130　Andreas Berg <span>980 XP</span></li></ol></div><div class="home-activity-list" id="homeActivityList" hidden></div>
         </section>
         <section class="dashboard-section home-badge-section">
           <div class="section-heading"><h2>Nästa badge</h2></div>
           <article class="home-badge-card" id="homeNextBadge"></article>
         </section>
         <section class="dashboard-section home-friends-online-section">
-          <div class="section-heading"><h2>Vänner</h2><button class="text-button" type="button" data-go-view="profile">Visa vänner</button></div>
+          <div class="section-heading"><h2>VÄNNER &amp; DUELLER</h2><button class="text-button" type="button" data-go-view="profile">Visa alla</button></div>
           <div class="home-friends-online-list" id="homeFriendsOnlineList"></div>
         </section>
         <button class="primary-button home-catch-button" type="button" data-go-view="measure"> &nbsp; Ny fångst - Mät fisk</button>
@@ -779,12 +788,15 @@
             <section class="journal-reference-map-panel">
               <div id="journalMapReference" class="journal-map-reference-canvas" aria-label="Interaktiv karta f&ouml;r att planera fisketuren"></div>
               <div class="journal-reference-map-stats"><span><b>&#8734;</b><small>Total str&auml;cka</small><strong id="journalReferenceDistance">28,4 km</strong></span><span><b>&#9201;</b><small>Total tid</small><strong>6 h 30 min</strong></span><span><b>&#9973;</b><small id="journalReferenceRouteLabel">B&aring;t via vatten</small><strong id="journalReferenceTravelTime">1 h 35 min</strong></span><span><b>&#128031;</b><small>Planerad fisketid</small><strong>4 h 45 min</strong></span></div>
-              <div class="journal-mode-switcher" id="journalModeSwitcher" role="tablist" aria-label="L&auml;ge f&ouml;r fisketur"><button type="button" role="tab" data-journal-mode="create">+ &nbsp; Skapa l&auml;ge</button><button type="button" role="tab" data-journal-mode="edit">&#9998; &nbsp; Redigera l&auml;ge</button></div>
+              <div class="journal-mode-switcher" id="journalModeSwitcher" role="tablist" aria-label="L&auml;ge f&ouml;r fisketur"><button type="button" role="tab" data-journal-mode="create">+ &nbsp; Skapa Plan</button><button type="button" role="tab" data-journal-mode="edit">&#9998; &nbsp; Redigera Plan</button></div>
               <div class="journal-mode-context" id="journalModeContext"><strong id="journalModeTitle">Redigera din plan</strong><span id="journalModeDescription">&Auml;ndra stopp, f&auml;rds&auml;tt och m&aring;l direkt p&aring; kartan.</span></div>
+              <form class="journal-create-plan-dialog" id="journalCreatePlanDialog" hidden><div class="journal-dialog-heading"><strong>Skapa ny plan</strong><button type="button" id="journalCreatePlanCancel" aria-label="St&auml;ng">&times;</button></div><label class="journal-field-label">Rubrik<input id="journalCreatePlanTitle" type="text" placeholder="Till exempel Kv&auml;llstur i sk&auml;rg&aring;rden" maxlength="80" required></label><div class="journal-dialog-actions"><button type="button" class="journal-dialog-secondary" id="journalCreatePlanCancelSecondary">Avbryt</button><button type="submit" class="journal-reference-primary-button">Skapa</button></div></form>
               <div class="journal-map-quick-layers" id="journalMapQuickLayers" aria-label="Viktiga kartlager"><button class="active" type="button" data-journal-quick-layer="boat_ramps">&#9973; B&aring;tramper</button><button class="active" type="button" data-journal-quick-layer="parking">P Parkering</button><button class="active" type="button" data-journal-quick-layer="restaurant">&#127860; Mat</button><button class="active" type="button" data-journal-quick-layer="camping">&#9968; Camping</button><button class="active" type="button" data-journal-quick-layer="fuel">&#9981; Br&auml;nsle</button><button class="active" type="button" data-journal-quick-layer="weather">&#9728; V&auml;der</button></div>
               <div class="journal-route-mode-badge" id="journalRouteModeBadge">&#9973; &nbsp; Rutten f&ouml;ljer vatten</div>
-              <div class="journal-map-reference-hint" id="journalMapReferenceHint"><strong>Klicka p&aring; kartan</strong><span>f&ouml;r att l&auml;gga till destination</span></div>
-              <form class="journal-destination-dialog" id="journalDestinationDialog" hidden><div class="journal-dialog-heading"><strong>Ny destination</strong><button type="button" id="journalDestinationDialogClose" aria-label="St&auml;ng">&times;</button></div><label class="journal-field-label">Platsnamn<input id="journalDialogName" type="text" placeholder="Till exempel Vassvik" maxlength="60" required></label><div class="journal-dialog-grid"><label class="journal-field-label">Typ<select id="journalDialogType"><option value="fishing">Fiske</option><option value="boat_ramp">B&aring;tramp</option><option value="parking">Parkering</option><option value="restaurant">Mat</option><option value="camping">Camping</option><option value="fuel">Br&auml;nsle</option><option value="other">Annat</option></select></label><label class="journal-field-label">Tid h&auml;r<select id="journalDialogDuration"><option value="30">30 min</option><option value="45" selected>45 min</option><option value="60">1 tim</option><option value="90">1 h 30</option><option value="120">2 tim</option></select></label></div><div class="journal-dialog-actions"><button type="button" class="journal-dialog-secondary" id="journalDestinationDialogCancel">Avbryt</button><button type="submit" class="journal-reference-primary-button">L&auml;gg till</button></div></form>
+              <div class="journal-map-reference-hint" id="journalMapReferenceHint"><strong>Planera n&auml;sta plats</strong><span>Tryck p&aring; L&auml;gg till plats och klicka sedan p&aring; kartan</span></div>
+               <form class="journal-destination-dialog" id="journalDestinationDialog" hidden><div class="journal-dialog-heading"><strong>Ny destination</strong><button type="button" id="journalDestinationDialogClose" aria-label="St&auml;ng">&times;</button></div><label class="journal-field-label">Rubrik<input id="journalDialogName" type="text" placeholder="Till exempel Vassvik" maxlength="60" required></label><div class="journal-dialog-grid"><label class="journal-field-label">Typ<select id="journalDialogType"><option value="fishing">Fiske</option><option value="boat_ramp">B&aring;tramp</option><option value="parking">Parkering</option><option value="restaurant">Mat</option><option value="camping">Camping</option><option value="fuel">Br&auml;nsle</option><option value="other">Annat</option></select></label><label class="journal-field-label">Tid h&auml;r<select id="journalDialogDuration"><option value="30">30 min</option><option value="45" selected>45 min</option><option value="60">1 tim</option><option value="90">1 h 30</option><option value="120">2 tim</option></select></label><label class="journal-field-label">F&auml;rds&auml;tt<select id="journalDialogTransport"><option value="car" selected>Bil</option><option value="boat">B&aring;t</option><option value="walk">G&aring;ng</option></select></label><label class="journal-field-label journal-boat-only-field">B&aring;ttyp<select id="journalDialogBoatType"><option>Aluminiumb&aring;t</option><option>Bassboat</option><option>Gummib&aring;t</option><option>Kajak</option><option>Annan</option></select></label><label class="journal-field-label journal-boat-only-field">Motor (hk)<select id="journalDialogMotor"><option>40 hk</option><option>60 hk</option><option>100 hk</option><option>115 hk</option><option>150 hk</option><option>Anpassad</option></select></label><label class="journal-field-label journal-fishing-only-field">M&aring;lart<select id="journalDialogTarget"><option>G&auml;dda</option><option>Abborre</option><option>G&ouml;s</option><option>&Ouml;ring</option><option>Lax</option><option>Annan</option></select></label></div><div class="journal-dialog-actions"><button type="button" class="journal-dialog-secondary" id="journalMoveMarkerButton">&#128205; Flytta mark&ouml;r</button><button type="button" class="journal-dialog-secondary" id="journalDestinationDialogCancel">Avbryt</button><button type="submit" class="journal-reference-primary-button">Spara</button></div></form>
+              <aside class="journal-destination-quick-actions" id="journalDestinationQuickActions" hidden aria-label="Snabbval för ny plats"><strong>Snabbval</strong><button type="button" id="journalQuickPause">&#127869; Paus</button></aside>
+              <form class="journal-pause-dialog" id="journalPauseDialog" hidden><div class="journal-dialog-heading"><strong>Lägg in paus</strong><button type="button" id="journalPauseDialogClose" aria-label="Stäng">&times;</button></div><label class="journal-field-label">Rubrik<input id="journalPauseTitle" type="text" placeholder="Till exempel Lunch vid sjön" maxlength="60" required></label><label class="journal-field-label">Tid för lunch (min)<input id="journalPauseDuration" type="number" min="5" max="240" step="5" value="30" required></label><label class="journal-field-label">Övrigt<textarea id="journalPauseNotes" rows="3" placeholder="Till exempel grillplats eller ta med kaffe"></textarea></label><div class="journal-dialog-actions"><button type="button" class="journal-dialog-secondary" id="journalPauseDialogCancel">Avbryt</button><button type="submit" class="journal-reference-primary-button">Spara paus</button></div></form>
               <div class="journal-reference-map-controls"><button id="journalReferenceZoomIn" type="button" aria-label="Zooma in">+</button><button id="journalReferenceZoomOut" type="button" aria-label="Zooma ut">&minus;</button><button id="journalReferenceFitRoute" type="button" aria-label="Visa hela rutten">&#10148;</button></div>
               <div class="journal-reference-map-tabs" id="journalReferenceMapTabs" role="tablist" aria-label="Kartlager"><button type="button" class="active" data-journal-reference-layer="map">Karta</button><button type="button" data-journal-reference-layer="satellite">Satellit</button><button type="button" data-journal-reference-layer="depth">Djup</button><button type="button" data-journal-reference-layer="roads">V&auml;gar</button><button type="button" data-journal-reference-layer="wind">Vind</button><button type="button" aria-label="Fler kartlager">&#9776;</button></div>
             </section>
@@ -795,7 +807,9 @@
             </div>
           </div>
           <aside class="journal-reference-right">
-            <section class="journal-reference-panel journal-plan-reference"><div class="journal-reference-heading"><h2 id="journalReferencePlanTitle">&#9876; Din plan</h2><span id="journalReferencePlanSummary">4 stopp &nbsp;&middot;&nbsp; 56 km</span></div><div id="journalReferencePlanStops"></div><button class="journal-dashed-button" id="journalReferenceAddStop" type="button">+ &nbsp; L&auml;gg till destination</button></section>
+            <section class="journal-reference-panel journal-spot-info-list-reference" aria-live="polite"><div class="journal-reference-heading"><h2>&#128205; Platser</h2><span id="journalSpotInfoCount">0 platser</span></div><div id="journalSpotInfoList" class="journal-spot-info-list"></div></section>
+            <section class="journal-reference-panel journal-spot-info-reference" aria-live="polite"><div class="journal-reference-heading"><div><h2>&#128205; Redigera plats</h2><span id="journalInfoSpotPosition">Ingen plats vald</span></div><span class="journal-edit-state">Aktiv pin</span></div><form id="journalSelectedSpotForm" class="journal-selected-spot-form"><p id="journalInfoSpotEmpty" class="journal-selected-spot-empty">V&auml;lj en pin p&aring; kartan eller i listan.</p><div class="journal-selected-spot-fields" hidden><p class="journal-selected-spot-coordinates" id="journalInfoSpotCoordinates">-</p><label>Rubrik<input id="journalInfoEditName" type="text" maxlength="60" required></label><div class="journal-selected-spot-grid"><label>Tid h&auml;r<select id="journalInfoEditDuration"><option value="15">15 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option><option value="90">90 min</option><option value="120">2 h</option></select></label><label>F&auml;rds&auml;tt<select id="journalInfoEditTransport"><option value="car">Bil</option><option value="walk">G&aring;ng</option><option value="boat">B&aring;t</option></select></label></div><label id="journalInfoEditMotorField">Motorstorlek<select id="journalInfoEditMotor"><option value="20 hk">20 hk</option><option value="40 hk">40 hk</option><option value="60 hk">60 hk</option><option value="115 hk">115 hk</option></select></label><div class="journal-selected-spot-grid"><label>M&aring;lart<select id="journalInfoEditTarget"><option value="G&auml;dda">G&auml;dda</option><option value="Abborre">Abborre</option><option value="G&ouml;s">G&ouml;s</option><option value="Paus">Paus</option></select></label><label>Metod<input id="journalInfoEditMethod" type="text" maxlength="80" placeholder="Till exempel spinnfiske"></label></div><label>Anteckningar<textarea id="journalInfoEditNotes" rows="3" maxlength="200" placeholder="Skriv en anteckning"></textarea></label><div class="journal-selected-spot-actions"><button type="button" class="journal-form-secondary" id="journalInfoMoveMarkerButton">&#128205; Flytta mark&ouml;r</button><button type="submit" class="journal-reference-primary-button">Spara &auml;ndringar</button></div></div></form></section>
+            <section class="journal-reference-panel journal-plan-reference"><div class="journal-reference-heading"><div><h2 id="journalReferencePlanTitle">&#128506; Min f&auml;rdplan</h2><span id="journalReferencePlanSummary">4 stopp &nbsp;&middot;&nbsp; 56 km</span></div><button type="button" class="journal-switch-plan-button" id="journalSwitchPlanButton">&#8646; &nbsp; Byt plan</button></div><label class="journal-plan-start-time">Starttid<input id="journalPlanStartTime" type="time" value="08:30"></label><div class="journal-plan-picker" id="journalPlanPicker" hidden><div class="journal-plan-picker-heading"><strong>V&auml;lj sparad plan</strong><button type="button" id="journalPlanPickerClose" aria-label="St&auml;ng">&times;</button></div><div id="journalPlanOptions"></div></div><div id="journalReferencePlanStops"></div><button class="journal-dashed-button" id="journalReferenceAddStop" type="button">+ &nbsp; L&auml;gg till plats</button><p class="journal-plan-tip">&#128161; Dra och sl&auml;pp stoppen f&ouml;r att &auml;ndra ordningen p&aring; dina platser.</p></section>
             <section class="journal-reference-panel journal-tour-goals-reference"><div class="journal-reference-heading"><h2>&#127919; M&aring;l f&ouml;r turen</h2></div><div class="journal-tour-goal-grid"><button type="button" id="journalGoalPike">&#128031;<strong>F&aring;nga g&auml;dda</strong></button><button type="button">&#127800;<strong>Prova jigg</strong></button><button type="button">&#9201;<strong>Fiska 45 min<br>vid grynnan</strong></button><button type="button">&#128247;<strong>Ta foto och<br>logga f&aring;ngst</strong></button></div><button class="journal-goal-button" id="journalReferenceAddTourGoal" type="button">+ &nbsp; L&auml;gg till m&aring;l</button></section>
             <section class="journal-reference-panel journal-ready-reference"><h2>&#128276; Redo att byta spot</h2><p>N&auml;sta stopp: <strong id="journalNextStopName">Krokviken</strong></p><hr><small>Tid kvar p&aring; nuvarande stopp</small><strong class="journal-ready-time">01:15:00</strong><p>Vi tipsar om att forts&auml;tta fiska h&auml;r!</p><button id="journalNextStopButton" type="button">Hoppa till n&auml;sta stopp</button></section>
           </aside>
@@ -939,151 +953,10 @@
         <div class="achievement-grid achievement-grid-detailed" id="achievementGrid"></div>
       </section>
 
-      <section class="app-view profile-rank-view profile-reference-view" id="profileView" data-app-view="profile" hidden>
-        <div class="profile-reference-shell">
-          <section class="profile-reference-hero">
-            <article class="profile-id-panel profile-hero-card">
-              <span id="profileRankedAvatar" class="ranked-avatar ranked-avatar-xl rank-blue" data-level="1">
-                <span class="ranked-avatar-frame"><span class="ranked-avatar-photo avatar-placeholder" id="profileAvatar">B</span></span>
-                <strong>1</strong>
-              </span>
-              <div class="profile-hero-copy">
-                <div class="profile-name-row">
-                  <h2 id="profileName">Logga in</h2>
-                  <button class="profile-edit-button" type="button" id="profileSettingsButton" aria-label="Inställningar" title="Inställningar"></button>
-                </div>
-                <p id="profileEmail">Logga in för att få ett eget konto.</p>
-                <div class="profile-rank-title"><strong id="profileSidebarLevel">Nybörjare</strong><small id="profileSidebarLevelNumber">Nivå 1</small></div>
-                <div class="member-code-line"><strong id="profileMemberCode">#-----</strong><button class="member-code-copy" id="copyMemberCode" type="button">Kopiera</button></div>
-                <div class="profile-live-controls" id="profileLiveControlSlot"><div class="live-controls"><button class="live-toggle" id="liveStatusButton" type="button" aria-pressed="false"><span class="live-dot" aria-hidden="true"></span><span id="liveStatusLabel">Aktivera LIVE</span></button></div><div class="profile-live-channel" id="profileLiveChannel" hidden></div></div>
-              </div>
-            </article>
+      <section class="app-view workspace-view" id="workspaceView" data-app-view="workspace" hidden></section>
 
-            <article class="profile-rank-card">
-              <div class="profile-rank-total-card">
-                <span class="profile-rank-crown" aria-hidden="true">🏆</span>
-                <small>Totalt av alla medlemmar</small>
-                <strong id="profileRankNumber">#128</strong>
-                <em>i Sverige</em>
-                <span id="profileFriendRank">#12 bland vänner</span>
-              </div>
-              <div class="profile-rank-side-list">
-                <span><small>Bland vänner</small><strong id="profileRankFriendsList">#12</strong></span>
-                <span><small>Nästa placering</small><strong id="profileRankNextList">#127</strong></span>
-                <span><small>XP kvar</small><strong id="profileRankXpLeftList">120 XP</strong></span>
-                <span><small>Din nivå</small><strong id="profileRankLevelList">Nivå 3</strong></span>
-              </div>
-            </article>
-
-            <article class="profile-next-placement-card">
-              <small>NÄSTA PLACERING</small>
-              <strong id="profileNextRankNumber">#127</strong>
-              <span id="profileNextRankXp">120 XP kvar</span>
-              <p>Passera <b id="profileNextRankPerson">Johan Olsson</b></p>
-            </article>
-          </section>
-
-          <section class="profile-hero-xp-band" aria-label="Din XP-progress">
-            <div>
-              <span class="profile-level-progress">
-                <i id="profileLevelProgressBar" style="width:0%"></i>
-                <span class="profile-progress-copy"><strong id="profileLevelXp">0 / 500 XP</strong><small id="profileXpToNext">500 XP kvar</small></span>
-                <b id="profileLevelPercent">0%</b>
-              </span>
-            </div>
-          </section>
-
-          <div class="profile-reference-grid">
-            <main class="profile-reference-main">
-              <section class="profile-panel profile-next-goals">
-                <div class="section-heading"><h2>⚡ Klättra snabbare - gör detta nu</h2><span id="profileMissionCount">0 / 0</span></div>
-                <div id="profileNextMissions"></div>
-                <div class="profile-progress-pair" id="profileQuickProgress"></div>
-                <button class="text-button" type="button" id="profileShowAllMissions">Visa andra uppdrag →</button>
-              </section>
-
-              <section class="profile-stats-boost-row">
-                <article class="profile-panel achievement-summary">
-                  <h2>Din statistik</h2>
-                  <div class="achievement-mini-grid">
-                    <span><strong id="profileCatchCount">0</strong><small>Fångster</small></span>
-                    <span><strong id="profileSidebarTrips">0</strong><small>Fisketurer</small></span>
-                    <span><strong id="profileSidebarSpecies">0</strong><small>Arter</small></span>
-                    <span><strong>7 dagar</strong><small>Streak</small></span>
-                    <span><strong id="profileSidebarTotalWeight">0 kg</strong><small>Högsta vikt</small></span>
-                  </div>
-                  <span class="profile-hidden-stat" hidden><strong id="profileSidebarCatches">0</strong><strong id="profileSidebarTopWeight">0</strong><strong id="profileBigplusCount">0</strong><strong id="profileCompetitionCount">0</strong></span>
-                </article>
-                <article class="profile-panel profile-weekly-panel">
-                  <div class="section-heading"><h2>Veckans boost</h2><span>5 dagar kvar</span></div>
-                  <h3>Fånga 5 arter denna vecka</h3>
-                  <span class="profile-level-progress"><i id="profileWeeklyChallengeBar" style="width:0%"></i></span>
-                  <small id="profileWeeklyChallengeProgress">0 / 5 arter</small>
-                  <div class="profile-weekly-reward"><b>150 XP</b><span>Utmanings-märke</span></div>
-                </article>
-              </section>
-
-              <section class="profile-content-grid">
-                <article class="profile-panel profile-recent-catches-panel">
-                  <div class="section-heading"><h2>Senaste fångster</h2><button class="text-button" type="button" data-go-view="catches">Visa alla</button></div>
-                  <div class="profile-recent-catches" id="profileRecentCatches"></div>
-                </article>
-                <article class="profile-panel profile-activity-panel">
-                  <div class="section-heading"><h2>Aktivitet</h2><button class="text-button" type="button" data-go-view="catches">Visa alla</button></div>
-                  <div id="profileRecentActivity"></div>
-                </article>
-                <article class="profile-panel profile-history-panel">
-                  <div class="section-heading"><h2>Din XP-resa</h2><select aria-label="Period"><option>Senaste 90 dagarna</option></select></div>
-                  <div class="profile-history-chart"><span style="height:12%"></span><span style="height:20%"></span><span style="height:24%"></span><span style="height:34%"></span><span style="height:42%"></span><span style="height:57%"></span><span style="height:66%"></span><span style="height:78%"></span><span style="height:90%"></span><b id="profileHistoryXp">0 XP</b></div>
-                </article>
-                <article class="profile-panel profile-level-map">
-                  <div class="section-heading"><div><h2>Din nivåresa</h2><span id="profileLevelSummary">Visar dina närmaste nivåer</span></div><button class="text-button" type="button" id="profileShowAllLevels">Visa alla nivåer</button></div>
-                  <div class="profile-level-track" id="profileLevelTrack"></div>
-                </article>
-              </section>
-
-              <section class="dashboard-section friends-section profile-friends-management">
-                <div class="section-heading"><div><span class="section-kicker">GEMENSKAP</span><h2>Vänner</h2><p>Följ framsteg, se LIVE-status och jämför era största fiskar.</p></div></div>
-                <form class="friend-add-form" id="friendAddForm"><label class="sr-only" for="friendSearchInput">Sök vän</label><input id="friendSearchInput" type="search" placeholder="Sök medlemsnummer, namn eller e-post"><button class="primary-button" type="submit">Sök medlem</button></form>
-                <div class="friend-suggestions" id="friendSuggestions"></div>
-                <div class="friend-list" id="friendList"></div>
-                <div class="friend-tournaments" id="friendTournamentList"></div>
-              </section>
-              <button class="secondary-button logout-button" id="logoutButton" type="button" hidden>Logga ut</button>
-            </main>
-
-            <aside class="profile-reference-side">
-              <section class="profile-panel profile-ranking-panel">
-                <div class="section-heading"><h2>Ranking - nära dig</h2></div>
-                <div id="profileRankingNear"></div>
-                <button class="secondary-button" type="button" data-go-view="competitions">Visa full ranking →</button>
-              </section>
-              <section class="profile-panel profile-badge-panel"><div class="section-heading"><h2>Utvalda märken</h2><button class="text-button" type="button" data-go-view="achievements">Visa alla</button></div><div class="profile-featured-badges" id="profileFeaturedBadges"></div></section>
-              <section class="profile-panel profile-compare-panel"><div class="section-heading"><h2>Jämför med vänner</h2><button class="text-button" type="button" data-go-view="profile">Visa alla</button></div><div class="profile-friend-compare" id="profileFriendCompare"></div></section>
-              <section class="profile-panel profile-online-panel"><div class="section-heading"><h2>Vänner</h2></div><div id="profileOnlineFriends"></div></section>
-            </aside>
-          </div>
-        </div>
-
-      <section class="auth-modal live-modal" id="liveSettingsModal" hidden>
-        <div class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="liveSettingsTitle">
-          <button class="modal-close" id="closeLiveSettingsButton" type="button" aria-label="Stäng"></button>
-          <p class="eyebrow blue-eyebrow">LIVE</p><h2 id="liveSettingsTitle">Gå live</h2><p class="auth-intro">Välj hur länge du vill synas för dina vänner.</p>
-          <label class="auth-field" for="liveDurationModalSelect">Visa LIVE i<select id="liveDurationModalSelect"><option value="30">30 minuter</option><option value="60" selected>1 timme</option><option value="120">2 timmar</option><option value="240">4 timmar</option></select></label>
-          <label class="auth-field" for="liveChannelInput">Din streamkanal (valfritt)<input id="liveChannelInput" type="url" placeholder="https://twitch.tv/din-kanal"></label>
-          <button class="primary-button auth-submit" id="confirmLiveButton" type="button">Starta LIVE</button><p class="auth-message" id="liveSettingsMessage" role="status"></p>
-        </div>
-      </section>
-
-      <section class="auth-modal profile-mission-modal" id="profileMissionModal" hidden>
-        <div class="auth-dialog profile-mission-dialog" role="dialog" aria-modal="true" aria-labelledby="profileMissionModalTitle">
-          <button class="modal-close" id="closeProfileMissionModal" type="button" aria-label="Stng"></button>
-          <p class="eyebrow blue-eyebrow">UPPDRAG</p><h2 id="profileMissionModalTitle">Alla uppdrag</h2><p class="auth-intro">Välj nästa steg i din niväresa.</p>
-          <div class="profile-all-missions-list" id="profileAllMissions"></div>
-        </div>
-      </section>
-
-      <section class="auth-modal" id="authModal" hidden>
+      <div id="profileViewMount"></div>
+      <section class="auth-modal" id="authModal">
         <div class="auth-dialog auth-welcome-dialog" role="dialog" aria-modal="true" aria-labelledby="authTitle">
           <button class="modal-close" id="closeAuthButton" type="button" aria-label="Stäng"></button>
           <div class="auth-mobile-hero"><img src="/bigplus/assets/login-mobile-hero.png" alt="Fiskare med fångst" loading="lazy" decoding="async"></div>
@@ -1111,7 +984,7 @@
                 </div>
                 <button class="auth-forgot-password" type="button">Glömt lösenord?</button>
               </div>
-              <small class="auth-note">Testkonto: e-post <strong>Admin</strong>, lösenord <strong>Admin</strong>.</small>
+              <small class="auth-note">Lokalt testkonto: <strong>paso.kristian@gmail.com</strong>, lösenord <strong>Admin</strong>.</small>
             </div>
           </div>
           <div class="auth-benefits"><span><b></b> Spara fångster</span><span><b></b> Tävla med vänner</span><span><b></b> Samla achievements</span></div>
@@ -1132,20 +1005,6 @@
         </div>
       </section>
 
-      <section class="auth-modal" id="profileSettingsModal" hidden>
-        <div class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="profileSettingsTitle">
-          <button class="modal-close" id="closeProfileSettingsButton" type="button" aria-label="Stäng"></button>
-          <p class="eyebrow blue-eyebrow">PROFIL</p><h2 id="profileSettingsTitle">Ändra profil</h2><p class="auth-intro">Uppdatera hur du visas i Bigplus.</p>
-          <form id="profileSettingsForm">
-            <label class="auth-field" for="profileNameInput">Namn<input id="profileNameInput" type="text" required autocomplete="name"></label>
-            <label class="auth-field" for="profilePhotoInput">Profilbild<input id="profilePhotoInput" type="file" accept="image/*"></label>
-            <label class="auth-field" for="profileUnitInput">Mätenhet<select id="profileUnitInput"><option value="cm">Centimeter (cm)</option><option value="inch">Tum (inch)</option></select></label>
-            <label class="profile-visibility-toggle" for="profileVisibilityInput"><input id="profileVisibilityInput" type="checkbox"><span><strong>Gör profilen synlig</strong><small>Andra medlemmar kan hitta dig och skicka vänförfrågningar.</small></span></label>
-            <div class="settings-photo-preview" id="settingsPhotoPreview">AP</div>
-            <button class="primary-button auth-submit" type="submit">Spara profil</button><p class="auth-message" id="profileSettingsMessage" role="status"></p>
-          </form>
-        </div>
-      </section>
     </main>
 
     <dialog class="hand-calibration-dialog" id="handCalibrationDialog" aria-labelledby="handCalibrationTitle">
@@ -1196,7 +1055,7 @@
         window.addEventListener('load', () => { if (!window.maplibregl) loadMapLibreFallback(); }, { once: true });
       })();
     </script>
-    <script type="module" src="/bigplus/js/app-shell.js?v=20260830-depth-v8"></script>
+    <script type="module" src="/bigplus/js/profile-view-loader.js?v=20260903-profile-partial-1"></script>
     <script>
       document.addEventListener("DOMContentLoaded", () => {
         const mapButton = document.getElementById("showCatchesMap");

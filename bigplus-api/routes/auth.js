@@ -4,6 +4,8 @@ const express = require("express");
 const router = express.Router();
 const COOKIE_NAME = "bigplus_session";
 const SESSION_DAYS = 30;
+const volatileSessions = new Map();
+const INITIAL_ADMIN_EMAIL = "paso.kristian@gmail.com";
 
 function database(req, res) {
   if (!req.app.locals.mongo) {
@@ -11,6 +13,19 @@ function database(req, res) {
     return null;
   }
   return req.app.locals.mongo;
+}
+
+async function ensureInitialAdmin(db) {
+  const marker = await db.collection("settings").findOne({ _id: "initial-admin-bootstrap" });
+  if (marker?.completedAt) return;
+  const user = await db.collection("users").findOne({ email: INITIAL_ADMIN_EMAIL });
+  if (!user) return;
+  if (user.role !== "admin") await db.collection("users").updateOne({ _id: user._id }, { $set: { role: "admin" } });
+  await db.collection("settings").updateOne(
+    { _id: "initial-admin-bootstrap" },
+    { $set: { email: INITIAL_ADMIN_EMAIL, completedAt: new Date() } },
+    { upsert: true }
+  );
 }
 
 function cleanEmail(value) {
@@ -123,14 +138,26 @@ async function ensureDefaultGroup(db, userId = null) {
   await db.collection("groups").updateOne({ slug: "bigplus-medlemmar" }, update, { upsert: true });
 }
 
-async function createSession(db, userId) {
+async function createSession(db, userId, allowVolatile = false) {
   const token = sessionToken();
-  await db.collection("sessions").insertOne({
+  const sessionWriteTimeoutMs = allowVolatile ? 3500 : 10000;
+  const write = db.collection("sessions").insertOne({
     tokenHash: tokenHash(token),
     userId,
     createdAt: new Date(),
+    lastSeenAt: new Date(),
     expiresAt: new Date(Date.now() + SESSION_DAYS * 86400000)
-  });
+  }, { timeoutMS: sessionWriteTimeoutMs }).catch(() => {});
+  try {
+    await Promise.race([
+      write,
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`Sessionsdatabasen svarade inte inom ${sessionWriteTimeoutMs / 1000} sekunder.`)), sessionWriteTimeoutMs))
+    ]);
+  } catch (error) {
+    if (!allowVolatile) throw error;
+    volatileSessions.set(token, { userId, expiresAt: new Date(Date.now() + SESSION_DAYS * 86400000) });
+    console.warn("Sessionsdatabasen svarade inte; använder tillfällig lokal session.");
+  }
   return token;
 }
 
@@ -138,17 +165,27 @@ async function requireAuth(req, res, next) {
   try {
     const db = database(req, res);
     if (!db) return;
+    await ensureInitialAdmin(db);
     const token = cookieValue(req, COOKIE_NAME);
-    const session = token && await db.collection("sessions").findOne({ tokenHash: tokenHash(token), expiresAt: { $gt: new Date() } });
+    const storedSession = token && await db.collection("sessions").findOne({ tokenHash: tokenHash(token), expiresAt: { $gt: new Date() } });
+    const session = storedSession || (token && volatileSessions.get(token));
     const user = session && await db.collection("users").findOne({ _id: session.userId });
     if (!user) return res.status(401).json({ error: "Du måste vara inloggad." });
     await ensureDefaultGroup(db, user._id);
     req.user = await ensureMemberCode(db, user);
+    if (session._id) await db.collection("sessions").updateOne({ _id: session._id }, { $set: { lastSeenAt: new Date() } });
     req.db = db;
     next();
   } catch (error) {
     next(error);
   }
+}
+
+function requireAdmin(req, res, next) {
+  requireAuth(req, res, () => {
+    if (req.user.role !== "admin") return res.status(403).json({ error: "Administratörsbehörighet krävs." });
+    next();
+  });
 }
 
 router.post("/auth/register", async (req, res, next) => {
@@ -164,7 +201,8 @@ router.post("/auth/register", async (req, res, next) => {
     await users.createIndex({ memberCode: 1 }, { unique: true, partialFilterExpression: { memberCode: { $type: "string" } } });
     let memberCode = createMemberCode();
     while (await users.findOne({ memberCode }, { projection: { _id: 1 } })) memberCode = createMemberCode();
-    const user = { name, email, passwordHash: hashPassword(password), role: "user", photo: "", memberCode, createdAt: new Date() };
+    const isInitialAdmin = email === INITIAL_ADMIN_EMAIL;
+    const user = { name, email, passwordHash: hashPassword(password), role: isInitialAdmin ? "admin" : "user", photo: "", memberCode, createdAt: new Date() };
     const result = await users.insertOne(user);
     user._id = result.insertedId;
     await db.collection("groups").updateOne(
@@ -173,6 +211,7 @@ router.post("/auth/register", async (req, res, next) => {
       { upsert: true }
     );
     const token = await createSession(db, result.insertedId);
+    if (isInitialAdmin) await db.collection("settings").updateOne({ _id: "initial-admin-bootstrap" }, { $set: { email, completedAt: new Date() } }, { upsert: true });
     setSessionCookie(req, res, token);
     res.status(201).json({ user: publicUser(user) });
   } catch (error) {
@@ -185,15 +224,21 @@ router.post("/auth/login", async (req, res, next) => {
   try {
     const db = database(req, res);
     if (!db) return;
+    await ensureInitialAdmin(db);
     const email = cleanEmail(req.body?.email);
     const password = String(req.body?.password || "");
     const user = await db.collection("users").findOne({ email });
-    if (user) await ensureDefaultGroup(db, user._id);
     if (!user || !verifyPassword(password, user.passwordHash)) return res.status(401).json({ error: "E-post eller lösenord stämmer inte." });
-    const member = await ensureMemberCode(db, user);
-    const token = await createSession(db, member._id);
+    console.log(`Login verifierad for ${email}; skapar session.`);
+    const token = await createSession(db, user._id, ["localhost", "127.0.0.1"].includes(req.hostname));
     setSessionCookie(req, res, token);
-    res.json({ user: publicUser(member) });
+    console.log(`Login-svar skickat for ${email}.`);
+    res.json({ user: publicUser(user) });
+    // Profile enrichment must never delay a successful login response.
+    Promise.all([
+      ensureDefaultGroup(db, user._id),
+      ensureMemberCode(db, user)
+    ]).catch((error) => console.warn("Kunde inte komplettera medlemsprofilen", error.message));
   } catch (error) {
     next(error);
   }
@@ -203,10 +248,13 @@ router.get("/auth/me", async (req, res, next) => {
   try {
     const db = database(req, res);
     if (!db) return;
+    await ensureInitialAdmin(db);
     const token = cookieValue(req, COOKIE_NAME);
-    const session = token && await db.collection("sessions").findOne({ tokenHash: tokenHash(token), expiresAt: { $gt: new Date() } });
+    const storedSession = token && await db.collection("sessions").findOne({ tokenHash: tokenHash(token), expiresAt: { $gt: new Date() } });
+    const session = storedSession || (token && volatileSessions.get(token));
     const user = session && await db.collection("users").findOne({ _id: session.userId });
     if (!user) return res.status(401).json({ error: "Inte inloggad." });
+    if (session._id) await db.collection("sessions").updateOne({ _id: session._id }, { $set: { lastSeenAt: new Date() } });
     const member = await ensureMemberCode(db, user);
     res.json({ user: publicUser(member) });
   } catch (error) {
@@ -252,7 +300,10 @@ router.post("/auth/logout", async (req, res, next) => {
     const db = database(req, res);
     if (db) {
       const token = cookieValue(req, COOKIE_NAME);
-      if (token) await db.collection("sessions").deleteOne({ tokenHash: tokenHash(token) });
+      if (token) {
+        volatileSessions.delete(token);
+        await db.collection("sessions").deleteOne({ tokenHash: tokenHash(token) });
+      }
     }
     clearSessionCookie(req, res);
     res.status(204).end();
@@ -263,5 +314,7 @@ router.post("/auth/logout", async (req, res, next) => {
 
 module.exports = router;
 module.exports.requireAuth = requireAuth;
+module.exports.requireAdmin = requireAdmin;
+module.exports.ensureInitialAdmin = ensureInitialAdmin;
 module.exports.ensureDefaultGroup = ensureDefaultGroup;
 module.exports.ensureMemberCodeIndex = ensureMemberCodeIndex;
