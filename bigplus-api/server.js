@@ -18,10 +18,12 @@ const duelsRouter = require("./routes/duels");
 const sharingRouter = require("./routes/sharing");
 const friendsRouter = require("./routes/friends");
 const weatherRouter = require("./routes/weather");
+const plansRouter = require("./routes/plans");
 const adminRouter = require("./routes/admin");
 const { ensureDefaultGroup, ensureMemberCodeIndex, ensureInitialAdmin } = require("./routes/auth");
 
 const app = express();
+app.set("trust proxy", 1);
 let mongoState = process.env.MONGODB_URI ? "connecting" : "not_configured";
 
 // Atlas SRV records can fail with a local DNS resolver even when the cluster is healthy.
@@ -75,6 +77,7 @@ app.use("/api/bigplus", duelsRouter);
 app.use("/api/bigplus", sharingRouter);
 app.use("/api/bigplus", friendsRouter);
 app.use("/api/bigplus", weatherRouter);
+app.use("/api/bigplus", plansRouter);
 app.use("/api/bigplus", adminRouter);
 
 app.use((error, req, res, next) => {
@@ -105,6 +108,8 @@ async function connectMongo() {
     await ensureDefaultGroup(db);
     await ensureMemberCodeIndex(db);
     await ensureInitialAdmin(db);
+    await db.collection("fishing_plans").createIndex({ ownerId: 1, updatedAt: -1 });
+    await db.collection("fishing_plans").createIndex({ ownerId: 1, planId: 1 }, { unique: true });
     await db.collection("duelVotes").createIndex({ duelId: 1, userId: 1 }, { unique: true });
     mongoClient = client;
     app.locals.mongo = db;

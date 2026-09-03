@@ -1,6 +1,8 @@
 import { API_ROOT, LOCAL_API_ROOT, RENDER_API_ROOT } from "../api/config.js";
 import { $ } from "./dom.js";
 import { escapeHtml } from "./format.js";
+import { AUTH_API_ROOT } from "./api-root.js?v=20260903-account-api-1";
+import { currentAccount } from "./account.js";
 
 const JOURNAL_TRIPS_KEY = "bigplus_fishing_trips";
 const JOURNAL_PLANNER_KEY = "bigplus_journal_planner_state_v2";
@@ -60,6 +62,9 @@ let journalRouteTimeLabels = [];
 let journalRouteOverlay = null;
 let plannerBound = false;
 let mapReadyListenerBound = false;
+let remotePlans = null;
+let remotePlanSaveQueue = Promise.resolve();
+const remotePlanSaveTimers = new Map();
 
 if (Array.isArray(plannerState.fields.stops) && plannerState.fields.stops.length > 0) {
   SPOTS = plannerState.fields.stops.map((spot, index) => ({ ...spot, pinColorIndex: Number.isInteger(spot.pinColorIndex) ? spot.pinColorIndex : index % JOURNAL_PIN_COLORS.length, lngLat: Array.isArray(spot.lngLat) ? spot.lngLat.map(Number) : [18.66, 59.27] }));
@@ -88,11 +93,19 @@ function plannerPlanId() {
   return String(plannerState.fields.planId || "legacy-plan");
 }
 
-function readSavedPlans() {
+function plannerStorageKey(accountId = currentAccount()?.id) {
+  return accountId ? `${JOURNAL_PLANS_KEY}:${accountId}` : JOURNAL_PLANS_KEY;
+}
+
+function readLocalSavedPlans(key = plannerStorageKey()) {
   try {
-    const saved = JSON.parse(localStorage.getItem(JOURNAL_PLANS_KEY) || "[]");
+    const saved = JSON.parse(localStorage.getItem(key) || "[]");
     return Array.isArray(saved) ? saved.filter((plan) => plan && typeof plan === "object" && plan.id) : [];
   } catch { return []; }
+}
+
+function readSavedPlans() {
+  return currentAccount() && Array.isArray(remotePlans) ? remotePlans : readLocalSavedPlans();
 }
 
 function currentPlanSnapshot() {
@@ -112,23 +125,89 @@ function currentPlanSnapshot() {
   };
 }
 
+async function putRemotePlan(snapshot) {
+  if (!currentAccount()) return null;
+  try {
+    const response = await fetch(`${AUTH_API_ROOT}/plans/${encodeURIComponent(snapshot.id)}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(snapshot)
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch { return null; }
+}
+
+function queueRemotePlanSave(snapshot) {
+  if (!currentAccount()) return;
+  const existingTimer = remotePlanSaveTimers.get(snapshot.id);
+  if (existingTimer) window.clearTimeout(existingTimer);
+  const timer = window.setTimeout(() => {
+    remotePlanSaveTimers.delete(snapshot.id);
+    remotePlanSaveQueue = remotePlanSaveQueue.then(async () => {
+      const saved = await putRemotePlan(snapshot);
+      if (!saved || !Array.isArray(remotePlans)) return;
+      const next = remotePlans.filter((plan) => plan.id !== saved.id);
+      remotePlans = [saved, ...next];
+    });
+  }, 350);
+  remotePlanSaveTimers.set(snapshot.id, timer);
+}
+
 function saveCurrentPlanToLibrary() {
   const snapshot = currentPlanSnapshot();
   const plans = readSavedPlans();
   const existing = plans.findIndex((plan) => plan.id === snapshot.id);
   if (existing >= 0) plans[existing] = snapshot; else plans.unshift(snapshot);
-  localStorage.setItem(JOURNAL_PLANS_KEY, JSON.stringify(plans));
+  if (currentAccount()) {
+    remotePlans = plans;
+    queueRemotePlanSave(snapshot);
+  } else {
+    localStorage.setItem(JOURNAL_PLANS_KEY, JSON.stringify(plans));
+  }
   return snapshot;
 }
 
 function persistPlannerState() {
-  localStorage.setItem(JOURNAL_PLANNER_KEY, JSON.stringify(plannerState));
-  if (plannerState.fields.planId) saveCurrentPlanToLibrary();
+  if (currentAccount()) {
+    if (plannerState.fields.planId) saveCurrentPlanToLibrary();
+  } else {
+    localStorage.setItem(JOURNAL_PLANNER_KEY, JSON.stringify(plannerState));
+    if (plannerState.fields.planId) saveCurrentPlanToLibrary();
+  }
 }
 
 function persistPlannerStops() {
   plannerState.fields.stops = SPOTS.map((spot) => ({ ...spot, lngLat: [...spot.lngLat] }));
   persistPlannerState();
+}
+
+export async function refreshJournalPlans() {
+  const account = currentAccount();
+  if (!account) {
+    remotePlans = null;
+    return;
+  }
+  try {
+    const response = await fetch(`${AUTH_API_ROOT}/plans`, { credentials: "include" });
+    if (!response.ok) throw new Error("Planerna kunde inte hämtas.");
+    const plans = await response.json();
+    const merged = new Map((Array.isArray(plans) ? plans : []).filter((plan) => plan?.id).map((plan) => [plan.id, plan]));
+    const localCandidates = [...readLocalSavedPlans(plannerStorageKey(account.id)), ...readLocalSavedPlans(JOURNAL_PLANS_KEY)];
+    for (const candidate of localCandidates) {
+      const existing = merged.get(candidate.id);
+      if (!existing || String(candidate.savedAt || "") > String(existing.savedAt || "")) {
+        const saved = await putRemotePlan(candidate);
+        if (saved?.id) merged.set(saved.id, saved);
+      }
+    }
+    remotePlans = [...merged.values()].sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || "")));
+    if (remotePlans.length) switchPlan(remotePlans[0].id);
+    else renderReferencePlan();
+  } catch {
+    remotePlans = null;
+  }
 }
 
 function routeDistanceKm(coordinates) {
@@ -241,7 +320,7 @@ function journalMapStyle() {
     name: "BIGPLUS Trip Planner",
     glyphs: `${API_ROOT}/weather/map/fonts/{fontstack}/{range}.pbf`,
     sources: {
-      openmaptiles: { type: "vector", url: `${API_ROOT}/weather/map/planet?v=20260825-journal-1`, attribution: "OpenStreetMap contributors" },
+openmaptiles: { type: "vector", url: `${API_ROOT}/weather/map/planet?v=20260903-https-1`, attribution: "OpenStreetMap contributors" },
       journalRouteBoat: { type: "geojson", lineMetrics: true, data: boatRoute },
       journalRouteCar: { type: "geojson", lineMetrics: true, data: carRoute },
       journalRouteWalk: { type: "geojson", lineMetrics: true, data: carRoute },

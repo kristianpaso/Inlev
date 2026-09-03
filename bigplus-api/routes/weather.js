@@ -364,7 +364,9 @@ router.get("/weather/map/planet", async (req, res, next) => {
     const result = await fetchCachedJson("openfreemap:tilejson:planet", "https://tiles.openfreemap.org/planet", {
       fallbackSeconds: MAP_CACHE_SECONDS
     });
-    const origin = `${req.protocol}://${req.get("host")}`;
+    const forwardedProtocol = String(req.get("x-forwarded-proto") || "").split(",")[0].trim();
+    const protocol = forwardedProtocol === "https" ? "https" : req.protocol;
+    const origin = `${protocol}://${req.get("host")}`;
     const tileJson = {
       ...result.data,
       tiles: [`${origin}/api/bigplus/weather/map/tiles/{z}/{x}/{y}.pbf?v=20260806-weather-3`]

@@ -6,7 +6,7 @@ import {
 import { escapeHtml } from "./shell/format.js";
 import { loadManagedAchievements, renderAchievementPage, renderHomeAchievements, renderHomeNextBadge } from "./shell/achievements.js";
 import { renderPersonalBestLists } from "./shell/personal-bests.js";
-import { AUTH_API_ROOT } from "./shell/api-root.js?v=20260902-local-test-api-1";
+import { AUTH_API_ROOT } from "./shell/api-root.js?v=20260903-account-api-1";
 import { hasLiveFlag, isLive, liveChannel, normalizeLiveChannel, renderLiveStatus, setLive, setLiveChannel } from "./shell/live.js";
 import { exposeAppLoading, setAppLoading } from "./shell/loading.js";
 import { homeCatchView, setHomeCatchView, updateHomeCatchView } from "./shell/home-catch-view.js";
@@ -14,7 +14,7 @@ import { createHomeWidgets } from "./shell/home-widgets.js";
 import { createLeaderboardRenderer } from "./shell/leaderboard.js";
 import { createCompetitionCardHelpers } from "./shell/competition-cards.js";
 import { createCompetitionController } from "./shell/competition-controller.js";
-import { renderJournal, saveJournalTrip } from "./shell/journal.js?v=20260903-journal-dark-design-20";
+import { refreshJournalPlans, renderJournal, saveJournalTrip } from "./shell/journal.js?v=20260903-journal-dark-design-21";
 import { createCatchDeleteController } from "./shell/catch-delete.js";
 import { createCatchShareController } from "./shell/catch-share.js";
 import { createCatchViewController } from "./shell/catch-view-controller.js?v=20260816-catches-map-depth-89";
@@ -779,7 +779,8 @@ async function loadInitialRemoteData() {
     loadRemoteCatches(),
     loadRemoteFriends(),
     loadRemoteCompetitions(),
-    loadManagedAchievements()
+    loadManagedAchievements(),
+    refreshJournalPlans()
   ]);
   renderAccount();
   renderCatchLists();

@@ -1,8 +1,7 @@
-// The hosted ChatGPT address is the local test environment. Production hosts
-// use Render, while localhost and the hosted test page use the local API.
+// Only a frontend served from localhost may use the local API. Hosted pages
+// must use Render so authentication and account data work across devices.
 const isLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-const isHostedTestHost = window.location.hostname === "bigplus-app.paso-kristian.chatgpt.site";
-const useLocalApi = isLocalHost || isHostedTestHost;
+const useLocalApi = isLocalHost;
 const LOCAL_API_HOST = window.location.hostname === "127.0.0.1" ? "127.0.0.1" : "localhost";
 
 export const AUTH_API_ROOT = useLocalApi

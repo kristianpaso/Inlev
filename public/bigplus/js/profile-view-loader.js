@@ -1,5 +1,5 @@
 const profileMount = document.getElementById("profileViewMount");
-const profileUrl = "/bigplus/profile-view.html?v=20260903-profile-partial-1";
+const profileUrl = "/bigplus/profile-view.html?v=20260903-profile-partial-2";
 
 try {
   const response = await fetch(profileUrl, { cache: "no-store" });
@@ -10,4 +10,4 @@ try {
   console.error("Could not load Profile view", error);
 }
 
-await import("./app-shell.js?v=20260903-profile-partial-1");
+await import("./app-shell.js?v=20260903-journal-account-1");
