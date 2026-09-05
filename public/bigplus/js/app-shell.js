@@ -14,7 +14,7 @@ import { createHomeWidgets } from "./shell/home-widgets.js";
 import { createLeaderboardRenderer } from "./shell/leaderboard.js";
 import { createCompetitionCardHelpers } from "./shell/competition-cards.js";
 import { createCompetitionController } from "./shell/competition-controller.js";
-import { refreshJournalPlans, renderJournal, saveJournalTrip } from "./shell/journal.js?v=20260903-journal-dark-design-21";
+import { refreshJournalPlans, renderJournal, saveJournalTrip } from "./shell/journal.js?v=20260905-journal-placement-flow-4";
 import { createCatchDeleteController } from "./shell/catch-delete.js";
 import { createCatchShareController } from "./shell/catch-share.js";
 import { createCatchViewController } from "./shell/catch-view-controller.js?v=20260816-catches-map-depth-89";
@@ -24,7 +24,7 @@ import { createRemoteDataController } from "./shell/remote-data-controller.js";
 import { createGroupController } from "./shell/group-controller.js";
 import { createProfileController } from "./shell/profile-controller.js";
 import { renderProfileLevelDashboard } from "./shell/profile-levels.js?v=20260828-profile-reference-restore-1";
-import { createAuthController } from "./shell/auth-controller.js?v=20260902-auth-failsafe-2";
+import { createAuthController } from "./shell/auth-controller.js?v=20260903-auth-failsafe-3";
 import { compressImageFile } from "./shell/image-utils.js";
 import { accounts, currentAccount, ensureDemoAccount, ensureMemberCode } from "./shell/account.js";
 import { friendIds } from "./shell/friends.js";
@@ -49,15 +49,6 @@ let remoteCompetitions = null;
 let remoteFriends = null;
 let pendingProfilePhoto = "";
 let authController = null;
-let measureModulePromise = null;
-
-function ensureMeasureModule() {
-  if (!measureModulePromise) {
-    measureModulePromise = import("./main.js?v=20260901-segmentation-safety-1");
-  }
-  return measureModulePromise;
-}
-
 exposeAppLoading();
 
 function catches() {
@@ -330,27 +321,58 @@ function toggleProfileMenu() { return profileController.toggleProfileMenu(); }
 
 const workspaceController = createWorkspaceController({ authApiRoot: AUTH_API_ROOT, currentAccount });
 
-function showView(view) {
+function viewPath(view) {
+  if (view === "profile") return "/bigplus/profil";
+  return view === "journal" ? "/bigplus/fisketurer" : "/bigplus/";
+}
+
+function normalizedPath(pathname = window.location.pathname) {
+  const value = String(pathname || "/").replace(/\/+$/, "");
+  return value || "/";
+}
+
+function syncViewPath(view) {
+  const nextPath = viewPath(view);
+  if (normalizedPath() === normalizedPath(nextPath)) return;
+  window.history.pushState({ bigplusView: view }, "", nextPath + window.location.search + window.location.hash);
+}
+
+function navigateStandaloneView(view) {
+  if (view !== "profile" && view !== "journal") return false;
+  const nextPath = viewPath(view);
+  const samePath = normalizedPath() === normalizedPath(nextPath);
+  if (samePath) return false;
+  window.location.assign(nextPath + window.location.search + window.location.hash);
+  return true;
+}
+
+function pathView() {
+  if (/^\/(?:bigplus\/)?profil\/?$/.test(window.location.pathname)) return "profile";
+  return /^\/(?:bigplus\/)?fisketurer\/?$/.test(window.location.pathname) ? "journal" : "home";
+}
+
+function showView(view, options = {}) {
   if (!currentAccount()) {
     document.body.classList.add("auth-required");
     openAuth("login");
+    return;
+  }
+  if (view === "measure") {
+    window.location.assign(`/bigplus/mat/${window.location.search}${window.location.hash}`);
     return;
   }
   if ((view === "admin" || view === "workspace") && currentAccount()?.role !== "admin") {
     showView("home");
     return;
   }
+  if (options.syncUrl !== false && navigateStandaloneView(view)) return;
+  if (options.syncUrl !== false) syncViewPath(view);
   document.body.classList.remove("auth-required");
-  if (view === "measure") {
-    ensureMeasureModule().catch((error) => {
-      console.error("Kunde inte ladda mätverktyget", error);
-      setAppLoading(false);
-    });
-  }
   const authModal = $("#authModal");
   if (authModal) authModal.hidden = true;
   document.body.classList.toggle("measure-active", view === "measure");
   document.body.classList.toggle("workspace-active", view === "workspace" || view === "admin");
+  document.body.classList.toggle("journal-active", view === "journal");
   $$('[data-app-view]').forEach((section) => { section.hidden = section.dataset.appView !== view; });
   $$('[data-view]').forEach((button) => button.classList.toggle("active", button.dataset.view === view));
   const measure = $(".workspace");
@@ -394,6 +416,7 @@ function bind() {
     $("#mobileMenuButton")?.setAttribute("aria-expanded", "false");
     showView(button.dataset.view);
   }));
+  window.addEventListener("popstate", () => showView(pathView(), { syncUrl: false }));
   $$('[data-catch-view]').forEach((button) => button.addEventListener("click", () => {
     const mode = button.dataset.catchView === "grid" ? "grid" : "list";
     setHomeCatchView(mode);
@@ -775,6 +798,19 @@ renderCompetitions();
 // Vänta på backendens session innan appen visas. Annars kan ett gammalt
 // localStorage-konto öppna appen som en falsk gäst eller låsa fast loginvyn.
 async function loadInitialRemoteData() {
+  const journalOnly = /^\/(?:bigplus\/)?fisketurer\/?$/.test(window.location.pathname);
+  const profileOnly = /^\/(?:bigplus\/)?profil\/?$/.test(window.location.pathname);
+  if (journalOnly) {
+    await refreshJournalPlans();
+    renderAccount();
+    return;
+  }
+  if (profileOnly) {
+    await Promise.all([loadRemoteCatches(), loadRemoteFriends()]);
+    renderAccount();
+    renderFriends();
+    return;
+  }
   await Promise.all([
     loadRemoteCatches(),
     loadRemoteFriends(),

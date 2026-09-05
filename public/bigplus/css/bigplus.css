@@ -13801,7 +13801,7 @@ body:has(.nav-button[data-view="journal"].active) .site-header .brand-header-ima
 #journalView[hidden] { display: none !important; }
 
 /* Compact reference-style Home dashboard. */
-.home-dashboard-v2 { max-width: 1440px; margin: 0 auto; padding: 0 20px 28px; background: #f7faff; }
+.home-dashboard-v2 { max-width: 1440px; margin: 0 auto; padding: 0 20px 28px; }
 .home-dashboard-v2 .home-welcome-row { display: none; }
 .home-dashboard-v2 .home-hero-panel { min-height: 320px; margin: 0 -6px 0; border-radius: 16px; overflow: hidden; background: linear-gradient(90deg, rgba(255,255,255,.97) 0%, rgba(255,255,255,.84) 34%, rgba(255,255,255,.1) 70%), url('/bigplus/assets/6420gram-83cm.jpg') center / cover; }
 .home-dashboard-v2 .home-hero-copy { max-width: 650px; padding: 34px 50px; }
@@ -13842,7 +13842,7 @@ body:has(.nav-button[data-view="journal"].active) .site-header .brand-header-ima
 /* Compatibility styling for the existing Home markup. */
 .home-dashboard-v2 > .home-feature-card { position:relative; min-height:320px; margin:0 -6px; border-radius:16px; overflow:hidden; }
 .home-dashboard-v2 > .home-feature-card > img { width:100%; height:320px; object-fit:cover; }
-.home-dashboard-v2 > .home-feature-card .home-feature-overlay { inset:0 auto 0 0; width:min(58%,650px); padding:38px 50px; background:linear-gradient(90deg,rgba(255,255,255,.97),rgba(255,255,255,.16)); }
+.home-dashboard-v2 > .home-feature-card .home-feature-overlay { inset:0 auto 0 0; width:min(58%,650px); padding:38px 50px; }
 .home-dashboard-v2 > .home-feature-card .home-feature-overlay h2 { margin:0; color:#102950; font-size:clamp(2.2rem,3.2vw,3.4rem); line-height:1.05; }
 .home-dashboard-v2 > .home-feature-card .home-feature-overlay h2:after { content:'\A Fortsätt klättra i Bigplus.'; white-space:pre; color:#1464d8; }
 .home-dashboard-v2 > .home-feature-card .home-feature-overlay p { margin:14px 0 18px; color:#294775; font-size:1rem; }
@@ -16281,6 +16281,11 @@ body:has(.nav-button[data-view="journal"].active) .site-header .nav-button.activ
 #journalView .journal-route-mode-badge { border-color: #2b729e !important; background: rgba(4, 21, 37, .94) !important; color: #bce8ff !important; }
 #journalView .journal-reference-map-panel { background: #00060f !important; }
 #journalView .journal-selected-spot-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#journalView .journal-selected-spot-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#journalView .journal-mobile-pin-info-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+#journalView .journal-mobile-pin-info-actions button { min-height: 30px; padding: 3px 5px; border: 1px solid #2d759f; border-radius: 7px; background: #092943; color: #dff5ff; font: inherit; font-size: .55rem; font-weight: 900; cursor: pointer; }
+#journalView .journal-mobile-pin-info-actions button:hover,
+#journalView .journal-mobile-pin-info-actions button:focus-visible { border-color: #74d0ff; background: #0d4265; outline: none; }
 
 @media (max-width: 1180px) {
   #journalView .journal-reference-map-stats { width: min(620px, calc(100% - 720px)); min-width: 0; }
@@ -16295,7 +16300,596 @@ body:has(.nav-button[data-view="journal"].active) .site-header .nav-button.activ
   #journalView .journal-plan-reference { top: auto !important; bottom: 10px !important; }
 }
 
+/* Keep the mobile map clear until navigation or a place action is requested. */
+@media (max-width: 680px) {
+  body.journal-active .mobile-bottom-nav { display: none !important; }
+  body.journal-active .site-header .app-nav {
+    position: fixed !important;
+    top: 78px !important;
+    right: 10px !important;
+    bottom: auto !important;
+    left: 10px !important;
+    z-index: 1200 !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: min(70dvh, 430px);
+    overflow: auto;
+    padding: 8px !important;
+    border: 1px solid #23577d !important;
+    border-radius: 14px !important;
+    background: rgba(3, 18, 32, .98) !important;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .55) !important;
+    transform: translateY(-14px) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  body.journal-active.mobile-menu-open .site-header .app-nav {
+    transform: translateY(0) !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  body.journal-active .site-header .app-nav .nav-button {
+    min-width: 0 !important;
+    min-height: 42px !important;
+    padding: 7px 5px !important;
+    border: 0 !important;
+    border-radius: 8px !important;
+    color: #c9e0f2 !important;
+    font-size: .64rem !important;
+  }
+  body.journal-active .site-header .app-nav .nav-button.active { background: #0b3960 !important; color: #6bc0ff !important; box-shadow: none !important; }
+  body.journal-active .site-header .app-nav .nav-icon { display: block !important; width: 19px !important; height: 19px !important; }
+
+  #journalView .journal-spot-info-list-reference,
+  #journalView .journal-spot-info-reference { display: none !important; }
+  #journalView.journal-mobile-places-open .journal-spot-info-list-reference {
+    position: absolute !important;
+    top: 126px !important;
+    right: 12px !important;
+    left: 12px !important;
+    z-index: 1050 !important;
+    display: block !important;
+    width: auto !important;
+    max-height: 55dvh !important;
+    overflow: auto !important;
+    padding: 12px !important;
+    border: 1px solid #28638f !important;
+    border-radius: 16px !important;
+    background: rgba(3, 20, 35, .98) !important;
+    box-shadow: 0 18px 38px rgba(0, 0, 0, .58) !important;
+  }
+  #journalView.journal-mobile-editor-open .journal-spot-info-reference {
+    position: absolute !important;
+    top: auto !important;
+    right: 12px !important;
+    bottom: 12px !important;
+    left: 12px !important;
+    z-index: 1050 !important;
+    display: block !important;
+    width: auto !important;
+    max-height: 62dvh !important;
+    overflow: auto !important;
+    padding: 14px !important;
+    border: 1px solid #28638f !important;
+    border-radius: 16px !important;
+    background: rgba(3, 20, 35, .98) !important;
+    box-shadow: 0 18px 38px rgba(0, 0, 0, .58) !important;
+  }
+  #journalView .journal-spot-info-edit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    margin-top: 7px;
+    padding: 0 9px;
+    border: 1px solid #2f83ba;
+    border-radius: 7px;
+    background: #092943;
+    color: #8dd1ff;
+    font: inherit;
+    font-size: .58rem;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  #journalView .journal-spot-info-edit:hover,
+  #journalView .journal-spot-info-edit:focus-visible { border-color: #70c9ff; background: #0d3b5d; color: #fff; outline: none; }
+}
+
+/* Mobile trip controls: panels are opt-in so the map remains the primary surface. */
+@media (max-width: 680px) {
+  /* Places menu: compact desktop-like rows that keep the map visible. */
+  #journalView.journal-mobile-places-open .journal-spot-info-list-reference {
+    max-height: calc(100dvh - 150px) !important;
+    padding: 8px !important;
+  }
+  #journalView.journal-mobile-places-open .journal-spot-info-list { gap: 4px; }
+  #journalView.journal-mobile-places-open .journal-spot-info-item { position: relative; min-height: 0; border-radius: 8px !important; }
+  #journalView.journal-mobile-places-open .journal-spot-info-toggle {
+    min-height: 36px !important;
+    padding: 4px 92px 4px 6px !important;
+    grid-template-columns: 22px minmax(0, 1fr) 12px;
+    gap: 6px;
+  }
+  #journalView.journal-mobile-places-open .journal-spot-info-pin { width: 22px; height: 22px; font-size: .56rem; }
+  #journalView.journal-mobile-places-open .journal-spot-info-title { gap: 1px; }
+  #journalView.journal-mobile-places-open .journal-spot-info-title strong { font-size: .66rem !important; }
+  #journalView.journal-mobile-places-open .journal-spot-info-title small { font-size: .48rem !important; }
+  #journalView.journal-mobile-places-open .journal-spot-info-toggle > b { font-size: .8rem; }
+  #journalView.journal-mobile-places-open .journal-spot-info-actions {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    transform: translateY(-50%);
+  }
+  #journalView.journal-mobile-places-open .journal-spot-info-actions strong { min-width: 37px; color: #2d91f2; font-size: .54rem; text-align: right; }
+  #journalView.journal-mobile-places-open .journal-spot-info-actions button {
+    display: grid;
+    width: 18px;
+    height: 22px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #397eae;
+    font: inherit;
+    font-size: .67rem;
+    font-weight: 950;
+    cursor: pointer;
+  }
+  #journalView.journal-mobile-places-open .journal-spot-info-actions button:hover,
+  #journalView.journal-mobile-places-open .journal-spot-info-actions button:focus-visible { background: #123b5b; color: #a9ddff; outline: none; }
+  #journalView.journal-mobile-places-open .journal-spot-info-actions button:disabled { opacity: .28; cursor: not-allowed; }
+  #journalView.journal-mobile-places-open .journal-spot-info-details-wrap { display: none !important; }
+
+  #journalView .journal-mobile-stop-tab { display: none !important; }
+  #journalView .journal-mobile-side-menu {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    z-index: 1006;
+    display: grid;
+    width: 52px;
+    overflow: hidden;
+    border: 1px solid #245a80;
+    border-radius: 12px;
+    background: rgba(4, 22, 39, .94);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, .46), inset 0 1px 0 rgba(128, 215, 255, .1);
+    transform: translateY(-50%);
+    backdrop-filter: blur(12px);
+  }
+  #journalView .journal-mobile-side-menu button {
+    display: grid;
+    justify-items: center;
+    gap: 3px;
+    min-height: 58px;
+    padding: 7px 2px 6px;
+    border: 0;
+    border-bottom: 1px solid #1b4664;
+    background: transparent;
+    color: #e8f6ff;
+    font: inherit;
+    cursor: pointer;
+  }
+  #journalView .journal-mobile-side-menu button:last-child { border-bottom: 0; }
+  #journalView .journal-mobile-side-menu button:hover,
+  #journalView .journal-mobile-side-menu button:focus-visible,
+  #journalView .journal-mobile-side-menu button[aria-pressed="true"] { background: #0b3b61; outline: none; }
+  #journalView .journal-mobile-side-menu button:disabled { opacity: .42; cursor: not-allowed; }
+  #journalView .journal-mobile-side-menu button > span { color: #6fc6ff; font-size: 1.12rem; line-height: 1; }
+  #journalView .journal-mobile-side-menu button > small { font-size: .46rem; font-weight: 900; line-height: 1.05; }
+
+  #journalView .journal-reference-map-stats {
+    top: 26px !important;
+    display: grid !important;
+    padding: 2px 1px !important;
+  }
+  #journalView .journal-reference-map-stats > span { min-height: 52px !important; padding: 5px 1px !important; }
+  #journalView .journal-reference-map-stats b { font-size: .95rem !important; }
+  #journalView .journal-reference-map-stats small { font-size: .38rem !important; }
+  #journalView .journal-reference-map-stats strong { font-size: .58rem !important; }
+
+  /* The map uses compact numbered pins by default, never full place cards. */
+  #journalView .journal-place-label { display: none !important; }
+  #journalView .journal-place-label-copy,
+  #journalView .journal-place-label::after { display: none !important; }
+  #journalView.journal-mobile-edit-mode .journal-place-label {
+    display: grid !important;
+    width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 50% !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    transform: translate(-50%, -100%) !important;
+  }
+  #journalView.journal-mobile-edit-mode .journal-place-label-pin { width: 30px; height: 30px; border-width: 2px; font-size: .78rem; box-shadow: 0 0 12px var(--journal-place-color, #7cd4ff), 0 3px 8px rgba(0, 0, 0, .38); }
+  #journalView.journal-mobile-edit-mode .journal-reference-map-panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 600;
+    background: rgba(0, 2, 8, .56);
+    pointer-events: none;
+  }
+  #journalView.journal-mobile-edit-mode .journal-mobile-side-menu { box-shadow: 0 0 0 1px #62c6ff, 0 10px 24px rgba(0, 0, 0, .5); }
+
+  #journalView.journal-mobile-plans-open .journal-plan-reference {
+    position: absolute !important;
+    top: auto !important;
+    right: 12px !important;
+    bottom: 12px !important;
+    left: 12px !important;
+    z-index: 1050 !important;
+    display: block !important;
+    width: auto !important;
+    max-height: 62dvh !important;
+    overflow: auto !important;
+    padding: 14px !important;
+    border: 1px solid #28638f !important;
+    border-radius: 16px !important;
+    background: rgba(3, 20, 35, .98) !important;
+    box-shadow: 0 18px 38px rgba(0, 0, 0, .58) !important;
+  }
+  #journalView .journal-mobile-create-plan-button {
+    display: block;
+    width: 100%;
+    min-height: 36px;
+    margin: 10px 0;
+    border: 1px solid #2c9bff;
+    border-radius: 8px;
+    background: #0867e8;
+    color: #fff;
+    font: inherit;
+    font-size: .68rem;
+    font-weight: 950;
+    cursor: pointer;
+  }
+  #journalView .journal-mobile-create-plan-button:hover,
+  #journalView .journal-mobile-create-plan-button:focus-visible { background: #147cf0; outline: none; }
+}
+
+/* Mobile fishing-trip surface: map-first layout matching the compact route mockup. */
+@media (max-width: 680px) {
+  body:has(.nav-button[data-view="journal"].active) { background: #010811 !important; overflow: hidden; }
+  body:has(.nav-button[data-view="journal"].active) .mobile-bottom-nav { display: none !important; }
+  body:has(.nav-button[data-view="journal"].active) .site-header,
+  body:has(.nav-button[data-view="journal"].active) .site-header .header-app-shell,
+  body:has(.nav-button[data-view="journal"].active) .site-header .topbar {
+    height: 78px !important;
+    min-height: 78px !important;
+    background: #020d1b !important;
+    border-bottom: 1px solid #153653 !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .34) !important;
+  }
+  body:has(.nav-button[data-view="journal"].active) .mobile-app-header { grid-template-columns: 42px minmax(0, 1fr) 94px; }
+  body:has(.nav-button[data-view="journal"].active) .mobile-menu-button span { background: #f4f9ff; }
+  body:has(.nav-button[data-view="journal"].active) .mobile-brand-logo { justify-self: start; width: min(208px, 100%); height: 68px; }
+  body:has(.nav-button[data-view="journal"].active) .mobile-notification-button { color: #dfefff; }
+
+  #journalView.journal-planner-view {
+    height: calc(100dvh - 78px) !important;
+    min-height: 0 !important;
+    background: #010811 !important;
+  }
+  #journalView .journal-reference-layout,
+  #journalView .journal-reference-center,
+  #journalView .journal-reference-map-panel {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+  #journalView .journal-reference-map-panel { background: #00060f !important; }
+  #journalView .journal-reference-map-panel .maplibregl-canvas { filter: saturate(1.22) contrast(1.12) brightness(.8) !important; }
+  #journalView .journal-reference-map-stats {
+    top: 22px !important;
+    left: 12px !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    width: calc(100% - 24px) !important;
+    min-width: 0 !important;
+    padding: 5px 2px !important;
+    border: 1px solid #1d5a84 !important;
+    border-radius: 22px !important;
+    background: rgba(3, 17, 31, .9) !important;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, .42), inset 0 1px 0 rgba(121, 213, 255, .1) !important;
+    backdrop-filter: blur(14px);
+  }
+  #journalView .journal-reference-map-stats > span {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    justify-items: center;
+    gap: 2px;
+    min-height: 70px !important;
+    padding: 8px 2px !important;
+    border-right: 1px solid #214761 !important;
+    border-bottom: 0 !important;
+    text-align: center;
+  }
+  #journalView .journal-reference-map-stats > span:last-child { border-right: 0 !important; }
+  #journalView .journal-reference-map-stats b { grid-row: auto; color: #42a9ff !important; font-size: 1.18rem !important; line-height: 1; }
+  #journalView .journal-reference-map-stats small { color: #9db6c9 !important; font-size: .43rem !important; line-height: 1.1; white-space: nowrap; }
+  #journalView .journal-reference-map-stats strong { color: #f4f9ff !important; font-size: .66rem !important; line-height: 1.1; white-space: nowrap; }
+
+  #journalView .journal-place-label {
+    z-index: 1000 !important;
+    width: 164px !important;
+    min-height: 54px !important;
+    padding: 6px 8px 6px 6px !important;
+    border-radius: 13px !important;
+    transform-origin: 50% 100% !important;
+    box-shadow: 0 0 16px var(--journal-place-color, #7cd4ff), 0 8px 18px rgba(0, 0, 0, .48) !important;
+  }
+  #journalView .journal-place-label-pin { width: 32px; height: 32px; font-size: .86rem; }
+  #journalView .journal-place-label-copy strong { font-size: .72rem; }
+  #journalView .journal-place-label-copy small { font-size: .62rem; }
+  #journalView .journal-route-time-label { z-index: 1001 !important; min-width: 76px; padding: 6px 8px; }
+
+  #journalView .journal-mobile-stop-tab {
+    position: absolute;
+    top: 36%;
+    left: -48px;
+    z-index: 1004;
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 8px;
+    width: 116px;
+    height: 242px;
+    padding: 28px 8px 20px 48px;
+    border: 1px solid #2b587d;
+    border-radius: 0 34px 34px 0;
+    background: linear-gradient(180deg, rgba(8, 29, 48, .98), rgba(2, 14, 27, .98));
+    color: #ecf6ff;
+    box-shadow: 10px 0 25px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(116, 209, 255, .1);
+    transform: translateY(-50%);
+    cursor: pointer;
+  }
+  #journalView .journal-mobile-stop-tab span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: #2d7cf0; color: #fff; font-size: .9rem; font-weight: 950; }
+  #journalView .journal-mobile-stop-tab strong { writing-mode: vertical-rl; transform: rotate(180deg); font-size: .64rem; letter-spacing: .2em; }
+  #journalView .journal-mobile-stop-tab b { color: #d7eaff; font-size: 2.1rem; line-height: 1; }
+
+  #journalView .journal-mobile-action-rail {
+    position: absolute;
+    right: 12px;
+    bottom: 26px;
+    z-index: 1005;
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+  }
+  #journalView .journal-mobile-action-rail button {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    width: 88px;
+    min-height: 88px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #ecf7ff;
+    font: inherit;
+    cursor: pointer;
+  }
+  #journalView .journal-mobile-action-icon {
+    display: grid;
+    place-items: center;
+    width: 70px;
+    height: 70px;
+    border: 1px solid #61b9ff;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #3d93ff, #1050c9);
+    color: #fff;
+    font-size: 2.15rem;
+    line-height: 1;
+    box-shadow: 0 8px 20px rgba(0, 40, 130, .45), inset 0 1px 0 rgba(255, 255, 255, .28);
+  }
+  #journalView .journal-mobile-action-rail button:nth-child(2) .journal-mobile-action-icon { font-size: 1.8rem; }
+  #journalView .journal-mobile-action-rail button:nth-child(3) .journal-mobile-action-icon { font-size: 2rem; }
+  #journalView .journal-mobile-action-rail small { color: #dceeff; font-size: .48rem; font-weight: 950; letter-spacing: .08em; text-align: center; white-space: nowrap; text-shadow: 0 1px 4px #000; }
+
+  #journalView .journal-plan-reference {
+    top: auto !important;
+    right: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    display: none !important;
+  }
+  #journalView .journal-reference-map-controls { right: 10px !important; bottom: 12px !important; display: none !important; }
+  #journalView .journal-route-mode-badge { right: 10px !important; bottom: 12px !important; max-width: 120px; opacity: .8; }
+  #journalView .journal-mode-switcher,
+  #journalView .journal-mode-context { display: none !important; }
+  #journalView .journal-create-plan-dialog,
+  #journalView .journal-destination-dialog,
+  #journalView .journal-pause-dialog { z-index: 1100 !important; }
+
+  #journalView .journal-reference-heading-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; min-width: 0; }
+  #journalView .journal-mobile-menu-toggle { position: absolute; top: 12px; right: 12px; z-index: 1110; display: grid; width: 40px; height: 40px; place-content: center; gap: 5px; padding: 0; border: 1px solid #2d678f; border-radius: 9px; background: rgba(4, 22, 39, .78); color: #e8f6ff; box-shadow: 0 8px 18px rgba(0, 0, 0, .38); backdrop-filter: blur(10px); cursor: pointer; }
+  #journalView .journal-mobile-menu-toggle span { display: block; width: 21px; height: 2px; border-radius: 2px; background: #e8f6ff; transition: transform .2s ease, opacity .2s ease; }
+  #journalView.journal-mobile-menu-open .journal-mobile-menu-toggle { border-color: #67c5ff; background: rgba(7, 47, 76, .86); }
+  #journalView.journal-mobile-menu-open .journal-mobile-menu-toggle span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  #journalView.journal-mobile-menu-open .journal-mobile-menu-toggle span:nth-child(2) { opacity: 0; }
+  #journalView.journal-mobile-menu-open .journal-mobile-menu-toggle span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+  #journalView .journal-mobile-side-menu { visibility: hidden; opacity: 0; pointer-events: none; background: rgba(4, 22, 39, .68); transform: translate(120%, -50%); transition: transform .24s ease, opacity .2s ease, visibility .2s ease; }
+  #journalView.journal-mobile-menu-open .journal-mobile-side-menu { visibility: visible; opacity: 1; pointer-events: auto; transform: translate(0, -50%); }
+  #journalView .journal-mobile-side-menu button { background: transparent; }
+  #journalView .journal-reference-map-stats { display: none !important; }
+  #journalView.journal-mobile-info-open .journal-reference-map-stats { display: grid !important; }
+  #journalView .journal-mobile-pin-info { position: absolute; right: auto; bottom: 16px; left: 12px; z-index: 1110; display: grid; width: min(252px, calc(100% - 104px)); gap: 8px; padding: 10px; border: 1px solid #286f9e; border-radius: 12px; background: rgba(3, 20, 35, .86); color: #eaf7ff; box-shadow: 0 14px 28px rgba(0, 0, 0, .52), inset 0 1px 0 rgba(127, 216, 255, .12); backdrop-filter: blur(12px); }
+  #journalView .journal-mobile-pin-info[hidden] { display: none !important; }
+  #journalView .journal-mobile-pin-info-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #83cfff; font-size: .55rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+  #journalView .journal-mobile-pin-info-heading .journal-mobile-panel-close { width: 24px; height: 24px; flex-basis: 24px; font-size: 1rem; }
+  #journalView .journal-mobile-pin-info-main { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 8px; min-width: 0; }
+  #journalView .journal-mobile-pin-info-main > div { display: grid; min-width: 0; gap: 2px; }
+  #journalView .journal-mobile-pin-info-pin { display: grid; width: 32px; height: 32px; place-items: center; border: 2px solid rgba(255, 255, 255, .96); border-radius: 50%; background: var(--journal-pin-color, #2585ff); color: #fff; font-size: .78rem; font-weight: 950; box-shadow: 0 0 12px var(--journal-pin-color, #2585ff); }
+  #journalView .journal-mobile-pin-info-main strong { overflow: hidden; color: #fff; font-size: .82rem; font-weight: 950; text-overflow: ellipsis; white-space: nowrap; }
+  #journalView .journal-mobile-pin-info-main small { color: #c2e4f4; font-size: .64rem; font-weight: 850; }
+  #journalView .journal-mobile-pin-info-meta { display: flex; flex-wrap: wrap; gap: 5px; }
+  #journalView .journal-mobile-pin-info-meta span { padding: 3px 6px; border: 1px solid #1f5e85; border-radius: 5px; background: rgba(7, 42, 66, .74); color: #9dd9fa; font-size: .55rem; font-weight: 850; }
+  #journalView .journal-mobile-pin-info-navigation { display: grid; grid-template-columns: 28px minmax(0, 1fr) 28px; align-items: center; gap: 6px; }
+  #journalView .journal-mobile-pin-info-navigation span { overflow: hidden; color: #87aabd; font-size: .52rem; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+  #journalView .journal-mobile-pin-info-navigation button { display: grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 1px solid #2d759f; border-radius: 7px; background: #092943; color: #e8f7ff; font-size: 1.55rem; line-height: 1; cursor: pointer; }
+  #journalView .journal-mobile-pin-info-navigation button:hover,
+  #journalView .journal-mobile-pin-info-navigation button:focus-visible { border-color: #74d0ff; background: #0d4265; outline: none; }
+  #journalView .journal-mobile-pin-info-navigation button:disabled { opacity: .3; cursor: not-allowed; }
+  #journalView .journal-mobile-panel-close { display: grid; width: 28px; height: 28px; flex: 0 0 28px; place-items: center; padding: 0; border: 1px solid #2d678f; border-radius: 7px; background: #092943; color: #dff5ff; font: inherit; font-size: 1.25rem; line-height: 1; cursor: pointer; }
+  #journalView .journal-mobile-panel-close:hover,
+  #journalView .journal-mobile-panel-close:focus-visible { border-color: #73caff; background: #0e4266; color: #fff; outline: none; }
+  #journalView .journal-place-label { display: grid !important; grid-template-columns: 1fr !important; width: 36px !important; height: 36px !important; min-height: 36px !important; padding: 0 !important; border: 0 !important; border-radius: 50% !important; background: transparent !important; box-shadow: none !important; z-index: 1200 !important; transform: translate(-50%, -100%) !important; }
+  #journalView .journal-place-label-copy,
+  #journalView .journal-place-label::after { display: none !important; }
+  #journalView .journal-place-label-pin { width: 32px !important; height: 32px !important; border: 2px solid rgba(255, 255, 255, .98) !important; font-size: .82rem !important; box-shadow: 0 0 13px var(--journal-place-color, #7cd4ff), 0 3px 9px rgba(0, 0, 0, .42) !important; }
+  #journalView.journal-mobile-edit-mode .journal-place-label { z-index: 1200 !important; }
+  #journalView.journal-mobile-plans-open #journalReferencePlanStops,
+  #journalView.journal-mobile-plans-open .journal-plan-start-time,
+  #journalView.journal-mobile-plans-open .journal-plan-reference > .journal-dashed-button,
+  #journalView.journal-mobile-plans-open .journal-plan-tip { display: none !important; }
+}
+
 /* Profile owns the available canvas while the other app views keep their existing shell. */
+
+/* Desktop uses the same opt-in command menu as mobile. The map stays clear until
+   the user opens Places, Plans, Edit, or Info. */
+#journalView .journal-mode-switcher { display: none !important; }
+@media (min-width: 681px) {
+  #journalView .journal-reference-map-stats,
+  #journalView .journal-spot-info-list-reference,
+  #journalView .journal-spot-info-reference,
+  #journalView .journal-plan-reference { display: none !important; }
+
+  #journalView .journal-mobile-menu-toggle {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    z-index: 1110;
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-content: center;
+    gap: 5px;
+    padding: 0;
+    border: 1px solid #2d678f;
+    border-radius: 9px;
+    background: rgba(4, 22, 39, .82);
+    color: #e8f6ff;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, .38);
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+  }
+  #journalView .journal-mobile-menu-toggle span { display: block; width: 22px; height: 2px; border-radius: 2px; background: #e8f6ff; transition: transform .2s ease, opacity .2s ease; }
+  #journalView.journal-mobile-menu-open .journal-mobile-menu-toggle { border-color: #67c5ff; background: rgba(7, 47, 76, .9); }
+  #journalView.journal-mobile-menu-open .journal-mobile-menu-toggle span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  #journalView.journal-mobile-menu-open .journal-mobile-menu-toggle span:nth-child(2) { opacity: 0; }
+  #journalView.journal-mobile-menu-open .journal-mobile-menu-toggle span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  #journalView .journal-mobile-side-menu {
+    position: absolute;
+    top: 68px;
+    right: 20px;
+    z-index: 1109;
+    display: grid;
+    width: 112px;
+    overflow: hidden;
+    border: 1px solid #245a80;
+    border-radius: 12px;
+    background: rgba(4, 22, 39, .72);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(128, 215, 255, .1);
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(120%);
+    transition: transform .24s ease, opacity .2s ease, visibility .2s ease;
+    backdrop-filter: blur(12px);
+  }
+  #journalView.journal-mobile-menu-open .journal-mobile-side-menu { visibility: visible; opacity: 1; pointer-events: auto; transform: translateX(0); }
+  #journalView .journal-mobile-side-menu button { display: grid; grid-template-columns: 25px minmax(0, 1fr); align-items: center; gap: 8px; min-height: 46px; padding: 7px 10px; border: 0; border-bottom: 1px solid #1b4664; background: transparent; color: #e8f6ff; font: inherit; text-align: left; cursor: pointer; }
+  #journalView .journal-mobile-side-menu button:last-child { border-bottom: 0; }
+  #journalView .journal-mobile-side-menu button:hover,
+  #journalView .journal-mobile-side-menu button:focus-visible,
+  #journalView .journal-mobile-side-menu button[aria-pressed="true"] { background: #0b3b61; outline: none; }
+  #journalView .journal-mobile-side-menu button:disabled { opacity: .42; cursor: not-allowed; }
+  #journalView .journal-mobile-side-menu button > span { color: #6fc6ff; font-size: 1.05rem; line-height: 1; text-align: center; }
+  #journalView .journal-mobile-side-menu button > small { font-size: .62rem; font-weight: 900; line-height: 1.05; }
+
+  #journalView.journal-mobile-places-open .journal-spot-info-list-reference,
+  #journalView.journal-mobile-editor-open .journal-spot-info-reference,
+  #journalView.journal-mobile-plans-open .journal-plan-reference {
+    position: absolute !important;
+    top: 78px !important;
+    right: 148px !important;
+    left: auto !important;
+    z-index: 1050 !important;
+    display: block !important;
+    width: min(360px, calc(100% - 180px)) !important;
+    max-height: calc(100% - 98px) !important;
+    overflow: auto !important;
+    background: rgba(4, 22, 39, .94) !important;
+    border-color: #28638f !important;
+    box-shadow: 0 18px 38px rgba(0, 0, 0, .58) !important;
+  }
+  #journalView.journal-mobile-editor-open .journal-spot-info-reference { max-height: calc(100% - 98px) !important; }
+  #journalView.journal-mobile-info-open .journal-reference-map-stats { display: grid !important; }
+  #journalView.journal-mobile-edit-mode .journal-reference-map-panel::after { content: ""; position: absolute; inset: 0; z-index: 5; background: rgba(0, 2, 8, .42); pointer-events: none; }
+  #journalView.journal-mobile-edit-mode .journal-place-label { z-index: 1200 !important; }
+}
+
+/* Route is one clean colored stroke with an arrow, without the former layered
+   white highlight and shadow strokes. */
+#journalView .journal-spot-info-list-reference { position: relative !important; inset: auto !important; width: auto !important; max-height: 420px !important; padding: 10px !important; display: block !important; overflow: auto !important; }
+#journalView .journal-spot-info-list-reference .journal-reference-heading { margin-bottom: 7px; }
+#journalView .journal-spot-info-list { gap: 5px !important; }
+#journalView .journal-spot-info-item { position: relative; min-height: 0; border-radius: 9px !important; }
+#journalView .journal-spot-info-toggle { min-height: 42px !important; padding: 5px 8px !important; grid-template-columns: 26px minmax(0, 1fr) 12px; gap: 7px; }
+#journalView .journal-spot-info-pin { width: 26px; height: 26px; font-size: .62rem; }
+#journalView .journal-spot-info-title { gap: 1px; }
+#journalView .journal-spot-info-title strong { font-size: .69rem !important; }
+#journalView .journal-spot-info-title small { font-size: .51rem !important; }
+#journalView .journal-spot-info-toggle > b { color: #63bdff !important; font-size: .88rem; }
+#journalView .journal-spot-info-details-wrap { display: none !important; }
+#journalView .journal-spot-info-actions { position: absolute; top: 50%; right: 7px; display: flex; align-items: center; gap: 2px; transform: translateY(-50%); }
+#journalView .journal-spot-info-actions strong { min-width: 42px; color: #2d91f2; font-size: .56rem; text-align: right; }
+#journalView .journal-spot-info-actions button { display: grid; width: 20px; height: 24px; place-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: #4d89b5; font: inherit; font-size: .69rem; font-weight: 950; cursor: pointer; }
+#journalView .journal-spot-info-actions button:hover, #journalView .journal-spot-info-actions button:focus-visible { background: #123b5b; color: #a9ddff; outline: none; }
+#journalView .journal-spot-info-pin { background: var(--journal-pin-color, #2585ff) !important; }
+@media (min-width: 681px) {
+  #journalView .journal-reference-left .journal-spot-info-list-reference { grid-row: 1; }
+  #journalView .journal-reference-left .journal-destination-panel { grid-row: 2; }
+}
+@media (max-width: 680px) {
+  #journalView .journal-spot-info-list-reference { position: absolute !important; inset: auto !important; display: none !important; width: auto !important; max-height: calc(100dvh - 150px) !important; padding: 8px !important; }
+  #journalView.journal-mobile-places-open .journal-spot-info-list-reference { top: 126px !important; right: 12px !important; bottom: auto !important; left: 12px !important; z-index: 1050 !important; display: block !important; }
+}
+#journalView .journal-route-overlay-path { stroke-width: 6px !important; stroke-dasharray: none !important; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 4px var(--route-label-color, #7cd4ff)) !important; }
+#journalView .journal-route-overlay-shadow,
+#journalView .journal-route-overlay-highlight,
+#journalView .journal-route-overlay-center-highlight { display: none !important; }
+#journalView .journal-route-overlay-path { stroke-width: 5px !important; stroke-dasharray: none !important; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; filter: none !important; }
+#journalView .journal-reference-map-panel .journal-route-overlay { z-index: 80 !important; display: block !important; visibility: visible !important; pointer-events: none !important; }
+#journalView .journal-reference-map-panel .journal-route-time-label { z-index: 90 !important; }
+#journalView .journal-reference-map-panel .journal-place-label { z-index: 1200 !important; }
+
+/* Boat legs stay a single route stroke, but use a restrained dash pattern so
+   the water part is immediately distinguishable from road travel. */
+#journalView .journal-route-overlay-path.is-boat {
+  stroke-width: 5.5px !important;
+  stroke-dasharray: 14 8 !important;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .96;
+}
+#journalView .journal-route-overlay-arrow.is-boat {
+  fill: #e9fcff;
+  stroke: #0b5e79;
+  stroke-width: 2.2;
+}
+#journalView .journal-reference-map-panel .maplibregl-canvas { filter: saturate(1.08) contrast(1.08) brightness(.86) !important; }
 .app-shell:has(.profile-reference-view:not([hidden])) {
   width: 100%;
   max-width: none;
@@ -16303,11 +16897,78 @@ body:has(.nav-button[data-view="journal"].active) .site-header .nav-button.activ
   padding-right: 0;
 }
 
+/* The direct Profile route has no journal or secondary view markup. */
+.profile-only-shell {
+  width: 100%;
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+body:has(.profile-only-shell) {
+  background: #020b16 !important;
+  color-scheme: dark;
+}
+
+body:has(.profile-only-shell) .site-header,
+body:has(.profile-only-shell) .header-app-shell,
+body:has(.profile-only-shell) .site-header .topbar {
+  background: #030d1a !important;
+  border-color: #143b63 !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .34) !important;
+}
+
+body:has(.profile-only-shell) .site-header .nav-button {
+  color: #b9cce0 !important;
+}
+
+body:has(.profile-only-shell) .site-header .nav-button.active {
+  color: #54a7ff !important;
+  box-shadow: inset 0 -3px 0 #1a9fff !important;
+}
+
+body:has(.profile-only-shell) .mobile-bottom-nav {
+  background: #030d1a !important;
+  border-color: #143b63 !important;
+}
+
+.profile-only-shell .site-header .topbar {
+  margin-bottom: 0 !important;
+}
+
+.profile-only-shell .app-view.profile-reference-view {
+  width: 100%;
+  max-width: none;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+.profile-only-shell .profile-reference-shell {
+  width: 100%;
+  max-width: none;
+}
+
+.app-loading-timer {
+  color: #94a3b8;
+  font-size: .78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+body[data-bigplus-page="journal"] .app-loading-screen { background: rgba(2, 11, 22, .98); }
+body[data-bigplus-page="journal"] .app-loading-panel { border-color: #1c4b73; background: linear-gradient(145deg, #061a2d, #03101e); color: #eff7ff; box-shadow: 0 18px 50px rgba(0, 0, 0, .5); }
+body[data-bigplus-page="journal"] .app-loading-panel img { mix-blend-mode: screen; }
+body[data-bigplus-page="journal"] .app-loading-spinner { border-color: #123b5c; border-top-color: #45b7ff; }
+body[data-bigplus-page="journal"] .app-loading-timer { color: #7ccaff; }
+
 .app-shell:has(.profile-reference-view:not([hidden])) .app-view.profile-reference-view {
   width: 100%;
   max-width: none;
-  margin-top: -18px;
+  margin-top: 0;
   padding-top: 0;
+}
+
+.app-shell:has(.profile-reference-view:not([hidden])) .site-header .topbar {
+  margin-bottom: 0 !important;
 }
 
 .app-shell:has(.profile-reference-view:not([hidden])) .profile-reference-shell {
@@ -16317,6 +16978,188 @@ body:has(.nav-button[data-view="journal"].active) .site-header .nav-button.activ
 
 @media (max-width: 680px) {
   .app-shell:has(.profile-reference-view:not([hidden])) .app-view.profile-reference-view {
-    margin-top: -12px;
+    margin-top: 0;
   }
+}
+
+/* Desktop plan and place overview stays in a narrow rail over the map. */
+@media (min-width: 681px) {
+  #journalView .journal-reference-left { position: absolute !important; inset: 0 !important; z-index: 1050 !important; display: block !important; pointer-events: none; }
+  #journalView .journal-reference-left > * { pointer-events: auto; }
+  #journalView .journal-desktop-create-button { position: absolute !important; top: 16px !important; left: 18px !important; width: 304px !important; max-width: calc(100% - 36px) !important; min-height: 36px; padding: 7px 10px; border: 1px solid #2e9bff; border-radius: 9px; background: #0867e8; color: #fff; box-shadow: 0 8px 18px rgba(0, 92, 210, .28); font: inherit; font-size: .68rem; font-weight: 950; text-align: left; cursor: pointer; }
+  #journalView .journal-desktop-create-button:hover, #journalView .journal-desktop-create-button:focus-visible { background: #1479f5; outline: none; }
+  #journalView .journal-reference-left > .journal-quick-plans-reference,
+  #journalView .journal-reference-left > .journal-spot-info-list-reference { position: absolute !important; left: 18px !important; right: auto !important; width: 304px !important; max-width: calc(100% - 36px) !important; margin: 0 !important; overflow: auto !important; }
+  #journalView .journal-reference-left > .journal-quick-plans-reference { top: 108px !important; max-height: 174px !important; padding: 10px !important; display: block !important; border: 1px solid #1c4669 !important; border-radius: 11px !important; background: #091f35 !important; box-shadow: 0 6px 16px rgba(0, 0, 0, .2) !important; }
+  #journalView .journal-reference-left > .journal-spot-info-list-reference { top: 300px !important; max-height: calc(100% - 316px) !important; padding: 10px !important; display: block !important; border: 1px solid #1c4669 !important; border-radius: 11px !important; background: #091f35 !important; box-shadow: 0 6px 16px rgba(0, 0, 0, .2) !important; }
+  #journalView .journal-reference-right > .journal-plan-reference { display: none !important; }
+  #journalView .journal-reference-left > .journal-destination-panel,
+  #journalView .journal-reference-left > .journal-goal-create-panel,
+  #journalView .journal-reference-left > .journal-notes-reference { display: none !important; }
+  #journalView .journal-quick-plans-reference .journal-reference-heading { margin-bottom: 7px; }
+  #journalView .journal-quick-plans-reference .journal-reference-heading h2 { color: #f4f8ff !important; font-size: .98rem !important; }
+  #journalView .journal-quick-plans-reference .journal-reference-heading span { color: #75b8df; font-size: .56rem; }
+  #journalView .journal-plan-group { display: grid; gap: 4px; }
+  #journalView .journal-plan-group > strong { color: #77c8ff; font-size: .58rem; text-transform: uppercase; }
+  #journalView .journal-plan-group-archived { margin-top: 8px; padding-top: 7px; border-top: 1px solid #1b4766; }
+  #journalView .journal-plan-option { display: grid; grid-template-columns: 22px minmax(0, 1fr) 12px; align-items: center; gap: 7px; width: 100%; min-height: 38px; padding: 5px 6px; border: 1px solid #1c4669; border-radius: 8px; background: #091f35; color: #eaf6ff; font: inherit; text-align: left; cursor: pointer; }
+  #journalView .journal-plan-option:hover, #journalView .journal-plan-option:focus-visible { border-color: #58baff; background: #0c3150; outline: none; }
+  #journalView .journal-plan-option.is-active { border-color: #2e9bff; background: #0b3151; }
+  #journalView .journal-plan-option.is-archived { opacity: .62; }
+  #journalView .journal-plan-option-icon { display: grid; width: 21px; height: 21px; place-items: center; border-radius: 50%; background: #126ee8; color: #fff; font-size: .58rem; font-weight: 950; }
+  #journalView .journal-plan-option span:nth-child(2) { display: grid; gap: 1px; min-width: 0; }
+  #journalView .journal-plan-option strong { overflow: hidden; font-size: .64rem; text-overflow: ellipsis; white-space: nowrap; }
+  #journalView .journal-plan-option small { overflow: hidden; color: #91aec3; font-size: .49rem; text-overflow: ellipsis; white-space: nowrap; }
+  #journalView .journal-plan-option > b { color: #69bdff; font-size: .9rem; text-align: center; }
+  #journalView .journal-plan-empty { margin: 0; color: #8faec3; font-size: .6rem; }
+  #journalView .journal-desktop-add-place { display: block; width: 100%; min-height: 34px; margin-top: 8px; padding: 7px 9px; border: 1px solid #2e9bff; border-radius: 8px; background: #0b3151; color: #8ed2ff; font: inherit; font-size: .64rem; font-weight: 950; text-align: left; cursor: pointer; }
+  #journalView .journal-desktop-add-place:hover, #journalView .journal-desktop-add-place:focus-visible { border-color: #70c9ff; background: #10446c; color: #fff; outline: none; }
+}
+
+@media (min-width: 681px) {
+  #journalView .journal-selected-plan-summary { position: absolute !important; top: 62px !important; left: 18px !important; z-index: 1051 !important; display: grid; grid-template-columns: minmax(0, 1fr) 16px; gap: 2px 8px; align-items: center; width: 304px; max-width: calc(100% - 36px); min-height: 36px; padding: 6px 9px; border: 1px solid #2e9bff; border-radius: 9px; background: #091f35; color: #eaf6ff; box-shadow: 0 6px 16px rgba(0, 0, 0, .24); font: inherit; text-align: left; cursor: pointer; }
+  #journalView .journal-selected-plan-summary:hover, #journalView .journal-selected-plan-summary:focus-visible { border-color: #70c9ff; background: #0c3150; outline: none; }
+  #journalView .journal-selected-plan-summary > span { grid-column: 1 / -1; color: #77c8ff; font-size: .5rem; font-weight: 950; letter-spacing: .08em; text-transform: uppercase; }
+  #journalView .journal-selected-plan-summary > strong { overflow: hidden; color: #f4f8ff; font-size: .62rem; line-height: 1.15; text-overflow: ellipsis; white-space: normal; }
+  #journalView .journal-selected-plan-summary > b { color: #69bdff; font-size: .7rem; text-align: center; }
+  #journalView #journalQuickPlansReference[hidden] { display: none !important; }
+}
+
+/* Map pins stay small and readable; the selected place card is anchored above the pin. */
+#journalView .journal-place-label { position: absolute !important; display: grid !important; grid-template-columns: 1fr !important; width: 38px !important; height: 38px !important; min-height: 38px !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; border: 0 !important; border-radius: 50% !important; background: transparent !important; box-shadow: none !important; z-index: 1200 !important; transform: translate(-50%, -100%) !important; }
+#journalView .journal-place-label-copy, #journalView .journal-place-label::after { display: none !important; }
+#journalView .journal-place-label-pin { display: grid !important; width: 34px !important; height: 34px !important; place-items: center; border: 2px solid rgba(255, 255, 255, .98) !important; border-radius: 50%; background: var(--journal-place-base, #2585ff) !important; color: #fff; font-size: .82rem !important; font-weight: 950; box-shadow: 0 0 13px var(--journal-place-color, #7cd4ff), 0 3px 9px rgba(0, 0, 0, .42) !important; }
+#journalView .journal-map-pin-info { position: absolute; bottom: calc(100% + 8px); left: 50%; z-index: 1210; display: grid; min-width: 138px; max-width: 210px; gap: 3px; padding: 7px 9px; border: 1px solid var(--journal-place-color, #7cd4ff); border-radius: 9px; background: rgba(3, 17, 30, .96); color: #eefcff; box-shadow: 0 0 0 2px rgba(2, 10, 17, .78), 0 0 16px var(--journal-place-color, #7cd4ff), 0 8px 18px rgba(0, 0, 0, .42); pointer-events: none; transform: translateX(-50%); }
+#journalView .journal-map-pin-info[hidden] { display: none !important; }
+#journalView .journal-map-pin-info strong { overflow: hidden; color: #fff; font-size: .7rem; font-weight: 950; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+#journalView .journal-map-pin-info small { color: #b9d8e7; font-size: .58rem; font-weight: 850; line-height: 1.1; white-space: nowrap; }
+#journalView .journal-map-pin-info-actions { display: grid; grid-template-columns: repeat(3, 24px); gap: 4px; margin-top: 3px; pointer-events: auto; }
+#journalView .journal-map-pin-info-actions button { display: grid; width: 24px; height: 24px; place-items: center; padding: 0; border: 1px solid #2d759f; border-radius: 6px; background: #092943; color: #dff5ff; font: inherit; font-size: .74rem; line-height: 1; cursor: pointer; }
+#journalView .journal-map-pin-info-actions button:hover,
+#journalView .journal-map-pin-info-actions button:focus-visible { border-color: #74d0ff; background: #0d4265; outline: none; }
+@media (max-width: 680px) {
+  #journalView .journal-selected-plan-summary { display: none !important; }
+  #journalView .journal-map-pin-info { display: none !important; }
+}
+
+#journalView .journal-plan-date { display: grid; gap: 4px; color: #9ab5ca; font-size: .65rem; font-weight: 800; }
+#journalView .journal-plan-date input { border: 1px solid #205277; border-radius: 8px; background: #061a2d; color: #f0f7ff; font: inherit; padding: 8px 9px; }
+
+@media (max-width: 680px) {
+  #journalView .journal-reference-left { position: absolute !important; inset: 0 !important; z-index: 1040 !important; display: block !important; pointer-events: none; }
+  #journalView .journal-reference-left > * { display: none !important; pointer-events: auto; }
+  #journalView .journal-desktop-create-button,
+  #journalView .journal-desktop-add-place { display: none !important; }
+  #journalView.journal-mobile-places-open .journal-reference-left > .journal-spot-info-list-reference { position: absolute !important; top: 126px !important; right: 12px !important; bottom: auto !important; left: 12px !important; z-index: 1050 !important; display: block !important; width: auto !important; max-height: calc(100dvh - 150px) !important; padding: 8px !important; }
+}
+
+@media (min-width: 681px) {
+  #journalView .journal-selected-plan-summary > strong { font-size: .76rem !important; }
+  #journalView .journal-plan-option strong { font-size: .76rem !important; }
+  #journalView .journal-spot-info-title strong { font-size: .82rem !important; }
+  #journalView .journal-spot-info-title small { font-size: .58rem !important; }
+}
+
+#journalView .journal-reference-map-stats { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+#journalView .journal-reference-map-stats > span[hidden] { display: none !important; }
+#journalView .journal-reference-heading > div > #journalSpotInfoDistance { display: inline-block; margin-left: 6px; color: #76c9ff; font-size: .62rem; font-weight: 850; }
+#journalView .journal-selected-plan-summary > .journal-selected-plan-summary-copy { grid-column: 1; display: grid; gap: 2px; min-width: 0; color: inherit; font-size: inherit; font-weight: inherit; letter-spacing: 0; text-transform: none; }
+#journalView .journal-selected-plan-summary > .journal-selected-plan-summary-copy strong { overflow: hidden; color: #f4f8ff; font-size: 2.3rem !important; line-height: 1.08; text-overflow: ellipsis; white-space: nowrap; }
+#journalView .journal-selected-plan-summary > .journal-selected-plan-summary-copy small { overflow: hidden; color: #8eb8d5; font-size: .55rem; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 680px) {
+  #journalView .journal-reference-map-stats { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+}
+
+/* Route distance belongs in the Places rail, not on top of the map. */
+#journalView .journal-route-time-label { display: none !important; }
+
+/* Keep both add-place controls above the map hit area. */
+#journalView #journalMobileAddStop,
+#journalView #journalDesktopAddPlace { position: relative; z-index: 1300 !important; pointer-events: auto !important; }
+
+#journalView .journal-mobile-action-rail { display: none !important; }
+
+/* Placement and marker-move modes turn the map into the only active surface. */
+#journalView.is-add-destination-mode .journal-reference-left > *,
+#journalView.is-add-destination-mode .journal-reference-right > *,
+#journalView.is-move-marker-mode .journal-reference-left > *,
+#journalView.is-move-marker-mode .journal-reference-right > *,
+#journalView.is-add-destination-mode .journal-reference-actions,
+#journalView.is-move-marker-mode .journal-reference-actions { display: none !important; }
+#journalView.is-add-destination-mode .journal-reference-map-panel,
+#journalView.is-move-marker-mode .journal-reference-map-panel { display: block !important; }
+#journalView.is-add-destination-mode .journal-reference-left > .journal-destination-panel { display: none !important; }
+#journalView.is-add-destination-mode.is-destination-form-open .journal-reference-left > .journal-destination-panel { display: block !important; }
+#journalView.is-add-destination-mode .journal-map-reference-hint,
+#journalView.is-move-marker-mode .journal-map-reference-hint {
+  top: 22px !important;
+  z-index: 1250 !important;
+  display: grid !important;
+  border-color: #52bfff !important;
+  background: rgba(3, 18, 32, .94) !important;
+  color: #f4fbff !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .4), 0 0 18px rgba(45, 174, 255, .24) !important;
+}
+#journalView.is-add-destination-mode .journal-map-reference-hint strong,
+#journalView.is-move-marker-mode .journal-map-reference-hint strong { color: #fff !important; }
+#journalView.is-add-destination-mode .journal-map-reference-hint span,
+#journalView.is-move-marker-mode .journal-map-reference-hint span { color: #a8d9f5 !important; }
+#journalView .journal-reference-map-panel .journal-destination-quick-actions { z-index: 1260 !important; }
+#journalView .journal-reference-map-panel .journal-destination-quick-actions button { cursor: pointer; }
+
+@media (max-width: 680px) {
+  #journalView .journal-mobile-action-rail { display: grid !important; }
+  #journalView.is-add-destination-mode .journal-map-reference-hint,
+  #journalView.is-move-marker-mode .journal-map-reference-hint { top: 96px !important; }
+}
+
+/* Pin actions live in a dedicated dock, separate from the place information. */
+#journalView .journal-map-pin-actions {
+  position: absolute !important;
+  left: 18px !important;
+  bottom: 18px !important;
+  z-index: 2400 !important;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(76px, 1fr));
+  gap: 6px;
+  width: min(270px, calc(100% - 36px));
+  padding: 6px;
+  border: 1px solid #2d759f;
+  border-radius: 10px;
+  background: rgba(4, 22, 39, .94);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .52), inset 0 1px 0 rgba(128, 215, 255, .12);
+  backdrop-filter: blur(12px);
+}
+#journalView .journal-map-pin-actions[hidden] { display: none !important; }
+#journalView .journal-map-pin-actions button {
+  display: grid;
+  min-width: 0;
+  min-height: 44px;
+  place-items: center;
+  gap: 2px;
+  padding: 4px 5px;
+  border: 1px solid #27658b;
+  border-radius: 7px;
+  background: #092943;
+  color: #e8f7ff;
+  font: inherit;
+  cursor: pointer;
+}
+#journalView .journal-map-pin-actions button:hover,
+#journalView .journal-map-pin-actions button:focus-visible { border-color: #75d1ff; background: #0d4265; outline: none; }
+#journalView .journal-map-pin-actions button span { color: #7fd4ff; font-size: 1rem; line-height: 1; }
+#journalView .journal-map-pin-actions button small { color: #eefaff; font-size: .53rem; font-weight: 900; line-height: 1.1; white-space: nowrap; }
+#journalView .journal-place-label.is-info-active { z-index: 2500 !important; }
+#journalView .journal-place-label.is-info-active .journal-map-pin-info { z-index: 2600 !important; pointer-events: auto; }
+
+@media (max-width: 680px) {
+  #journalView .journal-map-pin-actions {
+    left: 12px !important;
+    bottom: 14px !important;
+    width: auto;
+    grid-template-columns: repeat(3, minmax(62px, 1fr));
+  }
+  #journalView .journal-map-pin-actions button { min-height: 40px; padding: 4px 3px; }
+  #journalView .journal-map-pin-actions button small { font-size: .48rem; }
+  #journalView .journal-mobile-pin-info { bottom: 70px !important; }
 }

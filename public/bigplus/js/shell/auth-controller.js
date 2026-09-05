@@ -4,9 +4,11 @@ import { setAppLoading } from "./loading.js";
 export function createAuthController({ accountKey, authApiRoot, currentAccount, ensureDemoAccount, loadInitialRemoteData, renderAccount, sessionKey, showView }) {
   let bootstrapActive = true;
   const isLocalBootstrap = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-  const bootstrapSessionTimeoutMs = isLocalBootstrap ? 4500 : 20000;
-  const bootstrapRemoteDataTimeoutMs = isLocalBootstrap ? 4500 : 20000;
-  const devAuthMode = isLocalBootstrap ? new URLSearchParams(window.location.search).get("devAuth") : "";
+  const isProfilePath = /^\/(?:bigplus\/)?profil\/?$/.test(window.location.pathname);
+  const isJournalPath = /^\/(?:bigplus\/)?fisketurer\/?$/.test(window.location.pathname);
+  const bootstrapSessionTimeoutMs = isLocalBootstrap ? 650 : isJournalPath ? 700 : 5000;
+  const bootstrapRemoteDataTimeoutMs = isLocalBootstrap ? 120 : isJournalPath ? 180 : 5000;
+  const devAuthMode = isLocalBootstrap ? (new URLSearchParams(window.location.search).get("devAuth") || (isProfilePath ? "profile" : "")) : "";
   const isWorkspacePath = /^\/(?:bigplus\/)?(?:workspace|admin)\/?$/.test(window.location.pathname);
 
   function sleep(ms) {
@@ -14,11 +16,8 @@ export function createAuthController({ accountKey, authApiRoot, currentAccount, 
   }
 
   async function loadInitialRemoteDataWithLimit() {
-    if (!isLocalBootstrap) {
-      await loadInitialRemoteData();
-      return;
-    }
-    await Promise.race([loadInitialRemoteData(), sleep(bootstrapRemoteDataTimeoutMs)]);
+    const limit = isLocalBootstrap ? bootstrapRemoteDataTimeoutMs : 2500;
+    await Promise.race([loadInitialRemoteData(), sleep(limit)]);
   }
 
   function useLocalDevAccount() {
@@ -39,6 +38,8 @@ export function createAuthController({ accountKey, authApiRoot, currentAccount, 
 
   function startView() {
     if (devAuthMode === "admin" || isWorkspacePath) return "workspace";
+    if (isProfilePath) return "profile";
+    if (/^\/(?:bigplus\/)?fisketurer\/?$/.test(window.location.pathname)) return "journal";
     return devAuthMode === "profile" ? "profile" : "home";
   }
 
@@ -91,7 +92,7 @@ export function createAuthController({ accountKey, authApiRoot, currentAccount, 
     $("#authModal").hidden = true;
     document.body.classList.remove("auth-required");
     setAppLoading(true, "Laddar din medlemsprofil...");
-    try { await loadInitialRemoteData(); showView(startView()); } finally { setAppLoading(false); }
+    try { await loadInitialRemoteDataWithLimit(); showView(startView()); } finally { setAppLoading(false); }
   }
 
   function finishAuthBootstrap() {
@@ -109,6 +110,7 @@ export function createAuthController({ accountKey, authApiRoot, currentAccount, 
       .then(async (data) => {
         if (!bootstrapActive) return;
         if (data?.__unauthorized) {
+          if (useLocalDevAccount()) { await showLocalDevFallback(); return; }
           localStorage.removeItem(accountKey); localStorage.removeItem(sessionKey); localStorage.removeItem("inlev_user");
           openAuth("login");
           try { renderAccount(); } catch (error) { console.error("Kunde inte återställa loginvyn", error); }

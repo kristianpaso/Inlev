@@ -1,6 +1,8 @@
-const DEFAULT_ENDPOINT = ["127.0.0.1", "localhost"].includes(window.location.hostname)
+const isLocalAiHost = ["127.0.0.1", "localhost"].includes(window.location.hostname);
+const hostedAiProxyOrigin = window.__BIGPLUS_AI_PROXY_ORIGIN__ || "https://sage-vacherin-aa5cd3.netlify.app";
+const DEFAULT_ENDPOINT = isLocalAiHost
   ? "http://127.0.0.1:8300/api/measurement/depth"
-  : "/api/measurement/depth";
+  : `${hostedAiProxyOrigin}/api/measurement/depth`;
 const cache = new Map();
 
 function truthy(value) {

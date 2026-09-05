@@ -7,21 +7,23 @@ import { currentAccount } from "./account.js";
 const JOURNAL_TRIPS_KEY = "bigplus_fishing_trips";
 const JOURNAL_PLANNER_KEY = "bigplus_journal_planner_state_v2";
 const JOURNAL_PLANS_KEY = "bigplus_journal_plans_v1";
+const JOURNAL_ACTIVE_PLAN_KEY = "bigplus_journal_active_plan_v1";
 const JOURNAL_PIN_COLORS = [
-  { base: "#27d97f", light: "#a1ffc7", route: "#ff3b6b" },
-  { base: "#2585ff", light: "#9bcfff", route: "#9b5cff" },
-  { base: "#ff8b20", light: "#ffd08c", route: "#ff5b00" },
-  { base: "#864cff", light: "#c7a9ff", route: "#ff2bd6" },
-  { base: "#ff4f82", light: "#ff9fbd", route: "#d7ff2f" },
-  { base: "#0edbd0", light: "#9afff8", route: "#00ffb7" },
+  { base: "#27d97f", light: "#a1ffc7", route: "#27d97f" },
+  { base: "#2585ff", light: "#9bcfff", route: "#2585ff" },
+  { base: "#ff8b20", light: "#ffd08c", route: "#ff8b20" },
+  { base: "#864cff", light: "#c7a9ff", route: "#864cff" },
+  { base: "#ff4f82", light: "#ff9fbd", route: "#ff4f82" },
+  { base: "#ffd43b", light: "#fff0a3", route: "#ffd43b" },
 ];
 
-let SPOTS = [
+const INITIAL_SPOTS = [
   { name: "Bj\u00f6rkviks brygga", area: "Ingar\u00f6, V\u00e4rmd\u00f6", coordinates: "59.2380, 18.4900", lngLat: [18.49, 59.238], time: "08:30 - 09:30 (1 h)", shortTime: "08:30", priority: "Start", method: "Genomg\u00e5ng - F\u00f6rbered utrustning", wind: "6 m/s V", depth: "Brygga", notes: "Samling, s\u00e4kerhetskontroll och sj\u00f6s\u00e4ttning.", image: "/bigplus/assets/catch-page/scene-9.png", checklist: ["Kontrollera br\u00e4nsle", "Starta ekolod", "S\u00e4kerhetsgenomg\u00e5ng", "F\u00f6rdela utrustning", "Logga avg\u00e5ng"] },
   { name: "Krokviken", area: "N\u00e4md\u00f6fj\u00e4rden, V\u00e4rmd\u00f6", coordinates: "59.2821, 18.5412", lngLat: [18.5412, 59.2821], time: "11:15 - 13:45 (2 h 30 min)", shortTime: "11:15", priority: "H\u00f6g", method: "Jigging - Gummijigg 12-15 cm", wind: "7 m/s V", depth: "3 - 12 m", notes: "Brant kant mot djup. Bra g\u00e4ddl\u00e4ge.", image: "/bigplus/assets/catch-page/scene-4.png", checklist: ["Kontrollera djup p\u00e5 ekolod", "Testa jigghastighet vid grundkanten", "Prova l\u00e5ngsam jigging", "Foto och logga resultat", "Notera betesfisk"] },
   { name: "Landholmsviken", area: "N\u00e4md\u00f6fj\u00e4rden, V\u00e4rmd\u00f6", coordinates: "59.3050, 18.6800", lngLat: [18.68, 59.305], time: "14:30 - 16:30 (2 h)", shortTime: "14:30", priority: "Medel", method: "Drop shot - Mask 10 cm", wind: "6 m/s V", depth: "2 - 10 m", notes: "Grund vik med vegetation. Bra f\u00f6r abborre.", image: "/bigplus/assets/catch-page/scene-6.png", checklist: ["S\u00f6k betesfisk", "Prova drop shot", "Fiska vegetationskanten", "Fotografera platsen", "Notera vattentemperatur"] },
   { name: "S\u00f6dra grundet", area: "N\u00e4md\u00f6fj\u00e4rden, V\u00e4rmd\u00f6", coordinates: "59.2450, 18.8300", lngLat: [18.83, 59.245], time: "16:30 - 17:30 (1 h)", shortTime: "16:30", priority: "Medel", method: "Spinnfiske - Inlinebete 10 cm", wind: "5 m/s V", depth: "1 - 4 m", notes: "Avsluta \u00f6ver grundet om vinden till\u00e5ter.", image: "/bigplus/assets/catch-page/scene-9.png", checklist: ["Kontrollera vinden", "Fiska lovartsidan", "Testa snabb hemtagning", "Logga sista f\u00e5ngsten", "Kontrollera hemf\u00e4rd"] },
 ];
+let SPOTS = [];
 
 // Waypoints keep the planner route in the visible water corridors or along the road network.
 const ROUTE_COORDINATES = {
@@ -37,7 +39,7 @@ const ROUTE_COORDINATES = {
 
 const DEFAULT_CHECKS = { 0: [true, true, true, false, false], 1: [true, true, false, false, true], 2: [true, false, false, false, false], 3: [false, false, false, false, false] };
 let plannerState = readPlannerState();
-const savedPlannerStops = Array.isArray(plannerState.fields.stops) ? plannerState.fields.stops : [];
+const savedPlannerStops = [];
 const hasExplicitBoatStops = savedPlannerStops.some((spot) => spot?.travelMode === "boat");
 const hasExplicitCarStops = savedPlannerStops.some((spot) => spot?.travelMode === "car" || spot?.travelMode === "walk");
 const savedTransport = plannerState.fields.transport;
@@ -48,6 +50,7 @@ let journalAddDestinationMode = false;
 let journalMarkerMoveMode = false;
 let journalPendingDestination = null;
 let journalEditingSpotIndex = null;
+let journalQuickBoatMode = false;
 let journalBoatRouteCoordinates = [];
 let journalCarRouteCoordinates = [];
 let journalBoatRouteSegments = [];
@@ -58,6 +61,7 @@ let journalRouteRefreshTimer = 0;
 let journalFitRouteAfterCalculation = false;
 let journalMap = null;
 let journalMarkers = [];
+let journalMapPinInfoIndex = null;
 let journalRouteTimeLabels = [];
 let journalRouteOverlay = null;
 let plannerBound = false;
@@ -66,18 +70,12 @@ let remotePlans = null;
 let remotePlanSaveQueue = Promise.resolve();
 const remotePlanSaveTimers = new Map();
 
-if (Array.isArray(plannerState.fields.stops) && plannerState.fields.stops.length > 0) {
-  SPOTS = plannerState.fields.stops.map((spot, index) => ({ ...spot, pinColorIndex: Number.isInteger(spot.pinColorIndex) ? spot.pinColorIndex : index % JOURNAL_PIN_COLORS.length, lngLat: Array.isArray(spot.lngLat) ? spot.lngLat.map(Number) : [18.66, 59.27] }));
-}
 SPOTS = SPOTS.map((spot, index) => ({ ...spot, pinColorIndex: Number.isInteger(spot.pinColorIndex) ? spot.pinColorIndex : index % JOURNAL_PIN_COLORS.length }));
 if (!plannerState.fields.planId) plannerState.fields.planId = "legacy-plan";
 if (!plannerState.fields.startTime) plannerState.fields.startTime = "08:30";
-if (!savedPlannerStops.length) {
-  journalCarRouteCoordinates = [...ROUTE_COORDINATES.car];
-  journalCarRouteSegments = [{ coordinates: [...ROUTE_COORDINATES.car], duration: 0, spotIndex: 1 }];
-}
-
+if (!plannerState.fields.planDate) plannerState.fields.planDate = localDateValue();
 function readPlannerState() {
+  if (currentAccount()) return { activeSpot: 0, favorites: [], checks: {}, ratings: [], started: false, savedAt: "", notes: "", fields: {} };
   try {
     const saved = JSON.parse(localStorage.getItem(JOURNAL_PLANNER_KEY) || "null");
     if (saved && typeof saved === "object") return { activeSpot: Number.isInteger(saved.activeSpot) ? saved.activeSpot : 1, favorites: Array.isArray(saved.favorites) ? saved.favorites : [1], checks: saved.checks && typeof saved.checks === "object" ? saved.checks : DEFAULT_CHECKS, ratings: Array.isArray(saved.ratings) ? saved.ratings : [5, 5, 5, 3], started: Boolean(saved.started), savedAt: saved.savedAt || "", notes: saved.notes || "", fields: saved.fields && typeof saved.fields === "object" ? saved.fields : {} };
@@ -97,6 +95,19 @@ function plannerStorageKey(accountId = currentAccount()?.id) {
   return accountId ? `${JOURNAL_PLANS_KEY}:${accountId}` : JOURNAL_PLANS_KEY;
 }
 
+function activePlanStorageKey(accountId = currentAccount()?.id) {
+  return accountId ? `${JOURNAL_ACTIVE_PLAN_KEY}:${accountId}` : JOURNAL_ACTIVE_PLAN_KEY;
+}
+
+function rememberedActivePlanId() {
+  try { return localStorage.getItem(activePlanStorageKey()) || ""; } catch { return ""; }
+}
+
+function rememberActivePlan(planId) {
+  if (!planId) return;
+  try { localStorage.setItem(activePlanStorageKey(), String(planId)); } catch {}
+}
+
 function readLocalSavedPlans(key = plannerStorageKey()) {
   try {
     const saved = JSON.parse(localStorage.getItem(key) || "[]");
@@ -105,7 +116,30 @@ function readLocalSavedPlans(key = plannerStorageKey()) {
 }
 
 function readSavedPlans() {
-  return currentAccount() && Array.isArray(remotePlans) ? remotePlans : readLocalSavedPlans();
+  return currentAccount() && Array.isArray(remotePlans) ? remotePlans : [];
+}
+
+function localDateValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function planDateValue(plan) {
+  return String(plan?.date || plan?.fields?.planDate || "").slice(0, 10);
+}
+
+function planIsArchived(plan) {
+  const date = planDateValue(plan);
+  return Boolean(date && date < localDateValue());
+}
+
+function formatPlanDate(date) {
+  if (!date) return "Datum saknas";
+  const parsed = new Date(`${date}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return "Datum saknas";
+  return new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short", year: "numeric" }).format(parsed);
 }
 
 function currentPlanSnapshot() {
@@ -113,6 +147,7 @@ function currentPlanSnapshot() {
   return {
     id: plannerPlanId(),
     title: plannerState.fields.planTitle || "Min fisketur",
+    date: plannerState.fields.planDate || localDateValue(),
     stops,
     fields: { ...clonePlannerValue(plannerState.fields), stops },
     activeSpot: plannerState.activeSpot,
@@ -157,25 +192,18 @@ function queueRemotePlanSave(snapshot) {
 
 function saveCurrentPlanToLibrary() {
   const snapshot = currentPlanSnapshot();
+  if (!currentAccount()) return snapshot;
   const plans = readSavedPlans();
   const existing = plans.findIndex((plan) => plan.id === snapshot.id);
   if (existing >= 0) plans[existing] = snapshot; else plans.unshift(snapshot);
-  if (currentAccount()) {
-    remotePlans = plans;
-    queueRemotePlanSave(snapshot);
-  } else {
-    localStorage.setItem(JOURNAL_PLANS_KEY, JSON.stringify(plans));
-  }
+  remotePlans = plans;
+  queueRemotePlanSave(snapshot);
   return snapshot;
 }
 
 function persistPlannerState() {
-  if (currentAccount()) {
-    if (plannerState.fields.planId) saveCurrentPlanToLibrary();
-  } else {
-    localStorage.setItem(JOURNAL_PLANNER_KEY, JSON.stringify(plannerState));
-    if (plannerState.fields.planId) saveCurrentPlanToLibrary();
-  }
+  if (!currentAccount()) return;
+  if (plannerState.fields.planId) saveCurrentPlanToLibrary();
 }
 
 function persistPlannerStops() {
@@ -193,20 +221,22 @@ export async function refreshJournalPlans() {
     const response = await fetch(`${AUTH_API_ROOT}/plans`, { credentials: "include" });
     if (!response.ok) throw new Error("Planerna kunde inte hämtas.");
     const plans = await response.json();
-    const merged = new Map((Array.isArray(plans) ? plans : []).filter((plan) => plan?.id).map((plan) => [plan.id, plan]));
-    const localCandidates = [...readLocalSavedPlans(plannerStorageKey(account.id)), ...readLocalSavedPlans(JOURNAL_PLANS_KEY)];
-    for (const candidate of localCandidates) {
-      const existing = merged.get(candidate.id);
-      if (!existing || String(candidate.savedAt || "") > String(existing.savedAt || "")) {
-        const saved = await putRemotePlan(candidate);
-        if (saved?.id) merged.set(saved.id, saved);
+    remotePlans = (Array.isArray(plans) ? plans : []).filter((plan) => plan?.id).sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || "")));
+    const rememberedId = rememberedActivePlanId();
+    const currentId = String(plannerState.fields.planId || "");
+    const preferredPlan = remotePlans.find((plan) => plan.id === rememberedId)
+      || remotePlans.find((plan) => plan.id === currentId)
+      || remotePlans[0];
+    if (preferredPlan && preferredPlan.id !== currentId) switchPlan(preferredPlan.id);
+    else if (preferredPlan) {
+      renderReferencePlan();
+      if (journalMap?.loaded()) {
+        fitJournalPlanSpots();
+        void updateCalculatedTransportRoute();
       }
-    }
-    remotePlans = [...merged.values()].sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || "")));
-    if (remotePlans.length) switchPlan(remotePlans[0].id);
-    else renderReferencePlan();
+    } else renderReferencePlan();
   } catch {
-    remotePlans = null;
+    remotePlans = [];
   }
 }
 
@@ -252,13 +282,19 @@ function journalSpotFeatureCollection() {
       geometry: { type: "Point", coordinates: spot.lngLat },
       properties: {
         index,
-        pinColorIndex: Number.isInteger(spot.pinColorIndex) ? spot.pinColorIndex % JOURNAL_PIN_COLORS.length : index % JOURNAL_PIN_COLORS.length,
+        pinColorIndex: spotColorIndex(spot, index),
         numberLabel: spot.isPause ? "P" : String(index + 1),
         label: `${spot.name}${spotTimeLabel(spot, index) ? `\n${spotTimeLabel(spot, index)}` : ""}`,
         active: index === plannerState.activeSpot,
       },
     })),
   };
+}
+
+function spotColorIndex(spot, index = 0) {
+  return Number.isInteger(spot?.pinColorIndex)
+    ? ((spot.pinColorIndex % JOURNAL_PIN_COLORS.length) + JOURNAL_PIN_COLORS.length) % JOURNAL_PIN_COLORS.length
+    : ((index % JOURNAL_PIN_COLORS.length) + JOURNAL_PIN_COLORS.length) % JOURNAL_PIN_COLORS.length;
 }
 
 function updateJournalSpotsSource() {
@@ -273,22 +309,50 @@ function renderJournalPlaceLabels() {
   if (!journalMap) return;
   journalMarkers.forEach(({ element }) => element.remove());
   journalMarkers = [];
+  journalMapPinInfoIndex = null;
   const container = journalMap.getContainer();
   SPOTS.forEach((spot, index) => {
-    const color = JOURNAL_PIN_COLORS[Number.isInteger(spot.pinColorIndex) ? spot.pinColorIndex % JOURNAL_PIN_COLORS.length : index % JOURNAL_PIN_COLORS.length];
+    const color = JOURNAL_PIN_COLORS[spotColorIndex(spot, index)];
     const placement = "is-center";
-    const label = document.createElement("button");
-    label.type = "button";
+    const label = document.createElement("div");
+    label.setAttribute("role", "button");
+    label.tabIndex = 0;
     label.className = `journal-place-label ${placement}`;
     label.setAttribute("aria-label", `${spot.name}, ${spotTimeLabel(spot, index) || "tid saknas"}`);
     label.style.setProperty("--journal-place-color", color.route);
     label.style.setProperty("--journal-place-base", color.base);
-    label.innerHTML = `<span class="journal-place-label-pin">${spot.isPause ? "P" : index + 1}</span><span class="journal-place-label-copy"><strong>${escapeHtml(spot.name)}</strong><small>${escapeHtml(spotTimeLabel(spot, index) || "Tid saknas")}</small></span>`;
-    label.addEventListener("click", (event) => { event.stopPropagation(); selectSpot(index, true); });
+    label.innerHTML = `<span class="journal-place-label-pin">${spot.isBoatBase ? "B" : spot.isPause ? "P" : index + 1}</span><span class="journal-place-label-copy"><strong>${escapeHtml(spot.name)}</strong><small>${escapeHtml(spotTimeLabel(spot, index) || "Tid saknas")}</small></span><span class="journal-map-pin-info" hidden><strong>${escapeHtml(spot.name)}</strong><small>${escapeHtml(spotTimeLabel(spot, index) || "Tid saknas")} &nbsp; · &nbsp; ${escapeHtml(spotTransportLabel(spot))}</small></span>`;
+    const handleLabelClick = (event) => {
+      event.stopPropagation();
+      const view = $("#journalView");
+      const editMode = view?.classList.contains("journal-mobile-edit-mode");
+      selectSpot(index, true, false);
+      journalMapPinInfoIndex = editMode ? null : index;
+      if (editMode) view?.classList.add("journal-mobile-editor-open");
+      updateJournalMapPinInfo();
+    };
+    label.addEventListener("click", handleLabelClick);
+    label.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handleLabelClick(event); }
+    });
     container.appendChild(label);
     journalMarkers.push({ element: label, spotIndex: index });
   });
   updateJournalPlaceLabelPositions();
+  updateJournalMapPinInfo();
+}
+
+function updateJournalMapPinInfo() {
+  const selectedIndex = Number(journalMapPinInfoIndex);
+  const hasSelection = Number.isInteger(selectedIndex) && Boolean(SPOTS[selectedIndex]);
+  const actions = $("#journalMapPinActions");
+  if (actions) actions.hidden = !hasSelection;
+  journalMarkers.forEach(({ element, spotIndex }) => {
+    const info = element.querySelector(".journal-map-pin-info");
+    const active = hasSelection && selectedIndex === spotIndex;
+    element.classList.toggle("is-info-active", active);
+    if (info) info.hidden = !active;
+  });
 }
 
 function updateJournalPlaceLabelPositions() {
@@ -315,12 +379,15 @@ function journalMapStyle() {
   const emptyRoute = [[18.66, 59.27], [18.6601, 59.2701]];
   const boatRoute = { type: "Feature", geometry: { type: "LineString", coordinates: journalBoatRouteCoordinates.length >= 2 ? journalBoatRouteCoordinates : emptyRoute }, properties: {} };
   const carRoute = { type: "Feature", geometry: { type: "LineString", coordinates: journalCarRouteCoordinates.length >= 2 ? journalCarRouteCoordinates : emptyRoute }, properties: {} };
-  return {
+  // The raster map already contains roads, labels and land detail. Keep only
+  // the small transportation vector subset for route fallback queries so the
+  // first visible map does not wait for every polygon and glyph tile.
+  if (false) return {
     version: 8,
-    name: "BIGPLUS Trip Planner",
-    glyphs: `${API_ROOT}/weather/map/fonts/{fontstack}/{range}.pbf`,
+    name: "BIGPLUS Fast Trip Planner",
     sources: {
-openmaptiles: { type: "vector", url: `${API_ROOT}/weather/map/planet?v=20260903-https-1`, attribution: "OpenStreetMap contributors" },
+      openmaptiles: { type: "vector", url: `${API_ROOT}/weather/map/planet?v=20260903-https-1`, attribution: "OpenStreetMap contributors" },
+      mapFallbackRaster: { type: "raster", tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"], tileSize: 256, attribution: "© Esri, © OpenStreetMap contributors" },
       journalRouteBoat: { type: "geojson", lineMetrics: true, data: boatRoute },
       journalRouteCar: { type: "geojson", lineMetrics: true, data: carRoute },
       journalRouteWalk: { type: "geojson", lineMetrics: true, data: carRoute },
@@ -328,6 +395,44 @@ openmaptiles: { type: "vector", url: `${API_ROOT}/weather/map/planet?v=20260903-
     },
     layers: [
       { id: "background", type: "background", paint: { "background-color": "#00060f" } },
+      { id: "map-fallback-raster", type: "raster", source: "mapFallbackRaster", minzoom: 0, maxzoom: 20, paint: { "raster-opacity": 0, "raster-contrast": 0.06, "raster-brightness-min": 0.03, "raster-brightness-max": 0.82 } },
+      { id: "roads", type: "line", source: "openmaptiles", "source-layer": "transportation", minzoom: 4, maxzoom: 22, filter: ["match", ["get", "class"], ["path", "track", "footway", "pedestrian", "cycleway"], false, true], paint: { "line-color": "#b9a850", "line-width": 0.9, "line-opacity": 0.34 } },
+      { id: "walkways", type: "line", source: "openmaptiles", "source-layer": "transportation", minzoom: 4, maxzoom: 22, filter: ["match", ["get", "class"], ["path", "track", "footway", "pedestrian", "cycleway"], true, false], paint: { "line-color": "#ffffff", "line-width": 1, "line-opacity": 0.38 } },
+      { id: "journal-poi-boat-ramp", type: "circle", source: "openmaptiles", "source-layer": "poi", layout: { visibility: "none" }, paint: { "circle-color": "#126ee8", "circle-radius": 7, "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 } },
+      { id: "journal-poi-parking", type: "circle", source: "openmaptiles", "source-layer": "poi", layout: { visibility: "none" }, paint: { "circle-color": "#7b5be4", "circle-radius": 6, "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 } },
+      { id: "journal-poi-restaurant", type: "circle", source: "openmaptiles", "source-layer": "poi", layout: { visibility: "none" }, paint: { "circle-color": "#f0782e", "circle-radius": 6, "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 } },
+      { id: "journal-poi-camping", type: "circle", source: "openmaptiles", "source-layer": "poi", layout: { visibility: "none" }, paint: { "circle-color": "#25a85b", "circle-radius": 6, "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 } },
+      { id: "journal-poi-fuel", type: "circle", source: "openmaptiles", "source-layer": "poi", layout: { visibility: "none" }, paint: { "circle-color": "#e24e55", "circle-radius": 6, "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 } },
+      // Route geometry is drawn once by the projected SVG overlay. These
+      // source layers stay available for compatibility and hit-testing.
+      { id: "journal-route-boat-shadow", type: "line", source: "journalRouteBoat", layout: { visibility: "none" }, paint: { "line-color": "#020a12", "line-width": 1, "line-opacity": 0 } },
+      { id: "journal-route-boat", type: "line", source: "journalRouteBoat", layout: { visibility: "none" }, paint: { "line-color": "#ffffff", "line-width": 1, "line-opacity": 0 } },
+      { id: "journal-route-car-shadow", type: "line", source: "journalRouteCar", layout: { visibility: "none" }, paint: { "line-color": "#020a12", "line-width": 1, "line-opacity": 0 } },
+      { id: "journal-route-car", type: "line", source: "journalRouteCar", layout: { visibility: "none" }, paint: { "line-color": "#ffffff", "line-width": 1, "line-opacity": 0 } },
+      { id: "journal-route-walk-shadow", type: "line", source: "journalRouteWalk", layout: { visibility: "none" }, paint: { "line-color": "#020a12", "line-width": 1, "line-opacity": 0 } },
+      { id: "journal-route-walk", type: "line", source: "journalRouteWalk", layout: { visibility: "none" }, paint: { "line-color": "#ffffff", "line-width": 1, "line-opacity": 0 } },
+      { id: "journal-spot-pins", type: "circle", source: "journalSpots", layout: { visibility: "none" }, paint: { "circle-color": "#2585ff", "circle-radius": 1, "circle-opacity": 0 } },
+      { id: "journal-spot-pins-glow", type: "circle", source: "journalSpots", layout: { visibility: "none" }, paint: { "circle-color": "#2585ff", "circle-radius": 1, "circle-opacity": 0 } },
+      { id: "journal-spot-numbers", type: "symbol", source: "journalSpots", layout: { visibility: "none", "text-field": ["get", "numberLabel"] }, paint: { "text-color": "#ffffff" } },
+      { id: "journal-spot-labels", type: "symbol", source: "journalSpots", layout: { visibility: "none", "text-field": ["get", "label"] }, paint: { "text-color": "#ffffff" } },
+    ],
+  };
+  /* The full dark vector style below is the active style for Fisketurer. */
+  return {
+    version: 8,
+    name: "BIGPLUS Trip Planner",
+    glyphs: `${API_ROOT}/weather/map/fonts/{fontstack}/{range}.pbf`,
+    sources: {
+openmaptiles: { type: "vector", url: `${API_ROOT}/weather/map/planet?v=20260903-https-1`, attribution: "OpenStreetMap contributors" },
+      mapFallbackRaster: { type: "raster", tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"], tileSize: 256, attribution: "© Esri, © OpenStreetMap contributors" },
+      journalRouteBoat: { type: "geojson", lineMetrics: true, data: boatRoute },
+      journalRouteCar: { type: "geojson", lineMetrics: true, data: carRoute },
+      journalRouteWalk: { type: "geojson", lineMetrics: true, data: carRoute },
+      journalSpots: { type: "geojson", data: journalSpotFeatureCollection() },
+    },
+    layers: [
+      { id: "background", type: "background", paint: { "background-color": "#00060f" } },
+      { id: "map-fallback-raster", type: "raster", source: "mapFallbackRaster", minzoom: 0, maxzoom: 20, paint: { "raster-opacity": 0, "raster-contrast": 0.08, "raster-brightness-min": 0.02, "raster-brightness-max": 0.72 } },
       { id: "landcover", type: "fill", source: "openmaptiles", "source-layer": "landcover", paint: { "fill-color": ["match", ["coalesce", ["get", "class"], ["get", "subclass"], ""], ["wood", "forest"], "#00060f", ["grass", "scrub", "meadow"], "#0a2a32", ["wetland", "marsh", "bog", "swamp", "fen"], "#123b43", "#081b2b"], "fill-opacity": 1 } },
       { id: "wood-outline", type: "line", source: "openmaptiles", "source-layer": "landcover", filter: ["match", ["coalesce", ["get", "class"], ["get", "subclass"], ""], ["wood", "forest"], true, false], paint: { "line-color": "#00060f", "line-width": 0.65, "line-opacity": 1 } },
       { id: "landuse", type: "fill", source: "openmaptiles", "source-layer": "landuse", paint: { "fill-color": "#0d2634", "fill-opacity": 0.96 } },
@@ -351,15 +456,17 @@ openmaptiles: { type: "vector", url: `${API_ROOT}/weather/map/planet?v=20260903-
       { id: "journal-poi-restaurant", type: "circle", source: "openmaptiles", "source-layer": "poi", filter: ["match", ["get", "class"], ["restaurant", "cafe"], true, false], paint: { "circle-color": "#f0782e", "circle-radius": 6, "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 } },
       { id: "journal-poi-camping", type: "circle", source: "openmaptiles", "source-layer": "poi", filter: ["match", ["get", "class"], ["campsite", "camp_site"], true, false], paint: { "circle-color": "#25a85b", "circle-radius": 6, "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 } },
       { id: "journal-poi-fuel", type: "circle", source: "openmaptiles", "source-layer": "poi", filter: ["==", ["get", "class"], "fuel"], paint: { "circle-color": "#e24e55", "circle-radius": 6, "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 } },
-      { id: "water-names", type: "symbol", source: "openmaptiles", "source-layer": "water_name", layout: { "text-field": ["coalesce", ["get", "name:sv"], ["get", "name"]], "text-size": ["interpolate", ["linear"], ["zoom"], 7, 15, 12, 20], "text-font": ["Noto Sans Italic"] }, paint: { "text-color": "#b6f4ff", "text-halo-color": "#07506b", "text-halo-width": 1.7 } },
+      { id: "water-names", type: "symbol", source: "openmaptiles", "source-layer": "water_name", layout: { "text-field": ["coalesce", ["get", "name:sv"], ["get", "name"]], "text-size": ["interpolate", ["linear"], ["zoom"], 7, 15, 12, 20], "text-font": ["Noto Sans Italic"] }, paint: { "text-color": "#ffd76a", "text-halo-color": "#061a2b", "text-halo-width": 2.4 } },
       { id: "place-names", type: "symbol", source: "openmaptiles", "source-layer": "place", minzoom: 8, maxzoom: 22, layout: { "text-field": ["coalesce", ["get", "name:sv"], ["get", "name"]], "text-size": ["interpolate", ["linear"], ["zoom"], 8, 11, 13, 12, 17, 16, 22, 18], "text-font": ["Noto Sans Regular"] }, paint: { "text-color": "#ffffff", "text-opacity": 1, "text-halo-color": "#082640", "text-halo-width": 2, "text-halo-blur": 0 } },
       { id: "transportation-names", type: "symbol", source: "openmaptiles", "source-layer": "transportation_name", minzoom: 10, layout: { "symbol-placement": "line", "text-field": ["coalesce", ["get", "name:sv"], ["get", "name"]], "text-size": ["interpolate", ["linear"], ["zoom"], 10, 9, 14, 12], "text-font": ["Noto Sans Regular"], "text-max-angle": 30 }, paint: { "text-color": "#d0bd69", "text-halo-color": "#081a20", "text-halo-width": 1.35 } },
-      { id: "journal-route-boat-shadow", type: "line", source: "journalRouteBoat", layout: { visibility: journalTransport === "boat" ? "visible" : "none" }, paint: { "line-color": "#020a12", "line-width": 15, "line-opacity": .94, "line-offset": ["match", ["get", "spotIndex"], 1, -7, 2, 7, 3, -7, 4, 7, 5, -7, 6, 7, 0] } },
-      { id: "journal-route-boat", type: "line", source: "journalRouteBoat", layout: { visibility: journalTransport === "boat" ? "visible" : "none" }, paint: { "line-color": ["match", ["get", "pinColorIndex"], 0, "#ff3b6b", 1, "#9b5cff", 2, "#ff5b00", 3, "#ff2bd6", 4, "#d7ff2f", 5, "#00ffb7", "#9b5cff"], "line-width": 8, "line-dasharray": [1.4, 1.05], "line-offset": ["match", ["get", "spotIndex"], 1, -7, 2, 7, 3, -7, 4, 7, 5, -7, 6, 7, 0] } },
-      { id: "journal-route-car-shadow", type: "line", source: "journalRouteCar", layout: { visibility: journalTransport === "car" ? "visible" : "none" }, paint: { "line-color": "#020a12", "line-width": 15, "line-opacity": .96, "line-offset": ["match", ["get", "spotIndex"], 1, -7, 2, 7, 3, -7, 4, 7, 5, -7, 6, 7, 0] } },
-      { id: "journal-route-car", type: "line", source: "journalRouteCar", layout: { visibility: journalTransport === "car" ? "visible" : "none" }, paint: { "line-color": ["match", ["get", "pinColorIndex"], 0, "#ff3b6b", 1, "#9b5cff", 2, "#ff5b00", 3, "#ff2bd6", 4, "#d7ff2f", 5, "#00ffb7", "#9b5cff"], "line-width": 8, "line-dasharray": [1.4, 1.05], "line-offset": ["match", ["get", "spotIndex"], 1, -7, 2, 7, 3, -7, 4, 7, 5, -7, 6, 7, 0] } },
+      // The projected SVG overlay is the single visible route renderer. Keep
+      // these layers hidden so a route is never painted twice.
+      { id: "journal-route-boat-shadow", type: "line", source: "journalRouteBoat", layout: { visibility: "none" }, paint: { "line-color": "#020a12", "line-width": 15, "line-opacity": .94, "line-offset": ["match", ["get", "spotIndex"], 1, -7, 2, 7, 3, -7, 4, 7, 5, -7, 6, 7, 0] } },
+      { id: "journal-route-boat", type: "line", source: "journalRouteBoat", layout: { visibility: "none" }, paint: { "line-color": ["match", ["get", "pinColorIndex"], 0, "#ff3b6b", 1, "#9b5cff", 2, "#ff5b00", 3, "#ff2bd6", 4, "#d7ff2f", 5, "#00ffb7", "#9b5cff"], "line-width": 8, "line-offset": ["match", ["get", "spotIndex"], 1, -7, 2, 7, 3, -7, 4, 7, 5, -7, 6, 7, 0] } },
+      { id: "journal-route-car-shadow", type: "line", source: "journalRouteCar", layout: { visibility: "none" }, paint: { "line-color": "#020a12", "line-width": 15, "line-opacity": .96, "line-offset": ["match", ["get", "spotIndex"], 1, -7, 2, 7, 3, -7, 4, 7, 5, -7, 6, 7, 0] } },
+      { id: "journal-route-car", type: "line", source: "journalRouteCar", layout: { visibility: "none" }, paint: { "line-color": ["match", ["get", "pinColorIndex"], 0, "#ff3b6b", 1, "#9b5cff", 2, "#ff5b00", 3, "#ff2bd6", 4, "#d7ff2f", 5, "#00ffb7", "#9b5cff"], "line-width": 8, "line-offset": ["match", ["get", "spotIndex"], 1, -7, 2, 7, 3, -7, 4, 7, 5, -7, 6, 7, 0] } },
       { id: "journal-route-walk-shadow", type: "line", source: "journalRouteWalk", layout: { visibility: "none" }, paint: { "line-color": "#020a12", "line-width": 15, "line-opacity": .9, "line-offset": ["match", ["get", "spotIndex"], 1, -7, 2, 7, 3, -7, 4, 7, 5, -7, 6, 7, 0] } },
-      { id: "journal-route-walk", type: "line", source: "journalRouteWalk", layout: { visibility: "none" }, paint: { "line-color": ["match", ["get", "pinColorIndex"], 0, "#ff3b6b", 1, "#9b5cff", 2, "#ff5b00", 3, "#ff2bd6", 4, "#d7ff2f", 5, "#00ffb7", "#9b5cff"], "line-width": 7.5, "line-dasharray": [0.65, 1.45], "line-opacity": .9, "line-offset": ["match", ["get", "spotIndex"], 1, -7, 2, 7, 3, -7, 4, 7, 5, -7, 6, 7, 0] } },
+      { id: "journal-route-walk", type: "line", source: "journalRouteWalk", layout: { visibility: "none" }, paint: { "line-color": ["match", ["get", "pinColorIndex"], 0, "#ff3b6b", 1, "#9b5cff", 2, "#ff5b00", 3, "#ff2bd6", 4, "#d7ff2f", 5, "#00ffb7", "#9b5cff"], "line-width": 7.5, "line-opacity": .9, "line-offset": ["match", ["get", "spotIndex"], 1, -7, 2, 7, 3, -7, 4, 7, 5, -7, 6, 7, 0] } },
       { id: "journal-route-pin-rings", type: "circle", source: "journalSpots", layout: { visibility: "none" }, paint: { "circle-color": "#071522", "circle-radius": ["interpolate", ["linear"], ["zoom"], 6, 10, 10, 15, 14, 19], "circle-opacity": 0, "circle-stroke-color": ["match", ["get", "pinColorIndex"], 0, "#ff3b6b", 1, "#9b5cff", 2, "#ff5b00", 3, "#ff2bd6", 4, "#d7ff2f", 5, "#00ffb7", "#9b5cff"], "circle-stroke-width": 3, "circle-stroke-opacity": .98 } },
       { id: "journal-spot-pins-glow", type: "circle", source: "journalSpots", layout: { visibility: "none" }, paint: { "circle-color": ["match", ["get", "pinColorIndex"], 0, "#27d97f", 1, "#2585ff", 2, "#ff8b20", 3, "#864cff", 4, "#ff4f82", 5, "#0edbd0", "#2585ff"], "circle-radius": ["interpolate", ["linear"], ["zoom"], 6, 12, 10, 17, 14, 22], "circle-blur": 0.72, "circle-opacity": 0.62 } },
       { id: "journal-spot-pins", type: "circle", source: "journalSpots", layout: { visibility: "none" }, paint: { "circle-color": ["match", ["get", "pinColorIndex"], 0, "#27d97f", 1, "#2585ff", 2, "#ff8b20", 3, "#864cff", 4, "#ff4f82", 5, "#0edbd0", "#2585ff"], "circle-radius": ["interpolate", ["linear"], ["zoom"], 6, 7, 10, 10.5, 14, 14], "circle-stroke-color": "#ffffff", "circle-stroke-width": ["case", ["boolean", ["get", "active"], false], 4, 3], "circle-opacity": 1 } },
@@ -372,18 +479,62 @@ openmaptiles: { type: "vector", url: `${API_ROOT}/weather/map/planet?v=20260903-
 function fitJournalRoute() {
   if (!journalMap || !window.maplibregl) return;
   const bounds = new window.maplibregl.LngLatBounds();
+  const isMobile = window.matchMedia("(max-width: 680px)").matches;
   const route = journalTransport === "boat" ? journalBoatRouteCoordinates : journalCarRouteCoordinates;
   const coordinates = route.length >= 2 ? route : SPOTS.map((spot) => spot.lngLat);
   if (coordinates.length >= 2) {
     coordinates.forEach((coordinate) => bounds.extend(coordinate));
-    journalMap.fitBounds(bounds, { padding: { top: 90, right: 70, bottom: 80, left: 70 }, duration: 550, maxZoom: 13.5 });
+    journalMap.fitBounds(bounds, { padding: isMobile ? { top: 96, right: 142, bottom: 92, left: 72 } : { top: 90, right: 70, bottom: 80, left: 70 }, duration: 550, maxZoom: isMobile ? 12.3 : 13.5 });
   } else if (coordinates.length === 1) {
-    journalMap.easeTo({ center: coordinates[0], zoom: 12.5, duration: 450 });
+    journalMap.easeTo({ center: coordinates[0], zoom: isMobile ? 11.8 : 12.5, duration: 450 });
   }
+}
+
+function fitJournalPlanSpots() {
+  if (!journalMap || !window.maplibregl || !SPOTS.length) return;
+  const coordinates = SPOTS
+    .map((spot) => Array.isArray(spot?.lngLat) ? spot.lngLat : null)
+    .filter((coordinate) => coordinate && coordinate.length >= 2 && coordinate.every(Number.isFinite));
+  if (!coordinates.length) return;
+  const isMobile = window.matchMedia("(max-width: 680px)").matches;
+  if (coordinates.length === 1) {
+    journalMap.easeTo({ center: coordinates[0], zoom: isMobile ? 12.8 : 13.2, duration: 450, essential: true });
+    return;
+  }
+  const bounds = new window.maplibregl.LngLatBounds();
+  coordinates.forEach((coordinate) => bounds.extend(coordinate));
+  journalMap.fitBounds(bounds, {
+    padding: isMobile ? { top: 108, right: 132, bottom: 112, left: 54 } : { top: 120, right: 92, bottom: 88, left: 370 },
+    duration: 500,
+    maxZoom: isMobile ? 12.3 : 13.5,
+    essential: true,
+  });
+}
+
+function centerJournalOnPosition() {
+  if (!journalMap) return;
+  if (!navigator.geolocation) {
+    fitJournalRoute();
+    showPlannerStatus("Position saknas, rutten visas");
+    return;
+  }
+  navigator.geolocation.getCurrentPosition((position) => {
+    journalMap.flyTo({ center: [position.coords.longitude, position.coords.latitude], zoom: 12.5, duration: 550 });
+    showPlannerStatus("Kartan är centrerad på din position");
+  }, () => {
+    fitJournalRoute();
+    showPlannerStatus("Kunde inte läsa positionen, rutten visas");
+  }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
 }
 
 function routeFeature(coordinates) {
   return { type: "Feature", geometry: { type: "LineString", coordinates }, properties: {} };
+}
+
+function journalRouteSegmentColorIndex(segment, fallbackIndex = 0) {
+  const spotIndex = Number(segment?.spotIndex) || fallbackIndex + 1;
+  if (Number.isInteger(segment?.pinColorIndex)) return segment.pinColorIndex;
+  return spotColorIndex(SPOTS[spotIndex], spotIndex);
 }
 
 function routeFeatureCollection(segments) {
@@ -392,9 +543,38 @@ function routeFeatureCollection(segments) {
     features: segments.filter((segment) => Array.isArray(segment?.coordinates) && segment.coordinates.length >= 2).map((segment, index) => ({
       type: "Feature",
       geometry: { type: "LineString", coordinates: segment.coordinates },
-      properties: { spotIndex: Number(segment.spotIndex) || index + 1, pinColorIndex: Number.isInteger(segment.pinColorIndex) ? segment.pinColorIndex : Number(SPOTS[Number(segment.spotIndex) || index + 1]?.pinColorIndex) || 0, duration: Number(segment.duration) || 0, travelMode: segment.travelMode || "car" },
+      properties: { spotIndex: Number(segment.spotIndex) || index + 1, pinColorIndex: journalRouteSegmentColorIndex(segment, index), duration: Number(segment.duration) || 0, travelMode: segment.travelMode || "car" },
     })),
   };
+}
+
+function primePlanRoutePreview() {
+  const emptyRoute = [[18.66, 59.27], [18.6601, 59.2701]];
+  const preview = journalMap?.loaded()
+    ? (journalTransport === "boat" ? calculateLayerRoute("water") : calculateLayerRoute("roads") || calculateLayerRoute("walkways"))
+    : null;
+  if (preview?.length >= 2) {
+    if (journalTransport === "boat") {
+      journalBoatRouteCoordinates = preview;
+      journalBoatRouteSegments = [{ coordinates: preview, duration: 0, spotIndex: Math.max(1, SPOTS.length - 1), pinColorIndex: spotColorIndex(SPOTS[Math.max(1, SPOTS.length - 1)], Math.max(1, SPOTS.length - 1)), travelMode: "boat" }];
+      setJournalRouteSource("journalRouteBoat", journalBoatRouteSegments);
+    } else {
+      journalCarRouteCoordinates = preview;
+      journalCarRouteSegments = [{ coordinates: preview, duration: 0, spotIndex: 1, travelMode: "car" }];
+      journalCarTravelMode = "car";
+      setJournalRouteSource("journalRouteCar", journalCarRouteSegments);
+    }
+    return;
+  }
+  if (journalTransport === "boat") {
+    journalBoatRouteCoordinates = [];
+    journalBoatRouteSegments = [];
+    setJournalRouteSource("journalRouteBoat", emptyRoute);
+  } else {
+    journalCarRouteCoordinates = [];
+    journalCarRouteSegments = [];
+    setJournalRouteSource("journalRouteCar", emptyRoute);
+  }
 }
 
 function setJournalRouteSource(sourceId, coordinatesOrSegments) {
@@ -456,7 +636,7 @@ function routeSegmentDuration(segment, coordinates) {
   const duration = Number(segment?.duration) || 0;
   if (duration > 0) return duration;
   const distance = routeDistanceKm(coordinates);
-  return distance * (segment?.travelMode === "walk" ? 720 : 84);
+  return distance * (segment?.travelMode === "walk" ? 720 : segment?.travelMode === "boat" ? 54 : 84);
 }
 
 function updateRouteTimeLabels() {
@@ -481,7 +661,7 @@ function updateRouteTimeLabels() {
     label.hidden = false;
     const distance = routeDistanceKm(coordinates);
     label.innerHTML = `<strong>${distance.toFixed(1).replace(".", ",")} km</strong><small>~${formatRouteDuration(routeSegmentDuration(segment, coordinates))}</small>`;
-    const colorIndex = Number.isInteger(segment.pinColorIndex) ? segment.pinColorIndex : Number(SPOTS[Number(segment.spotIndex)]?.pinColorIndex) || 0;
+    const colorIndex = journalRouteSegmentColorIndex(segment, index);
     const color = JOURNAL_PIN_COLORS[colorIndex % JOURNAL_PIN_COLORS.length];
     label.style.setProperty("--route-label-color", color.route);
     label.style.transform = "translate(" + Math.round(labelX) + "px, " + Math.round(labelY) + "px) translate(-50%, -50%)";
@@ -514,10 +694,12 @@ function renderRouteOverlay() {
     journalRouteOverlay = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     journalRouteOverlay.classList.add("journal-route-overlay");
     journalRouteOverlay.setAttribute("aria-hidden", "true");
-    overlayHost.appendChild(journalRouteOverlay);
-  } else if (journalRouteOverlay.parentElement !== overlayHost) {
-    overlayHost.appendChild(journalRouteOverlay);
   }
+  // Keep the route overlay attached to the active map container and above the
+  // canvas after MapLibre has inserted or reordered its render elements.
+  overlayHost.appendChild(journalRouteOverlay);
+  journalRouteOverlay.style.zIndex = "80";
+  journalRouteOverlay.style.visibility = "visible";
   const size = overlayHost.getBoundingClientRect();
   const width = Math.max(1, Math.round(size.width));
   const height = Math.max(1, Math.round(size.height));
@@ -525,39 +707,32 @@ function renderRouteOverlay() {
   const routeCoordinates = journalTransport === "boat" ? journalBoatRouteCoordinates : journalCarRouteCoordinates;
   const routeSegments = journalTransport === "boat" ? journalBoatRouteSegments : journalCarRouteSegments;
   const segments = routeSegments.length ? routeSegments : routeCoordinates.length >= 2 ? [{ coordinates: routeCoordinates, duration: 0, spotIndex: 1 }] : [];
-  const projectedSegments = segments.map((segment) => ({ segment, points: (Array.isArray(segment?.coordinates) ? segment.coordinates : []).map((coordinate) => { try { return journalMap.project(coordinate); } catch { return null; } }).filter((point) => point && Number.isFinite(point.x) && Number.isFinite(point.y)) }));
+  // SVG paints later children on top. Draw later legs first so the first leg
+  // remains visible wherever several legs use the same road.
+  const renderSegments = segments
+    .map((segment, index) => ({ segment, index }))
+    .sort((left, right) => (Number(right.segment?.spotIndex) || right.index + 1) - (Number(left.segment?.spotIndex) || left.index + 1));
+  const projectedSegments = renderSegments.map(({ segment }) => ({ segment, points: (Array.isArray(segment?.coordinates) ? segment.coordinates : []).map((coordinate) => { try { return journalMap.project(coordinate); } catch { return null; } }).filter((point) => point && Number.isFinite(point.x) && Number.isFinite(point.y)) }));
   const paths = [];
-  segments.forEach((segment, index) => {
+  renderSegments.forEach(({ segment, index }, renderIndex) => {
     const coordinates = Array.isArray(segment?.coordinates) ? segment.coordinates : [];
-    const points = projectedSegments[index].points;
+    const points = projectedSegments[renderIndex].points;
     if (points.length < 2) return;
     const spotIndex = Number(segment.spotIndex) || index + 1;
-    const colorIndex = Number.isInteger(segment.pinColorIndex) ? segment.pinColorIndex : Math.max(0, spotIndex) % JOURNAL_PIN_COLORS.length;
+    const colorIndex = journalRouteSegmentColorIndex(segment, index);
     const color = JOURNAL_PIN_COLORS[colorIndex % JOURNAL_PIN_COLORS.length].route;
     const offsetPoints = points;
     const d = offsetPoints.map((point, pointIndex) => (pointIndex ? "L " : "M ") + Math.round(point.x) + " " + Math.round(point.y)).join(" ");
-    const shadow = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    shadow.setAttribute("d", d);
-    shadow.setAttribute("class", "journal-route-overlay-shadow");
     const route = document.createElementNS("http://www.w3.org/2000/svg", "path");
     route.setAttribute("d", d);
-    route.setAttribute("class", "journal-route-overlay-path");
+    const isBoat = segment.travelMode === "boat";
+    route.setAttribute("class", `journal-route-overlay-path${isBoat ? " is-boat" : ""}`);
     route.style.stroke = color;
     route.style.setProperty("--route-label-color", color);
     const isWalking = segment.travelMode === "walk";
-    route.style.strokeDasharray = isWalking ? "4 8" : "none";
+    route.style.strokeDasharray = "none";
     route.style.strokeDashoffset = "";
     route.style.opacity = segment.travelMode === "walk" ? "0.86" : "1";
-    const highlight = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    highlight.setAttribute("d", d);
-    highlight.setAttribute("class", "journal-route-overlay-highlight");
-    highlight.style.strokeDasharray = isWalking ? "4 8" : "none";
-    highlight.style.opacity = isWalking ? "0" : "0.94";
-    const centerHighlight = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    const centerD = points.map((point, pointIndex) => (pointIndex ? "L " : "M ") + Math.round(point.x) + " " + Math.round(point.y)).join(" ");
-    centerHighlight.setAttribute("d", centerD);
-    centerHighlight.setAttribute("class", "journal-route-overlay-center-highlight");
-    centerHighlight.style.opacity = "0";
     const arrowIndex = Math.max(1, Math.min(offsetPoints.length - 2, Math.floor(offsetPoints.length * 0.54)));
     const arrowFrom = offsetPoints[Math.max(0, arrowIndex - 1)];
     const arrowTo = offsetPoints[Math.min(offsetPoints.length - 1, arrowIndex + 1)];
@@ -574,9 +749,9 @@ function renderRouteOverlay() {
     const right = { x: arrowPoint.x - ux * 7 - px * 6, y: arrowPoint.y - uy * 7 - py * 6 };
     const arrow = document.createElementNS("http://www.w3.org/2000/svg", "path");
     arrow.setAttribute("d", `M ${Math.round(tip.x)} ${Math.round(tip.y)} L ${Math.round(left.x)} ${Math.round(left.y)} L ${Math.round(right.x)} ${Math.round(right.y)} Z`);
-    arrow.setAttribute("class", "journal-route-overlay-arrow");
+    arrow.setAttribute("class", `journal-route-overlay-arrow${isBoat ? " is-boat" : ""}`);
     arrow.style.opacity = isWalking ? "0.55" : "0.96";
-    paths.push(shadow, route, highlight, centerHighlight, arrow);
+    paths.push(route, arrow);
   });
   journalRouteOverlay.replaceChildren(...paths);
 }
@@ -677,8 +852,13 @@ function calculateLayerRoute(layerId) {
 }
 
 async function requestRoadRouteSegment(spotIndex, mode, routeIndex = 0) {
+  const result = await requestRoadRouteCoordinates(SPOTS[spotIndex - 1].lngLat, SPOTS[spotIndex].lngLat, mode, routeIndex);
+  return { ...result, spotIndex, pinColorIndex: SPOTS[spotIndex]?.pinColorIndex, travelMode: mode === "walking" ? "walk" : "car" };
+}
+
+async function requestRoadRouteCoordinates(from, to, mode, routeIndex = 0) {
   const routeRoots = [...new Set([API_ROOT, LOCAL_API_ROOT, RENDER_API_ROOT].filter(Boolean))];
-  const coordinates = [SPOTS[spotIndex - 1], SPOTS[spotIndex]].map((spot) => spot.lngLat.join(",")).join(";");
+  const coordinates = [from, to].map((coordinate) => coordinate.join(",")).join(";");
   let lastError = new Error("Ingen rutt hittades");
   for (const routeApiRoot of routeRoots) {
     try {
@@ -691,7 +871,7 @@ async function requestRoadRouteSegment(spotIndex, mode, routeIndex = 0) {
       if (!alternatives.length) throw new Error("Ingen rutt hittades");
       const selectedIndex = Math.min(Math.max(0, Number(routeIndex) || 0), alternatives.length - 1);
       const selected = alternatives[selectedIndex];
-      return { ...result, ...selected, coordinates: selected.coordinates, alternatives, routeIndex: Number(selected.index) || selectedIndex, spotIndex, pinColorIndex: SPOTS[spotIndex]?.pinColorIndex, travelMode: mode === "walking" ? "walk" : "car" };
+      return { ...result, ...selected, coordinates: selected.coordinates, alternatives, routeIndex: Number(selected.index) || selectedIndex };
     } catch (error) {
       lastError = error;
     }
@@ -699,9 +879,116 @@ async function requestRoadRouteSegment(spotIndex, mode, routeIndex = 0) {
   throw lastError;
 }
 
+async function requestRoadCoordinatesWithFallback(from, to) {
+  try {
+    return await requestRoadRouteCoordinates(from, to, "driving");
+  } catch {
+    return requestRoadRouteCoordinates(from, to, "walking");
+  }
+}
+
+function spotIsOnWater(spot) {
+  if (!spot) return false;
+  if (spot.isBoatBase === true) return true;
+  if (spot.type === "boat_ramp") return false;
+  if (spot.isWater === true || spot.routeMode === "boat" || spot.travelMode === "boat") return true;
+  if (!journalMap?.loaded() || !journalMap.getLayer("water")) return false;
+  try {
+    const point = journalMap.project(spot.lngLat);
+    const box = [[point.x - 12, point.y - 12], [point.x + 12, point.y + 12]];
+    return journalMap.queryRenderedFeatures(box, { layers: ["water", "waterway"] }).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function nearestBoatRamp(coordinate) {
+  if (!journalMap?.loaded() || !journalMap.getLayer("journal-poi-boat-ramp")) return null;
+  try {
+    const features = journalMap.queryRenderedFeatures({ layers: ["journal-poi-boat-ramp"] });
+    const candidates = features.map((feature) => feature.geometry?.coordinates).filter((value) => Array.isArray(value) && value.length >= 2);
+    if (!candidates.length) return null;
+    return candidates.reduce((closest, candidate) => {
+      const distance = ((Number(candidate[0]) - Number(coordinate[0])) ** 2) + ((Number(candidate[1]) - Number(coordinate[1])) ** 2);
+      return !closest || distance < closest.distance ? { coordinate: [Number(candidate[0]), Number(candidate[1])], distance } : closest;
+    }, null)?.coordinate || null;
+  } catch {
+    return null;
+  }
+}
+
+function waterRouteBetween(from, to) {
+  if (!journalMap?.loaded()) return null;
+  const route = findGridRoute(from, to, "water", 42);
+  if (!route?.length) return null;
+  return [from, ...route, to].filter((coordinate, index, list) => index === 0 || coordinate[0] !== list[index - 1][0] || coordinate[1] !== list[index - 1][1]);
+}
+
+function appendRouteSegment(target, coordinates, spotIndex, travelMode, duration = 0, pinColorIndex = spotColorIndex(SPOTS[spotIndex], spotIndex)) {
+  if (!Array.isArray(coordinates) || coordinates.length < 2) return;
+  target.push({ coordinates, spotIndex, duration, pinColorIndex: Number.isInteger(pinColorIndex) ? pinColorIndex : spotColorIndex(SPOTS[spotIndex], spotIndex), travelMode });
+}
+
+async function requestMixedTransportSegments(requestId) {
+  const segments = [];
+  let current = SPOTS[0].lngLat;
+  let currentOnWater = spotIsOnWater(SPOTS[0]);
+  for (let index = 1; index < SPOTS.length; index += 1) {
+    if (requestId !== journalRouteRequestId) return null;
+    const destination = SPOTS[index];
+    const destinationOnWater = spotIsOnWater(destination);
+    if (currentOnWater && !destinationOnWater) {
+      const ramp = nearestBoatRamp(current);
+      if (ramp) {
+        appendRouteSegment(segments, waterRouteBetween(current, ramp) || [current, ramp], index, "boat", 0);
+        current = ramp;
+      }
+      currentOnWater = false;
+    } else if (!currentOnWater && destinationOnWater) {
+      const ramp = nearestBoatRamp(destination.lngLat) || nearestBoatRamp(current);
+      if (ramp) {
+        let road;
+        try {
+          road = await requestRoadCoordinatesWithFallback(current, ramp);
+        } catch {
+          road = { coordinates: [current, ramp], duration: 0 };
+        }
+        appendRouteSegment(segments, road.coordinates, index, "car", road.duration || 0);
+        current = ramp;
+        currentOnWater = true;
+      } else {
+        appendRouteSegment(segments, [current, destination.lngLat], index, "boat", 0);
+        current = destination.lngLat;
+        currentOnWater = true;
+        continue;
+      }
+    }
+    if (currentOnWater && destinationOnWater) {
+      appendRouteSegment(segments, waterRouteBetween(current, destination.lngLat) || [current, destination.lngLat], index, "boat", 0);
+    } else {
+      let road;
+      try {
+        road = await requestRoadCoordinatesWithFallback(current, destination.lngLat);
+      } catch {
+        road = { coordinates: [current, destination.lngLat], duration: 0 };
+      }
+      appendRouteSegment(segments, road.coordinates, index, "car", road.duration || 0);
+    }
+    current = destination.lngLat;
+    currentOnWater = destinationOnWater;
+  }
+  return segments;
+}
+
 async function updateCalculatedTransportRoute() {
   if (!journalMap) return;
   const requestedTransport = journalTransport;
+  if (typeof journalMap.isMoving === "function" && journalMap.isMoving()) {
+    journalMap.once("idle", () => {
+      if (journalMap && journalTransport === requestedTransport) scheduleCalculatedTransportRoute(0);
+    });
+    return;
+  }
   const requestId = ++journalRouteRequestId;
   if (SPOTS.length < 2) {
     journalCarRouteCoordinates = [];
@@ -715,11 +1002,55 @@ async function updateCalculatedTransportRoute() {
     updateJournalRouteMode();
     return;
   }
+  const hasWaterStops = SPOTS.some((spot) => spotIsOnWater(spot));
+  const hasLandStops = SPOTS.some((spot) => !spotIsOnWater(spot));
+  const shouldUseMixedTransport = hasWaterStops && (requestedTransport !== "boat" || hasLandStops);
+  if (shouldUseMixedTransport) {
+    try {
+      const segments = await requestMixedTransportSegments(requestId);
+      if (!segments?.length || requestId !== journalRouteRequestId || journalTransport !== requestedTransport) return;
+      const combinedCoordinates = segments.reduce((coordinates, segment) => coordinates.concat(segment.coordinates.slice(coordinates.length ? 1 : 0)), []);
+      const hasBoatSegments = segments.some((segment) => segment.travelMode === "boat");
+      const hasCarSegments = segments.some((segment) => segment.travelMode === "car");
+      if (requestedTransport === "boat") {
+        journalBoatRouteCoordinates = combinedCoordinates;
+        journalBoatRouteSegments = segments;
+      } else {
+        journalCarRouteCoordinates = combinedCoordinates;
+        journalCarRouteSegments = segments;
+      }
+      journalCarTravelMode = hasBoatSegments && hasCarSegments ? "mixed" : hasBoatSegments ? "boat" : "car";
+      setJournalRouteSource("journalRouteCar", requestedTransport === "boat" ? [SPOTS[0].lngLat, SPOTS[0].lngLat] : hasCarSegments ? segments.filter((segment) => segment.travelMode === "car") : [SPOTS[0].lngLat, SPOTS[0].lngLat]);
+      setJournalRouteSource("journalRouteBoat", requestedTransport === "boat" ? segments : [SPOTS[0].lngLat, SPOTS[0].lngLat]);
+      setJournalRouteSource("journalRouteWalk", [SPOTS[0].lngLat, SPOTS[0].lngLat]);
+      updateJournalRouteMode();
+      fitJournalRouteAfterCalculationIfNeeded();
+      return;
+    } catch {
+      // Fall through to the normal road route if a ramp or mixed route is unavailable.
+    }
+  }
+  const immediatePreview = requestedTransport === "boat"
+    ? calculateLayerRoute("water")
+    : calculateLayerRoute("roads") || calculateLayerRoute("walkways");
+  if (immediatePreview?.length >= 2 && requestId === journalRouteRequestId && journalTransport === requestedTransport) {
+    if (requestedTransport === "boat") {
+      journalBoatRouteCoordinates = immediatePreview;
+      journalBoatRouteSegments = [{ coordinates: immediatePreview, duration: 0, spotIndex: Math.max(1, SPOTS.length - 1), pinColorIndex: spotColorIndex(SPOTS[Math.max(1, SPOTS.length - 1)], Math.max(1, SPOTS.length - 1)), travelMode: "boat" }];
+      setJournalRouteSource("journalRouteBoat", journalBoatRouteSegments);
+    } else if (!journalCarRouteCoordinates.length) {
+      journalCarRouteCoordinates = immediatePreview;
+      journalCarRouteSegments = [{ coordinates: immediatePreview, duration: 0, spotIndex: 1, travelMode: "car" }];
+      journalCarTravelMode = "car";
+      setJournalRouteSource("journalRouteCar", journalCarRouteSegments);
+    }
+    updateJournalRouteMode();
+  }
   if (requestedTransport === "boat") {
     const calculated = calculateLayerRoute("water");
     if (calculated && requestId === journalRouteRequestId && journalTransport === requestedTransport) {
       journalBoatRouteCoordinates = calculated;
-      journalBoatRouteSegments = [{ coordinates: calculated, duration: 0, spotIndex: Math.max(1, SPOTS.length - 1) }];
+      journalBoatRouteSegments = [{ coordinates: calculated, duration: 0, spotIndex: Math.max(1, SPOTS.length - 1), pinColorIndex: spotColorIndex(SPOTS[Math.max(1, SPOTS.length - 1)], Math.max(1, SPOTS.length - 1)), travelMode: "boat" }];
       setJournalRouteSource("journalRouteBoat", journalBoatRouteSegments);
       updateJournalRouteMode();
       fitJournalRouteAfterCalculationIfNeeded();
@@ -735,22 +1066,26 @@ async function updateCalculatedTransportRoute() {
   }
 
   try {
-    const segments = [];
-    let routeSelectionChanged = false;
-    for (let index = 1; index < SPOTS.length; index += 1) {
+    const routeIndexes = Array.from({ length: Math.max(0, SPOTS.length - 1) }, (_, offset) => offset + 1);
+    // The API calls are independent. Running them together removes the
+    // cumulative wait from long plans while preserving the stop order.
+    const segments = await Promise.all(routeIndexes.map(async (index) => {
       const requestedRouteIndex = Math.max(0, Number(SPOTS[index]?.routeAlternativeIndex) || 0);
-      let segment;
       try {
-        segment = await requestRoadRouteSegment(index, "driving", requestedRouteIndex);
+        return await requestRoadRouteSegment(index, "driving", requestedRouteIndex);
       } catch {
-        segment = await requestRoadRouteSegment(index, "walking", requestedRouteIndex);
+        return requestRoadRouteSegment(index, "walking", requestedRouteIndex);
       }
+    }));
+    let routeSelectionChanged = false;
+    segments.forEach((segment, segmentOffset) => {
+      const index = routeIndexes[segmentOffset];
+      const requestedRouteIndex = Math.max(0, Number(SPOTS[index]?.routeAlternativeIndex) || 0);
       if ((Number(segment.routeIndex) || 0) !== requestedRouteIndex) {
         SPOTS[index] = { ...SPOTS[index], routeAlternativeIndex: Number(segment.routeIndex) || 0 };
         routeSelectionChanged = true;
       }
-      segments.push(segment);
-    }
+    });
     if (requestId !== journalRouteRequestId || journalTransport !== requestedTransport) return;
     const combinedCoordinates = segments.reduce((coordinates, segment) => coordinates.concat(segment.coordinates.slice(coordinates.length ? 1 : 0)), []);
     const carSegments = segments.filter((segment) => segment.travelMode !== "walk");
@@ -764,13 +1099,26 @@ async function updateCalculatedTransportRoute() {
     setJournalRouteSource("journalRouteWalk", walkSegments.length ? walkSegments : emptyRoute);
   } catch {
     const fallback = calculateLayerRoute("roads") || calculateLayerRoute("walkways");
-    if (!fallback || requestId !== journalRouteRequestId || journalTransport !== requestedTransport) return;
-    journalCarTravelMode = "walk";
-    journalCarRouteCoordinates = fallback;
-    journalCarRouteSegments = [{ coordinates: fallback, duration: 0, spotIndex: 1, travelMode: "walk" }];
+    if (requestId !== journalRouteRequestId || journalTransport !== requestedTransport) return;
+    if (fallback) {
+      journalCarTravelMode = "walk";
+      journalCarRouteCoordinates = fallback;
+      journalCarRouteSegments = [{ coordinates: fallback, duration: 0, spotIndex: 1, travelMode: "walk" }];
+    } else if (journalCarRouteCoordinates.length >= 2) {
+      // Keep the last working route visible during a temporary refresh failure.
+      showPlannerStatus("Rutten behålls medan vägen uppdateras");
+      updateJournalRouteMode();
+      renderRouteOverlay();
+      return;
+    } else {
+      journalCarTravelMode = "car";
+      journalCarRouteCoordinates = [];
+      journalCarRouteSegments = [];
+      showPlannerStatus("Ingen väg kunde beräknas för planen");
+    }
     const emptyRoute = SPOTS.length ? [SPOTS[0].lngLat, SPOTS[0].lngLat] : [[18.66, 59.27], [18.66, 59.27]];
     setJournalRouteSource("journalRouteCar", emptyRoute);
-    setJournalRouteSource("journalRouteWalk", journalCarRouteSegments);
+    setJournalRouteSource("journalRouteWalk", fallback ? journalCarRouteSegments : emptyRoute);
   }
   updateJournalRouteMode();
   fitJournalRouteAfterCalculationIfNeeded();
@@ -781,24 +1129,23 @@ function updateJournalRouteMode() {
   const route = journalTransport === "boat" ? journalBoatRouteCoordinates : journalCarRouteCoordinates;
   const isWalking = !isBoat && journalCarTravelMode === "walk";
   const isMixed = !isBoat && journalCarTravelMode === "mixed";
+  const hasBoatSegments = !isBoat && journalCarRouteSegments.some((segment) => segment.travelMode === "boat");
   const distance = routeDistanceKm(route);
   const distanceLabel = `${distance.toFixed(1).replace(".", ",")} km`;
   setText("#journalReferenceDistance", distanceLabel);
+  setText("#journalSpotInfoDistance", distanceLabel);
   setText("#journalReferencePlanSummary", `${SPOTS.length} stopp \u00b7 ${distanceLabel}`);
-  setText("#journalReferenceRouteLabel", isBoat ? "B\u00e5t via vatten" : isMixed ? "Bil + promenad" : isWalking ? "Promenad via g\u00e5ngv\u00e4g" : "Bil via v\u00e4g");
-  setText("#journalReferenceTravelTime", isBoat ? "1 h 35 min" : isMixed ? "Bil + promenad" : isWalking ? "2 h 15 min" : "1 h 45 min");
-  setText("#journalRouteModeBadge", isBoat ? "\u2693 \u00a0 Rutten f\u00f6ljer vatten" : isMixed ? "\uD83D\uDE97 + \uD83D\uDEB6 \u00a0 Bilv\u00e4g + promenad" : isWalking ? "\uD83D\uDEB6 \u00a0 Rutten f\u00f6ljer g\u00e5ngv\u00e4gar" : "\uD83D\uDE97 \u00a0 Rutten f\u00f6ljer v\u00e4gar");
+  setText("#journalReferenceRouteLabel", isBoat ? "B\u00e5t via vatten" : hasBoatSegments ? "Bil + b\u00e5t via ramp" : isMixed ? "Bil + promenad" : isWalking ? "Promenad via g\u00e5ngv\u00e4g" : "Bil via v\u00e4g");
+  setText("#journalReferenceTravelTime", isBoat ? "1 h 35 min" : hasBoatSegments ? "Bil + b\u00e5t" : isMixed ? "Bil + promenad" : isWalking ? "2 h 15 min" : "1 h 45 min");
+  setText("#journalRouteModeBadge", isBoat ? "\u2693 \u00a0 Rutten f\u00f6ljer vatten" : hasBoatSegments ? "\uD83D\uDE97 + \u2693 \u00a0 V\u00e4g till ramp, sedan b\u00e5t" : isMixed ? "\uD83D\uDE97 + \uD83D\uDEB6 \u00a0 Bilv\u00e4g + promenad" : isWalking ? "\uD83D\uDEB6 \u00a0 Rutten f\u00f6ljer g\u00e5ngv\u00e4gar" : "\uD83D\uDE97 \u00a0 Rutten f\u00f6ljer v\u00e4gar");
   if (!journalMap) return;
   if (!journalMap.loaded()) {
     renderRouteOverlay();
     return;
   }
-  journalMap.setLayoutProperty("journal-route-boat-shadow", "visibility", isBoat ? "visible" : "none");
-  journalMap.setLayoutProperty("journal-route-boat", "visibility", isBoat ? "visible" : "none");
-  journalMap.setLayoutProperty("journal-route-car-shadow", "visibility", isBoat ? "none" : "visible");
-  journalMap.setLayoutProperty("journal-route-car", "visibility", !isBoat && !isWalking ? "visible" : "none");
-  journalMap.setLayoutProperty("journal-route-walk-shadow", "visibility", isWalking || isMixed ? "visible" : "none");
-  journalMap.setLayoutProperty("journal-route-walk", "visibility", isWalking || isMixed ? "visible" : "none");
+  ["journal-route-boat-shadow", "journal-route-boat", "journal-route-car-shadow", "journal-route-car", "journal-route-walk-shadow", "journal-route-walk"].forEach((layerId) => {
+    if (journalMap.getLayer(layerId)) journalMap.setLayoutProperty(layerId, "visibility", "none");
+  });
   renderRouteTimeLabels();
   renderRouteOverlay();
   renderReferencePlan();
@@ -818,6 +1165,18 @@ function rebuildJournalMarkers() {
   createJournalMarkers();
 }
 
+function setJournalMobilePinLayers() {
+  if (!journalMap || !window.matchMedia("(max-width: 680px)").matches) return;
+  if (journalMap.getLayer("journal-spot-pins")) {
+    journalMap.setLayoutProperty("journal-spot-pins", "visibility", "none");
+    journalMap.setPaintProperty("journal-spot-pins", "circle-stroke-width", 2);
+  }
+  if (journalMap.getLayer("journal-spot-numbers")) {
+    journalMap.setLayoutProperty("journal-spot-numbers", "visibility", "none");
+  }
+  if (journalMap.getLayer("journal-spot-pins-glow")) journalMap.setLayoutProperty("journal-spot-pins-glow", "visibility", "none");
+}
+
 function ensureJournalMap() {
   const target = $("#journalMapReference") || $("#journalMap");
   if (!target) return;
@@ -834,9 +1193,16 @@ function ensureJournalMap() {
     return;
   }
   journalMap = new window.maplibregl.Map({ container: target, style: journalMapStyle(), center: [18.66, 59.27], zoom: 10.2, attributionControl: false, dragRotate: false, pitchWithRotate: false });
-  journalMap.on("load", () => { $(".journal-reference-map-panel")?.classList.add("is-map-ready"); createJournalMarkers(); updateJournalRouteMode(); fitJournalRoute(); scheduleCalculatedTransportRoute(260); });
+  const resizeJournalMap = () => {
+    if (!journalMap) return;
+    const rect = target.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) journalMap.resize();
+  };
+  journalMap.on("load", () => { resizeJournalMap(); $(".journal-reference-map-panel")?.classList.add("is-map-ready"); setJournalMobilePinLayers(); createJournalMarkers(); updateJournalRouteMode(); fitJournalPlanSpots(); scheduleCalculatedTransportRoute(260); });
+  window.requestAnimationFrame(resizeJournalMap);
+  window.setTimeout(resizeJournalMap, 180);
   ["move", "zoom", "resize"].forEach((eventName) => journalMap.on(eventName, () => { updateJournalPlaceLabelPositions(); updateRouteTimeLabels(); renderRouteOverlay(); updateJournalMarkerScale(); }));
-  journalMap.on("render", () => { updateJournalPlaceLabelPositions(); updateRouteTimeLabels(); });
+  journalMap.on("render", () => { updateJournalPlaceLabelPositions(); updateRouteTimeLabels(); renderRouteOverlay(); });
   journalMap.on("click", (event) => {
     if (journalMarkerMoveMode) {
       const nextDestination = event.lngLat.toArray();
@@ -847,6 +1213,7 @@ function ensureJournalMap() {
         updateJournalSpotsSource();
         plannerState.activeSpot = index;
         persistPlannerStops();
+        journalPendingDestination = nextDestination;
         renderSpot();
         scheduleCalculatedTransportRoute(0);
         showPlannerStatus(`${SPOTS[index].name} har flyttats`);
@@ -861,13 +1228,24 @@ function ensureJournalMap() {
     }
     if (!journalAddDestinationMode) {
       const spotFeature = journalMap.queryRenderedFeatures(event.point, { layers: ["journal-spot-pins", "journal-spot-labels"] })[0];
-      if (spotFeature) { selectSpot(Number(spotFeature.properties?.index) || 0, false); return; }
+      if (spotFeature) {
+        selectSpot(Number(spotFeature.properties?.index) || 0, false, true);
+        if ($("#journalView")?.classList.contains("journal-mobile-edit-mode")) $("#journalView")?.classList.add("journal-mobile-editor-open");
+        return;
+      }
       showPlannerStatus("Tryck pa Lagg till plats for att skapa ett stopp");
       return;
     }
     journalPendingDestination = event.lngLat.toArray();
+    $("#journalView")?.classList.add("is-destination-form-open");
+    $("#journalDestinationQuickActions")?.removeAttribute("hidden");
     const dialog = $("#journalDestinationDialog");
-    if (dialog) { dialog.hidden = false; $("#journalDialogName")?.focus(); }
+    if (dialog) {
+      dialog.hidden = false;
+      setText("#journalMapReferenceHint strong", "Skapa ny plats");
+      setText("#journalMapReferenceHint span", "Fyll i informationen och spara platsen");
+      $("#journalDialogName")?.focus();
+    }
   });
 }
 
@@ -902,6 +1280,9 @@ function renderSpotInfoList() {
   const target = $("#journalSpotInfoList");
   if (!target) return;
   setText("#journalSpotInfoCount", `${SPOTS.length} ${SPOTS.length === 1 ? "plats" : "platser"}`);
+  const route = journalTransport === "boat" ? journalBoatRouteCoordinates : journalCarRouteCoordinates;
+  const distance = routeDistanceKm(route?.length >= 2 ? route : []);
+  setText("#journalSpotInfoDistance", `${distance.toFixed(1).replace(".", ",")} km`);
   if (!SPOTS.length) {
     target.innerHTML = `<p class="journal-spot-info-empty">Lägg till en plats på kartan.</p>`;
     return;
@@ -909,10 +1290,36 @@ function renderSpotInfoList() {
   target.innerHTML = SPOTS.map((spot, index) => {
     const active = index === plannerState.activeSpot;
     const transport = spotTransportLabel(spot);
-    const color = JOURNAL_PIN_COLORS[Number.isInteger(spot.pinColorIndex) ? spot.pinColorIndex % JOURNAL_PIN_COLORS.length : index % JOURNAL_PIN_COLORS.length];
-    const details = `<dl class="journal-spot-info-details"><div><dt>Tid här</dt><dd>${escapeHtml(spot.time || `${spot.durationMinutes || 45} min`)}</dd></div><div><dt>Färdsätt</dt><dd>${escapeHtml(transport)}</dd></div><div><dt>Målart</dt><dd>${escapeHtml(spot.target || "-")}</dd></div><div><dt>Koordinater</dt><dd>${escapeHtml(spot.coordinates || "-")}</dd></div><div><dt>Metod</dt><dd>${escapeHtml(spot.method || "Planeras")}</dd></div></dl>`;
-    return `<article class="journal-spot-info-item${active ? " is-active" : ""}" data-journal-info-index="${index}"><button type="button" class="journal-spot-info-toggle" aria-expanded="${active}" aria-controls="journalSpotInfoDetails${index}"><span class="journal-spot-info-pin" style="--journal-pin-color:${color.base}">${spot.isPause ? "🍴" : index + 1}</span><span class="journal-spot-info-title"><strong>${escapeHtml(spot.name)}</strong><small>${escapeHtml(transport)}</small></span><b aria-hidden="true">${active ? "−" : "+"}</b></button><div id="journalSpotInfoDetails${index}" class="journal-spot-info-details-wrap"${active ? "" : " hidden"}>${details}</div></article>`;
+    const color = JOURNAL_PIN_COLORS[spotColorIndex(spot, index)];
+    const details = `<dl class="journal-spot-info-details"><div><dt>Tid här</dt><dd>${escapeHtml(spot.time || `${spot.durationMinutes || 45} min`)}</dd></div><div><dt>Färdsätt</dt><dd>${escapeHtml(transport)}</dd></div><div><dt>Målart</dt><dd>${escapeHtml(spot.target || "-")}</dd></div><div><dt>Koordinater</dt><dd>${escapeHtml(spot.coordinates || "-")}</dd></div><div><dt>Metod</dt><dd>${escapeHtml(spot.method || "Planeras")}</dd></div></dl><button type="button" class="journal-spot-info-edit" data-journal-info-edit="${index}" aria-label="Redigera ${escapeHtml(spot.name)}" title="Redigera plats">&#9998; Redigera plats</button>`;
+    const rowActions = `<span class="journal-spot-info-actions"><strong>${escapeHtml(spotTimeLabel(spot, index) || spot.shortTime || "")}</strong><button type="button" data-journal-info-move="up" data-journal-info-index="${index}" aria-label="Flytta ${escapeHtml(spot.name)} upp"${index === 0 ? " disabled" : ""}>&uarr;</button><button type="button" data-journal-info-move="down" data-journal-info-index="${index}" aria-label="Flytta ${escapeHtml(spot.name)} ner"${index === SPOTS.length - 1 ? " disabled" : ""}>&darr;</button><button type="button" data-journal-info-edit="${index}" aria-label="Redigera ${escapeHtml(spot.name)}" title="Redigera plats">&#9998;</button></span>`;
+    return `<article class="journal-spot-info-item${active ? " is-active" : ""}" data-journal-info-index="${index}"><button type="button" class="journal-spot-info-toggle" aria-expanded="false" aria-controls="journalSpotInfoDetails${index}"><span class="journal-spot-info-pin" style="--journal-pin-color:${color.base}">${spot.isPause ? "🍴" : index + 1}</span><span class="journal-spot-info-title"><strong>${escapeHtml(spot.name)}</strong><small>${escapeHtml(transport)}</small></span><b aria-hidden="true">&rsaquo;</b></button>${rowActions}<div id="journalSpotInfoDetails${index}" class="journal-spot-info-details-wrap" hidden>${details}</div></article>`;
   }).join("");
+}
+
+function renderMobilePinInfo(index = plannerState.activeSpot) {
+  if (!window.matchMedia("(max-width: 680px)").matches) return;
+  const spot = SPOTS[index];
+  const panel = $("#journalMobilePinInfo");
+  if (!panel || !spot) return;
+  const color = JOURNAL_PIN_COLORS[spotColorIndex(spot, index)];
+  setText("#journalMobilePinInfoPosition", `Plats ${index + 1} av ${SPOTS.length}`);
+  setText("#journalMobilePinInfoPin", spot.isBoatBase ? "B" : spot.isPause ? "P" : String(index + 1));
+  setText("#journalMobilePinInfoName", spot.name || "Vald plats");
+  setText("#journalMobilePinInfoTime", spotTimeLabel(spot, index) || spot.time || "Tid saknas");
+  setText("#journalMobilePinInfoTransport", spotTransportLabel(spot));
+  setText("#journalMobilePinInfoTarget", spot.target || (spot.isPause ? "Paus" : "Fiske"));
+  setText("#journalMobilePinInfoCoordinates", spot.coordinates || "-");
+  journalMapPinInfoIndex = index;
+  const pin = $("#journalMobilePinInfoPin");
+  pin?.style.setProperty("--journal-pin-color", color.base);
+  const previous = $("#journalMobilePinInfoPrev");
+  const next = $("#journalMobilePinInfoNext");
+  if (previous) previous.disabled = index <= 0;
+  if (next) next.disabled = index >= SPOTS.length - 1;
+  panel.hidden = false;
+  $("#journalView")?.classList.add("journal-mobile-pin-info-open");
+  updateJournalMapPinInfo();
 }
 
 function renderSelectedSpotForm() {
@@ -925,6 +1332,7 @@ function renderSelectedSpotForm() {
     setText("#journalInfoSpotPosition", "Ingen plats vald");
     return;
   }
+  journalEditingSpotIndex = plannerState.activeSpot;
   if (empty) empty.hidden = true;
   if (fields) fields.hidden = false;
   setText("#journalInfoSpotPosition", `Plats ${plannerState.activeSpot + 1} av ${SPOTS.length}`);
@@ -959,6 +1367,43 @@ function renderSelectedSpotForm() {
     alternativeButton.setAttribute("aria-label", alternativeButton.title);
     alternativeButton.onclick = toggleAlternativeRoute;
   }
+  const boatButton = $("#journalInfoBoatMarkerButton");
+  const isBoatMarker = spot.isBoatBase === true;
+  if (boatButton) {
+    boatButton.innerHTML = isBoatMarker ? "&#128205; Platsmarkör" : "&#9973; Båtmarkör";
+    boatButton.title = isBoatMarker ? "Gör platsen till en vanlig platsmarkör" : "Gör platsen till båtmarkör";
+    boatButton.setAttribute("aria-pressed", String(isBoatMarker));
+  }
+}
+
+function toggleSelectedSpotBoatMarker(index = plannerState.activeSpot) {
+  const spot = SPOTS[index];
+  if (!spot) return;
+  const makeBoatMarker = spot.isBoatBase !== true;
+  SPOTS[index] = {
+    ...spot,
+    type: makeBoatMarker ? "boat_ramp" : "fishing",
+    isBoatBase: makeBoatMarker,
+    isWater: makeBoatMarker,
+    travelMode: makeBoatMarker ? "boat" : spot.travelMode === "boat" ? "car" : spot.travelMode,
+  };
+  plannerState.activeSpot = index;
+  persistPlannerStops();
+  window.clearTimeout(journalRouteRefreshTimer);
+  journalRouteRequestId += 1;
+  clearJournalRouteDisplay();
+  rebuildJournalMarkers();
+  renderSpot();
+  updateJournalRouteMode();
+  scheduleCalculatedTransportRoute(0);
+  if (window.matchMedia("(max-width: 680px)").matches) {
+    journalMapPinInfoIndex = index;
+    renderMobilePinInfo(index);
+  } else {
+    journalMapPinInfoIndex = index;
+    updateJournalMapPinInfo();
+  }
+  showPlannerStatus(makeBoatMarker ? `${spot.name} är nu båtmarkör` : `${spot.name} är nu vanlig platsmarkör`);
 }
 
 function toggleAlternativeRoute() {
@@ -1000,6 +1445,7 @@ function saveSelectedSpotForm(event) {
   updateJournalRouteMode();
   scheduleCalculatedTransportRoute(0);
   showPlannerStatus(`${name} är uppdaterad`);
+  closeJournalMobilePanels();
 }
 
 function renderSpot() {
@@ -1037,24 +1483,43 @@ function renderSpot() {
 }
 
 function renderPlanPicker() {
-  const target = $("#journalPlanOptions");
-  if (!target) return;
+  renderSelectedPlanSummary();
+  const targets = [$("#journalPlanOptions"), $("#journalQuickPlanOptions")].filter(Boolean);
+  if (!targets.length) return;
   const current = currentPlanSnapshot();
-  const plans = readSavedPlans();
-  if (!plans.some((plan) => plan.id === current.id)) plans.unshift(current);
-  target.innerHTML = plans.map((plan) => {
+  const plans = [...readSavedPlans()];
+  if (plans.length && !plans.some((plan) => plan.id === current.id)) plans.unshift(current);
+  const renderOptions = (items) => items.map((plan) => {
     const title = plan.title || plan.fields?.planTitle || "Min fisketur";
     const stops = Array.isArray(plan.stops) ? plan.stops.length : Array.isArray(plan.fields?.stops) ? plan.fields.stops.length : 0;
     const active = plan.id === current.id;
-    return "<button type=\"button\" class=\"journal-plan-option" + (active ? " is-active" : "") + "\" data-journal-plan-id=\"" + escapeHtml(plan.id) + "\"><span class=\"journal-plan-option-icon\">" + (active ? "&#10003;" : "&#9876;") + "</span><span><strong>" + escapeHtml(title) + "</strong><small>" + stops + " " + (stops === 1 ? "plats" : "platser") + (active ? " &nbsp; · &nbsp; Aktiv" : "") + "</small></span><b aria-hidden=\"true\">&rsaquo;</b></button>";
+    const archived = planIsArchived(plan);
+    return "<button type=\"button\" class=\"journal-plan-option" + (active ? " is-active" : "") + (archived ? " is-archived" : "") + "\" data-journal-plan-id=\"" + escapeHtml(plan.id) + "\"><span class=\"journal-plan-option-icon\">" + (archived ? "&#128465;" : active ? "&#10003;" : "&#9876;") + "</span><span><strong>" + escapeHtml(title) + "</strong><small>" + escapeHtml(formatPlanDate(planDateValue(plan))) + " &nbsp; · &nbsp; " + stops + " " + (stops === 1 ? "plats" : "platser") + (active ? " &nbsp; · &nbsp; Aktiv" : "") + "</small></span><b aria-hidden=\"true\">&rsaquo;</b></button>";
   }).join("");
+  const activePlans = plans.filter((plan) => !planIsArchived(plan));
+  const archivedPlans = plans.filter((plan) => planIsArchived(plan));
+  const markup = (activePlans.length ? "<div class=\"journal-plan-group\"><strong>Aktiva planer</strong>" + renderOptions(activePlans) + "</div>" : "") + (archivedPlans.length ? "<div class=\"journal-plan-group journal-plan-group-archived\"><strong>Arkiverade</strong>" + renderOptions(archivedPlans) + "</div>" : "") || "<p class=\"journal-plan-empty\">Inga planer sparade ännu.</p>";
+  targets.forEach((target) => { target.innerHTML = markup; });
+}
+
+function renderSelectedPlanSummary() {
+  const target = $("#journalSelectedPlanSummaryText");
+  const hasPlan = plannerState.fields.planId && plannerState.fields.planId !== "legacy-plan";
+  const title = hasPlan ? (plannerState.fields.planTitle || "Min fisketur") : "Ingen plan vald";
+  const count = SPOTS.length;
+  const date = plannerState.fields.planDate || localDateValue();
+  const startTime = plannerState.fields.startTime || "08:30";
+  if (target) target.textContent = title;
+  setText("#journalSelectedPlanSummaryMeta", hasPlan ? `${count} ${count === 1 ? "plats" : "platser"} · Start ${startTime} · ${date}` : "Skapa en plan för att börja");
 }
 
 function switchPlan(planId) {
   const plan = readSavedPlans().find((item) => item.id === planId);
   if (!plan) return;
+  const activePlanId = String(plan.id);
+  rememberActivePlan(plan.id);
   const rawStops = Array.isArray(plan.stops) ? plan.stops : Array.isArray(plan.fields?.stops) ? plan.fields.stops : [];
-  const stops = rawStops.map((spot, index) => ({ ...spot, pinColorIndex: Number.isInteger(spot.pinColorIndex) ? spot.pinColorIndex : index % JOURNAL_PIN_COLORS.length, lngLat: Array.isArray(spot.lngLat) ? spot.lngLat.map(Number) : [18.66, 59.27] }));
+  const stops = rawStops.map((spot, index) => ({ ...spot, pinColorIndex: spotColorIndex(spot, index), lngLat: Array.isArray(spot.lngLat) ? spot.lngLat.map(Number) : [18.66, 59.27] }));
   const fields = { ...(plan.fields && typeof plan.fields === "object" ? clonePlannerValue(plan.fields) : {}), planId: plan.id, planTitle: plan.title || plan.fields?.planTitle || "Min fisketur", stops, mode: "edit" };
   plannerState = {
     activeSpot: Math.min(Math.max(0, Number(plan.activeSpot) || 0), Math.max(0, stops.length - 1)),
@@ -1075,16 +1540,33 @@ function switchPlan(planId) {
   journalRouteRequestId += 1;
   journalFitRouteAfterCalculation = true;
   clearJournalRouteDisplay();
+  journalMapPinInfoIndex = null;
+  primePlanRoutePreview();
   $("#journalPlanPicker")?.setAttribute("hidden", "hidden");
+  $("#journalQuickPlansReference")?.setAttribute("hidden", "hidden");
+  $("#journalSelectedPlanSummary")?.setAttribute("aria-expanded", "false");
+  $("#journalView")?.classList.remove("journal-mobile-plans-open");
   setJournalMode("edit", false);
   document.querySelectorAll("[data-journal-transport]").forEach((button) => button.classList.toggle("active", button.dataset.journalTransport === journalTransport));
   persistPlannerState();
   rebuildJournalMarkers();
+  setJournalMobilePinLayers();
   renderSpot();
   if (journalMap?.loaded()) {
+    fitJournalPlanSpots();
     updateJournalRouteMode();
-    fitJournalRoute();
-    scheduleCalculatedTransportRoute(80);
+    renderRouteOverlay();
+    const refreshPlanRoute = () => {
+      if (!journalMap || String(plannerState.fields.planId || "") !== activePlanId) return;
+      primePlanRoutePreview();
+      updateJournalRouteMode();
+      renderRouteOverlay();
+      void updateCalculatedTransportRoute();
+    };
+    journalMap.once("idle", refreshPlanRoute);
+    if (!journalMap.isMoving?.()) refreshPlanRoute();
+  } else if (journalMap) {
+    scheduleCalculatedTransportRoute(0);
   }
   showPlannerStatus((fields.planTitle || "Planen") + " är aktiv");
 }
@@ -1092,27 +1574,60 @@ function switchPlan(planId) {
 function renderReferencePlan() {
   const planTarget = $("#journalReferencePlanStops");
   const timelineTarget = $("#journalReferenceTimeline");
+  setText("#journalMobileStopCount", String(SPOTS.length));
   renderPlanPicker();
+  const planDateInput = $("#journalPlanDate");
+  if (planDateInput) planDateInput.value = plannerState.fields.planDate || localDateValue();
   const timeLabels = SPOTS.map((spot, index) => spotTimeLabel(spot, index));
   if (planTarget) {
-    planTarget.innerHTML = SPOTS.map((spot, index) => { const typeLabel = spot.isPause ? "Paus" : spot.type === "fishing" ? "Fiske" : spot.type ? escapeHtml(spot.type) : index === 0 ? "Startpunkt" : "Fiske"; const duration = spot.durationMinutes || [90, 75, 75, 60][index] || 45; const color = JOURNAL_PIN_COLORS[Number.isInteger(spot.pinColorIndex) ? spot.pinColorIndex % JOURNAL_PIN_COLORS.length : index % JOURNAL_PIN_COLORS.length]; return `<article class="journal-plan-stop${index === plannerState.activeSpot ? " is-active" : ""}" data-journal-reference-spot="${index}"><b style="--journal-pin-color:${color.base}">${spot.isPause ? "🍴" : index + 1}</b><span class="journal-plan-stop-copy"><strong>${escapeHtml(spot.name)}</strong><small>${typeLabel} &nbsp; · &nbsp; ${duration} min</small></span><span class="journal-plan-stop-actions"><strong>${timeLabels[index]}</strong><button type="button" data-journal-plan-move="up" data-journal-plan-index="${index}" aria-label="Flytta upp"${index === 0 ? " disabled" : ""}>&uarr;</button><button type="button" data-journal-plan-move="down" data-journal-plan-index="${index}" aria-label="Flytta ner"${index === SPOTS.length - 1 ? " disabled" : ""}>&darr;</button><button type="button" data-journal-plan-edit="${index}" aria-label="Redigera ${escapeHtml(spot.name)}">&#9998;</button><button type="button" data-journal-plan-delete="${index}" aria-label="Ta bort ${escapeHtml(spot.name)}">&#128465;</button></span></article>`; }).join("");
+    planTarget.innerHTML = SPOTS.map((spot, index) => { const typeLabel = spot.isPause ? "Paus" : spot.type === "fishing" ? "Fiske" : spot.type ? escapeHtml(spot.type) : index === 0 ? "Startpunkt" : "Fiske"; const duration = spot.durationMinutes || [90, 75, 75, 60][index] || 45; const color = JOURNAL_PIN_COLORS[spotColorIndex(spot, index)]; return `<article class="journal-plan-stop${index === plannerState.activeSpot ? " is-active" : ""}" data-journal-reference-spot="${index}"><b style="--journal-pin-color:${color.base}">${spot.isPause ? "🍴" : index + 1}</b><span class="journal-plan-stop-copy"><strong>${escapeHtml(spot.name)}</strong><small>${typeLabel} &nbsp; · &nbsp; ${duration} min</small></span><span class="journal-plan-stop-actions"><strong>${timeLabels[index]}</strong><button type="button" data-journal-plan-move="up" data-journal-plan-index="${index}" aria-label="Flytta upp"${index === 0 ? " disabled" : ""}>&uarr;</button><button type="button" data-journal-plan-move="down" data-journal-plan-index="${index}" aria-label="Flytta ner"${index === SPOTS.length - 1 ? " disabled" : ""}>&darr;</button><button type="button" data-journal-plan-edit="${index}" aria-label="Redigera ${escapeHtml(spot.name)}">&#9998;</button><button type="button" data-journal-plan-delete="${index}" aria-label="Ta bort ${escapeHtml(spot.name)}">&#128465;</button></span></article>`; }).join("");
   }
   if (timelineTarget) {
     timelineTarget.innerHTML = SPOTS.map((spot, index) => `<button type="button" class="${index === plannerState.activeSpot ? "is-active" : ""}" data-journal-spot-index="${index}"><b>${index + 1}</b><span><strong>${timeLabels[index]}</strong><small>${index === 0 ? "Björkviks brygga" : index === 1 ? "Körtid till Krokviken" : index === 2 ? "Landholmsviken" : "Södra grundet"}</small></span><em>${index === 0 ? "1 h 30 min" : index === 1 ? "1 h 15 min" : index === 2 ? "1 h 15 min" : "1 h"}</em></button>`).join("");
   }
 }
 
-function selectSpot(index, moveMap = false) {
+function selectSpot(index, moveMap = false, showPinInfo = false) {
+  journalMapPinInfoIndex = null;
+  updateJournalMapPinInfo();
   plannerState.activeSpot = Math.min(SPOTS.length - 1, Math.max(0, Number(index) || 0));
   persistPlannerState();
   renderSpot();
-  if (moveMap && journalMap) journalMap.easeTo({ center: SPOTS[plannerState.activeSpot].lngLat, zoom: 12, duration: 450 });
+  if (showPinInfo) {
+    if (window.matchMedia("(max-width: 680px)").matches) {
+      renderMobilePinInfo(plannerState.activeSpot);
+    } else {
+      const view = $("#journalView");
+      view?.classList.remove("journal-mobile-places-open", "journal-mobile-plans-open", "journal-mobile-info-open");
+      view?.classList.add("journal-mobile-editor-open");
+    }
+  }
+  if (moveMap && journalMap) {
+    const isMobile = window.matchMedia("(max-width: 680px)").matches;
+    journalMap.easeTo({ center: SPOTS[plannerState.activeSpot].lngLat, zoom: isMobile ? 13 : 12, duration: 450, essential: true });
+    window.requestAnimationFrame(() => { updateJournalRouteMode(); renderRouteOverlay(); });
+  }
 }
 
 function activateAddDestinationMode() {
+  ensureJournalMap();
+  const view = $("#journalView");
+  view?.classList.remove("journal-mobile-places-open", "journal-mobile-plans-open", "journal-mobile-editor-open", "journal-mobile-info-open", "journal-mobile-pin-info-open", "journal-mobile-menu-open");
+  $("#journalMobilePinInfo")?.setAttribute("hidden", "hidden");
+  journalMapPinInfoIndex = null;
+  updateJournalMapPinInfo();
+  $("#journalPlanPicker")?.setAttribute("hidden", "hidden");
+  $("#journalQuickPlansReference")?.setAttribute("hidden", "hidden");
+  $("#journalCreatePlanDialog")?.setAttribute("hidden", "hidden");
+  $("#journalDestinationDialog")?.setAttribute("hidden", "hidden");
+  $("#journalPauseDialog")?.setAttribute("hidden", "hidden");
   journalAddDestinationMode = true;
   journalMarkerMoveMode = false;
   journalEditingSpotIndex = null;
+  journalPendingDestination = null;
+  journalQuickBoatMode = false;
+  view?.classList.remove("is-destination-form-open");
+  view?.classList.remove("is-move-marker-mode");
   const transport = $("#journalDialogTransport");
   if (transport) transport.value = "car";
   updateDestinationDialogFields();
@@ -1120,9 +1635,10 @@ function activateAddDestinationMode() {
   $("#journalView")?.classList.add("is-add-destination-mode");
   $(".journal-reference-map-panel")?.classList.add("is-focus-mode");
   $("#journalMapReferenceHint")?.classList.add("is-add-mode");
-  setText("#journalMapReferenceHint strong", "Välj plats på kartan");
-  setText("#journalMapReferenceHint span", "Klicka där du vill lägga till en pin");
+  setText("#journalMapReferenceHint strong", "Skapa ny plats");
+  setText("#journalMapReferenceHint span", "Klicka på kartan där pinnen ska placeras");
   setText("#journalDestinationDialog .journal-dialog-heading strong", "Ny plats");
+  $("#journalDestinationQuickActions")?.setAttribute("hidden", "hidden");
   showPlannerStatus("Klicka pa kartan for att lagga till plats");
 }
 
@@ -1172,7 +1688,7 @@ function addPauseFromDialog(event) {
 function openCreatePlanDialog() {
   setJournalMode("create", false);
   const dialog = $("#journalCreatePlanDialog");
-  if (dialog) { dialog.hidden = false; $("#journalCreatePlanTitle")?.focus(); }
+  if (dialog) { dialog.hidden = false; const date = $("#journalCreatePlanDate"); if (date) date.value = localDateValue(); $("#journalCreatePlanTitle")?.focus(); }
 }
 
 function closeCreatePlanDialog() {
@@ -1185,9 +1701,10 @@ function createPlanFromDialog(event) {
   event.preventDefault();
   const title = $("#journalCreatePlanTitle")?.value.trim();
   if (!title) return;
+  const planDate = $("#journalCreatePlanDate")?.value || localDateValue();
   saveCurrentPlanToLibrary();
   const planId = "plan-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
-  plannerState = { activeSpot: 0, favorites: [], checks: {}, ratings: [5, 5, 5, 3], started: false, savedAt: new Date().toISOString(), notes: "", fields: { planId, planTitle: title, stops: [], mode: "edit", transport: "car", startTime: "08:30" } };
+  plannerState = { activeSpot: 0, favorites: [], checks: {}, ratings: [5, 5, 5, 3], started: false, savedAt: new Date().toISOString(), notes: "", fields: { planId, planTitle: title, planDate, stops: [], mode: "edit", transport: "car", startTime: "08:30" } };
   SPOTS = [];
   journalBoatRouteCoordinates = [];
   journalCarRouteCoordinates = [];
@@ -1208,6 +1725,7 @@ function closeDestinationDialog() {
   journalPendingDestination = null;
   journalEditingSpotIndex = null;
   journalAddDestinationMode = false;
+  $("#journalView")?.classList.remove("is-destination-form-open");
   $("#journalView")?.classList.remove("is-add-destination-mode");
   $("#journalView")?.classList.remove("is-move-marker-mode");
   $(".journal-reference-map-panel")?.classList.remove("is-focus-mode");
@@ -1222,6 +1740,21 @@ function closeDestinationDialog() {
   setText("#journalDestinationDialog .journal-dialog-heading strong", "Ny plats");
 }
 
+function closeJournalMobilePanels() {
+  const view = $("#journalView");
+  const destination = $("#journalDestinationDialog");
+  const pause = $("#journalPauseDialog");
+  if (destination && !destination.hidden) closeDestinationDialog();
+  else if (pause && !pause.hidden) closeDestinationDialog();
+  const create = $("#journalCreatePlanDialog");
+  if (create && !create.hidden) closeCreatePlanDialog();
+  view?.classList.remove("journal-mobile-places-open", "journal-mobile-plans-open", "journal-mobile-editor-open", "journal-mobile-edit-mode", "journal-mobile-info-open", "journal-mobile-pin-info-open");
+  $("#journalMobilePinInfo")?.setAttribute("hidden", "hidden");
+  $("#journalPlanPicker")?.setAttribute("hidden", "hidden");
+  journalMapPinInfoIndex = null;
+  updateJournalMapPinInfo();
+}
+
 function activateMoveMarkerMode() {
   if (!journalMap) return;
   const index = journalEditingSpotIndex != null ? journalEditingSpotIndex : (SPOTS[plannerState.activeSpot] ? plannerState.activeSpot : null);
@@ -1232,9 +1765,24 @@ function activateMoveMarkerMode() {
   if (index != null && SPOTS[index]) journalEditingSpotIndex = index;
   journalMarkerMoveMode = true;
   journalAddDestinationMode = false;
+  journalQuickBoatMode = false;
   journalPendingDestination = index != null && SPOTS[index] ? [...SPOTS[index].lngLat] : [...journalPendingDestination];
+  const view = $("#journalView");
+  view?.classList.remove("journal-mobile-places-open", "journal-mobile-plans-open", "journal-mobile-editor-open", "journal-mobile-info-open", "journal-mobile-pin-info-open", "journal-mobile-menu-open");
+  view?.classList.remove("is-add-destination-mode");
+  $("#journalMobilePinInfo")?.setAttribute("hidden", "hidden");
+  $("#journalPlanPicker")?.setAttribute("hidden", "hidden");
+  journalMapPinInfoIndex = null;
+  updateJournalMapPinInfo();
+  $("#journalQuickPlansReference")?.setAttribute("hidden", "hidden");
+  $("#journalCreatePlanDialog")?.setAttribute("hidden", "hidden");
+  $("#journalDestinationDialog")?.setAttribute("hidden", "hidden");
+  $("#journalPauseDialog")?.setAttribute("hidden", "hidden");
   $("#journalView")?.classList.add("is-move-marker-mode");
   $(".journal-reference-map-panel")?.classList.add("is-move-marker-mode");
+  setText("#journalMapReferenceHint strong", "Flyttar markör");
+  setText("#journalMapReferenceHint span", "Klicka på den nya platsen och spara planen längst ner");
+  $("#journalMapReferenceHint")?.classList.add("is-add-mode");
   showPlannerStatus("Klicka på kartan där markören ska ligga");
 }
 
@@ -1250,7 +1798,12 @@ function addDestinationFromDialog(event) {
   const motor = $("#journalDialogMotor")?.value || "";
   const target = $("#journalDialogTarget")?.value || "";
   const [lng, lat] = journalPendingDestination;
-  const spot = { name, area: "Vald pa kartan", coordinates: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, lngLat: [lng, lat], pinColorIndex: journalEditingSpotIndex != null && SPOTS[journalEditingSpotIndex] ? SPOTS[journalEditingSpotIndex].pinColorIndex : SPOTS.length % JOURNAL_PIN_COLORS.length, time: `${durationMinutes} min`, shortTime: "Ny", priority: "Medel", method: "Planeras", wind: "-", depth: "-", notes: "Ny destination tillagd fran kartan.", image: "/bigplus/assets/catch-page/scene-9.png", type, durationMinutes, travelMode: selectedTransport, boatType, motor, target, checklist: ["Bekrafta plats", "Kontrollera vader", "Valj metod", "Foto och logga resultat", "Notera resultat"] };
+  const spot = { name, area: "Vald pa kartan", coordinates: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, lngLat: [lng, lat], pinColorIndex: journalEditingSpotIndex != null && SPOTS[journalEditingSpotIndex] ? SPOTS[journalEditingSpotIndex].pinColorIndex : SPOTS.length % JOURNAL_PIN_COLORS.length, time: `${durationMinutes} min`, shortTime: "Ny", priority: "Medel", method: "Planeras", wind: "-", depth: "-", notes: "Ny destination tillagd fran kartan.", image: "/bigplus/assets/catch-page/scene-9.png", type, durationMinutes, travelMode: selectedTransport, boatType, motor, target, checklist: ["Bekrafta plats", "Kontrollera vader", "Valj metod", "Foto och logga resultat", "Notera resultat"], isBoatBase: type === "boat_ramp", isWater: type === "boat_ramp" };
+  if (journalQuickBoatMode || type === "boat_ramp") {
+    spot.type = "boat_ramp";
+    spot.isBoatBase = true;
+    spot.isWater = true;
+  }
   if (journalEditingSpotIndex != null && SPOTS[journalEditingSpotIndex]) {
     SPOTS[journalEditingSpotIndex] = { ...SPOTS[journalEditingSpotIndex], ...spot, shortTime: SPOTS[journalEditingSpotIndex].shortTime || "Ny" };
     plannerState.activeSpot = journalEditingSpotIndex;
@@ -1277,9 +1830,14 @@ function openDestinationEditor(index) {
   const spot = SPOTS[index];
   if (!spot) return;
   journalEditingSpotIndex = index;
+  journalQuickBoatMode = false;
   journalPendingDestination = [...spot.lngLat];
   journalAddDestinationMode = false;
-  $("#journalView")?.classList.add("is-add-destination-mode");
+  const view = $("#journalView");
+  view?.classList.remove("is-destination-form-open", "journal-mobile-pin-info-open");
+  $("#journalMobilePinInfo")?.setAttribute("hidden", "hidden");
+  journalMapPinInfoIndex = null;
+  updateJournalMapPinInfo();
   $(".journal-reference-map-panel")?.classList.add("is-focus-mode");
   $("#journalMapReferenceHint")?.classList.add("is-add-mode");
   setText("#journalMapReferenceHint strong", "Redigera plats");
@@ -1306,6 +1864,16 @@ function updateDestinationDialogFields() {
   const type = $("#journalDialogType")?.value || "fishing";
   document.querySelectorAll(".journal-boat-only-field").forEach((field) => { field.hidden = transport !== "boat"; });
   document.querySelectorAll(".journal-fishing-only-field").forEach((field) => { field.hidden = type !== "fishing"; });
+}
+
+function setQuickBoatDestination() {
+  const type = $("#journalDialogType");
+  const transport = $("#journalDialogTransport");
+  if (type) type.value = "boat_ramp";
+  if (transport) transport.value = "boat";
+  journalQuickBoatMode = true;
+  updateDestinationDialogFields();
+  showPlannerStatus("Platsen markeras som båtbas");
 }
 
 function movePlannerStop(index, direction) {
@@ -1407,10 +1975,37 @@ function toggleTripStarted() {
 function bindPlannerUi() {
   if (plannerBound) return;
   plannerBound = true;
+  document.addEventListener("click", (event) => {
+    const element = event.target instanceof Element ? event.target : event.target?.parentElement;
+    const control = element?.closest("#journalDesktopCreatePlan, #journalMobileCreatePlan, #journalNewTripButton, #journalDesktopAddPlace, #journalMobileAddStop, #journalReferenceAddStop, #journalAddSpotButton");
+    if (!control) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (control.matches("#journalDesktopCreatePlan, #journalMobileCreatePlan, #journalNewTripButton")) openCreatePlanDialog();
+    else activateAddDestinationMode();
+  }, true);
   document.querySelectorAll("[data-journal-mode]").forEach((button) => button.addEventListener("click", () => { if (button.dataset.journalMode === "create") openCreatePlanDialog(); else setJournalMode("edit"); }));
   $("#journalTimeline")?.addEventListener("click", (event) => { const button = event.target.closest("[data-journal-spot-index]"); if (button) selectSpot(Number(button.dataset.journalSpotIndex), true); });
   $("#journalReferenceTimeline")?.addEventListener("click", (event) => { const button = event.target.closest("[data-journal-spot-index]"); if (button) selectSpot(Number(button.dataset.journalSpotIndex), true); });
-  $("#journalSpotInfoList")?.addEventListener("click", (event) => { const item = event.target.closest("[data-journal-info-index]"); if (item) selectSpot(Number(item.dataset.journalInfoIndex), true); });
+  $("#journalSpotInfoList")?.addEventListener("click", (event) => {
+    const move = event.target.closest("[data-journal-info-move]");
+    if (move) {
+      movePlannerStop(Number(move.dataset.journalInfoIndex), move.dataset.journalInfoMove === "up" ? -1 : 1);
+      event.stopPropagation();
+      return;
+    }
+    const edit = event.target.closest("[data-journal-info-edit]");
+    if (edit) {
+      const index = Number(edit.dataset.journalInfoEdit);
+      selectSpot(index, true, false);
+      $("#journalView")?.classList.remove("journal-mobile-places-open");
+      $("#journalView")?.classList.add("journal-mobile-editor-open");
+      event.stopPropagation();
+      return;
+    }
+    const item = event.target.closest("[data-journal-info-index]");
+    if (item) selectSpot(Number(item.dataset.journalInfoIndex), true, false);
+  });
   $("#journalReferencePlanStops")?.addEventListener("click", (event) => {
     const stop = event.target.closest("[data-journal-reference-spot]");
     if (!stop) return;
@@ -1480,22 +2075,130 @@ function bindPlannerUi() {
     if (!picker) return;
     if (picker.hidden) { renderPlanPicker(); picker.hidden = false; } else picker.hidden = true;
   });
-  $("#journalPlanOptions")?.addEventListener("click", (event) => {
+  const handlePlanOptionClick = (event) => {
     const option = event.target.closest("[data-journal-plan-id]");
     if (option) switchPlan(option.dataset.journalPlanId);
+  };
+  $("#journalSelectedPlanSummary")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const summary = $("#journalSelectedPlanSummary");
+    const panel = $("#journalQuickPlansReference");
+    if (!summary || !panel) return;
+    const open = panel.hidden;
+    renderPlanPicker();
+    panel.hidden = !open;
+    summary.setAttribute("aria-expanded", String(open));
+  });
+  $("#journalPlanOptions")?.addEventListener("click", handlePlanOptionClick);
+  $("#journalQuickPlanOptions")?.addEventListener("click", handlePlanOptionClick);
+  $("#journalPlanDate")?.addEventListener("change", (event) => {
+    plannerState.fields.planDate = event.target.value || localDateValue();
+    persistPlannerState();
+    renderPlanPicker();
+    showPlannerStatus(`Datum sparat: ${formatPlanDate(plannerState.fields.planDate)}`);
   });
   $("#journalPlanPickerClose")?.addEventListener("click", () => $("#journalPlanPicker")?.setAttribute("hidden", "hidden"));
-  $("#journalReferenceAddStop")?.addEventListener("click", activateAddDestinationMode);
+  $("#journalMobileFocus")?.addEventListener("click", fitJournalRoute);
+  $("#journalMobileStopTab")?.addEventListener("click", () => {
+    const view = $("#journalView");
+    if (!view) return;
+    const open = !view.classList.contains("journal-mobile-places-open");
+    view.classList.toggle("journal-mobile-places-open", open);
+    view.classList.remove("journal-mobile-editor-open");
+  });
+  $("#journalMobilePinInfoPrev")?.addEventListener("click", () => {
+    if (plannerState.activeSpot > 0) selectSpot(plannerState.activeSpot - 1, true, true);
+  });
+  $("#journalMobilePinInfoNext")?.addEventListener("click", () => {
+    if (plannerState.activeSpot < SPOTS.length - 1) selectSpot(plannerState.activeSpot + 1, true, true);
+  });
+  $("#journalMobileMenuToggle")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const view = $("#journalView");
+    const toggle = $("#journalMobileMenuToggle");
+    if (!view) return;
+    const open = view.classList.toggle("journal-mobile-menu-open");
+    toggle?.setAttribute("aria-expanded", String(open));
+    toggle?.setAttribute("aria-label", open ? "Stäng fisketursmenyn" : "Öppna fisketursmenyn");
+    if (open) fitJournalRoute();
+  });
+  document.querySelectorAll("[data-journal-mobile-close]").forEach((button) => button.addEventListener("click", closeJournalMobilePanels));
+  document.addEventListener("click", (event) => {
+    const view = $("#journalView");
+    if (!view || view.hidden) return;
+    if (journalMapPinInfoIndex != null && !event.target.closest(".journal-place-label, .journal-map-pin-actions")) {
+      journalMapPinInfoIndex = null;
+      updateJournalMapPinInfo();
+    }
+    const quickPlans = $("#journalQuickPlansReference");
+    if (quickPlans && !quickPlans.hidden && !event.target.closest(".journal-selected-plan-summary, .journal-quick-plans-reference")) {
+      quickPlans.hidden = true;
+      $("#journalSelectedPlanSummary")?.setAttribute("aria-expanded", "false");
+    }
+    const openClasses = ["journal-mobile-places-open", "journal-mobile-plans-open", "journal-mobile-editor-open", "journal-mobile-edit-mode", "journal-mobile-info-open", "journal-mobile-pin-info-open"];
+    const popups = ["#journalCreatePlanDialog", "#journalDestinationDialog", "#journalPauseDialog"].map((selector) => $(selector)).filter((popup) => popup && !popup.hidden);
+    if (!openClasses.some((className) => view.classList.contains(className)) && !popups.length) return;
+    if (event.target.closest(".journal-mobile-menu-toggle, .journal-mobile-side-menu, .journal-mobile-action-rail, .journal-mobile-pin-info, .journal-map-pin-actions, .journal-selected-plan-summary, .journal-quick-plans-reference, .journal-spot-info-list-reference, .journal-spot-info-reference, .journal-plan-reference, .journal-place-label, .journal-reference-map-panel, .journal-create-plan-dialog, .journal-destination-dialog, .journal-pause-dialog")) return;
+    closeJournalMobilePanels();
+  });
+  $(".journal-mobile-side-menu")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-journal-mobile-panel]");
+    if (!button || button.disabled) return;
+    const view = $("#journalView");
+    if (!view) return;
+    const panel = button.dataset.journalMobilePanel;
+    const panelClass = panel === "edit" ? "journal-mobile-edit-mode" : `journal-mobile-${panel}-open`;
+    const alreadyOpen = view.classList.contains(panelClass);
+    view.classList.remove("journal-mobile-places-open", "journal-mobile-plans-open", "journal-mobile-editor-open", "journal-mobile-info-open");
+    view.classList.remove("journal-mobile-edit-mode");
+    if (alreadyOpen && panel !== "position") {
+      if (panel === "plans") $("#journalPlanPicker")?.setAttribute("hidden", "hidden");
+      return;
+    }
+    if (panel === "places") view.classList.add("journal-mobile-places-open");
+    if (panel === "plans") {
+      view.classList.add("journal-mobile-plans-open");
+      const picker = $("#journalPlanPicker");
+      if (picker) { renderPlanPicker(); picker.hidden = false; }
+    }
+    if (panel === "info") {
+      view.classList.add("journal-mobile-info-open");
+      view.classList.remove("journal-mobile-menu-open");
+      $("#journalMobileMenuToggle")?.setAttribute("aria-expanded", "false");
+      $("#journalMobileMenuToggle")?.setAttribute("aria-label", "Öppna fisketursmenyn");
+    }
+    if (panel === "edit") {
+      view.classList.add("journal-mobile-edit-mode");
+      showPlannerStatus("Tryck på en plats för att redigera");
+    } else if (panel !== "position") {
+      view.classList.remove("journal-mobile-edit-mode");
+    }
+    if (panel === "position") {
+      view.classList.remove("journal-mobile-edit-mode");
+      centerJournalOnPosition();
+    }
+  });
   $("#journalAddDestinationButton")?.addEventListener("click", activateAddDestinationMode);
   $("#journalSelectedSpotForm")?.addEventListener("submit", saveSelectedSpotForm);
   $("#journalInfoEditTransport")?.addEventListener("change", (event) => { const motorField = $("#journalInfoEditMotorField"); if (motorField) motorField.hidden = event.target.value !== "boat"; });
   $("#journalInfoMoveMarkerButton")?.addEventListener("click", activateMoveMarkerMode);
+  $("#journalInfoEditMarkerButton")?.addEventListener("click", () => openDestinationEditor(plannerState.activeSpot));
+  $("#journalInfoBoatMarkerButton")?.addEventListener("click", () => toggleSelectedSpotBoatMarker(plannerState.activeSpot));
+  $("#journalMapPinActionEdit")?.addEventListener("click", () => openDestinationEditor(journalMapPinInfoIndex ?? plannerState.activeSpot));
+  $("#journalMapPinActionMove")?.addEventListener("click", () => {
+    const index = journalMapPinInfoIndex ?? plannerState.activeSpot;
+    plannerState.activeSpot = index;
+    journalEditingSpotIndex = index;
+    activateMoveMarkerMode();
+  });
+  $("#journalMapPinActionBoat")?.addEventListener("click", () => toggleSelectedSpotBoatMarker(journalMapPinInfoIndex ?? plannerState.activeSpot));
   $("#journalPlanStartTime")?.addEventListener("change", (event) => { plannerState.fields.startTime = event.target.value || "08:30"; persistPlannerState(); renderReferencePlan(); updateJournalMarkerLabels(); showPlannerStatus("Starttiden är uppdaterad"); });
   $("#journalDestinationDialog")?.addEventListener("submit", addDestinationFromDialog);
   $("#journalDestinationDialogClose")?.addEventListener("click", closeDestinationDialog);
   $("#journalDestinationDialogCancel")?.addEventListener("click", closeDestinationDialog);
   $("#journalMoveMarkerButton")?.addEventListener("click", activateMoveMarkerMode);
   $("#journalQuickPause")?.addEventListener("click", openPauseDialog);
+  $("#journalQuickBoat")?.addEventListener("click", setQuickBoatDestination);
   $("#journalPauseDialog")?.addEventListener("submit", addPauseFromDialog);
   $("#journalPauseDialogClose")?.addEventListener("click", () => closePauseDialog());
   $("#journalPauseDialogCancel")?.addEventListener("click", () => closePauseDialog());
@@ -1512,6 +2215,9 @@ function bindPlannerUi() {
 
 export function renderJournal() {
   bindPlannerUi();
+  $("#journalView")?.classList.remove("journal-mobile-places-open", "journal-mobile-plans-open", "journal-mobile-editor-open", "journal-mobile-edit-mode", "journal-mobile-info-open", "journal-mobile-pin-info-open", "journal-mobile-menu-open");
+  $("#journalMobilePinInfo")?.setAttribute("hidden", "hidden");
+  $("#journalMobileMenuToggle")?.setAttribute("aria-expanded", "false");
   restoreSavedFields();
   setJournalMode(journalMode, false);
   document.querySelectorAll("[data-journal-transport]").forEach((button) => button.classList.toggle("active", button.dataset.journalTransport === journalTransport));
@@ -1522,7 +2228,7 @@ export function renderJournal() {
   if (startButton && plannerState.started) startButton.innerHTML = "&#9632; &nbsp; Avsluta resa";
   const referenceStartButton = $("#journalReferenceStartButton");
   if (referenceStartButton && plannerState.started) referenceStartButton.innerHTML = "&#9632; &nbsp; Avsluta resa";
-  window.requestAnimationFrame(() => { ensureJournalMap(); scheduleCalculatedTransportRoute(); });
+  window.requestAnimationFrame(() => { ensureJournalMap(); if (journalMap?.loaded()) fitJournalPlanSpots(); scheduleCalculatedTransportRoute(); });
   const upcomingTarget = $("#journalUpcomingList");
   const pastTarget = $("#journalPastList");
   if (!upcomingTarget || !pastTarget) return;

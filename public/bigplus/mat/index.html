@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>BIGPLUS | Mät fisken</title>
+    <link rel="stylesheet" href="/bigplus/mat/mat.css?v=20260904-mat-v3">
+</head>
+<body>
+  <main class="mat-page">
+    <section class="mat-stage" aria-label="Mät fisken">
+      <div class="mat-canvas-wrap">
+        <header class="mat-site-header">
+          <a class="mat-brand" href="/bigplus/" aria-label="Till Bigplus">BIGPLUS</a>
+          <div class="mat-header-title">Mät fisken <span>V1. BETA</span></div>
+          <button class="mat-back-button" id="matBackButton" type="button" aria-label="Gå tillbaka">← Tillbaka</button>
+        </header>
+        <div class="mat-toolbar" aria-label="Mätverktyg">
+          <button class="mat-toolbar-button mat-measure-button" id="matAnalyzeButton" type="button" disabled>
+            <span class="mat-tool-icon" aria-hidden="true">↔</span>
+            <span>Mät fisken</span>
+          </button>
+          <button class="mat-toolbar-button mat-change-button" id="matChangeButton" type="button">
+            <span class="mat-tool-icon" aria-hidden="true">↻</span>
+            <span>Byt bild</span>
+          </button>
+          <button class="mat-toolbar-button mat-cancel-button" id="matResetButton" type="button" disabled>
+            <span class="mat-tool-icon" aria-hidden="true">×</span>
+            <span>Avbryt</span>
+          </button>
+        </div>
+        <div class="mat-zoom-toolbar" aria-label="Zooma bild">
+          <button id="matZoomOut" type="button" aria-label="Zooma ut">-</button>
+          <span id="matZoomValue">100%</span>
+          <button id="matZoomIn" type="button" aria-label="Zooma in">+</button>
+          <button id="matZoomReset" type="button" aria-label="Återställ zoom">100%</button>
+        </div>
+        <canvas id="matCanvas" aria-label="Fiskbild med längdmarkering"></canvas>
+        <div class="mat-empty" id="matEmpty">Välj en bild för att börja mäta.</div>
+        <input id="matImageInput" type="file" accept="image/*">
+        <input id="matCameraInput" type="file" accept="image/*" capture="environment">
+        <section class="mat-start-panel" id="matStartPanel" aria-labelledby="matStartTitle">
+          <p class="mat-start-eyebrow">REGISTRERA FÅNGST</p>
+          <h1 id="matStartTitle">HAR DU BILD PÅ DIN FÅNGST?</h1>
+          <p>Välj ett av alternativen som passar dig</p>
+          <div class="mat-start-actions">
+            <button class="mat-start-button mat-primary-start" id="matManualButton" type="button">REGISTRERA FÅNGST</button>
+            <span class="mat-start-divider">eller</span>
+            <button class="mat-start-button mat-beta-start" id="matBetaButton" type="button">REGISTRERA FÅNGST MED APPEN <b>V1. BETA</b></button>
+            <span class="mat-start-divider">eller</span>
+            <button class="mat-start-button mat-camera-start" id="matCameraButton" type="button">TA BILD NU</button>
+          </div>
+        </section>
+
+        <section class="mat-result-popup" id="matResultPanel" hidden role="dialog" aria-modal="false" aria-labelledby="matResultTitle">
+          <div class="mat-result-heading">
+            <div>
+              <span class="mat-result-kicker">MÄTRESULTAT</span>
+              <h1 id="matResultTitle">Fiskens mått</h1>
+            </div>
+            <button class="mat-result-close" id="matResultClose" type="button" aria-label="Stäng resultat">X</button>
+          </div>
+          <div class="mat-result-species">
+            <div>
+              <span>IDENTIFIERAD ART</span>
+              <strong id="matSpeciesResult">Gädda</strong>
+            </div>
+            <span class="mat-confidence" id="matConfidenceResult">--</span>
+          </div>
+          <div class="mat-result-metrics">
+            <div><span>Ungefärlig längd</span><strong id="matLengthResult">-- cm</strong></div>
+            <div><span>Ungefärlig höjd</span><strong id="matHeightResult">-- cm</strong></div>
+          </div>
+          <div class="mat-result-details">
+            <div><span>Troligt intervall</span><strong id="matRangeResult">--</strong></div>
+            <div><span>Mätversion</span><strong id="matVersionResult">--</strong></div>
+          </div>
+          <p id="matResultStatus">Resultatet är ungefärligt.</p>
+          <p class="mat-result-perspective" id="matPerspectiveResult">Djupmodellen används när den svarar.</p>
+          <ul class="mat-result-checks" id="matResultChecks"></ul>
+          <div class="mat-result-actions">
+            <button class="mat-adjust-button" id="matAdjustButton" type="button">Justera mätpunkter</button>
+            <button class="mat-save-button" id="matSaveButton" type="button" disabled>Spara fångst</button>
+          </div>
+          <p class="mat-auth-status" id="matAuthStatus">Kontrollerar inloggning...</p>
+          <p class="mat-save-status" id="matSaveStatus" role="status"></p>
+        </section>
+      </div>
+      <p class="mat-status" id="matStatus" role="status" aria-live="polite">Ingen bild vald.</p>
+    </section>
+  </main>
+    <script type="module" src="/bigplus/mat/mat.js?v=20260904-mat-v4"></script>
+</body>
+</html>

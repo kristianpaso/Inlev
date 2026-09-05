@@ -15,3 +15,15 @@
   for = "/bigplus/index.html"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[redirects]]
+  from = "/api/annotation/sam2"
+  to = "/.netlify/functions/sam2"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/measurement/depth"
+  to = "/.netlify/functions/depth"
+  status = 200
+  force = true

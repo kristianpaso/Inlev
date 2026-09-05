@@ -433,9 +433,11 @@ async function segmentFishWithModel(image, width, height, sourceWidth, sourceHei
   }
 }
 
-const SAM2_MEASURE_ENDPOINT = ["127.0.0.1", "localhost"].includes(window.location.hostname)
+const isLocalAiHost = ["127.0.0.1", "localhost"].includes(window.location.hostname);
+const hostedAiProxyOrigin = window.__BIGPLUS_AI_PROXY_ORIGIN__ || "https://sage-vacherin-aa5cd3.netlify.app";
+const SAM2_MEASURE_ENDPOINT = isLocalAiHost
   ? "http://127.0.0.1:8200/api/annotation/sam2"
-  : "/api/annotation/sam2";
+  : `${hostedAiProxyOrigin}/api/annotation/sam2`;
 
 function createImageCanvas(image, maxEdge) {
   const imageWidth = image.naturalWidth || image.width || 1;

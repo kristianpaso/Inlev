@@ -30,15 +30,20 @@ export function ensureDemoAccount() {
   const existing = list.find((account) => account.email === "paso.kristian@gmail.com");
   if (existing) {
     if (existing.role !== "admin") localStorage.setItem(ACCOUNT_KEY, JSON.stringify(list.map((account) => account.id === existing.id ? { ...account, role: "admin" } : account)));
+    localStorage.setItem(SESSION_KEY, existing.id);
+    localStorage.setItem("inlev_user", existing.id);
     return;
   }
-  localStorage.setItem(ACCOUNT_KEY, JSON.stringify([...list, {
+  const demoAccount = {
     id: "demo-admin",
     email: "paso.kristian@gmail.com",
     password: "Admin",
     name: "Admin Paso",
     role: "admin"
-  }]));
+  };
+  localStorage.setItem(ACCOUNT_KEY, JSON.stringify([...list, demoAccount]));
+  localStorage.setItem(SESSION_KEY, demoAccount.id);
+  localStorage.setItem("inlev_user", demoAccount.id);
 }
 
 export function currentAccount() {

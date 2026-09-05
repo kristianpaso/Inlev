@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Profil | Bigplus</title>
+    <style id="auth-bootstrap-style">
+      body.auth-bootstrap-pending { min-height: 100vh; background: #020b16; }
+      body.auth-bootstrap-pending .app-shell > :not(.auth-modal) { visibility: hidden; }
+      body.auth-bootstrap-pending .app-shell > .auth-modal { visibility: visible !important; }
+      body.auth-bootstrap-pending #authModal:not([hidden]) { display: grid !important; visibility: visible !important; pointer-events: auto !important; }
+    </style>
+    <link rel="stylesheet" href="/bigplus/css/bigplus.css?v=20260904-profile-standalone-2">
+  </head>
+  <body class="auth-required auth-bootstrap-pending">
+    <div class="app-loading-screen" id="appLoadingScreen" aria-hidden="false" aria-live="polite">
+      <div class="app-loading-panel" role="status">
+        <img src="/bigplus/assets/bigplus-logo-hd.png" alt="Bigplus">
+        <span class="app-loading-spinner" aria-hidden="true"></span>
+        <strong id="appLoadingMessage">Laddar Profil...</strong>
+        <span id="appLoadingTimer" class="app-loading-timer">0,0 s</span>
+      </div>
+    </div>
+
+    <main class="app-shell profile-only-shell">
+      <section class="site-header" aria-label="Bigplus header">
+        <div class="header-app-shell">
+          <section class="topbar">
+            <div class="brand-header-image"><img src="/bigplus/assets/bigplus-logo-hd.png" alt="Bigplus Sport Fishing"></div>
+            <div class="mobile-app-header">
+              <button class="mobile-menu-button" id="mobileMenuButton" type="button" aria-label="Öppna meny" aria-expanded="false"><span></span><span></span><span></span></button>
+              <img class="mobile-brand-logo" src="/bigplus/assets/bigplus-logo-hd.png" alt="Bigplus">
+              <div class="mobile-header-actions">
+                <button class="mobile-notification-button" type="button" aria-label="Notiser" title="Notiser"><span class="notification-bell" aria-hidden="true"></span><b>3</b></button>
+                <button class="avatar-placeholder mobile-account-button" type="button" id="mobileAccountButton" aria-label="Öppna profil">B</button>
+              </div>
+            </div>
+            <div class="desktop-app-controls">
+              <label class="desktop-search"><span class="sr-only">Sök</span><input type="search" placeholder="Sök fångster, arter, sjöar..."><span aria-hidden="true"></span></label>
+              <button class="desktop-notification" type="button" aria-label="Notiser" title="Notiser"><span class="desktop-bell" aria-hidden="true"></span><b>3</b></button>
+              <button class="avatar-placeholder desktop-account-button" type="button" id="desktopAccountButton" aria-label="Öppna profil">B</button>
+            </div>
+            <nav class="app-nav" aria-label="Huvudmeny">
+              <button class="nav-button" type="button" data-view="home"><img class="nav-icon" src="/bigplus/assets/hem-icon.png" alt=""><span>Hem</span></button>
+              <button class="nav-button" type="button" data-view="catches"><img class="nav-icon" src="/bigplus/assets/fangster-icon.png" alt=""><span>Fångster</span></button>
+              <button class="nav-button" type="button" data-view="weather"><span class="nav-icon weather-nav-icon" aria-hidden="true"></span><span>Väder</span></button>
+              <button class="nav-button" type="button" data-view="measure"><img class="nav-icon" src="/bigplus/assets/mat-fisken-icon.png" alt=""><span>Mät</span></button>
+              <button class="nav-button" type="button" data-view="competitions"><img class="nav-icon" src="/bigplus/assets/rank-icon.png" alt=""><span>Tävlingar</span></button>
+              <button class="nav-button" type="button" data-view="duels"><span class="nav-icon duel-nav-icon" aria-hidden="true">⚔</span><span>Duellen</span></button>
+              <button class="nav-button active" type="button" data-view="profile"><img class="nav-icon" src="/bigplus/assets/profile-icon.png" alt=""><span>Profil</span></button>
+              <button class="nav-button" type="button" data-view="journal"><span class="nav-icon journal-nav-icon" aria-hidden="true">J</span><span>Fisketurer</span></button>
+            </nav>
+            <div class="profile-menu" id="profileMenu" hidden>
+              <button type="button" id="profileMenuEdit">Redigera profil</button>
+              <button type="button" id="profileMenuLogout">Logga ut</button>
+            </div>
+            <div class="status-pill" id="connectionStatus" hidden>Redo</div>
+          </section>
+        </div>
+      </section>
+
+      <nav class="mobile-bottom-nav" aria-label="Mobil navigation">
+        <button class="mobile-bottom-nav-button" type="button" data-view="home"><span class="mobile-bottom-nav-icon">⌂</span><span>Hem</span></button>
+        <button class="mobile-bottom-nav-button" type="button" data-view="catches"><span class="mobile-bottom-nav-icon">◈</span><span>Fångster</span></button>
+        <button class="mobile-bottom-nav-button" type="button" data-view="duels"><span class="mobile-bottom-nav-icon">⚔</span><span>Duellen</span></button>
+        <button class="mobile-bottom-nav-button" type="button" data-view="weather"><span class="mobile-bottom-nav-icon weather-nav-icon" aria-hidden="true"></span><span>Väder</span></button>
+        <button class="mobile-bottom-nav-button" type="button" data-view="measure"><span class="mobile-bottom-nav-icon">＋</span><span>Mät</span></button>
+        <button class="mobile-bottom-nav-button active" type="button" data-view="profile"><span class="mobile-bottom-nav-icon">○</span><span>Profil</span></button>
+      </nav>
+
+      <div id="profileViewMount"></div>
+
+      <section class="auth-modal" id="authModal">
+        <div class="auth-dialog auth-welcome-dialog" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+          <button class="modal-close" id="closeAuthButton" type="button" aria-label="Stäng"></button>
+          <div class="auth-mobile-hero"><img src="/bigplus/assets/login-mobile-hero.png" alt="Fiskare med fångst" loading="lazy" decoding="async"></div>
+          <div class="auth-welcome-brand"><img src="/bigplus/assets/bigplus-logo.png" alt="Bigplus" loading="lazy" decoding="async"><span>Mät <i></i> Tävla <i></i> Vinn</span></div>
+          <div class="auth-welcome-grid">
+            <aside class="auth-welcome-visual"><div class="auth-visual-image"></div><strong>Fånga ögonblicket.</strong><p>Mät dina fångster, tävla med vänner och bygg din fiskeloggbok.</p></aside>
+            <div class="auth-form-panel">
+              <div class="auth-brand-mark"><img src="/bigplus/assets/bigplus-icon.png" alt="" loading="lazy" decoding="async"></div>
+              <p class="eyebrow blue-eyebrow">BIGPLUS-KONTO</p><h2 id="authTitle">Logga in</h2><p class="auth-intro">Välkommen tillbaka till ditt fiskeäventyr.</p>
+              <div class="auth-tabs"><button class="auth-tab active" type="button" data-auth-mode="login">Logga in</button><button class="auth-tab" type="button" data-auth-mode="register">Skapa konto</button></div>
+              <form id="authForm">
+                <label class="auth-field register-only" hidden for="authName">Namn<input id="authName" type="text" autocomplete="name"></label>
+                <label class="auth-field" for="authEmail">E-post<input id="authEmail" type="text" required autocomplete="username" placeholder="E-post"></label>
+                <label class="auth-field" for="authPassword">Lösenord<span class="auth-password-control"><input id="authPassword" type="password" required minlength="4" autocomplete="current-password" placeholder="Lösenord"><button type="button" id="toggleAuthPassword" class="password-toggle" aria-label="Visa lösenord" title="Visa lösenord"></button></span></label>
+                <button class="primary-button auth-submit" type="submit" id="authSubmit">Logga in</button><p class="auth-message" id="authMessage" role="status"></p>
+              </form>
+              <button class="auth-mobile-create-account" type="button" data-auth-mode="register">Skapa konto</button>
+              <small class="auth-note">Lokalt testkonto: <strong>paso.kristian@gmail.com</strong>, lösenord <strong>Admin</strong>.</small>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      window.BIGPLUS_API_TARGET = window.BIGPLUS_API_TARGET || "";
+      window.BIGPLUS_RENDER_API_ROOT = window.BIGPLUS_RENDER_API_ROOT || "https://bigplus-api.onrender.com/api/bigplus";
+    </script>
+    <script type="module" src="/bigplus/js/profile-view-loader.js?v=20260904-profile-standalone-2"></script>
+  </body>
+</html>
