@@ -1,0 +1,297 @@
+.site-footer {
+  display: grid;
+  grid-template-columns: 1.2fr 2fr 1fr;
+  gap: 30px;
+  width: 100%;
+  margin: 18px 0 0;
+  padding: 24px max(26px, calc((100vw - 1540px) / 2));
+  border-top: 1px solid #174575;
+  background: #041a32;
+  color: #fff;
+}
+
+.site-footer div { display: grid; gap: 5px; }
+.site-footer strong { font-size: 1.05rem; }
+.site-footer small { color: #dbeafe; }
+
+/* Workspace is a full-screen admin surface and owns its own chrome. */
+body.workspace-active .site-footer { display: none; }
+
+/* The shared shell owns the header geometry. View-specific CSS may still
+   change colors, but not the header's outer spacing or dimensions. */
+.site-header,
+.header-app-shell,
+.site-header .topbar,
+.site-header .brand-header-image,
+.site-header .brand-header-image img,
+.site-header .app-nav,
+.site-header .desktop-app-controls {
+  box-sizing: border-box;
+}
+
+.site-header,
+.header-app-shell {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+@media (min-width: 681px) {
+  .site-header .topbar {
+    display: grid !important;
+    grid-template-columns: minmax(280px, 320px) minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    width: 100% !important;
+    height: 82px !important;
+    min-height: 82px !important;
+    margin: 0 !important;
+    padding: 0 24px !important;
+    border-width: 0 !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
+
+  .site-header .brand-header-image {
+    position: relative !important;
+    inset: auto !important;
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    justify-self: start !important;
+    width: 300px !important;
+    height: 82px !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    overflow: visible !important;
+  }
+
+  .site-header .brand-header-image img {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 300px !important;
+    max-height: 82px !important;
+    object-fit: cover !important;
+    object-position: left center !important;
+    mix-blend-mode: normal !important;
+  }
+
+  .site-header .topbar > .app-nav {
+    position: relative !important;
+    inset: auto !important;
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    justify-self: center !important;
+    align-self: stretch !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: max-content !important;
+    max-width: 100% !important;
+    height: 82px !important;
+    min-height: 82px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+  }
+
+  .site-header .topbar > .app-nav .nav-button {
+    min-height: 58px !important;
+    margin: 0 !important;
+  }
+
+  .site-header .desktop-app-controls {
+    position: relative !important;
+    inset: auto !important;
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    justify-self: end !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    margin: 0 !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .site-header .topbar {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    align-items: center !important;
+    width: 100% !important;
+    height: 68px !important;
+    min-height: 68px !important;
+    margin: 0 !important;
+    padding: 0 12px !important;
+    border-width: 0 0 1px !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
+
+  .site-header .brand-header-image { display: none !important; }
+
+  .site-header .mobile-app-header {
+    display: grid !important;
+    grid-template-columns: 42px minmax(0, 1fr) auto !important;
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    align-items: center !important;
+    width: 100% !important;
+    height: 68px !important;
+    min-height: 68px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .site-header .mobile-brand-logo {
+    width: min(210px, 100%) !important;
+    height: 48px !important;
+    margin: 0 !important;
+    object-fit: cover !important;
+    object-position: left center !important;
+  }
+
+  .site-header .mobile-header-actions {
+    justify-self: end !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin: 0 !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .site-footer { grid-template-columns: 1fr; gap: 14px; margin-top: 12px; padding: 20px 16px; }
+}
+
+/* Home header refinement: give the supplied transparent logo room to read
+   and replace the old white icon tiles with a larger, consistent icon system. */
+.site-header .nav-icon {
+  display: block !important;
+  width: 34px !important;
+  height: 34px !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 1.8 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  filter: drop-shadow(0 2px 4px rgba(8, 139, 227, .28));
+}
+
+.site-header .nav-icon [fill] { fill: currentColor; }
+
+@media (min-width: 681px) {
+  body:has(.nav-button[data-view="home"].active) .site-header .topbar {
+    grid-template-columns: minmax(360px, 390px) minmax(0, 1fr) auto !important;
+    height: 96px !important;
+    min-height: 96px !important;
+    padding: 0 26px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #020b18 !important;
+  }
+
+  body:has(.nav-button[data-view="home"].active) .site-header .brand-header-image {
+    width: 360px !important;
+    height: 96px !important;
+    background: transparent !important;
+  }
+
+  body:has(.nav-button[data-view="home"].active) .site-header .brand-header-image img {
+    width: 360px !important;
+    height: 96px !important;
+    max-width: 360px !important;
+    max-height: 96px !important;
+    object-fit: cover !important;
+    object-position: center !important;
+    background: transparent !important;
+  }
+
+  body:has(.nav-button[data-view="home"].active) .site-header .topbar > .app-nav {
+    gap: clamp(8px, 1.25vw, 28px) !important;
+  }
+
+  body:has(.nav-button[data-view="home"].active) .site-header .topbar > .app-nav .nav-button {
+    min-width: clamp(70px, 4vw, 96px) !important;
+    min-height: 82px !important;
+    gap: 7px !important;
+    padding: 0 6px !important;
+    border-radius: 12px !important;
+    color: #a8c8e7 !important;
+    font-size: .8rem !important;
+    font-weight: 900 !important;
+    background: transparent !important;
+  }
+
+  body:has(.nav-button[data-view="home"].active) .site-header .topbar > .app-nav .nav-button:hover,
+  body:has(.nav-button[data-view="home"].active) .site-header .topbar > .app-nav .nav-button:focus-visible {
+    background: rgba(26, 145, 235, .12) !important;
+    color: #f2fbff !important;
+  }
+
+  body:has(.nav-button[data-view="home"].active) .site-header .topbar > .app-nav .nav-button.active {
+    color: #3db7ff !important;
+    background: rgba(18, 112, 210, .1) !important;
+  }
+
+  body:has(.nav-button[data-view="home"].active) .site-header .topbar > .app-nav .nav-button.active::after {
+    width: 64px !important;
+    height: 4px !important;
+    margin-top: 3px !important;
+    background: linear-gradient(90deg, #138cff, #56e0ff) !important;
+    box-shadow: 0 0 12px rgba(40, 183, 255, .65) !important;
+  }
+
+  body:has(.nav-button[data-view="home"].active) .site-header .topbar > .app-nav .nav-button .nav-icon {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  body:has(.nav-button[data-view="home"].active) .site-header .topbar > .app-nav .nav-button[data-view="measure"] .nav-icon {
+    position: static !important;
+    width: 34px !important;
+    height: 34px !important;
+    padding: 4px !important;
+    border: 1px solid rgba(72, 203, 255, .48) !important;
+    border-radius: 50% !important;
+    background: rgba(10, 105, 188, .22) !important;
+    box-shadow: 0 0 14px rgba(28, 176, 255, .22) !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .site-header .mobile-bottom-nav-icon {
+    width: 30px !important;
+    height: 30px !important;
+  }
+
+  .site-header .mobile-bottom-nav-icon .nav-icon {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  .mobile-bottom-nav-button {
+    min-height: 56px !important;
+    padding: 4px 2px !important;
+    font-size: .68rem !important;
+  }
+
+  body:has(.nav-button[data-view="home"].active) .site-header .topbar,
+  body:has(.nav-button[data-view="home"].active) .site-header .mobile-app-header {
+    height: 90px !important;
+    min-height: 90px !important;
+  }
+
+  body:has(.nav-button[data-view="home"].active) .site-header .mobile-brand-logo {
+    width: min(260px, 100%) !important;
+    height: 76px !important;
+    object-fit: cover !important;
+    object-position: center !important;
+    background: transparent !important;
+  }
+}

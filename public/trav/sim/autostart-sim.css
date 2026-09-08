@@ -1,0 +1,173 @@
+/* Autostart Simulation UI (modal + canvas) */
+
+:root {
+  --sim-z: 999999;
+  --sim-bg: rgba(0, 0, 0, 0.72);
+  --sim-panel: rgba(18, 18, 18, 0.92);
+  --sim-border: rgba(255, 255, 255, 0.12);
+  --sim-text: rgba(255, 255, 255, 0.92);
+  --sim-muted: rgba(255, 255, 255, 0.65);
+}
+
+#autostart-sim-modal {
+  position: fixed;
+  inset: 0;
+  z-index: var(--sim-z);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: var(--sim-bg);
+  padding: 14px;
+}
+
+#autostart-sim-modal[data-open="1"] {
+  display: flex;
+}
+
+.autostart-sim-card {
+  width: min(1100px, 96vw);
+  height: min(720px, 92vh);
+  background: var(--sim-panel);
+  border: 1px solid var(--sim-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.autostart-sim-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--sim-border);
+}
+
+.autostart-sim-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--sim-text);
+  letter-spacing: 0.2px;
+}
+
+.autostart-sim-title .b2-badge{
+  display:inline-block;
+  margin-left:8px;
+  font-size:11px;
+  padding:2px 8px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.22);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.92);
+}
+
+.autostart-sim-sub {
+  font-size: 12px;
+  color: var(--sim-muted);
+  margin-left: 6px;
+}
+
+.autostart-sim-spacer {
+  flex: 1;
+}
+
+.autostart-sim-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.autostart-sim-controls label {
+  font-size: 12px;
+  color: var(--sim-muted);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#autostart-sim-division {
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid var(--sim-border);
+  background: rgba(255,255,255,0.06);
+  color: var(--sim-text);
+  padding: 0 10px;
+  outline: none;
+}
+
+.autostart-sim-btn {
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid var(--sim-border);
+  background: rgba(255,255,255,0.06);
+  color: var(--sim-text);
+  padding: 0 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.autostart-sim-btn:hover {
+  background: rgba(255,255,255,0.10);
+}
+
+.autostart-sim-close {
+  height: 30px;
+  width: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--sim-border);
+  background: rgba(255,255,255,0.06);
+  color: var(--sim-text);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.autostart-sim-body {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  overflow: hidden;
+}
+
+#autostart-sim-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#autostart-sim-winner {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+  padding: 20px;
+}
+
+#autostart-sim-winner[data-show="1"] {
+  display: flex;
+}
+
+.autostart-sim-winner-card {
+  pointer-events: none;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.20);
+  border-radius: 18px;
+  padding: 18px 20px;
+  max-width: 780px;
+}
+
+.autostart-sim-winner-title {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--sim-text);
+  margin-bottom: 6px;
+}
+
+.autostart-sim-winner-sub {
+  font-size: 13px;
+  color: var(--sim-muted);
+}

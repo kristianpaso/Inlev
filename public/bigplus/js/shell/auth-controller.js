@@ -6,10 +6,14 @@ export function createAuthController({ accountKey, authApiRoot, currentAccount, 
   const isLocalBootstrap = ["localhost", "127.0.0.1"].includes(window.location.hostname);
   const isProfilePath = /^\/(?:bigplus\/)?profil\/?$/.test(window.location.pathname);
   const isJournalPath = /^\/(?:bigplus\/)?fisketurer\/?$/.test(window.location.pathname);
-  const bootstrapSessionTimeoutMs = isLocalBootstrap ? 650 : isJournalPath ? 700 : 5000;
-  const bootstrapRemoteDataTimeoutMs = isLocalBootstrap ? 120 : isJournalPath ? 180 : 5000;
+  const isCatchesPath = /^\/(?:bigplus\/)?fangster\/?$/.test(window.location.pathname);
+  const isCompetitionsPath = /^\/(?:bigplus\/)?tavlingar\/?$/.test(window.location.pathname);
+  const bootstrapSessionTimeoutMs = isLocalBootstrap ? 650 : (isJournalPath || isCatchesPath || isCompetitionsPath) ? 700 : 5000;
+  const bootstrapRemoteDataTimeoutMs = isLocalBootstrap ? 120 : (isJournalPath || isCatchesPath || isCompetitionsPath) ? 180 : 5000;
   const devAuthMode = isLocalBootstrap ? (new URLSearchParams(window.location.search).get("devAuth") || (isProfilePath ? "profile" : "")) : "";
   const isWorkspacePath = /^\/(?:bigplus\/)?(?:workspace|admin)\/?$/.test(window.location.pathname);
+  const requestedView = new URLSearchParams(window.location.search).get("view");
+  const supportedRequestedViews = new Set(["home", "catches", "weather", "measure", "competitions", "duels", "profile", "workspace", "journal"]);
 
   function sleep(ms) {
     return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -40,7 +44,10 @@ export function createAuthController({ accountKey, authApiRoot, currentAccount, 
     if (devAuthMode === "admin" || isWorkspacePath) return "workspace";
     if (isProfilePath) return "profile";
     if (/^\/(?:bigplus\/)?fisketurer\/?$/.test(window.location.pathname)) return "journal";
-    return devAuthMode === "profile" ? "profile" : "home";
+    if (isCatchesPath) return "catches";
+    if (isCompetitionsPath) return "competitions";
+    if (devAuthMode === "profile") return "profile";
+    return supportedRequestedViews.has(requestedView) ? requestedView : "home";
   }
 
   function openAuth(mode = "login") {

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tävlingar | Bigplus</title>
+    <link rel="stylesheet" href="/bigplus/tavlingar/tavlingar.css?v=20260908-tavlingar-1">
+    <link rel="stylesheet" href="/bigplus/css/bigplus.css?v=20260908-fangster-route-1">
+  </head>
+  <body class="auth-required auth-bootstrap-pending" data-bigplus-page="competitions">
+    <div class="app-loading-screen" id="appLoadingScreen" hidden aria-hidden="true" aria-live="polite">
+      <div class="app-loading-panel" role="status"><img src="/bigplus/assets/bigplus-logo-hd.png" alt="Bigplus"><span class="app-loading-spinner" aria-hidden="true"></span><strong id="appLoadingMessage">Laddar Tävlingar...</strong><span id="appLoadingTimer" class="app-loading-timer">0,0 s</span></div>
+    </div>
+    <main class="app-shell">
+      <div id="siteHeaderMount"></div>
+      <div id="mobileBottomNavMount"></div>
+      <section class="app-view" id="competitionsView" data-app-view="competitions" hidden>
+        <div class="view-heading compact-heading"><div><p class="eyebrow blue-eyebrow">TÄVLA OCH VINN</p><h1>Tävlingar</h1><p>Skapa egna tävlingar eller delta i aktiva utmaningar.</p></div><button class="primary-button" type="button" id="createCompetitionButton">Skapa tävling</button></div>
+        <section class="competition-create-panel" id="competitionCreatePanel" hidden>
+          <form id="competitionForm" class="competition-form">
+            <div><h2>Skapa tävling</h2><p>Fyll i uppgifterna och publicera tävlingen direkt.</p></div>
+            <label>Namn<input id="competitionNameInput" type="text" maxlength="80" required placeholder="Till exempel Sommarens gädda"></label>
+            <label>Beskrivning<input id="competitionDescriptionInput" type="text" maxlength="140" placeholder="Tävla om den längsta fisken"></label>
+            <label>Antal dagar<input id="competitionDaysInput" type="number" min="1" max="365" value="7" required></label>
+            <fieldset class="competition-form-fieldset">
+              <legend>Vilka arter gäller?</legend>
+              <label class="competition-check-option"><input id="competitionSpeciesAll" type="checkbox" checked> Alla arter</label>
+              <div class="competition-popular-species">
+                <span class="competition-species-group-label">Populära arter</span>
+                <div class="competition-species-options">
+                  <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Gädda"> Gädda</label>
+                  <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Abborre"> Abborre</label>
+                  <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Gös"> Gös</label>
+                  <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="ring"> ring</label>
+                  <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Regnbåge"> Regnbåge</label>
+                </div>
+              </div>
+              <span class="competition-species-group-label competition-all-species-label">Fler arter</span>
+              <div class="competition-species-options">
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Abborre"> Abborre</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Mört"> Mört</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Gädda"> Gädda</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Braxen"> Braxen</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Gös"> Gös</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Lake"> Lake</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Ruda"> Ruda</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Sutare"> Sutare</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Id"> Id</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Björkna"> Björkna</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Nors"> Nors</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Gärs"> Gärs</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Elritsa"> Elritsa</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Stäm"> Stäm</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Lax"> Lax</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="ring"> ring</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Röding"> Röding</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Sik"> Sik</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Siklöja"> Siklöja</label>
+                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="l"> l</label>
+              </div>
+            </fieldset>
+            <fieldset class="competition-form-fieldset">
+              <legend>Vad ska räknas?</legend>
+              <div class="competition-metric-options">
+                <label class="competition-check-option"><input type="radio" name="competitionMetric" value="length" checked> Längd</label>
+                <label class="competition-check-option"><input type="radio" name="competitionMetric" value="weight"> Vikt</label>
+                <label class="competition-check-option"><input type="radio" name="competitionMetric" value="both"> Längd och vikt</label>
+              </div>
+            </fieldset>
+            <label class="competition-join-choice"><input id="competitionJoinOnCreate" type="checkbox" checked> Jag vill delta i tävlingen</label>
+            <div class="competition-form-actions"><button class="primary-button" type="submit">Skapa tävling</button><button class="secondary-button" id="cancelCompetitionButton" type="button">Avbryt</button></div>
+          </form>
+        </section>
+        <p class="competition-page-notice" id="competitionPageNotice" role="status" aria-live="polite"></p>
+        <section class="dashboard-section competition-live-section"><div class="section-heading"><h2>Aktiva tävlingar</h2><span class="group-hint">Mät och jämför</span></div><div id="competitionsList" class="groups-list"></div><div id="competitionDetailsSlot"></div></section>
+        <section class="dashboard-section competition-details" id="competitionDetails" hidden><span id="competitionDetailsTitle" hidden></span><span id="competitionDetailsMeta" hidden></span><div id="competitionParticipants" class="competition-participants"></div><div id="participantCatches" class="participant-catches" hidden></div></section>
+        <section class="dashboard-section leaderboard-section"><div class="section-heading"><h2>Topplistan</h2><span class="group-hint">Mina vänner</span></div><div id="bigplusLeaderboard" class="leaderboard-grid"></div></section>
+      </section>
+
+      <section class="auth-modal" id="authModal" hidden><div class="auth-dialog auth-welcome-dialog" role="dialog" aria-modal="true" aria-labelledby="authTitle"><button class="modal-close" id="closeAuthButton" type="button" aria-label="Stäng"></button><div class="auth-form-panel"><p class="eyebrow blue-eyebrow">BIGPLUS-KONTO</p><h2 id="authTitle">Logga in</h2><form id="authForm"><label class="auth-field register-only" hidden for="authName">Namn<input id="authName" type="text" autocomplete="name"></label><label class="auth-field" for="authEmail">E-post<input id="authEmail" type="text" required autocomplete="username"></label><label class="auth-field" for="authPassword">Lösenord<input id="authPassword" type="password" required minlength="4" autocomplete="current-password"></label><button class="primary-button auth-submit" type="submit" id="authSubmit">Logga in</button><p class="auth-message" id="authMessage" role="status"></p></form><div class="auth-tabs"><button class="auth-tab active" type="button" data-auth-mode="login">Logga in</button><button class="auth-tab" type="button" data-auth-mode="register">Skapa konto</button></div></div></div></section>
+    </main>
+    <script type="module" src="/bigplus/tavlingar/tavlingar.js?v=20260908-tavlingar-1"></script>
+  </body>
+</html>

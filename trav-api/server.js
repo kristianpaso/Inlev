@@ -7,6 +7,7 @@ const mongoose = require('./db'); // koppla till MongoDB
 const gamesRouter = require('./routes/games');
 const tracksRouter = require('./routes/tracks'); // 🔹 NY
 const analysesRouter = require('./routes/analyses'); // 🔹 NY // 🔹 NY
+const roundsRouter = require('./routes/rounds');
 
 const app = express();
 
@@ -18,29 +19,23 @@ app.get('/', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
-  const readyState = mongoose.connection.readyState;
-  const mongoStatus =
-    typeof mongoose.getTravMongoStatus === 'function'
-      ? mongoose.getTravMongoStatus()
-      : {};
-
-  res.json({
-    ok: true,
-    api: 'up',
-    mongo: {
-      readyState,
-      state: states[readyState] || 'unknown',
-      host: mongoose.connection.host || null,
-      name: mongoose.connection.name || null,
-      ...mongoStatus,
-    },
-  });
+  const ready = mongoose.connection.readyState === 1;
+  res.status(ready ? 200 : 503).json({ ok: ready, api: 'up' });
 });
 
-app.use('/api/trav/games', gamesRouter);
-app.use('/api/trav/tracks', tracksRouter); // 🔹 NY
-app.use('/api/trav/analyses', analysesRouter); // 🔹 NY // 🔹 NY
+function requireMongo(req, res, next) {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
+      error: 'Trav API vantar en aktiv MongoDB-anslutning',
+    });
+  }
+  return next();
+}
+
+app.use('/api/trav/games', requireMongo, gamesRouter);
+app.use('/api/trav/tracks', requireMongo, tracksRouter);
+app.use('/api/trav/analyses', requireMongo, analysesRouter);
+app.use('/api/trav/rounds', requireMongo, roundsRouter);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

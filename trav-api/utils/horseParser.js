@@ -44,7 +44,7 @@ function parseHorseText(rawText = '', gameType = '') {
       divisions.push(currentDiv);
     }
 
-    addOrReplaceHorseRow(currentDiv, {
+    currentDiv.horses.push({
       number: num,
       rawLine: line,
       scratched: false,
@@ -81,37 +81,6 @@ function parseHorseText(rawText = '', gameType = '') {
     divisions,
     expectedDivisions: getExpectedDivisions(gameType),
   };
-}
-
-function scoreHorseLine(line) {
-  const value = String(line || '').trim();
-  if (!value) return 0;
-
-  const cells = value.includes('\t')
-    ? value.split('\t').map((cell) => cell.trim())
-    : value.split(/\s{2,}/).map((cell) => cell.trim());
-
-  const nonEmptyCells = cells.filter(Boolean).length;
-  const tabBonus = value.includes('\t') ? 100 : 0;
-  const driverLikeBonus = nonEmptyCells >= 3 ? 30 : 0;
-
-  return tabBonus + driverLikeBonus + nonEmptyCells * 10 + Math.min(value.length / 20, 20);
-}
-
-function addOrReplaceHorseRow(division, nextHorse) {
-  const existingIndex = division.horses.findIndex(
-    (horse) => Number(horse.number) === Number(nextHorse.number)
-  );
-
-  if (existingIndex < 0) {
-    division.horses.push(nextHorse);
-    return;
-  }
-
-  const existing = division.horses[existingIndex];
-  if (scoreHorseLine(nextHorse.rawLine) > scoreHorseLine(existing.rawLine)) {
-    division.horses[existingIndex] = nextHorse;
-  }
 }
 
 function getExpectedDivisions(gameType) {

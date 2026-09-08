@@ -1,17 +1,14 @@
 <!-- Profile markup is isolated here so other views remain unchanged. -->
       <section class="app-view profile-rank-view profile-reference-view" id="profileView" data-app-view="profile" hidden>
-        <div class="profile-reference-shell">
-          <section class="profile-reference-hero">
+        <div class="profile-reference-shell profile-mockup-shell">
+          <section class="profile-reference-hero profile-mockup-hero">
             <article class="profile-id-panel profile-hero-card">
               <span id="profileRankedAvatar" class="ranked-avatar ranked-avatar-xl rank-blue" data-level="1">
                 <span class="ranked-avatar-frame"><span class="ranked-avatar-photo avatar-placeholder" id="profileAvatar">B</span></span>
                 <strong>1</strong>
               </span>
               <div class="profile-hero-copy">
-                <div class="profile-name-row">
-                  <h2 id="profileName">Logga in</h2>
-                  <button class="profile-edit-button" type="button" id="profileSettingsButton" aria-label="Inställningar" title="Inställningar"></button>
-                </div>
+                <div class="profile-name-row"><h2 id="profileName">Logga in</h2><span class="profile-verified" aria-label="Verifierad">✓</span><button class="profile-edit-button" type="button" id="profileSettingsButton" aria-label="Inställningar" title="Inställningar"></button></div>
                 <p id="profileEmail">Logga in för att få ett eget konto.</p>
                 <div class="profile-rank-title"><strong id="profileSidebarLevel">Nybörjare</strong><small id="profileSidebarLevelNumber">Nivå 1</small></div>
                 <div class="member-code-line"><strong id="profileMemberCode">#-----</strong><button class="member-code-copy" id="copyMemberCode" type="button">Kopiera</button></div>
@@ -19,112 +16,50 @@
               </div>
             </article>
 
-            <article class="profile-rank-card">
-              <div class="profile-rank-total-card">
-                <span class="profile-rank-crown" aria-hidden="true">🏆</span>
-                <small>Totalt av alla medlemmar</small>
-                <strong id="profileRankNumber">#128</strong>
-                <em>i Sverige</em>
-                <span id="profileFriendRank">#12 bland vänner</span>
-              </div>
-              <div class="profile-rank-side-list">
-                <span><small>Bland vänner</small><strong id="profileRankFriendsList">#12</strong></span>
-                <span><small>Nästa placering</small><strong id="profileRankNextList">#127</strong></span>
-                <span><small>XP kvar</small><strong id="profileRankXpLeftList">120 XP</strong></span>
-                <span><small>Din nivå</small><strong id="profileRankLevelList">Nivå 3</strong></span>
-              </div>
+            <article class="profile-level-hero-card">
+              <div class="profile-level-hero-heading"><span>NIVÅ</span><strong id="profileLevelNumber">Nivå 1 av 20</strong></div>
+              <div class="profile-level-hero-body"><span class="profile-level-hero-badge" id="profileLevelHeroBadge" aria-hidden="true">1</span><div class="profile-level-hero-progress"><div class="profile-hero-xp-label"><strong id="profileLevelXp">0 / 500 XP</strong><b id="profileLevelPercent">0%</b></div><span class="profile-level-progress"><i id="profileLevelProgressBar" style="width:0%"></i></span><small id="profileXpToNext">500 XP kvar</small></div></div>
+              <span class="profile-level-title" id="profileLevelTitle">Nybörjare</span>
             </article>
 
             <article class="profile-next-placement-card">
-              <small>NÄSTA PLACERING</small>
-              <strong id="profileNextRankNumber">#127</strong>
-              <span id="profileNextRankXp">120 XP kvar</span>
-              <p>Passera <b id="profileNextRankPerson">Johan Olsson</b></p>
+              <div><small>NÄSTA PLACERING</small><strong id="profileNextRankNumber">#127</strong><span id="profileNextRankXp">120 XP kvar</span><p>Passera <b id="profileNextRankPerson">Johan Olsson</b></p></div>
+              <img src="/bigplus/assets/profile-mockup/04_next_ranking_trophy_reference.png" alt="Trofé" loading="lazy" decoding="async">
             </article>
           </section>
 
-          <section class="profile-hero-xp-band" aria-label="Din XP-progress">
-            <div>
-              <span class="profile-level-progress">
-                <i id="profileLevelProgressBar" style="width:0%"></i>
-                <span class="profile-progress-copy"><strong id="profileLevelXp">0 / 500 XP</strong><small id="profileXpToNext">500 XP kvar</small></span>
-                <b id="profileLevelPercent">0%</b>
-              </span>
-            </div>
+          <section class="profile-panel profile-next-goals profile-mockup-goals">
+            <div class="profile-mockup-section-heading"><div><span class="profile-section-icon">◎</span><div><h2>Mål som ger mest just nu</h2><p>Fånga mer, levla snabbare. Här är de mest lönsamma målen just nu.</p></div></div><button class="text-button" type="button" id="profileShowAllMissions">Visa alla mål →</button></div>
+            <div id="profileNextMissions"></div>
+            <span id="profileMissionCount" class="profile-mission-count">0 / 0</span>
+            <div class="profile-progress-pair" id="profileQuickProgress"></div>
           </section>
 
-          <div class="profile-reference-grid">
+          <section class="profile-mockup-bottom-grid">
+            <article class="profile-panel profile-weekly-panel profile-weekly-mockup">
+              <div class="profile-mockup-card-heading"><span class="profile-section-icon">ϟ</span><h2>Veckans boost</h2><small>5 dagar kvar</small></div>
+              <div class="profile-weekly-copy"><span class="profile-weekly-fish">◈</span><div><h3>Fånga 5 arter denna vecka</h3><p>Variation lönar sig - prova nya vatten!</p></div></div>
+              <div class="profile-weekly-progress-row"><strong id="profileWeeklyChallengeProgress">0 / 5 arter</strong><span class="profile-level-progress"><i id="profileWeeklyChallengeBar" style="width:0%"></i></span></div>
+              <div class="profile-weekly-reward"><b>150 XP</b><span>Utmanings-märke</span></div>
+            </article>
+            <article class="profile-panel profile-badge-panel profile-badges-mockup"><div class="profile-mockup-card-heading"><span class="profile-section-icon">★</span><h2>Badges du snart låser upp</h2><button class="text-button" type="button" data-go-view="achievements">Visa alla →</button></div><div class="profile-featured-badges" id="profileFeaturedBadges"></div></article>
+          </section>
+
+          <section class="profile-mockup-activity-grid">
+            <article class="profile-panel profile-xp-ways-panel"><div class="section-heading"><h2>Hur du tjänar XP</h2></div><div id="profileXpWays"></div></article>
+            <article class="profile-panel profile-activity-panel"><div class="section-heading"><h2>Nylig aktivitet</h2><button class="text-button" type="button" data-go-view="catches">Visa alla →</button></div><div id="profileRecentActivity"></div></article>
+          </section>
+
+          <div class="profile-reference-grid profile-mockup-details">
             <main class="profile-reference-main">
-              <section class="profile-panel profile-next-goals">
-                <div class="section-heading"><h2>⚡ Klättra snabbare - gör detta nu</h2><span id="profileMissionCount">0 / 0</span></div>
-                <div id="profileNextMissions"></div>
-                <div class="profile-progress-pair" id="profileQuickProgress"></div>
-                <button class="text-button" type="button" id="profileShowAllMissions">Visa andra uppdrag →</button>
-              </section>
-
-              <section class="profile-stats-boost-row">
-                <article class="profile-panel achievement-summary">
-                  <h2>Din statistik</h2>
-                  <div class="achievement-mini-grid">
-                    <span><strong id="profileCatchCount">0</strong><small>Fångster</small></span>
-                    <span><strong id="profileSidebarTrips">0</strong><small>Fisketurer</small></span>
-                    <span><strong id="profileSidebarSpecies">0</strong><small>Arter</small></span>
-                    <span><strong>7 dagar</strong><small>Streak</small></span>
-                    <span><strong id="profileSidebarTotalWeight">0 kg</strong><small>Högsta vikt</small></span>
-                  </div>
-                  <span class="profile-hidden-stat" hidden><strong id="profileSidebarCatches">0</strong><strong id="profileSidebarTopWeight">0</strong><strong id="profileBigplusCount">0</strong><strong id="profileCompetitionCount">0</strong></span>
-                </article>
-                <article class="profile-panel profile-weekly-panel">
-                  <div class="section-heading"><h2>Veckans boost</h2><span>5 dagar kvar</span></div>
-                  <h3>Fånga 5 arter denna vecka</h3>
-                  <span class="profile-level-progress"><i id="profileWeeklyChallengeBar" style="width:0%"></i></span>
-                  <small id="profileWeeklyChallengeProgress">0 / 5 arter</small>
-                  <div class="profile-weekly-reward"><b>150 XP</b><span>Utmanings-märke</span></div>
-                </article>
-              </section>
-
-              <section class="profile-content-grid">
-                <article class="profile-panel profile-recent-catches-panel">
-                  <div class="section-heading"><h2>Senaste fångster</h2><button class="text-button" type="button" data-go-view="catches">Visa alla</button></div>
-                  <div class="profile-recent-catches" id="profileRecentCatches"></div>
-                </article>
-                <article class="profile-panel profile-activity-panel">
-                  <div class="section-heading"><h2>Aktivitet</h2><button class="text-button" type="button" data-go-view="catches">Visa alla</button></div>
-                  <div id="profileRecentActivity"></div>
-                </article>
-                <article class="profile-panel profile-history-panel">
-                  <div class="section-heading"><h2>Din XP-resa</h2><select aria-label="Period"><option>Senaste 90 dagarna</option></select></div>
-                  <div class="profile-history-chart"><span style="height:12%"></span><span style="height:20%"></span><span style="height:24%"></span><span style="height:34%"></span><span style="height:42%"></span><span style="height:57%"></span><span style="height:66%"></span><span style="height:78%"></span><span style="height:90%"></span><b id="profileHistoryXp">0 XP</b></div>
-                </article>
-                <article class="profile-panel profile-level-map">
-                  <div class="section-heading"><div><h2>Din nivåresa</h2><span id="profileLevelSummary">Visar dina närmaste nivåer</span></div><button class="text-button" type="button" id="profileShowAllLevels">Visa alla nivåer</button></div>
-                  <div class="profile-level-track" id="profileLevelTrack"></div>
-                </article>
-              </section>
-
-              <section class="dashboard-section friends-section profile-friends-management">
-                <div class="section-heading"><div><span class="section-kicker">GEMENSKAP</span><h2>Vänner</h2><p>Följ framsteg, se LIVE-status och jämför era största fiskar.</p></div></div>
-                <form class="friend-add-form" id="friendAddForm"><label class="sr-only" for="friendSearchInput">Sök vän</label><input id="friendSearchInput" type="search" placeholder="Sök medlemsnummer, namn eller e-post"><button class="primary-button" type="submit">Sök medlem</button></form>
-                <div class="friend-suggestions" id="friendSuggestions"></div>
-                <div class="friend-list" id="friendList"></div>
-                <div class="friend-tournaments" id="friendTournamentList"></div>
-              </section>
+              <section class="profile-stats-boost-row"><article class="profile-panel achievement-summary"><h2>Din statistik</h2><div class="achievement-mini-grid"><span><strong id="profileCatchCount">0</strong><small>Fångster</small></span><span><strong id="profileSidebarTrips">0</strong><small>Fisketurer</small></span><span><strong id="profileSidebarSpecies">0</strong><small>Arter</small></span><span><strong>7 dagar</strong><small>Streak</small></span><span><strong id="profileSidebarTotalWeight">0 kg</strong><small>Högsta vikt</small></span></div><span class="profile-hidden-stat" hidden><strong id="profileSidebarCatches">0</strong><strong id="profileSidebarTopWeight">0</strong><strong id="profileBigplusCount">0</strong><strong id="profileCompetitionCount">0</strong></span></article></section>
+              <section class="profile-content-grid"><article class="profile-panel profile-recent-catches-panel"><div class="section-heading"><h2>Senaste fångster</h2><button class="text-button" type="button" data-go-view="catches">Visa alla</button></div><div class="profile-recent-catches" id="profileRecentCatches"></div></article><article class="profile-panel profile-history-panel"><div class="section-heading"><h2>Din XP-resa</h2><select aria-label="Period"><option>Senaste 90 dagarna</option></select></div><div class="profile-history-chart"><span style="height:12%"></span><span style="height:20%"></span><span style="height:24%"></span><span style="height:34%"></span><span style="height:42%"></span><span style="height:57%"></span><span style="height:66%"></span><span style="height:78%"></span><span style="height:90%"></span><b id="profileHistoryXp">0 XP</b></div></article><article class="profile-panel profile-level-map"><div class="section-heading"><div><h2>Din nivåresa</h2><span id="profileLevelSummary">Visar dina närmaste nivåer</span></div><button class="text-button" type="button" id="profileShowAllLevels">Visa alla nivåer</button></div><div class="profile-level-track" id="profileLevelTrack"></div></article></section>
+              <section class="dashboard-section friends-section profile-friends-management"><div class="section-heading"><div><span class="section-kicker">GEMENSKAP</span><h2>Vänner</h2><p>Följ framsteg, se LIVE-status och jämför era största fiskar.</p></div></div><form class="friend-add-form" id="friendAddForm"><label class="sr-only" for="friendSearchInput">Sök vän</label><input id="friendSearchInput" type="search" placeholder="Sök medlemsnummer, namn eller e-post"><button class="primary-button" type="submit">Sök medlem</button></form><div class="friend-suggestions" id="friendSuggestions"></div><div class="friend-list" id="friendList"></div><div class="friend-tournaments" id="friendTournamentList"></div></section>
               <button class="secondary-button logout-button" id="logoutButton" type="button" hidden>Logga ut</button>
             </main>
-
-            <aside class="profile-reference-side">
-              <section class="profile-panel profile-ranking-panel">
-                <div class="section-heading"><h2>Ranking - nära dig</h2></div>
-                <div id="profileRankingNear"></div>
-                <button class="secondary-button" type="button" data-go-view="competitions">Visa full ranking →</button>
-              </section>
-              <section class="profile-panel profile-badge-panel"><div class="section-heading"><h2>Utvalda märken</h2><button class="text-button" type="button" data-go-view="achievements">Visa alla</button></div><div class="profile-featured-badges" id="profileFeaturedBadges"></div></section>
-              <section class="profile-panel profile-compare-panel"><div class="section-heading"><h2>Jämför med vänner</h2><button class="text-button" type="button" data-go-view="profile">Visa alla</button></div><div class="profile-friend-compare" id="profileFriendCompare"></div></section>
-              <section class="profile-panel profile-online-panel"><div class="section-heading"><h2>Vänner</h2></div><div id="profileOnlineFriends"></div></section>
-            </aside>
+            <aside class="profile-reference-side"><section class="profile-panel profile-ranking-panel"><div class="section-heading"><h2>Ranking - nära dig</h2></div><div id="profileRankingNear"></div><button class="secondary-button" type="button" data-go-view="competitions">Visa full ranking →</button></section><section class="profile-panel profile-compare-panel"><div class="section-heading"><h2>Jämför med vänner</h2><button class="text-button" type="button" data-go-view="profile">Visa alla</button></div><div class="profile-friend-compare" id="profileFriendCompare"></div></section><section class="profile-panel profile-online-panel"><div class="section-heading"><h2>Vänner</h2></div><div id="profileOnlineFriends"></div></section></aside>
           </div>
         </div>
-
       </section>
 
       <section class="auth-modal live-modal" id="liveSettingsModal" hidden>

@@ -5,7 +5,6 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "start:local": "node --preserve-symlinks --preserve-symlinks-main server.js",
     "dev": "nodemon server.js",
     "postinstall": "npx playwright install chromium"
   },

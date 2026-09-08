@@ -16889,7 +16889,7 @@ body:has(.nav-button[data-view="journal"].active) .site-header .nav-button.activ
   stroke: #0b5e79;
   stroke-width: 2.2;
 }
-#journalView .journal-reference-map-panel .maplibregl-canvas { filter: saturate(1.08) contrast(1.08) brightness(.86) !important; }
+#journalView .journal-reference-map-panel .maplibregl-canvas { filter: saturate(1.08) contrast(1.08) brightness(.94) !important; }
 .app-shell:has(.profile-reference-view:not([hidden])) {
   width: 100%;
   max-width: none;
@@ -16991,7 +16991,11 @@ body[data-bigplus-page="journal"] .app-loading-timer { color: #7ccaff; }
   #journalView .journal-reference-left > .journal-quick-plans-reference,
   #journalView .journal-reference-left > .journal-spot-info-list-reference { position: absolute !important; left: 18px !important; right: auto !important; width: 304px !important; max-width: calc(100% - 36px) !important; margin: 0 !important; overflow: auto !important; }
   #journalView .journal-reference-left > .journal-quick-plans-reference { top: 108px !important; max-height: 174px !important; padding: 10px !important; display: block !important; border: 1px solid #1c4669 !important; border-radius: 11px !important; background: #091f35 !important; box-shadow: 0 6px 16px rgba(0, 0, 0, .2) !important; }
-  #journalView .journal-reference-left > .journal-spot-info-list-reference { top: 300px !important; max-height: calc(100% - 316px) !important; padding: 10px !important; display: block !important; border: 1px solid #1c4669 !important; border-radius: 11px !important; background: #091f35 !important; box-shadow: 0 6px 16px rgba(0, 0, 0, .2) !important; }
+  #journalView .journal-reference-left > .journal-spot-info-list-reference { top: 300px !important; max-height: 326px !important; padding: 10px !important; display: block !important; border: 1px solid #1c4669 !important; border-radius: 11px !important; background: #091f35 !important; box-shadow: 0 6px 16px rgba(0, 0, 0, .2) !important; }
+  #journalView .journal-reference-left > .journal-highlights-reference { position: absolute !important; top: 638px !important; left: 18px !important; width: 304px !important; max-width: calc(100% - 36px) !important; max-height: calc(100% - 654px) !important; margin: 0 !important; padding: 10px !important; display: block !important; overflow: auto !important; border: 1px solid #1c4669 !important; border-radius: 11px !important; background: #091f35 !important; box-shadow: 0 6px 16px rgba(0, 0, 0, .2) !important; }
+  #journalView .journal-highlights-reference .journal-reference-heading { margin-bottom: 7px; }
+  #journalView .journal-highlights-reference .journal-reference-heading h2 { color: #f4f8ff !important; font-size: .98rem !important; }
+  #journalView .journal-highlights-reference .journal-reference-heading span { color: #75b8df; font-size: .56rem; }
   #journalView .journal-reference-right > .journal-plan-reference { display: none !important; }
   #journalView .journal-reference-left > .journal-destination-panel,
   #journalView .journal-reference-left > .journal-goal-create-panel,
@@ -17116,30 +17120,34 @@ body[data-bigplus-page="journal"] .app-loading-timer { color: #7ccaff; }
 /* Pin actions live in a dedicated dock, separate from the place information. */
 #journalView .journal-map-pin-actions {
   position: absolute !important;
-  left: 18px !important;
+  left: 50% !important;
   bottom: 18px !important;
+  transform: translateX(-50%);
   z-index: 2400 !important;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(76px, 1fr));
-  gap: 6px;
-  width: min(270px, calc(100% - 36px));
-  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: auto;
+  padding: 8px;
   border: 1px solid #2d759f;
-  border-radius: 10px;
-  background: rgba(4, 22, 39, .94);
+  border-radius: 22px;
+  background: rgba(4, 22, 39, .78);
   box-shadow: 0 14px 30px rgba(0, 0, 0, .52), inset 0 1px 0 rgba(128, 215, 255, .12);
   backdrop-filter: blur(12px);
 }
 #journalView .journal-map-pin-actions[hidden] { display: none !important; }
 #journalView .journal-map-pin-actions button {
   display: grid;
-  min-width: 0;
-  min-height: 44px;
+  width: 54px;
+  min-width: 54px;
+  height: 54px;
+  min-height: 54px;
   place-items: center;
-  gap: 2px;
-  padding: 4px 5px;
+  gap: 0;
+  padding: 0;
   border: 1px solid #27658b;
-  border-radius: 7px;
+  border-radius: 50%;
   background: #092943;
   color: #e8f7ff;
   font: inherit;
@@ -17148,7 +17156,7 @@ body[data-bigplus-page="journal"] .app-loading-timer { color: #7ccaff; }
 #journalView .journal-map-pin-actions button:hover,
 #journalView .journal-map-pin-actions button:focus-visible { border-color: #75d1ff; background: #0d4265; outline: none; }
 #journalView .journal-map-pin-actions button span { color: #7fd4ff; font-size: 1rem; line-height: 1; }
-#journalView .journal-map-pin-actions button small { color: #eefaff; font-size: .53rem; font-weight: 900; line-height: 1.1; white-space: nowrap; }
+#journalView .journal-map-pin-actions button small { display: none; color: #eefaff; font-size: .53rem; font-weight: 900; line-height: 1.1; white-space: nowrap; }
 #journalView .journal-place-label.is-info-active { z-index: 2500 !important; }
 #journalView .journal-place-label.is-info-active .journal-map-pin-info { z-index: 2600 !important; pointer-events: auto; }
 
@@ -17156,10 +17164,334 @@ body[data-bigplus-page="journal"] .app-loading-timer { color: #7ccaff; }
   #journalView .journal-map-pin-actions {
     left: 12px !important;
     bottom: 14px !important;
+    transform: none;
     width: auto;
-    grid-template-columns: repeat(3, minmax(62px, 1fr));
+    gap: 7px;
+    padding: 6px;
   }
-  #journalView .journal-map-pin-actions button { min-height: 40px; padding: 4px 3px; }
+  #journalView .journal-map-pin-actions button { width: 48px; min-width: 48px; height: 48px; min-height: 48px; padding: 0; }
   #journalView .journal-map-pin-actions button small { font-size: .48rem; }
   #journalView .journal-mobile-pin-info { bottom: 70px !important; }
+}
+
+/* Keep pin numbers and boat letters legible over both dark land and bright water. */
+#journalView .journal-place-label { width: 44px !important; height: 44px !important; min-height: 44px !important; }
+#journalView .journal-place-label-pin {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  border: 3px solid #f9fdff !important;
+  background: var(--journal-place-base, #2585ff) !important;
+  color: #fff !important;
+  font-size: 1.08rem !important;
+  font-weight: 1000 !important;
+  line-height: 1 !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, .98), 0 0 2px rgba(0, 0, 0, .98);
+  box-shadow: 0 0 0 2px rgba(0, 8, 15, .92), 0 0 17px var(--journal-place-color, #7cd4ff), 0 4px 10px rgba(0, 0, 0, .58) !important;
+}
+@media (max-width: 680px) {
+  #journalView .journal-place-label { width: 44px !important; height: 44px !important; }
+  #journalView .journal-place-label-pin { width: 38px !important; height: 38px !important; min-width: 38px !important; font-size: 1rem !important; }
+}
+
+/* Boat ramps and berths are passage highlights, not fishing stops. */
+#journalView .journal-highlight-list {
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid #214d6c;
+  border-radius: 9px;
+  background: #071b2d;
+}
+#journalView .journal-highlight-list-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 2px 6px;
+  color: #f4f8ff;
+  font-size: .72rem;
+  font-weight: 900;
+}
+#journalView .journal-highlight-list-heading small {
+  color: #8eb8d0;
+  font-size: .55rem;
+  font-weight: 700;
+}
+#journalView .journal-highlight-list-item {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  padding: 5px 7px;
+  border: 1px solid #245779;
+  border-radius: 7px;
+  background: #092943;
+  color: #eaf8ff;
+  text-align: left;
+  cursor: pointer;
+}
+#journalView .journal-highlight-list-item + .journal-highlight-list-item { margin-top: 5px; }
+#journalView .journal-highlight-list-item:hover,
+#journalView .journal-highlight-list-item:focus-visible { border-color: #6dd4ff; background: #0d3e5f; outline: none; }
+#journalView .journal-highlight-list-item > b {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 2px dashed #ffe44c;
+  border-radius: 50%;
+  color: #fff;
+  font-size: .75rem;
+  text-shadow: 0 1px 3px #000;
+}
+#journalView .journal-highlight-list-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-color: #ffd93d;
+}
+#journalView .journal-highlight-list-icon > span { font-size: .78rem; line-height: 1; }
+#journalView .journal-highlight-list-icon > small { position: absolute; right: -4px; bottom: -4px; min-width: 12px; padding: 1px 3px; border-radius: 5px; background: #071522; color: #fff; font-size: .48rem; font-weight: 900; line-height: 1; }
+#journalView .journal-highlight-empty { margin: 3px 2px; color: #87b2ca; font-size: .62rem; }
+#journalView .journal-highlight-list-item > span { min-width: 0; }
+#journalView .journal-highlight-list-item strong,
+#journalView .journal-highlight-list-item small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#journalView .journal-highlight-list-item strong { font-size: .68rem; }
+#journalView .journal-highlight-list-item small { margin-top: 2px; color: #92bad0; font-size: .52rem; }
+#journalView .journal-highlight-list-item > i { color: #79d8ff; font-size: 1rem; font-style: normal; text-align: center; }
+#journalView .journal-highlight-label .journal-place-label-pin { border-style: dashed !important; }
+#journalView .journal-highlight-pin { display: grid !important; place-items: center; position: relative; }
+#journalView .journal-highlight-pin > strong { line-height: 1; }
+#journalView .journal-highlight-pin-icon { position: absolute; right: -4px; bottom: -4px; display: grid; width: 15px; height: 15px; place-items: center; border: 2px solid #071522; border-radius: 50%; background: #ffd93d; color: #071522; font-size: .55rem; line-height: 1; }
+#journalView .journal-boat-place-icon { position: absolute; right: -4px; bottom: -4px; display: grid; width: 15px; height: 15px; place-items: center; border: 2px solid #071522; border-radius: 50%; background: #8fe9ff; color: #071522; font-size: .55rem; line-height: 1; }
+#journalView .journal-place-label-pin { position: relative; display: grid; place-items: center; }
+
+/* Profile mockup dashboard. All selectors stay below the Profile view so the
+   shared shell and the other app views keep their existing presentation. */
+body:has(.profile-mockup-shell) { background: #020914 !important; color: #edf7ff; }
+body:has(.profile-mockup-shell) .profile-only-shell { min-height: 100vh; background: #020914; }
+body:has(.profile-mockup-shell) .profile-only-shell .site-header,
+body:has(.profile-mockup-shell) .profile-only-shell .header-app-shell,
+body:has(.profile-mockup-shell) .profile-only-shell .site-header .topbar {
+  background: rgba(2, 12, 27, .96) !important;
+  border-color: rgba(54, 142, 219, .38) !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .34) !important;
+}
+body:has(.profile-mockup-shell) .profile-only-shell .site-header .topbar { margin-bottom: 0 !important; }
+.profile-reference-view.profile-mockup-shell,
+.profile-mockup-shell .profile-reference-view { width: 100%; max-width: none; }
+.profile-reference-view:has(.profile-mockup-shell) { min-height: calc(100vh - 76px); padding: 0 0 36px; background: #020914; }
+.profile-reference-view:has(.profile-mockup-shell)::before {
+  height: 270px;
+  background: linear-gradient(90deg, rgba(2, 9, 20, .72), rgba(3, 20, 42, .26) 48%, rgba(2, 9, 20, .78)), url("/bigplus/assets/profile-mockup/03_header_fishing_background_reference.png") center top / cover no-repeat;
+  opacity: .48;
+}
+.profile-mockup-shell { width: min(1600px, 100%); max-width: 1600px; }
+.profile-mockup-hero {
+  grid-template-columns: minmax(330px, 1.15fr) minmax(370px, 1.1fr) minmax(260px, .74fr);
+  gap: 16px;
+  min-height: 250px;
+  padding-top: 24px;
+}
+.profile-mockup-shell .profile-hero-card,
+.profile-mockup-shell .profile-level-hero-card,
+.profile-mockup-shell .profile-next-placement-card {
+  min-height: 224px;
+  border: 1px solid rgba(48, 157, 240, .7);
+  border-radius: 10px;
+  background: rgba(3, 16, 34, .7);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, .26), inset 0 1px 0 rgba(150, 221, 255, .08);
+}
+.profile-mockup-shell .profile-hero-card { gap: 20px; padding: 20px 24px; border-color: transparent; background: transparent; box-shadow: none; }
+.profile-mockup-shell .profile-hero-card .ranked-avatar-xl { flex: 0 0 154px; width: 154px; height: 178px; filter: drop-shadow(0 0 22px rgba(18, 170, 255, .7)); }
+.profile-mockup-shell .profile-hero-card .ranked-avatar-photo { background-image: url("/bigplus/assets/profile-mockup/02_profile_avatar_reference.png"); background-position: center; background-size: cover; }
+.profile-mockup-shell .profile-hero-copy { gap: 7px; }
+.profile-mockup-shell .profile-name-row { gap: 9px; align-items: center; }
+.profile-mockup-shell .profile-name-row h2 { color: #f7fbff; font-size: clamp(1.9rem, 3vw, 3rem); line-height: 1; letter-spacing: 0; text-shadow: 0 2px 18px rgba(30, 141, 255, .36); }
+.profile-mockup-shell .profile-verified { display: grid; width: 21px; height: 21px; place-items: center; border-radius: 50%; background: #238ef2; color: #fff; font-size: .82rem; font-weight: 950; }
+.profile-mockup-shell .profile-hero-card #profileEmail { display: none; }
+.profile-mockup-shell .profile-rank-title { align-items: center; gap: 9px; }
+.profile-mockup-shell .profile-rank-title strong { color: #35f18b; font-size: 1.02rem; }
+.profile-mockup-shell .profile-rank-title small { padding: 5px 11px; border: 1px solid rgba(83, 178, 255, .35); border-radius: 999px; background: rgba(21, 81, 137, .42); color: #e5f4ff; font-size: .72rem; }
+.profile-mockup-shell .member-code-line { color: #42a9fa; }
+.profile-mockup-shell .member-code-copy { display: none; }
+.profile-mockup-shell .profile-edit-button { display: none; }
+.profile-mockup-shell .profile-live-controls { justify-self: start; }
+.profile-mockup-shell .live-toggle { min-height: 30px; padding: 5px 10px; border-color: rgba(35, 238, 130, .68); border-radius: 7px; background: rgba(1, 43, 36, .9); color: #a5ffd0; font-size: .7rem; }
+.profile-mockup-shell .profile-level-hero-card { display: grid; align-content: center; gap: 12px; padding: 20px 22px; }
+.profile-level-hero-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: #6dc5ff; font-size: .64rem; font-weight: 950; letter-spacing: .14em; }
+.profile-level-hero-heading strong { color: #bdddf7; font-size: .7rem; letter-spacing: .03em; }
+.profile-level-hero-body { display: grid; grid-template-columns: 94px minmax(0, 1fr); align-items: center; gap: 15px; }
+.profile-level-hero-badge { display: grid; width: 92px; height: 103px; place-items: center; clip-path: polygon(50% 0, 90% 23%, 90% 76%, 50% 100%, 10% 76%, 10% 23%); background: linear-gradient(145deg, #21c9ff, #1467ec 58%, #09305e); color: #fff; font-size: 2.7rem; font-weight: 950; text-shadow: 0 2px 8px #00152f; box-shadow: 0 0 22px rgba(24, 169, 255, .74); }
+.profile-level-hero-progress { display: grid; gap: 7px; min-width: 0; }
+.profile-hero-xp-label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; color: #fff; }
+.profile-hero-xp-label strong { font-size: 1.05rem; }
+.profile-hero-xp-label b { color: #f1f8ff; font-size: .88rem; }
+.profile-mockup-shell .profile-level-progress { height: 18px; border: 1px solid rgba(74, 186, 255, .7); border-radius: 6px; background: rgba(1, 8, 20, .76); }
+.profile-mockup-shell .profile-level-progress i { border-radius: 5px; background: linear-gradient(90deg, #03c9ff, #37f18d); box-shadow: 0 0 14px rgba(23, 202, 255, .56); }
+.profile-level-hero-progress small { color: #69c7ff; font-size: .72rem; font-weight: 850; }
+.profile-level-title { color: #50d9ff; font-size: .7rem; font-weight: 900; }
+.profile-mockup-shell .profile-next-placement-card { display: grid; grid-template-columns: minmax(0, 1fr) 92px; align-items: center; gap: 10px; padding: 19px; border-color: #1b9ff5; background: rgba(3, 22, 43, .76); }
+.profile-mockup-shell .profile-next-placement-card div { display: grid; align-content: center; gap: 7px; }
+.profile-mockup-shell .profile-next-placement-card small { color: #b8d7f4; font-size: .67rem; font-weight: 950; letter-spacing: .08em; }
+.profile-mockup-shell .profile-next-placement-card strong { font-size: 2.4rem; line-height: 1; }
+.profile-mockup-shell .profile-next-placement-card span { color: #77c9ff; font-size: .76rem; font-weight: 850; }
+.profile-mockup-shell .profile-next-placement-card p { margin: 0; color: #d2e8fb; font-size: .72rem; }
+.profile-mockup-shell .profile-next-placement-card img { width: 88px; height: 112px; object-fit: contain; filter: drop-shadow(0 0 12px rgba(255, 202, 79, .34)); }
+.profile-mockup-goals { margin-top: 14px; padding: 20px 22px 22px; border-color: rgba(52, 151, 227, .62); background: rgba(3, 19, 37, .86); }
+.profile-mockup-section-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; justify-content: stretch; gap: 16px; width: 100%; margin-bottom: 16px; }
+.profile-mockup-section-heading > div { display: flex; flex: none; align-items: flex-start; gap: 11px; min-width: 0; width: 100%; }
+.profile-mockup-section-heading > div > div { flex: 1 1 auto; min-width: 0; }
+.profile-section-icon { display: grid; flex: 0 0 36px; width: 36px; height: 36px; place-items: center; border: 1px solid rgba(110, 205, 255, .5); border-radius: 50%; background: rgba(24, 110, 184, .28); color: #d9f7ff; font-size: 1.8rem; line-height: 1; }
+.profile-mockup-section-heading h2 { margin: 0; color: #f3f9ff; font-size: clamp(1.08rem, 1.8vw, 1.55rem); }
+.profile-mockup-section-heading p { margin: 4px 0 0; color: #9dc3e1; font-size: .76rem; }
+.profile-mockup-section-heading .text-button { flex: 0 0 auto; color: #2faaff; }
+.profile-mockup-goals #profileNextMissions { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.profile-mockup-goals #profileQuickProgress { display: none !important; }
+.profile-mockup-goals .profile-mission-card { position: relative; display: grid; grid-template-columns: 1fr; grid-template-rows: 122px minmax(0, 1fr) auto; min-width: 0; min-height: 280px; overflow: hidden; padding: 0 12px 13px; border: 1px solid rgba(61, 153, 230, .65); border-radius: 9px; background: #061a31; box-shadow: inset 0 0 0 1px rgba(155, 225, 255, .04); }
+.profile-mockup-goals .profile-mission-card:nth-child(1) { border-color: #d8a733; background: linear-gradient(180deg, rgba(78, 55, 16, .8), #091a2c 70%); }
+.profile-mockup-goals .profile-mission-card:nth-child(2) { border-color: #387cbd; }
+.profile-mockup-goals .profile-mission-card:nth-child(3) { border-color: #1d9d91; }
+.profile-mockup-goals .profile-mission-card:nth-child(4) { border-color: #3d8cd0; }
+.profile-mockup-goals .profile-mission-card:nth-child(5) { border-color: #bf4e64; }
+.profile-mission-art { position: relative; min-width: 0; margin: 0 -12px; overflow: hidden; }
+.profile-mission-art::after { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 8, 17, .06), rgba(3, 14, 29, .88)); content: ""; }
+.profile-mission-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.profile-mission-badge { position: absolute; top: 10px; left: 10px; z-index: 1; padding: 5px 9px; border: 1px solid rgba(255, 255, 255, .6); border-radius: 999px; background: rgba(19, 126, 232, .8); color: #fff; font-size: .57rem; font-weight: 950; letter-spacing: .04em; }
+.mission-species .profile-mission-badge { background: rgba(24, 160, 86, .86); }
+.mission-trip .profile-mission-badge { background: rgba(23, 120, 224, .86); }
+.mission-place .profile-mission-badge { background: rgba(236, 160, 27, .86); }
+.profile-mission-copy { display: grid; align-content: end; gap: 5px; min-width: 0; padding: 10px 0 0; }
+.profile-mission-copy strong { overflow: hidden; color: #f4f8ff; font-size: .82rem; line-height: 1.15; text-overflow: ellipsis; }
+.profile-mission-copy small { display: -webkit-box; overflow: hidden; color: #b8d7ef; font-size: .64rem; line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.profile-mockup-goals .profile-mini-progress { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px; height: 8px; margin-top: 4px; border: 0; border-radius: 4px; background: #061020; }
+.profile-mockup-goals .profile-mini-progress i { display: block; height: 100%; border-radius: 4px; background: #4bd98b; }
+.profile-mockup-goals .profile-mini-progress em { inset: auto 12px 37px auto; position: absolute; color: #ecf7ff; font-size: .68rem; font-style: normal; font-weight: 900; }
+.profile-mockup-goals .profile-mission-card > b { position: static; align-self: end; justify-self: start; margin-top: 8px; color: #7fd0ff; font-size: .95rem; }
+.profile-mockup-goals .profile-mission-arrow { position: absolute; right: 12px; bottom: 11px; display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid #77b9ec; border-radius: 50%; color: #b8e4ff; font-size: 1.35rem; line-height: 1; }
+.profile-mission-count { display: none; }
+.profile-mockup-bottom-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+.profile-mockup-bottom-grid .profile-panel { min-height: 195px; border-color: rgba(53, 137, 218, .62); }
+.profile-weekly-mockup { position: relative; overflow: hidden; padding: 19px 22px; background: linear-gradient(90deg, rgba(4, 22, 41, .96), rgba(5, 20, 38, .58)), url("/bigplus/assets/profile-mockup/10_weekly_boost_background_reference.png") center / cover no-repeat; }
+.profile-mockup-card-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.profile-mockup-card-heading h2 { margin: 0; color: #f0f7ff; font-size: 1.08rem; }
+.profile-mockup-card-heading small { margin-left: auto; color: #bbd4ed; font-size: .68rem; }
+.profile-mockup-card-heading .text-button { margin-left: auto; }
+.profile-weekly-copy { display: flex; align-items: center; gap: 12px; margin-top: 23px; }
+.profile-weekly-fish { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 50%; background: rgba(17, 99, 165, .65); color: #e2f6ff; font-size: 1.7rem; }
+.profile-weekly-copy h3 { margin: 0; color: #f4f8ff; font-size: .98rem; }
+.profile-weekly-copy p { margin: 4px 0 0; color: #9cc8e9; font-size: .72rem; }
+.profile-weekly-progress-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; margin-top: 20px; }
+.profile-weekly-progress-row strong { color: #e7f4ff; font-size: .75rem; }
+.profile-weekly-progress-row .profile-level-progress { height: 9px; }
+.profile-weekly-mockup .profile-weekly-reward { position: absolute; right: 22px; bottom: 19px; display: grid; gap: 2px; color: #b8d8ef; text-align: right; }
+.profile-weekly-mockup .profile-weekly-reward b { color: #fff; font-size: 1rem; }
+.profile-weekly-mockup .profile-weekly-reward span { font-size: .6rem; }
+.profile-badges-mockup { padding: 19px 22px; }
+.profile-badges-mockup .profile-featured-badges { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 17px; }
+.profile-badges-mockup .profile-featured-badges > * { min-width: 0; }
+.profile-mockup-activity-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+.profile-mockup-activity-grid .profile-panel { min-height: 148px; padding: 17px 19px; border-color: rgba(53, 137, 218, .42); background: rgba(5, 21, 40, .88); }
+.profile-mockup-activity-grid .section-heading { margin-bottom: 9px; }
+.profile-mockup-activity-grid .section-heading h2 { font-size: 1rem; }
+.profile-mockup-details { margin-top: 14px; }
+.profile-mockup-details .profile-panel,
+.profile-mockup-details .friends-section { border-color: rgba(53, 137, 218, .42); background: rgba(4, 18, 35, .92); }
+
+@media (max-width: 1100px) {
+  .profile-mockup-hero { grid-template-columns: minmax(300px, 1fr) minmax(320px, 1fr); }
+  .profile-mockup-hero .profile-next-placement-card { grid-column: 1 / -1; min-height: 140px; }
+  .profile-mockup-goals #profileNextMissions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .profile-reference-view:has(.profile-mockup-shell) { padding: 0 0 24px; }
+  .profile-mockup-hero { grid-template-columns: 1fr; gap: 10px; padding-top: 12px; }
+  .profile-mockup-shell .profile-hero-card { min-height: 170px; padding: 14px 16px; }
+  .profile-mockup-shell .profile-hero-card .ranked-avatar-xl { flex-basis: 110px; width: 110px; height: 130px; }
+  .profile-mockup-shell .profile-name-row h2 { font-size: 1.7rem; }
+  .profile-mockup-shell .profile-level-hero-card { min-height: 170px; padding: 16px; }
+  .profile-mockup-shell .profile-next-placement-card { grid-column: auto; min-height: 142px; }
+  .profile-mockup-goals { margin-top: 10px; padding: 16px 12px; }
+  .profile-mockup-section-heading { align-items: flex-start; margin-bottom: 12px; }
+  .profile-mockup-section-heading p { font-size: .68rem; }
+  .profile-mockup-section-heading .text-button { font-size: .63rem; }
+  .profile-mockup-goals #profileNextMissions { grid-template-columns: 1fr; gap: 8px; }
+  .profile-mockup-goals .profile-mission-card { grid-template-columns: 94px minmax(0, 1fr) auto; grid-template-rows: minmax(86px, auto); min-height: 96px; padding: 0 10px 0 0; }
+  .profile-mission-art { grid-row: 1; margin: 0; }
+  .profile-mission-copy { grid-row: 1; align-content: center; padding: 8px 8px 8px 10px; }
+  .profile-mockup-goals .profile-mission-card > b { grid-row: 1; align-self: start; margin: 10px 10px 0 0; font-size: .72rem; }
+  .profile-mockup-goals .profile-mission-arrow { right: 8px; bottom: 9px; }
+  .profile-mockup-goals .profile-mini-progress em { right: 10px; bottom: 11px; font-size: .61rem; }
+  .profile-mockup-bottom-grid,
+  .profile-mockup-activity-grid { grid-template-columns: 1fr; gap: 10px; margin-top: 10px; }
+  .profile-weekly-mockup, .profile-badges-mockup { padding: 16px; }
+  .profile-badges-mockup .profile-featured-badges { gap: 5px; margin-top: 13px; }
+  .profile-mockup-details { margin-top: 10px; }
+}
+
+/* Mission cards follow the reference card anatomy: artwork, title row,
+   description, progress and reward all have stable positions. */
+.profile-mockup-goals .profile-mission-card {
+  grid-template-rows: 128px minmax(0, 1fr);
+  min-height: 292px;
+  padding: 0 15px 15px;
+}
+.profile-mockup-goals .profile-mission-art { margin: 0 -15px; }
+.profile-mockup-goals .profile-mission-copy { align-content: start; gap: 7px; padding: 12px 0 0; }
+.profile-mission-title-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.profile-mission-copy-icon { display: grid; flex: 0 0 38px; width: 38px; height: 38px; place-items: center; border-radius: 50%; background: rgba(255, 255, 255, .18); color: #fff; font-size: 1.15rem; line-height: 1; }
+.profile-mission-copy strong { overflow: hidden; color: #f9fbff; font-size: .88rem; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
+.profile-mockup-goals .profile-mission-copy small { display: block; min-height: 31px; color: #c8dcef; font-size: .7rem; line-height: 1.35; }
+.profile-mockup-goals .profile-mini-progress { position: absolute; right: 15px; bottom: 54px; left: 15px; display: block; height: 10px; margin: 0; border: 1px solid rgba(78, 179, 255, .7); border-radius: 6px; background: rgba(2, 13, 29, .82); }
+.profile-mockup-goals .profile-mini-progress i { height: 100%; border-radius: 5px; }
+.profile-mockup-goals .profile-mini-progress em { inset: auto 0 100% auto; padding-bottom: 5px; color: #f2f8ff; font-size: .72rem; font-weight: 950; }
+.profile-mockup-goals .profile-mission-card > b { position: absolute; bottom: 15px; left: 15px; margin: 0; padding: 5px 8px; border: 1px solid rgba(104, 187, 255, .36); border-radius: 5px; background: rgba(14, 92, 166, .28); color: #d5efff; font-size: 1rem; }
+.profile-mockup-goals .profile-mission-arrow { right: 15px; bottom: 14px; width: 28px; height: 28px; }
+.profile-mockup-goals .mission-catch .profile-mission-copy-icon { background: rgba(255, 183, 39, .28); }
+.profile-mockup-goals .mission-species .profile-mission-copy-icon { background: rgba(36, 201, 119, .28); }
+.profile-mockup-goals .mission-trip .profile-mission-copy-icon { background: rgba(62, 119, 255, .3); }
+.profile-mockup-goals .mission-place .profile-mission-copy-icon { background: rgba(251, 173, 36, .27); }
+.profile-mockup-goals .mission-goal .profile-mission-copy-icon { background: rgba(155, 111, 255, .3); }
+.profile-mockup-goals .mission-photo .profile-mission-copy-icon { background: rgba(242, 87, 117, .28); }
+@media (max-width: 700px) {
+  .profile-mockup-goals .profile-mission-card { grid-template-rows: minmax(86px, auto); min-height: 106px; padding: 0 10px 0 0; }
+  .profile-mockup-goals .profile-mission-art { margin: 0; }
+  .profile-mockup-goals .profile-mission-copy { padding: 10px 8px 10px 10px; }
+  .profile-mockup-goals .profile-mission-copy small { min-height: 0; }
+  .profile-mockup-goals .profile-mini-progress { right: 10px; bottom: 12px; left: 104px; height: 7px; }
+  .profile-mockup-goals .profile-mini-progress em { right: 0; padding-bottom: 3px; font-size: .61rem; }
+  .profile-mockup-goals .profile-mission-card > b { top: 10px; right: 10px; bottom: auto; left: auto; padding: 3px 5px; font-size: .7rem; }
+  .profile-mockup-goals .profile-mission-arrow { right: 8px; bottom: 8px; width: 22px; height: 22px; }
+}
+
+/* A missing ramp must be visible without covering the map or pin details. */
+#journalView .journal-route-alert {
+  position: absolute;
+  right: 14px;
+  bottom: 62px;
+  z-index: 1085;
+  max-width: min(360px, calc(100% - 28px));
+  padding: 10px 14px;
+  border: 1px solid #f0bb47;
+  border-radius: 10px;
+  background: rgba(38, 25, 4, .95);
+  color: #fff2be;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .42), 0 0 18px rgba(240, 187, 71, .22);
+  font-size: .72rem;
+  font-weight: 900;
+  line-height: 1.25;
+  pointer-events: none;
+}
+#journalView .journal-route-alert[hidden] { display: none !important; }
+#journalView .journal-highlight-pin > strong { font-size: 1.05em; font-weight: 950; }
+@media (max-width: 680px) {
+  #journalView .journal-route-alert {
+    right: 12px;
+    bottom: 222px;
+    max-width: calc(100% - 24px);
+    padding: 9px 12px;
+    font-size: .64rem;
+  }
 }

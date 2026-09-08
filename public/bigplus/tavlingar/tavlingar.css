@@ -1,0 +1,81 @@
+/* Tävlingar owns this small layer; shared Bigplus rules remain available for
+   the established cards and form controls without affecting other views. */
+body[data-bigplus-page="competitions"] {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #edf4ff 0, #f8fbff 38%, #fff 100%);
+}
+
+body[data-bigplus-page="competitions"] .app-shell {
+  width: min(1240px, calc(100% - 28px));
+  margin: 0 auto;
+}
+
+body[data-bigplus-page="competitions"] .site-header {
+  margin-bottom: 20px;
+}
+
+body[data-bigplus-page="competitions"] #competitionsView {
+  display: block;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-bottom: 72px;
+}
+
+body[data-bigplus-page="competitions"] .competition-page-notice {
+  min-height: 22px;
+  margin: -8px 0 12px;
+  color: #a55d11;
+  font-size: .8rem;
+  font-weight: 800;
+}
+
+body[data-bigplus-page="competitions"] .competition-live-section,
+body[data-bigplus-page="competitions"] .leaderboard-section,
+body[data-bigplus-page="competitions"] .competition-create-panel {
+  border-color: #d8e4f3;
+  box-shadow: 0 15px 38px rgba(35, 75, 132, .07);
+}
+
+body[data-bigplus-page="competitions"] .competition-live-section {
+  background: rgba(255, 255, 255, .95);
+}
+
+body[data-bigplus-page="competitions"] .competition-card {
+  border-color: #d8e4f2;
+  background: #fff;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+body[data-bigplus-page="competitions"] .competition-card:hover {
+  border-color: #9dbbe8;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, .09);
+  transform: translateY(-1px);
+}
+
+body[data-bigplus-page="competitions"] .competition-details-inline {
+  margin-top: 14px;
+  border: 1px solid #bad0ef;
+  background: #f8fbff;
+}
+
+body[data-bigplus-page="competitions"] .competition-favorite-button {
+  cursor: pointer;
+}
+
+body[data-bigplus-page="competitions"] .competition-page-notice:empty {
+  visibility: hidden;
+}
+
+@media (max-width: 680px) {
+  body[data-bigplus-page="competitions"] .app-shell {
+    width: 100%;
+  }
+
+  body[data-bigplus-page="competitions"] #competitionsView {
+    padding: 0 12px 62px;
+  }
+
+  body[data-bigplus-page="competitions"] .view-heading {
+    gap: 15px;
+  }
+}

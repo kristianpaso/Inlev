@@ -15,6 +15,15 @@ const CouponSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   source: { type: String, default: 'manual' },
   name: { type: String, default: '' },
+  // Alla kuponger som sparas i samma paket delar detta id och visas därför
+  // tillsammans under Kuponger.
+  packageId: { type: String, default: '' },
+  packageName: { type: String, default: '' },
+  packageCreatedAt: { type: Date, default: null },
+  rows: { type: Number, default: null },
+  cost: { type: Number, default: null },
+  spikeCount: { type: Number, default: null },
+  variation: { type: Number, default: null },
   stakeLevel: {
     type: String,
     enum: ['original', '70', '50', '30'],
@@ -39,24 +48,20 @@ const TravGameSchema = new mongoose.Schema(
     date: { type: String, required: true },
     track: { type: String, required: true },
     trackSlug: { type: String, default: '' }, // ex: "orebro"
-    atgUrl: { type: String, default: '' },
-    discoveredFrom: { type: String, default: '' },
-    discoveredAt: { type: Date, default: null },
 
 results: {
   type: Object,
   default: {}, // ex: { "1": 2, "2": 12, ... } => avd -> vinnande startnummer
 },
+resultDetails: {
+  type: Object,
+  default: {}, // avd -> häst/värde samt utdelning och omsättning
+},
+resultsSourceUrl: { type: String, default: '' },
 resultsUpdatedAt: { type: Date, default: null },
     gameType: { type: String, required: true },
 
     horseText: { type: String, default: '' },
-    horseInfoImportedFrom: { type: String, default: '' },
-    horseInfoImportedAt: { type: Date, default: null },
-    horseInfoImportDiagnostics: {
-      type: Object,
-      default: {},
-    },
 
     parsedHorseInfo: {
       type: Object,

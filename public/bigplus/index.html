@@ -74,6 +74,7 @@
 <link rel="stylesheet" href="/bigplus/css/bigplus.css?v=20260903-profile-gap-1">
 <link rel="stylesheet" href="/bigplus/css/home.css?v=20260903-home-layout-11">
 <link rel="stylesheet" href="/bigplus/css/workspace.css?v=20260903-workspace-2">
+<link rel="stylesheet" href="/bigplus/css/site-chrome.css?v=20260908-shared-chrome-3">
     <link rel="stylesheet" href="/bigplus/vendor/maplibre-gl.css?v=20260806-weather-1">
   </head>
   <body class="auth-required auth-bootstrap-pending">
@@ -86,52 +87,8 @@
       </div>
     </div>
     <main class="app-shell">
-      <section class="site-header" aria-label="Bigplus header">
-        <div class="header-app-shell">
-        <section class="topbar">
-        <div class="brand-header-image"><img src="/bigplus/assets/bigplus-logo-hd.png" alt="Bigplus Sport Fishing"></div>
-        <div class="mobile-app-header">
-          <button class="mobile-menu-button" id="mobileMenuButton" type="button" aria-label="ppna meny" aria-expanded="false"><span></span><span></span><span></span></button>
-          <img class="mobile-brand-logo" src="/bigplus/assets/bigplus-logo-hd.png" alt="Bigplus">
-          <div class="mobile-header-actions">
-            <button class="mobile-notification-button" type="button" aria-label="Notiser" title="Notiser"><span class="notification-bell" aria-hidden="true"></span><b>3</b></button>
-            <button class="avatar-placeholder mobile-account-button" type="button" id="mobileAccountButton" aria-label="ppna profil">B</button>
-          </div>
-        </div>
-        <div class="desktop-app-controls">
-          <label class="desktop-search"><span class="sr-only">Sök</span><input type="search" placeholder="Sök fångster, arter, sjöar..."><span aria-hidden="true"></span></label>
-          <button class="desktop-notification" type="button" aria-label="Notiser" title="Notiser"><span class="desktop-bell" aria-hidden="true"></span><b>3</b></button>
-          <button class="avatar-placeholder desktop-account-button" type="button" id="desktopAccountButton" aria-label="ppna profil">B</button>
-        </div>
-        <nav class="app-nav" aria-label="Huvudmeny">
-          <button class="nav-button active" type="button" data-view="home"><img class="nav-icon" src="/bigplus/assets/hem-icon.png" alt=""><span>Hem</span></button>
-          <button class="nav-button" type="button" data-view="catches"><img class="nav-icon" src="/bigplus/assets/fangster-icon.png" alt=""><span>Fångster</span></button>
-          <button class="nav-button" type="button" data-view="weather"><span class="nav-icon weather-nav-icon" aria-hidden="true"></span><span>Väder</span></button>
-          <button class="nav-button" type="button" data-view="measure"><img class="nav-icon" src="/bigplus/assets/mat-fisken-icon.png" alt=""><span>Mät</span></button>
-          <button class="nav-button" type="button" data-view="competitions"><img class="nav-icon" src="/bigplus/assets/rank-icon.png" alt=""><span>Tävlingar</span></button>
-          <button class="nav-button" type="button" data-view="duels"><span class="nav-icon duel-nav-icon" aria-hidden="true">⚔</span><span>Duellen</span></button>
-          <button class="nav-button" type="button" data-view="profile"><img class="nav-icon" src="/bigplus/assets/profile-icon.png" alt=""><span>Profil</span></button>
-          <button class="nav-button admin-nav-button" type="button" data-view="workspace" data-workspace-only hidden aria-hidden="true"><span class="nav-icon admin-nav-icon" aria-hidden="true">▦</span><span>Workspace</span></button>
-          <button class="nav-button" type="button" data-view="journal"><span class="nav-icon journal-nav-icon" aria-hidden="true">J</span><span>Fisketurer</span></button>
-        </nav>
-        <div class="profile-menu" id="profileMenu" hidden>
-          <button type="button" id="profileMenuEdit">Redigera profil</button>
-          <button type="button" id="profileMenuLogout">Logga ut</button>
-        </div>
-        <div class="status-pill" id="connectionStatus" hidden>Redo</div>
-        </section>
-        </div>
-      </section>
-
-      <nav class="mobile-bottom-nav" aria-label="Mobil navigation">
-        <button class="mobile-bottom-nav-button" type="button" data-view="home"><span class="mobile-bottom-nav-icon">⌂</span><span>Hem</span></button>
-        <button class="mobile-bottom-nav-button" type="button" data-view="catches"><span class="mobile-bottom-nav-icon">◈</span><span>Fångster</span></button>
-        <button class="mobile-bottom-nav-button" type="button" data-view="duels"><span class="mobile-bottom-nav-icon">⚔</span><span>Duellen</span></button>
-        <button class="mobile-bottom-nav-button" type="button" data-view="weather"><span class="mobile-bottom-nav-icon weather-nav-icon" aria-hidden="true"></span><span>Väder</span></button>
-        <button class="mobile-bottom-nav-button" type="button" data-view="measure"><span class="mobile-bottom-nav-icon">＋</span><span>Mät</span></button>
-        <button class="mobile-bottom-nav-button" type="button" data-view="profile"><span class="mobile-bottom-nav-icon">○</span><span>Profil</span></button>
-        <button class="mobile-bottom-nav-button admin-mobile-nav-button" type="button" data-view="workspace" data-workspace-only hidden aria-hidden="true"><span class="mobile-bottom-nav-icon">▦</span><span>Workspace</span></button>
-      </nav>
+      <div id="siteHeaderMount"></div>
+      <div id="mobileBottomNavMount"></div>
 
       <section class="workspace" hidden>
         <aside class="panel controls-panel">
@@ -514,27 +471,9 @@
           <div class="home-duel-preview"><div class="home-duel-players"><span class="home-avatar-mini">K</span><strong>Du <small>vs</small> Johan</strong><span class="home-avatar-mini">J</span></div><p>Öring störst längd</p><div class="home-duel-score"><strong>56.9 cm</strong><span>vs</span><strong>49.2 cm</strong></div><small>2 dagar kvar</small><div class="home-duel-question">Acceptera en ny duell?</div><div class="home-duel-actions"><button type="button" class="home-duel-yes" data-go-view="duels">JA, DELTA</button><button type="button" class="home-duel-no" data-go-view="duels">NEJ TACK</button></div></div>
         </section>
         <button class="primary-button home-catch-button" type="button" data-go-view="measure"> &nbsp; Ny fångst - Mät fisk</button>
-        <footer class="desktop-site-footer"><div><strong>BIGPLUS</strong><small>Fånga · Utmana · Klättra</small></div><div><strong>Bygg din resa. Dela din passion.</strong><small>Följ din utveckling, tävla med mål och inspirera andra.</small></div><div><strong>Support</strong><small>Hjälpcenter · Kontakta oss</small></div></footer>
       </section>
 
-      <section class="app-view" id="catchesView" data-app-view="catches" hidden>
-        <section class="catches-hero-section">
-          <div class="catches-hero-copy"><p class="eyebrow blue-eyebrow">DIN FÅNGSTLOGG</p><h1>Fångster <span aria-hidden="true"></span></h1><p>Varje tur räknas. Samla minnen, fÅlj din utveckling och hitta tillbaka till dina bästa platser.</p></div>
-          <div class="catches-hero-actions"><button class="primary-button" type="button" data-go-view="measure"> Registrera fångst<small>Lägg till din fångst</small></button><button class="secondary-button" type="button" data-go-view="measure"> Logga fisketur<small>Spara din tur</small></button></div>
-          <div class="catches-stat-strip" aria-label="Fångststatistik"><div><b></b><strong id="catchPageTotal">0</strong><span>Totala fångster</span></div><div><b></b><strong id="catchPageBigplus">0</strong><span>Bigplus</span></div><div><b></b><strong id="catchPageSpecies">0</strong><span>Arter upptckta</span></div><div><b></b><strong id="catchPageLongest">--</strong><span>Längsta fisken</span></div></div>
-        </section>
-        <div class="view-heading compact-heading"><div><p class="eyebrow blue-eyebrow">DINA RESULTAT</p><h1>Fångster</h1><p>Alla dina sparade mätningar på samma plats.</p></div></div>
-        <section class="dashboard-section catches-results-section"><div class="catches-toolbar"><button class="secondary-button" id="showCatchesMap" type="button">Visa på karta</button><button class="secondary-button" id="shareMapWithFriends" type="button">Dela karta med vänner</button><span class="map-share-status" id="mapShareStatus" role="status"></span></div><div class="catch-list catch-list-large" id="allCatchList"></div><section class="catch-map-panel" id="catchMapPanel"><div id="catchMap" class="catch-map" role="application" aria-label="Karta över dina och delade fångster"></div><button class="catch-current-location-button" id="showCurrentLocationOnMap" type="button" aria-label="Visa min plats på kartan" title="Visa min plats"></button><p class="catch-map-empty" id="catchMapEmpty" hidden>Inga fångster har en sparad plats ännu.</p></section><article class="catch-detail" id="catchDetail" hidden><div class="catch-detail-dialog"><button class="text-button catch-detail-close" id="closeCatchDetail" type="button">Stäng</button><img id="catchDetailImage" alt="Uppladdad fångst" title="Klicka för att förstora"><div class="catch-detail-copy"><p class="catch-detail-label">ART</p><h2 id="catchDetailTitle">Fångst</h2><p id="catchDetailMeta"></p><div class="catch-detail-metrics"><div><span>UPPMÄTT LNGD</span><strong id="catchDetailLength">-- cm</strong></div><div><span>UPPSKATTAD VIKT</span><strong id="catchDetailWeight">-- kg</strong></div></div><div class="catch-detail-status" id="catchDetailStatus"><b></b><div><strong>BIGPLUS</strong><small>Godkänd fångst</small></div></div><div class="catch-detail-actions"><button class="secondary-button compact-button" id="shareCatchCoordinates" type="button">Dela koordinater</button><small id="catchShareStatus" role="status"></small></div></div></div></article><div class="catch-delete-modal" id="deleteCatchModal" hidden><div class="catch-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="deleteCatchTitle"><button class="text-button catch-detail-close" id="closeDeleteCatchModal" type="button" aria-label="Stäng">Stäng</button><p class="catch-detail-label">SÄKERHETSKONTROLL</p><h2 id="deleteCatchTitle">Ta bort fångst?</h2><p>Skriv in de fem bokstäverna exakt för att bekräfta att fångsten ska tas bort.</p><strong class="catch-delete-code" id="deleteCatchCode"></strong><label class="catch-delete-field" for="deleteCatchCodeInput"><span>Bekräftelsekod</span><input id="deleteCatchCodeInput" type="text" maxlength="5" autocomplete="off" spellcheck="false"></label><p class="catch-delete-message" id="deleteCatchMessage" role="status" aria-live="polite"></p><div class="catch-delete-actions"><button class="secondary-button" id="cancelDeleteCatch" type="button">Avbryt</button><button class="danger-button" id="confirmDeleteCatch" type="button" disabled>Ta bort fångsten</button></div></div></div><div class="catch-image-lightbox" id="catchImageLightbox" hidden role="dialog" aria-modal="true" aria-label="Förstorad fångstbild"><button class="text-button catch-lightbox-close" id="closeCatchImage" type="button">Stäng</button><img id="catchLightboxImage" alt="Förstorad fångstbild"></div></section>
-      </section>
-
-      <section class="app-view map-share-panel" data-app-view="catches" id="mapSharePanel" hidden><div class="section-heading"><div><p class="eyebrow blue-eyebrow">DELA KARTAN</p><h2>Skapa en delad zon</h2><p>Välj fångster med plats och vilka accepterade vänner som får se dem.</p></div><button class="text-button" id="closeMapSharePanel" type="button">Stäng</button></div><form id="mapShareZoneForm" class="map-share-form"><label>Zonens namn<input id="mapShareZoneName" type="text" maxlength="80" value="Min fiskezon" required></label><div class="map-share-columns"><fieldset><legend>Fångster i zonen</legend><div id="mapShareCatchChoices" class="map-share-choice-list"></div></fieldset><fieldset><legend>Dela med vänner</legend><div id="mapShareFriendChoices" class="map-share-choice-list"></div></fieldset></div><button class="primary-button" type="submit">Dela zon</button><small class="map-share-form-status" id="mapShareFormStatus" role="status"></small></form><div id="mapShareZoneList" class="map-share-zone-list"></div></section>
-      <section class="app-view catches-extra-view" data-app-view="catches" id="catchesExtras" hidden>
-        <section class="catches-content-grid">
-          <article class="catches-dashboard-card catches-goals-hub"><div class="section-heading"><div><h2>Utmaningar & mÅl</h2><p>Fånga, logga och nå dina mÅl!</p></div></div><div class="catch-goal-grid"><section class="catch-mini-goal next"><h3>Nästa utmaning</h3><div class="catch-challenge-body"><img class="catch-challenge-image" src="/bigplus/assets/catch-page/next-challenge-fish.png" alt="Illustrerad abborre"><div><strong>Fånga din första abborre</strong><small>Abborren är perfekt att bärja med!</small><div class="progress-track"><span style="width: 0%"></span></div><p>Belning: 50 XP <b>0/1</b></p></div></div></section><section class="catch-mini-goal week"><h3>Veckans utmaning</h3><strong>Fiska 3 olika dagar</strong><small>Ge dig ut och logga tre fisketurer.</small><div class="progress-track"><span id="catchWeekProgress" style="width: 0%"></span></div><p>Belning: 100 XP <b id="catchWeekCount">0/3</b></p></section><section class="catch-mini-goal tips"><h3>Förslag på fiske</h3><div class="catch-suggestion-list"><div><b></b><span><strong>Bästa nybörjarfiskar</strong><small>Abborre, mört och gädda.</small></span></div><div><b></b><span><strong>Enkla beten</strong><small>Mask, maggot eller spinnare.</small></span></div></div><button class="text-button" type="button" data-go-view="journal">Visa alla mÅl </button></section></div><div class="catch-reward-strip"><b></b><span><strong>Nästa belning</strong><small>Logga 10 turer för att lösa upp!</small></span><div class="progress-track"><span style="width: 60%"></span></div><strong>60%</strong></div></article>
-          <article class="catches-dashboard-card catches-activity-hub"><div class="activity-hub-main"><section class="activity-tour-card"><div class="section-heading"><h2>Alla turer räknas</h2></div><div class="catches-tours-content"><img src="/bigplus/assets/catch-page/all-tours-count.png" alt="Fiskare i bt vid solnedgng"><div><strong>Fick du ingen fisk? Inga problem!</strong><p>Att logga din tur gör dig bttre och hjÅlper dig se dina framsteg.</p><button class="primary-button compact-button" type="button" data-go-view="journal">Logga tur utan fångst</button></div></div></section><section class="activity-insights"><article class="catches-placeholder-card"><div class="section-heading"><h2>Bästa tid på dygnet</h2></div><div class="catch-insight"><b></b><span><strong>Morgon</strong><small>05:0009:00</small></span><div class="catch-mini-bars"><i></i><i></i><i></i><i></i><i></i></div></div></article><article class="catches-placeholder-card"><div class="section-heading"><h2>Bästa plats just nu</h2></div><div class="catch-insight"><b></b><span><strong>Din bästa plats</strong><small>Se dina markeringar på kartan</small></span></div></article></section></div><section class="catches-latest-card"><div class="section-heading"><h2>Senaste fångsterna</h2><button class="text-button" type="button" data-go-view="catches">Visa alla </button></div><div id="catchPageLatestList" class="catch-page-latest-list"></div></section></article>
-          <article class="catches-dashboard-card catches-personal-best-showcase"><div class="section-heading"><div><h2>Personbästa per art</h2></div><button class="text-button" type="button" data-go-view="profile">Visa alla arter </button></div><div class="catch-personal-best-list" id="catchPersonalBestList"></div></article>
-        </section>
-      </section>
+      <!-- Fångster laddas endast på /bigplus/fangster. -->
       <section class="app-view weather-view" id="weatherView" data-app-view="weather" hidden>
         <header class="weather-page-header">
           <div class="weather-title-block">
@@ -668,69 +607,7 @@
           <div class="weather-rain-timeline"><span>Nu</span><i></i><span>30 min</span><i></i><span>60 min</span><i></i><span>90 min</span><i></i><span>120 min</span></div>
         </section>
       </section>
-      <section class="app-view" id="competitionsView" data-app-view="competitions" hidden>
-        <div class="view-heading compact-heading"><div><p class="eyebrow blue-eyebrow">TÄVLA OCH VINN</p><h1>Tävlingar</h1><p>Skapa egna tävlingar eller delta i aktiva utmaningar.</p></div><button class="primary-button" type="button" id="createCompetitionButton">Skapa tävling</button></div>
-        <section class="competition-create-panel" id="competitionCreatePanel" hidden>
-          <form id="competitionForm" class="competition-form">
-            <div><h2>Skapa tävling</h2><p>Fyll i uppgifterna och publicera tävlingen direkt.</p></div>
-            <label>Namn<input id="competitionNameInput" type="text" maxlength="80" required placeholder="Till exempel Sommarens gädda"></label>
-            <label>Beskrivning<input id="competitionDescriptionInput" type="text" maxlength="140" placeholder="Tävla om den längsta fisken"></label>
-            <label>Antal dagar<input id="competitionDaysInput" type="number" min="1" max="365" value="7" required></label>
-            <fieldset class="competition-form-fieldset">
-              <legend>Vilka arter gäller?</legend>
-              <label class="competition-check-option"><input id="competitionSpeciesAll" type="checkbox" checked> Alla arter</label>
-              <div class="competition-popular-species">
-                <span class="competition-species-group-label">Populära arter</span>
-                <div class="competition-species-options">
-                  <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Gädda"> Gädda</label>
-                  <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Abborre"> Abborre</label>
-                  <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Gös"> Gös</label>
-                  <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="ring"> ring</label>
-                  <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Regnbåge"> Regnbåge</label>
-                </div>
-              </div>
-              <span class="competition-species-group-label competition-all-species-label">Fler arter</span>
-              <div class="competition-species-options">
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Abborre"> Abborre</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Mört"> Mört</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Gädda"> Gädda</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Braxen"> Braxen</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Gös"> Gös</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Lake"> Lake</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Ruda"> Ruda</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Sutare"> Sutare</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Id"> Id</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Björkna"> Björkna</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Nors"> Nors</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Gärs"> Gärs</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Elritsa"> Elritsa</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Stäm"> Stäm</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Lax"> Lax</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="ring"> ring</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Röding"> Röding</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Sik"> Sik</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="Siklöja"> Siklöja</label>
-                <label class="competition-check-option"><input type="checkbox" name="competitionSpecies" value="l"> l</label>
-              </div>
-            </fieldset>
-            <fieldset class="competition-form-fieldset">
-              <legend>Vad ska räknas?</legend>
-              <div class="competition-metric-options">
-                <label class="competition-check-option"><input type="radio" name="competitionMetric" value="length" checked> Längd</label>
-                <label class="competition-check-option"><input type="radio" name="competitionMetric" value="weight"> Vikt</label>
-                <label class="competition-check-option"><input type="radio" name="competitionMetric" value="both"> Längd och vikt</label>
-              </div>
-            </fieldset>
-            <label class="competition-join-choice"><input id="competitionJoinOnCreate" type="checkbox" checked> Jag vill delta i tävlingen</label>
-            <div class="competition-form-actions"><button class="primary-button" type="submit">Skapa tävling</button><button class="secondary-button" id="cancelCompetitionButton" type="button">Avbryt</button></div>
-          </form>
-        </section>
-        <section class="dashboard-section competition-live-section"><div class="section-heading"><h2>Aktiva tävlingar</h2><span class="group-hint">Mät och jämför</span></div><div id="competitionsList" class="groups-list"></div><div id="competitionDetailsSlot"></div></section>
-        <section class="dashboard-section competition-details" id="competitionDetails" hidden><span id="competitionDetailsTitle" hidden></span><span id="competitionDetailsMeta" hidden></span><div id="competitionParticipants" class="competition-participants"></div><div id="participantCatches" class="participant-catches" hidden></div></section>
-        <section class="dashboard-section leaderboard-section"><div class="section-heading"><h2>Topplistan</h2><span class="group-hint">Mina vänner</span></div><div id="bigplusLeaderboard" class="leaderboard-grid"></div></section>
-      </section>
-
-      <section class="app-view duels-view" id="duelsView" data-app-view="duels" hidden>
+      <!-- Tävlingar laddas endast på /bigplus/tavlingar. -->
         <header class="duels-hero">
           <div class="duels-hero-copy">
             <span class="duels-hero-mark" aria-hidden="true">⚔</span>
@@ -981,6 +858,7 @@
       <section class="app-view workspace-view" id="workspaceView" data-app-view="workspace" hidden></section>
 
       <div id="profileViewMount"></div>
+      <div id="siteFooterMount"></div>
       <section class="auth-modal" id="authModal">
         <div class="auth-dialog auth-welcome-dialog" role="dialog" aria-modal="true" aria-labelledby="authTitle">
           <button class="modal-close" id="closeAuthButton" type="button" aria-label="Stäng"></button>
@@ -1080,7 +958,7 @@
         window.addEventListener('load', () => { if (!window.maplibregl) loadMapLibreFallback(); }, { once: true });
       })();
     </script>
-<script type="module" src="/bigplus/js/profile-view-loader.js?v=20260904-profile-standalone-1"></script>
+<script type="module" src="/bigplus/js/profile-view-loader.js?v=20260908-shared-chrome-1"></script>
     <script>
       document.addEventListener("DOMContentLoaded", () => {
         const mapButton = document.getElementById("showCatchesMap");

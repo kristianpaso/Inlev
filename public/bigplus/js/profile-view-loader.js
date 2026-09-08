@@ -1,11 +1,13 @@
 import { setAppLoading } from "./shell/loading.js";
+import { mountSiteChrome } from "./shell/site-chrome.js";
 
 const isJournalPath = /^\/(?:bigplus\/)?fisketurer\/?$/.test(window.location.pathname);
+mountSiteChrome();
 setAppLoading(true, isJournalPath ? "Laddar Fisketurer..." : "Laddar Profil...");
 
 const profileMount = document.getElementById("profileViewMount");
-const profileUrl = "/bigplus/profile-view.html?v=20260903-profile-partial-2";
-const appShellPromise = import("./app-shell.js?v=20260905-journal-placement-flow-4");
+const profileUrl = "/bigplus/profile-view.html?v=20260908-profile-cards-1";
+const appShellPromise = import("./app-shell.js?v=20260908-shared-chrome-1");
 
 if (!isJournalPath) {
   try {

@@ -1,30 +1,31 @@
 @echo off
 setlocal
+title Trav API
 
-cd /d "%~dp0trav-api"
+set "TRAV_API=D:\Trav\public\trav-api"
+cd /d "%TRAV_API%"
 
-echo.
-echo Startar Trav-backend pa http://localhost:4000
-echo Health-check finns pa http://localhost:4000/health
-echo.
-
-if not exist ".env" (
-  echo OBS: trav-api\.env saknas.
-  echo Forsoker anvanda tidigare MONGODB_URI fran git-historiken for lokal dev...
-  for /f "delims=" %%A in ('git show HEAD:public/trav-api/.env 2^>nul ^| findstr /b MONGODB_URI=') do set "%%A"
-
-  if defined MONGODB_URI (
-    echo MONGODB_URI hittades och laddades for denna terminalsession.
-    echo.
-  ) else (
-    echo Ingen MONGODB_URI hittades.
-    echo Skapa trav-api\.env med MONGODB_URI om du vill ansluta mot Atlas lokalt.
-    echo.
-  )
+if not exist "package.json" (
+  echo Trav API hittades inte:
+  echo %TRAV_API%
+  pause
+  exit /b 1
 )
 
-npm run start:local
+if not exist "node_modules\express" (
+  echo Trav API saknar npm-paket.
+  echo Kor npm install i %TRAV_API% och forsok igen.
+  pause
+  exit /b 1
+)
 
-echo.
-echo Backend stoppad. Tryck valfri tangent for att stanga.
-pause >nul
+rem Anvand samma MONGODB_URI som Bigplus om Bigplus har en lokal .env-fil.
+if exist "D:\Bigplus\bigplus-api\.env" (
+  for /f "usebackq tokens=1,* delims==" %%A in ("D:\Bigplus\bigplus-api\.env") do if /I "%%A"=="MONGODB_URI" set "MONGODB_URI=%%B"
+)
+
+echo Startar Trav API pa http://localhost:4000
+echo Health-check: http://localhost:4000/health
+echo Stang detta terminalfonster for att stoppa Trav API lokalt.
+node server.js
+exit /b %errorlevel%

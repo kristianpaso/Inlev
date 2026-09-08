@@ -23,8 +23,8 @@ import { createMapSharingController } from "./shell/map-sharing.js";
 import { createRemoteDataController } from "./shell/remote-data-controller.js";
 import { createGroupController } from "./shell/group-controller.js";
 import { createProfileController } from "./shell/profile-controller.js";
-import { renderProfileLevelDashboard } from "./shell/profile-levels.js?v=20260828-profile-reference-restore-1";
-import { createAuthController } from "./shell/auth-controller.js?v=20260903-auth-failsafe-3";
+  import { renderProfileLevelDashboard } from "./shell/profile-levels.js?v=20260908-profile-cards-1";
+import { createAuthController } from "./shell/auth-controller.js?v=20260908-shared-chrome-1";
 import { compressImageFile } from "./shell/image-utils.js";
 import { accounts, currentAccount, ensureDemoAccount, ensureMemberCode } from "./shell/account.js";
 import { friendIds } from "./shell/friends.js";
@@ -32,6 +32,7 @@ import { createFriendController } from "./shell/friend-controller.js";
 import { createDuelController } from "./shell/duel-controller.js";
 import { createAdminController } from "./shell/admin-controller.js";
 import { createWorkspaceController } from "./shell/workspace-controller.js";
+import { syncActiveNavigation } from "./shell/header.js";
 import { favoriteCompetition, setFavoriteCompetition } from "./shell/preferences.js";
 import {
   competitionMetricLabel,
@@ -323,6 +324,8 @@ const workspaceController = createWorkspaceController({ authApiRoot: AUTH_API_RO
 
 function viewPath(view) {
   if (view === "profile") return "/bigplus/profil";
+  if (view === "catches") return "/bigplus/fangster";
+  if (view === "competitions") return "/bigplus/tavlingar";
   return view === "journal" ? "/bigplus/fisketurer" : "/bigplus/";
 }
 
@@ -338,7 +341,7 @@ function syncViewPath(view) {
 }
 
 function navigateStandaloneView(view) {
-  if (view !== "profile" && view !== "journal") return false;
+  if (view !== "profile" && view !== "journal" && view !== "catches" && view !== "competitions") return false;
   const nextPath = viewPath(view);
   const samePath = normalizedPath() === normalizedPath(nextPath);
   if (samePath) return false;
@@ -348,7 +351,11 @@ function navigateStandaloneView(view) {
 
 function pathView() {
   if (/^\/(?:bigplus\/)?profil\/?$/.test(window.location.pathname)) return "profile";
-  return /^\/(?:bigplus\/)?fisketurer\/?$/.test(window.location.pathname) ? "journal" : "home";
+  if (/^\/(?:bigplus\/)?fangster\/?$/.test(window.location.pathname)) return "catches";
+  if (/^\/(?:bigplus\/)?tavlingar\/?$/.test(window.location.pathname)) return "competitions";
+  if (/^\/(?:bigplus\/)?fisketurer\/?$/.test(window.location.pathname)) return "journal";
+  const requested = new URLSearchParams(window.location.search).get("view");
+  return ["home", "catches", "weather", "measure", "competitions", "duels", "profile", "workspace", "journal"].includes(requested) ? requested : "home";
 }
 
 function showView(view, options = {}) {
@@ -375,6 +382,7 @@ function showView(view, options = {}) {
   document.body.classList.toggle("journal-active", view === "journal");
   $$('[data-app-view]').forEach((section) => { section.hidden = section.dataset.appView !== view; });
   $$('[data-view]').forEach((button) => button.classList.toggle("active", button.dataset.view === view));
+  syncActiveNavigation(view);
   const measure = $(".workspace");
   if (measure) measure.hidden = view !== "measure";
   if (view === "home" || view === "catches" || view === "profile" || view === "competitions" || view === "achievements" || view === "weather") renderCatchLists();
@@ -799,6 +807,8 @@ renderCompetitions();
 // localStorage-konto öppna appen som en falsk gäst eller låsa fast loginvyn.
 async function loadInitialRemoteData() {
   const journalOnly = /^\/(?:bigplus\/)?fisketurer\/?$/.test(window.location.pathname);
+  const catchesOnly = /^\/(?:bigplus\/)?fangster\/?$/.test(window.location.pathname);
+  const competitionsOnly = /^\/(?:bigplus\/)?tavlingar\/?$/.test(window.location.pathname);
   const profileOnly = /^\/(?:bigplus\/)?profil\/?$/.test(window.location.pathname);
   if (journalOnly) {
     await refreshJournalPlans();
@@ -809,6 +819,19 @@ async function loadInitialRemoteData() {
     await Promise.all([loadRemoteCatches(), loadRemoteFriends()]);
     renderAccount();
     renderFriends();
+    return;
+  }
+  if (catchesOnly) {
+    await loadRemoteCatches();
+    renderAccount();
+    renderCatchLists();
+    return;
+  }
+  if (competitionsOnly) {
+    await Promise.all([loadRemoteCatches(), loadRemoteCompetitions()]);
+    renderAccount();
+    renderCatchLists();
+    renderCompetitions();
     return;
   }
   await Promise.all([

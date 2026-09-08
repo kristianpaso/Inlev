@@ -189,16 +189,16 @@ function recommendedMissions(missions, level) {
     unlocked.sort((a, b) => (b.target - b.value) - (a.target - a.value))[0]
   ].filter(Boolean);
   const picked = [...new Map(buckets.map((item) => [item.id, item])).values()];
-  if (picked.length < 4) {
+  if (picked.length < 5) {
     const pickedIds = new Set(picked.map((item) => item.id));
-    missions
-      .filter((mission) => !mission.completed && !pickedIds.has(mission.id))
-      .sort((a, b) => a.minimumLevel - b.minimumLevel || a.target - b.target)
+      missions
+        .filter((mission) => !pickedIds.has(mission.id))
+        .sort((a, b) => Number(a.completed) - Number(b.completed) || a.minimumLevel - b.minimumLevel || a.target - b.target)
       .forEach((mission) => {
-        if (picked.length < 4) picked.push(mission);
+        if (picked.length < 5) picked.push(mission);
       });
   }
-  return picked.slice(0, 4);
+  return picked.slice(0, 5);
 }
 
 function missionTone(mission, index = 0) {
@@ -210,15 +210,58 @@ function missionTone(mission, index = 0) {
   return ["catch", "goal", "trip", "place"][index % 4];
 }
 
+const PROFILE_MISSION_ART = {
+  welcome: "05_achievement_pike_image.png",
+  profile_ready: "06_achievement_fishing_rod_image.png",
+  first_catch: "05_achievement_pike_image.png",
+  catch_photo: "09_achievement_perch_image.png",
+  measure_fish: "06_achievement_fishing_rod_image.png",
+  first_trip: "08_achievement_sunset_angler_image.png",
+  journal_line: "08_achievement_sunset_angler_image.png",
+  second_catch: "09_achievement_perch_image.png",
+  three_fish: "05_achievement_pike_image.png",
+  two_places: "07_achievement_lily_lake_image.png",
+  two_trips: "08_achievement_sunset_angler_image.png",
+  second_species: "07_achievement_lily_lake_image.png",
+  plan_trip: "06_achievement_fishing_rod_image.png",
+  five_catches: "09_achievement_perch_image.png",
+  ten_catches: "05_achievement_pike_image.png",
+  four_species: "07_achievement_lily_lake_image.png",
+  twenty_catches: "05_achievement_pike_image.png",
+  seven_species: "07_achievement_lily_lake_image.png"
+};
+
+function missionArtwork(mission, index) {
+  const orderedAssets = [
+    "05_achievement_pike_image.png",
+    "06_achievement_fishing_rod_image.png",
+    "07_achievement_lily_lake_image.png",
+    "08_achievement_sunset_angler_image.png",
+    "09_achievement_perch_image.png"
+  ];
+  const asset = orderedAssets[index] || PROFILE_MISSION_ART[mission.id] || [
+    "05_achievement_pike_image.png",
+    "06_achievement_fishing_rod_image.png",
+    "07_achievement_lily_lake_image.png",
+    "08_achievement_sunset_angler_image.png",
+    "09_achievement_perch_image.png"
+  ][index % 5];
+  return `/bigplus/assets/profile-mockup/${asset}`;
+}
+
 function renderMissionCard(mission, index = 0) {
   const percent = Math.min(100, Math.round((mission.value / mission.target) * 100));
+  const tone = missionTone(mission, index);
+  const label = ["HET", "SNABB", "ENKEL", "SNABB", "HET"][index] || (tone === "species" ? "ENKEL" : tone === "trip" ? "SNABB" : "HET");
   return `<article class="profile-mission-card mission-${missionTone(mission, index)}">
-    <span class="profile-mission-icon">${mission.icon}</span>
+    <div class="profile-mission-art"><img src="${missionArtwork(mission, index)}" alt="" loading="lazy" decoding="async"><span class="profile-mission-badge">${label}</span></div>
     <div class="profile-mission-copy">
-      <strong>${escapeHtml(mission.title)}</strong>
+      <div class="profile-mission-title-row"><span class="profile-mission-copy-icon">${mission.icon}</span><strong>${escapeHtml(mission.title)}</strong></div>
+      <small>${escapeHtml(mission.description)}</small>
       <span class="profile-mini-progress"><i style="width:${percent}%"></i><em>${mission.value} / ${mission.target}</em></span>
     </div>
     <b>+${mission.xpReward} XP</b>
+    <span class="profile-mission-arrow" aria-hidden="true">›</span>
   </article>`;
 }
 
@@ -409,6 +452,7 @@ export function renderProfileLevelDashboard(list = [], options = {}) {
 
   setText("#profileLevelTitle", levelText);
   setText("#profileLevelNumber", `Nivå ${heroProgress.current.level} av 20`);
+  setText("#profileLevelHeroBadge", String(heroProgress.current.level));
   setText("#profileLevelXp", `${formatNumber(heroXp)} / ${formatNumber(heroProgress.nextGoal)} XP`);
   setText("#profileLevelPercent", `${heroProgress.percent}%`);
   setText("#profileNextLevelTitle", nextText);

@@ -10,3 +10,19 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: MONGODB_URI
+        sync: false
+
+  - type: web
+    name: trav-api
+    env: node
+    rootDir: trav-api
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false

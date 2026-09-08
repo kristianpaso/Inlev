@@ -5,162 +5,10 @@ const cheerio = require('cheerio');
 const { chromium } = require('playwright');
 
 const express = require('express');
-const mongoose = require('../db');
 const TravGame = require('../models/Game');
-const TravTrack = require('../models/Track');
 const { parseHorseText } = require('../utils/horseParser');
-const { extractAtgGamesFromHomeHtml } = require('../utils/atgDiscovery');
-const { importHorseInfoFromAtg } = require('../utils/atgHorseImport');
 
 const router = express.Router();
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForMongoConnection(timeoutMs = 10000) {
-  const started = Date.now();
-
-  while (Date.now() - started < timeoutMs) {
-    if (mongoose.connection.readyState === 1) return true;
-    await sleep(250);
-  }
-
-  return mongoose.connection.readyState === 1;
-}
-
-async function requireMongoConnection(res, timeoutMs = 10000) {
-  const connected = await waitForMongoConnection(timeoutMs);
-  if (connected) return true;
-
-  const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
-  const readyState = mongoose.connection.readyState;
-
-  res.status(503).json({
-    error:
-      'Lokal backend är igång, men MongoDB är inte ansluten än. Vänta några sekunder och testa igen. Om felet består: kontrollera MONGODB_URI/Atlas.',
-    mongo: {
-      readyState,
-      state: states[readyState] || 'unknown',
-    },
-  });
-
-  return false;
-}
-
-function getAtgHomeHeaders() {
-  return {
-    accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'accept-language': 'sv-SE,sv;q=0.9,en;q=0.8',
-    'user-agent':
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  };
-}
-
-async function discoverAtgGamesFromHome(includePast) {
-  const diagnostics = {
-    method: 'fetch',
-    fetchStatus: null,
-    fetchFound: 0,
-    browserTried: false,
-    browserFound: 0,
-    browserError: null,
-  };
-
-  const response = await fetch('https://www.atg.se/', {
-    headers: getAtgHomeHeaders(),
-  });
-
-  diagnostics.fetchStatus = response.status;
-
-  if (!response.ok) {
-    const error = new Error(`ATG svarade med ${response.status}. Kunde inte hitta aktiva spel.`);
-    error.statusCode = 502;
-    error.discoveryDiagnostics = diagnostics;
-    throw error;
-  }
-
-  const html = await response.text();
-  let games = extractAtgGamesFromHomeHtml(html, { includePast });
-  diagnostics.fetchFound = games.length;
-
-  if (games.length > 0) {
-    return { games, diagnostics };
-  }
-
-  diagnostics.method = 'browser';
-  diagnostics.browserTried = true;
-
-  let browser = null;
-  try {
-    browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-
-    const page = await browser.newPage({
-      userAgent: getAtgHomeHeaders()['user-agent'],
-      locale: 'sv-SE',
-    });
-
-    await page.goto('https://www.atg.se/', {
-      waitUntil: 'domcontentloaded',
-      timeout: 45000,
-    });
-
-    await page.waitForTimeout(1200);
-
-    // Cookie-dialogen kan ibland täcka sidan. Klicka bara om en rimlig knapp finns.
-    await page
-      .evaluate(() => {
-        const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
-        const btn = candidates.find((el) => {
-          const text = (el.textContent || '').trim().toLowerCase();
-          return (
-            text.includes('godkänn') ||
-            text.includes('acceptera') ||
-            text.includes('tillåt alla') ||
-            text === 'ok'
-          );
-        });
-        if (btn) btn.click();
-      })
-      .catch(() => null);
-
-    await page.waitForTimeout(1200);
-
-    await page
-      .waitForFunction(
-        () =>
-          Array.from(document.querySelectorAll('a[href]')).some((a) =>
-            /\/spel\/\d{4}-\d{2}-\d{2}\//.test(a.getAttribute('href') || '')
-          ),
-        { timeout: 18000 }
-      )
-      .catch(() => null);
-
-    const links = await page.evaluate(() =>
-      Array.from(document.querySelectorAll('a[href]')).map((a) => ({
-        href: a.getAttribute('href') || '',
-        text: (a.textContent || '').replace(/\s+/g, ' ').trim(),
-      }))
-    );
-
-    const linkHtml = links
-      .map((link) => `<a href="${String(link.href).replace(/"/g, '&quot;')}">${link.text}</a>`)
-      .join('\n');
-
-    games = extractAtgGamesFromHomeHtml(linkHtml, { includePast });
-    diagnostics.browserFound = games.length;
-
-    return { games, diagnostics };
-  } catch (err) {
-    diagnostics.browserError = err?.message || String(err);
-    return { games: [], diagnostics };
-  } finally {
-    if (browser) await browser.close().catch(() => null);
-  }
-}
 
 // ---- Coupon status helpers ----
 function normalizeCouponStatus(input) {
@@ -175,8 +23,6 @@ const AtgLink = require('../models/AtgLink');
 // Hämta alla spel
 router.get('/', async (req, res) => {
   try {
-    if (!(await requireMongoConnection(res, 3000))) return;
-
     const games = await TravGame.find().sort({ createdAt: -1 }).lean();
     res.json(games);
   } catch (err) {
@@ -253,234 +99,6 @@ router.delete('/atg-links/:linkId', async (req, res) => {
 
 
 // Hämta specifikt spel (inkl kuponger)
-// Hitta aktiva spel från ATG:s startsida och skapa saknade spel i databasen.
-function hasImportedHorseRows(game) {
-  const divisions = Array.isArray(game?.parsedHorseInfo?.divisions)
-    ? game.parsedHorseInfo.divisions
-    : [];
-
-  return divisions.some((division) =>
-    (division.horses || []).some((horse) => horse && horse.rawLine)
-  );
-}
-
-async function fetchAndSaveHorseInfo(game, sourceItem) {
-  const imported = await importHorseInfoFromAtg({
-    atgUrl: sourceItem.atgUrl || game.atgUrl,
-    date: sourceItem.date || game.date,
-    gameType: sourceItem.gameType || game.gameType,
-    trackSlug: sourceItem.trackSlug || game.trackSlug,
-    divisionCount: getDivisionCount(sourceItem.gameType || game.gameType),
-  });
-
-  game.horseText = imported.horseText;
-  game.parsedHorseInfo = imported.parsedHorseInfo || parseHorseText(imported.horseText, game.gameType);
-  game.horseInfoImportedFrom = sourceItem.atgUrl || game.atgUrl || 'atg';
-  game.horseInfoImportedAt = new Date();
-  game.horseInfoImportDiagnostics = imported.diagnostics || {};
-
-  await game.save();
-  return imported;
-}
-
-router.post('/discover/active', async (req, res) => {
-  try {
-    if (!(await requireMongoConnection(res, 10000))) return;
-
-    const includePast = req.query.includePast === '1' || req.body?.includePast === true;
-    const importHorseInfo = req.body?.importHorseInfo !== false;
-    const forceHorseInfo =
-      req.query.forceHorseInfo === '1' || req.body?.forceHorseInfo === true;
-
-    const { games: discoveredGames, diagnostics } = await discoverAtgGamesFromHome(includePast);
-
-    const tracks = await TravTrack.find({}).lean();
-    const trackBySlug = new Map(
-      tracks
-        .filter((track) => track.slug)
-        .map((track) => [String(track.slug).toLowerCase(), track])
-    );
-
-    const created = [];
-    const updated = [];
-    const unchanged = [];
-    const horseImport = {
-      requested: importHorseInfo,
-      imported: 0,
-      skipped: 0,
-      failed: 0,
-      games: [],
-    };
-
-    for (const item of discoveredGames) {
-      const knownTrack = trackBySlug.get(item.trackSlug);
-      const trackName = knownTrack?.name || item.track;
-      const title = `${item.gameType} ${trackName} ${item.date}`;
-
-      const existing = await TravGame.findOne({
-        date: item.date,
-        gameType: item.gameType,
-        $or: [{ trackSlug: item.trackSlug }, { track: trackName }],
-      });
-
-      if (existing) {
-        let changed = false;
-        let savedByHorseImport = false;
-
-        if (!existing.atgUrl || existing.atgUrl !== item.atgUrl) {
-          existing.atgUrl = item.atgUrl;
-          changed = true;
-        }
-        if (!existing.trackSlug) {
-          existing.trackSlug = item.trackSlug;
-          changed = true;
-        }
-        if (!existing.track && trackName) {
-          existing.track = trackName;
-          changed = true;
-        }
-        if (!existing.discoveredFrom) {
-          existing.discoveredFrom = item.source;
-          changed = true;
-        }
-        if (!existing.discoveredAt) {
-          existing.discoveredAt = new Date();
-          changed = true;
-        }
-
-        const alreadyHasHorseInfo = hasImportedHorseRows(existing);
-        if (importHorseInfo && (forceHorseInfo || !alreadyHasHorseInfo)) {
-          try {
-            const imported = await fetchAndSaveHorseInfo(existing, item);
-            horseImport.imported += 1;
-            horseImport.games.push({
-              id: existing._id,
-              title: existing.title,
-              method: imported.diagnostics?.method || null,
-              divisions: imported.diagnostics?.importedDivisions || 0,
-              rows: imported.diagnostics?.importedRows || null,
-            });
-            changed = true;
-            savedByHorseImport = true;
-          } catch (err) {
-            horseImport.failed += 1;
-            horseImport.games.push({
-              id: existing._id,
-              title: existing.title,
-              error: err?.message || String(err),
-              diagnostics: err?.horseImportDiagnostics || null,
-            });
-          }
-        } else if (importHorseInfo) {
-          horseImport.skipped += 1;
-        }
-
-        if (changed) {
-          updated.push(savedByHorseImport ? existing : await existing.save());
-        } else {
-          unchanged.push(existing);
-        }
-        continue;
-      }
-
-      const game = new TravGame({
-        title,
-        date: item.date,
-        track: trackName,
-        trackSlug: item.trackSlug,
-        atgUrl: item.atgUrl,
-        discoveredFrom: item.source,
-        discoveredAt: new Date(),
-        gameType: item.gameType,
-        horseText: '',
-        parsedHorseInfo: parseHorseText('', item.gameType),
-      });
-
-      await game.save();
-
-      if (importHorseInfo) {
-        try {
-          const imported = await fetchAndSaveHorseInfo(game, item);
-          horseImport.imported += 1;
-          horseImport.games.push({
-            id: game._id,
-            title: game.title,
-            method: imported.diagnostics?.method || null,
-            divisions: imported.diagnostics?.importedDivisions || 0,
-            rows: imported.diagnostics?.importedRows || null,
-          });
-        } catch (err) {
-          horseImport.failed += 1;
-          horseImport.games.push({
-            id: game._id,
-            title: game.title,
-            error: err?.message || String(err),
-            diagnostics: err?.horseImportDiagnostics || null,
-          });
-        }
-      }
-
-      created.push(game);
-    }
-
-    res.json({
-      ok: true,
-      found: discoveredGames.length,
-      created: created.length,
-      updated: updated.length,
-      unchanged: unchanged.length,
-      games: [...created, ...updated, ...unchanged],
-      discovered: discoveredGames,
-      diagnostics,
-      horseImport,
-    });
-  } catch (e) {
-    console.error('POST /games/discover/active error', e);
-    res.status(e.statusCode || 500).json({
-      error: e.message || 'Kunde inte uppdatera aktiva spel från ATG.',
-      diagnostics: e.discoveryDiagnostics || null,
-    });
-  }
-});
-
-router.post('/:id/horses/fetch', async (req, res) => {
-  try {
-    if (!(await requireMongoConnection(res, 10000))) return;
-
-    const { id } = req.params;
-    const game = await TravGame.findById(id);
-    if (!game) return res.status(404).json({ error: 'Spelet hittades inte.' });
-
-    const bodyUrl = String(req.body?.url || '').trim();
-    const sourceItem = {
-      atgUrl: bodyUrl || game.atgUrl,
-      date: req.body?.date || game.date,
-      gameType: req.body?.gameType || game.gameType,
-      trackSlug: req.body?.trackSlug || game.trackSlug,
-    };
-
-    if (!sourceItem.atgUrl && (!sourceItem.date || !sourceItem.gameType || !sourceItem.trackSlug)) {
-      return res.status(400).json({
-        error: 'Saknar ATG-länk eller date/gameType/trackSlug för spelet.',
-      });
-    }
-
-    const imported = await fetchAndSaveHorseInfo(game, sourceItem);
-
-    res.json({
-      ok: true,
-      game,
-      diagnostics: imported.diagnostics || {},
-    });
-  } catch (err) {
-    console.error('POST /games/:id/horses/fetch error', err);
-    res.status(err.statusCode || 500).json({
-      error: err.message || 'Kunde inte hämta hästinformation från ATG.',
-      diagnostics: err.horseImportDiagnostics || null,
-    });
-  }
-});
-
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -678,15 +296,97 @@ const extractAllWinnersFromTableWithBrowser = async (url) => {
 };
 
     
+// ATG:s Resultat-vy visar vinnare, avdelningsvärde och utdelningar i
+// .horse-loloys-Results-styles--tableWrapper. Läs hela blocket så att samma
+// sparade resultat kan återges senare under Travets Resultat-sida.
+const extractDetailedResultsWithBrowser = async (url) => {
+  await ensureBrowser();
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await clickTabByText('Resultat');
+  await page.waitForTimeout(500);
+  await page
+    .waitForSelector('[class*="horse-loloys-Results-styles--tableWrapper"], tr[data-test-id^="results-table-row"]', { timeout: 20000 })
+    .catch(() => null);
+
+  return page.evaluate(() => {
+    const clean = (value) => String(value || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const numericValue = (value) => {
+      const match = clean(value).match(/[-+]?\d[\d\s.,]*/);
+      if (!match) return null;
+      const parsed = Number(match[0].replace(/\s/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.'));
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+    const wrapper = document.querySelector('[class*="horse-loloys-Results-styles--tableWrapper"]');
+    const root = wrapper || document;
+    const divisions = {};
+    for (const row of Array.from(root.querySelectorAll('tr'))) {
+      const cells = Array.from(row.querySelectorAll('th,td'));
+      if (cells.length < 3) continue;
+      const divisionSource = row.querySelector('[data-test-id="horse-placement"]')?.textContent || cells[0]?.textContent;
+      const divisionMatch = clean(divisionSource).match(/^(\d{1,2})$/);
+      const division = divisionMatch ? Number(divisionMatch[1]) : null;
+      const horseEl = row.querySelector('[startlist-export-id="startlist-cell-horse-split-export"]');
+      const horseText = clean(horseEl?.textContent || cells[2]?.textContent);
+      const horseMatch = horseText.match(/^(\d{1,2})\s+(.+)$/);
+      if (!division || !horseMatch || divisions[String(division)]) continue;
+      const valueEl = row.querySelector('[data-test-id="startlist-cell-value"]');
+      const valueText = clean(valueEl?.textContent || cells[3]?.textContent || cells[cells.length - 1]?.textContent);
+      divisions[String(division)] = {
+        horseNumber: Number(horseMatch[1]),
+        horseText,
+        horseName: clean(horseMatch[2]),
+        value: numericValue(valueText),
+        valueText,
+      };
+    }
+
+    const overview = document.querySelector('[data-test-id="game-results-overview"]');
+    const payouts = {};
+    for (const item of Array.from(overview?.querySelectorAll('li') || [])) {
+      const title = clean(item.querySelector('[class*="PayoutItem-styles--title"]')?.textContent || item.querySelector('span')?.textContent);
+      const titleMatch = title.match(/Utdelning\s+(\d+)\s+rätt/i);
+      if (!titleMatch) continue;
+      const amount = clean(item.querySelector('[class*="PayoutItem-styles--amount"]')?.textContent || item.querySelector('div span')?.textContent || item.textContent.replace(title, ''));
+      payouts[titleMatch[1]] = { label: amount, amount: /jackpot/i.test(amount) ? null : numericValue(amount) };
+    }
+    const bodyText = clean(overview?.innerText || document.body.innerText);
+    const turnoverText = clean(overview?.querySelector('[class*="turnoverWrapper"]')?.textContent || '');
+    const systemsText = clean(overview?.querySelector('[class*="systemsWrapper"]')?.textContent || '');
+    const turnoverMatch = turnoverText.match(/Omsättning:\s*([\d\s.,]+\s*kr)/i) || bodyText.match(/Omsättning:\s*([\d\s.,]+\s*kr)/i);
+    const systemsMatch = systemsText.match(/Antal system\s*:?\s*([\d\s.,]+\s*st)/i) || bodyText.match(/Antal system\s*:?\s*([\d\s.,]+\s*st)/i);
+    return {
+      divisions,
+      payouts,
+      turnover: turnoverMatch ? { label: clean(turnoverMatch[1]), amount: numericValue(turnoverMatch[1]) } : null,
+      systemCount: systemsMatch ? { label: clean(systemsMatch[1]), amount: numericValue(systemsMatch[1]) } : null,
+    };
+  });
+};
+
 // Försök hämta alla vinnare från "Tabell"-vyn i ett svep (stabilare än per avd)
 const tableUrl = `https://www.atg.se/spel/${date}/${gameType}/${trackSlug}/avd/1/resultat`;
+const resultDetails = { divisions: {}, payouts: {}, turnover: null, systemCount: null };
+try {
+  const detailed = await extractDetailedResultsWithBrowser(tableUrl);
+  if (detailed && typeof detailed === 'object') {
+    Object.assign(resultDetails, detailed);
+    for (const [division, details] of Object.entries(detailed.divisions || {})) {
+      if (Number.isFinite(details?.horseNumber)) results[division] = details.horseNumber;
+    }
+  }
+} catch (e) {
+  console.warn('Detaljerad resultat-hämtning misslyckades:', e?.message || e);
+}
 try {
   const tableMap = await extractAllWinnersFromTableWithBrowser(tableUrl);
   if (tableMap && Object.keys(tableMap).length) {
     for (let avd = 1; avd <= divisionCount; avd++) {
       if (Number.isFinite(results[String(avd)])) continue;
       const v = tableMap[String(avd)];
-      if (Number.isFinite(v)) results[String(avd)] = v;
+      if (Number.isFinite(v)) {
+        results[String(avd)] = v;
+        if (!resultDetails.divisions[String(avd)]) resultDetails.divisions[String(avd)] = { horseNumber: v };
+      }
     }
   }
 } catch (e) {
@@ -718,15 +418,18 @@ for (let avd = 1; avd <= divisionCount; avd++) {
 
       if (Number.isFinite(winnerNumber)) {
         results[String(avd)] = winnerNumber;
+        if (!resultDetails.divisions[String(avd)]) resultDetails.divisions[String(avd)] = { horseNumber: winnerNumber };
       }
     }
 
     // spara i DB
     game.results = results;
+    game.resultDetails = resultDetails;
+    game.resultsSourceUrl = tableUrl;
     game.resultsUpdatedAt = new Date();
     await game.save();
 
-    res.json({ results, resultsUpdatedAt: game.resultsUpdatedAt });
+    res.json({ results, resultDetails, resultsUpdatedAt: game.resultsUpdatedAt });
   } catch (err) {
     console.error('POST /games/:id/results/fetch error', err);
     res.status(500).send('Serverfel vid hämtning av vinnare.');
@@ -1162,7 +865,7 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/coupons', async (req, res) => {
   try {
     const { id } = req.params;
-    const { selections, name, source, stakeLevel, status } = req.body;
+    const { selections, name, source, stakeLevel, status, packageId, packageName, packageCreatedAt, rows, cost, spikeCount, variation } = req.body;
 
     if (!Array.isArray(selections) || !selections.length) {
       return res.status(400).send('Minst en avdelning krävs för kupong.');
@@ -1189,11 +892,19 @@ router.post('/:id/coupons', async (req, res) => {
     }
 
   const normalizedStatus = normalizeCouponStatus(status);
+  const packageDate = packageCreatedAt && Number.isFinite(new Date(packageCreatedAt).getTime()) ? new Date(packageCreatedAt) : null;
 
 game.coupons.push({
   selections: normalized,
   name: name || '',
   source: source || 'manual',
+  packageId: packageId || '',
+  packageName: packageName || '',
+  packageCreatedAt: packageDate,
+  rows: Number.isFinite(Number(rows)) ? Number(rows) : null,
+  cost: Number.isFinite(Number(cost)) ? Number(cost) : null,
+  spikeCount: Number.isFinite(Number(spikeCount)) ? Number(spikeCount) : null,
+  variation: Number.isFinite(Number(variation)) ? Number(variation) : null,
   stakeLevel: stakeLevel || 'original',
   status: normalizedStatus,
   active: normalizedStatus === 'active',
