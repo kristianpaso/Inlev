@@ -1,24 +1,31 @@
 const GAME_DIVISIONS = { V64: 6, V65: 6, V85: 8, V86: 8, GS75: 7 };
-const LOCAL_API_ROOT = 'http://localhost:4000/api/trav';
+const LOCAL_API_ROOT = 'http://127.0.0.1:4000/api/trav';
 const RENDER_API_ROOT = 'https://trav-api.onrender.com/api/trav';
 const query = new URLSearchParams(window.location.search);
 const forcedApi = query.get('api');
 const API_ROOTS = forcedApi === 'local' ? [LOCAL_API_ROOT] : forcedApi === 'render' ? [RENDER_API_ROOT] : [LOCAL_API_ROOT, RENDER_API_ROOT];
 let activeApiRoot = API_ROOTS[0];
-const state = { games: [], round: null, coupons: [], savedCoupons: [], locks: new Set(), combinationLocks: new Set(), lockedCombinationPatterns: new Map(), selectedPlanIndexes: [], combinationOptions: [], couponCount: 3, spikeCount: 2, editingRound: false, seed: 1, shuffleSeed: 0, countPlanCache: new Map(), regenerateTimer: null, refreshImportTimer: null };
+const state = { games: [], round: null, coupons: [], savedCoupons: [], locks: new Set(), combinationLocks: new Set(), lockedCombinationPatterns: new Map(), selectedPlanIndexes: [], pendingCombinationIndexes: [], combinationCursors: [], combinationOptions: [], couponCount: 3, spikeCount: 2, editingRound: false, seed: 1, shuffleSeed: 0, countPlanCache: new Map(), regenerateTimer: null, refreshImportTimer: null };
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
 async function apiFetch(endpoint, options = {}) {
   const path = String(endpoint).replace(LOCAL_API_ROOT, '').replace(RENDER_API_ROOT, '');
-  const { timeoutMs = 3500, ...fetchOptions } = options;
+  const { timeoutMs = 30000, ...fetchOptions } = options;
   let lastError = null;
   for (const root of [...new Set([activeApiRoot, ...API_ROOTS])]) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const rootTimeout = root === LOCAL_API_ROOT && forcedApi !== 'local' ? Math.min(timeoutMs, 2500) : timeoutMs;
+    const timer = setTimeout(() => controller.abort(), rootTimeout);
     try {
       const response = await fetch(`${root}${path}`, { ...fetchOptions, signal: fetchOptions.signal || controller.signal });
-      if (response.ok || response.status < 500 || root === RENDER_API_ROOT || forcedApi === 'local') {
+      if (response.ok || root === RENDER_API_ROOT || forcedApi === 'local') {
+        activeApiRoot = root;
+        return response;
+      }
+      // En lokal API utan MongoDB kan svara 503. Då ska Render fortfarande
+      // kunna ta över som reserv, på samma sätt som vid en saknad route.
+      if (response.status !== 404 && response.status < 500) {
         activeApiRoot = root;
         return response;
       }
@@ -37,9 +44,10 @@ function fmtTrendValue(value) { const parsed = number(value); return parsed === 
 function winningTrendPercent(horse) { const winPercent = number(horse?.winPercent, null); const trendPercent = number(horse?.trendPercent, null); return winPercent === null || trendPercent === null ? null : winPercent - trendPercent; }
 function today() { return new Date().toISOString().slice(0, 10); }
 function dateLabel(value) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' }); }
-function trackSlug(value) { return String(value || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-'); }
+function trackSlug(...values) { return values.map((value) => String(value || '').trim()).filter(Boolean).join('-').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-'); }
+function trackLabel(track, track2 = '') { return [track, track2].map((value) => String(value || '').trim()).filter(Boolean).join(' – '); }
 function divisionCount(type) { return GAME_DIVISIONS[String(type || '').toUpperCase()] || 0; }
-function atgUrls({ date, gameType, track }) { const slug = trackSlug(track); return Array.from({ length: divisionCount(gameType) }, (_, i) => `https://www.atg.se/spel/${date}/${gameType}/${slug}/avd/${i + 1}`); }
+function atgUrls({ date, gameType, track, track2 }) { const slug = trackSlug(track, track2); return Array.from({ length: divisionCount(gameType) }, (_, i) => `https://www.atg.se/spel/${date}/${gameType}/${slug}/avd/${i + 1}`); }
 function showToast(message) { const toast = $('#toast'); toast.textContent = message; toast.classList.add('show'); clearTimeout(showToast.timer); showToast.timer = setTimeout(() => toast.classList.remove('show'), 3200); }
 
 function parseHorse(raw, index = 0) {
@@ -60,14 +68,14 @@ function normalizeGame(game) {
   const source = Array.isArray(parsed.divisions) ? parsed.divisions : [];
   const races = source.map((division, index) => ({ division: Number(division.index || division.division || index + 1), sourceUrl: division.sourceUrl || '', horses: (division.horses || []).map((horse, horseIndex) => { const parsedHorse = parseHorse(horse, horseIndex); if (parsedHorse.startTrendPercent === null || parsedHorse.startTrendPercent === 0) parsedHorse.startTrendPercent = winningTrendPercent(parsedHorse); return parsedHorse; }).filter((horse) => horse.name || horse.number) })).filter((race) => race.horses.length);
   const expected = divisionCount(game?.gameType) || Number(parsed.expectedDivisions) || 0;
-  return { id: String(game?._id || game?.id || ''), name: game?.title || `${game?.gameType || 'Trav'} ${game?.track || ''}`.trim(), date: game?.date || today(), gameType: String(game?.gameType || 'V64').toUpperCase(), track: game?.track || '', trackSlug: game?.trackSlug || trackSlug(game?.track), divisionCount: expected || races.length, rowPrice: 1, source: 'database', races };
+  return { id: String(game?._id || game?.id || ''), name: game?.title || `${game?.gameType || 'Trav'} ${trackLabel(game?.track, game?.track2)}`.trim(), date: game?.date || today(), gameType: String(game?.gameType || 'V64').toUpperCase(), track: game?.track || '', track2: game?.track2 || '', trackSlug: game?.trackSlug || trackSlug(game?.track, game?.track2), divisionCount: expected || races.length, rowPrice: 1, source: 'database', races };
 }
 
 function renderDatabaseStatus(message, mode = '') { const el = $('#db-status'); el.textContent = message; el.className = `status-pill ${mode}`; }
 function renderHome() {
   const list = $('#round-list');
   const games = state.games.slice(0, 18);
-  list.innerHTML = games.map((game) => { const round = normalizeGame(game); const horses = round.races.reduce((sum, race) => sum + race.horses.length, 0); const typeClass = `game-type-${String(round.gameType || '').toLowerCase()}`; return `<article class="round-card ${typeClass}" data-game-id="${esc(round.id)}"><span class="type">${esc(round.gameType)}</span><button class="delete-game-button" data-delete-game="${esc(round.id)}" title="Ta bort omgång">Ta bort</button><h3>${esc(round.track || round.name)}</h3><p>${esc(dateLabel(round.date))} · ${round.divisionCount || '–'} avdelningar · ${horses || '–'} hästar</p><span class="arrow">→</span></article>`; }).join('');
+  list.innerHTML = games.map((game) => { const round = normalizeGame(game); const horses = round.races.reduce((sum, race) => sum + race.horses.length, 0); const typeClass = `game-type-${String(round.gameType || '').toLowerCase()}`; return `<article class="round-card ${typeClass}" data-game-id="${esc(round.id)}"><span class="type">${esc(round.gameType)}</span><button class="delete-game-button" data-delete-game="${esc(round.id)}" title="Ta bort omgång">Ta bort</button><h3>${esc(trackLabel(round.track, round.track2) || round.name)}</h3><p>${esc(dateLabel(round.date))} · ${round.divisionCount || '–'} avdelningar · ${horses || '–'} hästar</p><span class="arrow">→</span></article>`; }).join('');
   $('#empty-rounds').hidden = games.length > 0;
 }
 
@@ -77,13 +85,6 @@ async function loadGames() {
     const response = await apiFetch('/games');
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     state.games = await response.json();
-    if (Array.isArray(state.games) && state.games.length === 0 && activeApiRoot === LOCAL_API_ROOT && forcedApi !== 'local') {
-      const renderResponse = await fetch(`${RENDER_API_ROOT}/games`);
-      if (renderResponse.ok) {
-        state.games = await renderResponse.json();
-        activeApiRoot = RENDER_API_ROOT;
-      }
-    }
     renderDatabaseStatus(`Databasdata · ${activeApiRoot === RENDER_API_ROOT ? 'Render' : 'lokal'}`, 'ok');
     renderHome();
   } catch (error) {
@@ -155,7 +156,7 @@ function renderSavedCoupons() {
   const totalCoupons = groups.reduce((total, group) => total + group.coupons.length, 0);
   status.textContent = `${totalCoupons} sparade kuponger · ${groups.length} paket`;
   if (!groups.length) { list.innerHTML = '<div class="empty-state"><div class="empty-icon">▣</div><h3>Inga sparade kuponger</h3><p>Spara ett kupongpaket från en omgång så visas kupongerna här.</p></div>'; return; }
-  list.innerHTML = groups.map((group) => { const round = normalizeGame(group.game); const groupDate = group.createdAt ? new Date(group.createdAt).toLocaleString('sv-SE') : 'Sparat paket'; const title = group.coupons[0]?.packageName || `${round.gameType} ${round.track}`; return `<section class="saved-coupon-group"><div class="saved-coupon-group-header"><div><span class="eyebrow">KUPONGPAKET</span><h3>${esc(title)}</h3><p>${esc(dateLabel(round.date))} · ${esc(round.track)} · ${esc(groupDate)}</p></div><span class="status-pill ok">${group.coupons.length} kuponger</span></div><div class="saved-coupon-group-grid">${group.coupons.map((coupon, index) => renderSavedCouponCard(coupon, round, index)).join('')}</div></section>`; }).join('');
+  list.innerHTML = groups.map((group) => { const round = normalizeGame(group.game); const groupDate = group.createdAt ? new Date(group.createdAt).toLocaleString('sv-SE') : 'Sparat paket'; const title = group.coupons[0]?.packageName || `${round.gameType} ${trackLabel(round.track, round.track2)}`; return `<section class="saved-coupon-group"><div class="saved-coupon-group-header"><div><span class="eyebrow">KUPONGPAKET</span><h3>${esc(title)}</h3><p>${esc(dateLabel(round.date))} · ${esc(trackLabel(round.track, round.track2))} · ${esc(groupDate)}</p></div><span class="status-pill ok">${group.coupons.length} kuponger</span></div><div class="saved-coupon-group-grid">${group.coupons.map((coupon, index) => renderSavedCouponCard(coupon, round, index)).join('')}</div></section>`; }).join('');
 }
 
 async function loadSavedCoupons() {
@@ -220,7 +221,7 @@ function renderResultCard(game) {
   const winnerMap = new Map(winners.map((item) => [String(item.division), item.winnerNumber]));
   const payouts = Object.entries(details.payouts || {}).sort((a, b) => Number(b[0]) - Number(a[0]));
   const updated = game.resultsUpdatedAt ? new Date(game.resultsUpdatedAt).toLocaleString('sv-SE') : '';
-  return `<article class="result-card" data-result-game="${esc(game._id)}"><div class="result-card-header"><div><span class="eyebrow">${esc(game.gameType)} · RESULTAT</span><h3>${esc(game.track)}</h3><p>${esc(dateLabel(game.date))} · ${round.divisionCount || '–'} avdelningar</p></div><button class="ghost-button result-fetch-button" data-fetch-results="${esc(game._id)}">${hasResults ? '↻ Uppdatera resultat' : 'Hämta resultat'}</button></div>${hasResults ? `<div class="result-winner-grid">${winners.map((item) => `<div class="result-winner-row"><span class="result-division">${esc(item.division)}</span><div><strong>${item.winnerNumber ? `${esc(item.winnerNumber)} ` : ''}${esc(item.horse?.name || item.detail.horseName || item.detail.horseText || 'Vinnare')}</strong>${item.horse?.driver ? `<small>${esc(item.horse.driver)}</small>` : ''}</div><span class="result-value">${resultMoney(item.detail.value, item.detail.valueText || '–')}</span></div>`).join('')}</div><div class="result-summary">${payouts.length ? payouts.map(([count, payout]) => `<div><span>Utdelning ${esc(count)} rätt</span><strong>${esc(payout.label || resultMoney(payout.amount))}</strong></div>`).join('') : '<div><span>Utdelning</span><strong>Ej hämtad</strong></div>'}${details.turnover ? `<div><span>Omsättning</span><strong>${esc(details.turnover.label || resultMoney(details.turnover.amount))}</strong></div>` : ''}${details.systemCount ? `<div><span>Antal system</span><strong>${esc(details.systemCount.label || resultMoney(details.systemCount.amount))}</strong></div>` : ''}</div>${Array.isArray(game.coupons) && game.coupons.length ? `<section class="result-saved-coupons"><div class="result-saved-heading"><span class="eyebrow">KUPONGKONTROLL</span><strong>Sparade kuponger mot resultatet</strong></div>${game.coupons.map((coupon, couponIndex) => renderSavedCouponResult(coupon, round, winnerMap, couponIndex)).join('')}</section>` : ''}<p class="result-updated">Senast uppdaterad ${esc(updated)}</p>` : '<div class="result-empty"><span>◎</span><p>Resultat är inte hämtat för den här omgången.</p></div>'}</article>`;
+  return `<article class="result-card" data-result-game="${esc(game._id)}"><div class="result-card-header"><div><span class="eyebrow">${esc(game.gameType)} · RESULTAT</span><h3>${esc(trackLabel(game.track, game.track2))}</h3><p>${esc(dateLabel(game.date))} · ${round.divisionCount || '–'} avdelningar</p></div><button class="ghost-button result-fetch-button" data-fetch-results="${esc(game._id)}">${hasResults ? '↻ Uppdatera resultat' : 'Hämta resultat'}</button></div>${hasResults ? `<div class="result-winner-grid">${winners.map((item) => `<div class="result-winner-row"><span class="result-division">${esc(item.division)}</span><div><strong>${item.winnerNumber ? `${esc(item.winnerNumber)} ` : ''}${esc(item.horse?.name || item.detail.horseName || item.detail.horseText || 'Vinnare')}</strong>${item.horse?.driver ? `<small>${esc(item.horse.driver)}</small>` : ''}</div><span class="result-value">${resultMoney(item.detail.value, item.detail.valueText || '–')}</span></div>`).join('')}</div><div class="result-summary">${payouts.length ? payouts.map(([count, payout]) => `<div><span>Utdelning ${esc(count)} rätt</span><strong>${esc(payout.label || resultMoney(payout.amount))}</strong></div>`).join('') : '<div><span>Utdelning</span><strong>Ej hämtad</strong></div>'}${details.turnover ? `<div><span>Omsättning</span><strong>${esc(details.turnover.label || resultMoney(details.turnover.amount))}</strong></div>` : ''}${details.systemCount ? `<div><span>Antal system</span><strong>${esc(details.systemCount.label || resultMoney(details.systemCount.amount))}</strong></div>` : ''}</div>${Array.isArray(game.coupons) && game.coupons.length ? `<section class="result-saved-coupons"><div class="result-saved-heading"><span class="eyebrow">KUPONGKONTROLL</span><strong>Sparade kuponger mot resultatet</strong></div>${game.coupons.map((coupon, couponIndex) => renderSavedCouponResult(coupon, round, winnerMap, couponIndex)).join('')}</section>` : ''}<p class="result-updated">Senast uppdaterad ${esc(updated)}</p>` : '<div class="result-empty"><span>◎</span><p>Resultat är inte hämtat för den här omgången.</p></div>'}</article>`;
 }
 
 function renderResults() {
@@ -244,7 +245,7 @@ async function fetchGameResults(gameId) {
   if (!game) return;
   if (button) { button.disabled = true; button.textContent = 'Hämtar resultat…'; }
   try {
-    const response = await apiFetch(`/games/${encodeURIComponent(gameId)}/results/fetch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: game.date, gameType: game.gameType, trackSlug: game.trackSlug || trackSlug(game.track) }), timeoutMs: 120000 });
+    const response = await apiFetch(`/games/${encodeURIComponent(gameId)}/results/fetch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: game.date, gameType: game.gameType, trackSlug: game.trackSlug || trackSlug(game.track, game.track2) }), timeoutMs: 120000 });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `Resultathämtningen svarade ${response.status}`);
     game.results = payload.results || {};
@@ -272,7 +273,7 @@ async function deleteSavedCoupon(gameId, couponId) {
 
 async function deleteGame(gameId) {
   const game = state.games.find((item) => String(item._id) === String(gameId));
-  if (!game || !window.confirm(`Vill du ta bort omgången ${game.gameType || ''} ${game.track || ''}? Kuponger och sparade resultat försvinner också.`)) return;
+  if (!game || !window.confirm(`Vill du ta bort omgången ${game.gameType || ''} ${trackLabel(game.track, game.track2)}? Kuponger och sparade resultat försvinner också.`)) return;
   try {
     const response = await apiFetch(`/games/${encodeURIComponent(gameId)}`, { method: 'DELETE' });
     if (!response.ok) throw new Error(await response.text() || 'Kunde inte ta bort omgången');
@@ -288,10 +289,10 @@ async function deleteGame(gameId) {
 }
 
 function renderPreview() {
-  const date = $('#round-date').value; const type = $('#round-type').value; const track = $('#round-track').value.trim(); const preview = $('#round-preview');
+  const date = $('#round-date').value; const type = $('#round-type').value; const track = $('#round-track').value.trim(); const track2 = $('#round-track2').value.trim(); const preview = $('#round-preview');
   if (!date || !type || !track) { preview.innerHTML = '<span>Fyll i datum, spelform och bana</span>'; return; }
-  const urls = atgUrls({ date, gameType: type, track });
-  preview.innerHTML = `<strong>ATG-omgång</strong><br>${esc(type)} ${esc(track)} · ${dateLabel(date)} · ${urls.length} avdelningar<code>${esc(urls[0])}</code><small>+ ${urls.length - 1} avdelningslänkar byggs automatiskt</small>`;
+  const urls = atgUrls({ date, gameType: type, track, track2 });
+  preview.innerHTML = `<strong>ATG-omgång</strong><br>${esc(type)} ${esc(trackLabel(track, track2))} · ${dateLabel(date)} · ${urls.length} avdelningar<code>${esc(urls[0])}</code><small>+ ${urls.length - 1} avdelningslänkar byggs automatiskt</small>`;
 }
 
 function renderImportStatus(items, message = '') { const box = $('#import-status'); box.hidden = false; box.innerHTML = `${message ? `<strong>${esc(message)}</strong>` : ''}${items.map((item) => `<div class="import-line ${item.status}"><span>${item.status === 'done' ? '✓' : item.status === 'error' ? '!' : item.status === 'loading' ? '⟳' : '○'} Avd ${item.division}</span><span>${item.status === 'done' ? `${item.count} hästar` : item.status === 'error' ? esc(item.message || 'kunde inte hämtas') : item.status === 'loading' ? 'hämtar…' : ''}</span></div>`).join('')}`; }
@@ -349,19 +350,26 @@ function hideRefreshImportOverlay() {
 }
 
 async function createDatabaseGame(config) {
-  const response = await apiFetch('/games', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: `${config.gameType} ${config.track}`, date: config.date, track: config.track, trackSlug: trackSlug(config.track), gameType: config.gameType, horseText: '' }) });
+  const response = await apiFetch('/games', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: `${config.gameType} ${trackLabel(config.track, config.track2)}`, date: config.date, track: config.track, track2: config.track2, trackSlug: trackSlug(config.track, config.track2), gameType: config.gameType, horseText: '' }) });
   if (!response.ok) throw new Error(await response.text() || 'Kunde inte skapa omgång');
   return response.json();
 }
 
 async function importRound(config, gameId, manual = false) {
   const urls = atgUrls(config); const statuses = urls.map((_, i) => ({ division: i + 1, status: 'pending' }));
-  renderImportStatus(statuses, manual ? 'Skapar en tom omgång för manuell redigering' : `Hämtar ${config.gameType} ${config.track}…`);
-  if (manual) return normalizeGame({ _id: gameId, title: `${config.gameType} ${config.track}`, ...config, parsedHorseInfo: { expectedDivisions: urls.length, divisions: [] } });
-  statuses[0].status = 'loading'; renderImportStatus(statuses, `Hämtar ${config.gameType} ${config.track}…`);
+  renderImportStatus(statuses, manual ? 'Skapar en tom omgång för manuell redigering' : `Hämtar ${config.gameType} ${trackLabel(config.track, config.track2)}…`);
+  if (manual) return normalizeGame({ _id: gameId, title: `${config.gameType} ${trackLabel(config.track, config.track2)}`, ...config, parsedHorseInfo: { expectedDivisions: urls.length, divisions: [] } });
+  statuses[0].status = 'loading'; renderImportStatus(statuses, `Hämtar ${config.gameType} ${trackLabel(config.track, config.track2)}…`);
   const response = await apiFetch('/rounds/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gameId, ...config }), timeoutMs: 120000 });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok && response.status !== 207) throw new Error(payload.error || `ATG-importen svarade ${response.status}`);
+  if (!response.ok && response.status !== 207) {
+    if (response.status === 404) {
+      throw new Error(activeApiRoot === RENDER_API_ROOT
+        ? 'Render kör en äldre Trav API-version utan import-routen. Kör D:\\Bigplus\\PUSHA-INLEV-NETLIFY.cmd och försök igen.'
+        : 'Den lokala Trav API-versionen saknar import-routen. Starta om D:\\Bigplus\\STARTA-BIGPLUS-AKTIV.cmd.');
+    }
+    throw new Error(payload.error || `ATG-importen svarade ${response.status}`);
+  }
   const errors = payload.errors || [];
   statuses.forEach((item) => { const error = errors.find((entry) => entry.division === item.division); item.status = error ? 'error' : 'done'; item.count = payload.round?.races?.find((race) => race.division === item.division)?.horses?.length || 0; item.message = error?.message; });
   renderImportStatus(statuses, errors.length ? 'Omgång delvis importerad' : '✓ Omgång importerad');
@@ -370,7 +378,7 @@ async function importRound(config, gameId, manual = false) {
 
 async function submitCreate(event, manual = false) {
   event?.preventDefault();
-  const config = { date: $('#round-date').value, gameType: $('#round-type').value, track: $('#round-track').value.trim() };
+  const config = { date: $('#round-date').value, gameType: $('#round-type').value, track: $('#round-track').value.trim(), track2: $('#round-track2').value.trim() };
   if (!config.date || !config.gameType || !config.track) return;
   setCreateBusy(!manual);
   try {
@@ -383,7 +391,7 @@ async function submitCreate(event, manual = false) {
   finally { setCreateBusy(false); }
 }
 
-function renderRoundHeader() { const round = state.round; $('#round-header').innerHTML = `<div class="round-header"><div class="round-title"><div class="track-orb">⌁</div><div><div class="eyebrow">AKTUELL OMGÅNG</div><h1>${esc(round.gameType)} – ${esc(round.track || 'Bana saknas')}</h1><p>${esc(dateLabel(round.date))} · ${round.divisionCount} avdelningar · Radpris ${money(round.rowPrice)}</p></div></div><div class="header-actions"><button class="primary-button" id="header-edit">✎ Redigera omgång</button><a class="ghost-button" href="${esc(atgUrls(round)[0] || '#')}" target="_blank" rel="noreferrer">Öppna ATG ↗</a></div></div>`; }
+function renderRoundHeader() { const round = state.round; $('#round-header').innerHTML = `<div class="round-header"><div class="round-title"><div class="track-orb">⌁</div><div><div class="eyebrow">AKTUELL OMGÅNG</div><h1>${esc(round.gameType)} – ${esc(trackLabel(round.track, round.track2) || 'Bana saknas')}</h1><p>${esc(dateLabel(round.date))} · ${round.divisionCount} avdelningar · Radpris ${money(round.rowPrice)}</p></div></div><div class="header-actions"><button class="primary-button" id="header-edit">✎ Redigera omgång</button><a class="ghost-button" href="${esc(atgUrls(round)[0] || '#')}" target="_blank" rel="noreferrer">Öppna ATG ↗</a></div></div>`; }
 
 function raceFavorite(race) { return [...(race.horses || [])].filter((horse) => !horse.scratched).sort((a, b) => (b.winPercent ?? -1) - (a.winPercent ?? -1))[0]; }
 function renderRacesLegacyOriginal() {
@@ -513,7 +521,9 @@ function findNearBudgetPlans(races, targetRows, desiredSpikes, currentPlan, coup
     if (product > maxRows || product * suffixMax[index] < minRows) return;
     if (index >= limits.length) {
       if (product < minRows || product > maxRows || (desiredSpikes !== null && singles !== desiredSpikes)) return;
-      const key = counts.join('x');
+      // En kombination är samma även om antalen ligger i en annan
+      // avdelningsordning, till exempel 1×1×2 och 2×1×1.
+      const key = countPlanSignature(counts);
       if (!seen.has(key)) {
         seen.add(key);
         candidates.push({ counts: [...counts], rows: product, distance: Math.abs(product - targetRows), difference: countPlanDistance(counts, currentPlan) });
@@ -532,7 +542,7 @@ function findNearBudgetPlans(races, targetRows, desiredSpikes, currentPlan, coup
   candidates.sort((a, b) => a.distance - b.distance || b.difference - a.difference);
   const selected = [];
   const addCandidate = (candidate) => {
-    if (!selected.some((item) => sameCountPlan(item.counts, candidate.counts))) selected.push(candidate);
+    if (!selected.some((item) => countPlanSignature(item.counts) === countPlanSignature(candidate.counts))) selected.push(candidate);
   };
   addCandidate({ counts: [...currentPlan], rows: countPlanProduct(currentPlan), distance: Math.abs(countPlanProduct(currentPlan) - targetRows), difference: 0 });
   while (selected.length < Math.min(6, candidates.length)) {
@@ -553,11 +563,13 @@ function resetCombinationState() {
   state.combinationLocks = new Set();
   state.lockedCombinationPatterns = new Map();
   state.selectedPlanIndexes = [];
+  state.pendingCombinationIndexes = [];
+  state.combinationCursors = [];
   state.combinationOptions = [];
 }
 
-function resetUnlockedCombinationChoices() {
-  state.selectedPlanIndexes = state.selectedPlanIndexes.map((value, index) => state.combinationLocks.has(index) ? value : null);
+function clearPendingCombinationChoices() {
+  state.pendingCombinationIndexes = state.pendingCombinationIndexes.map(() => null);
 }
 
 function countPlanSignature(counts) {
@@ -690,8 +702,14 @@ function generateCoupons(preservedSelections = null) {
   }
   state.coupons.forEach((coupon, index) => { coupon.variation = variationFor(index); });
   const rowPrice = state.round?.rowPrice || 1;
+  const previousCursors = state.combinationCursors;
   state.combinationOptions = state.coupons.map((coupon, couponIndex) => findNearBudgetPlans(races, targetRows, desiredSpikes, coupon.selections.map((picks) => picks.length || 1), couponIndex, rowPrice));
-  state.selectedPlanIndexes = state.combinationOptions.map(() => 0);
+  state.combinationCursors = state.combinationOptions.map((options, couponIndex) => Math.min(Math.max(0, previousCursors[couponIndex] ?? 0), Math.max(0, options.length - 1)));
+  state.pendingCombinationIndexes = state.combinationOptions.map((options, couponIndex) => {
+    const pending = state.pendingCombinationIndexes[couponIndex];
+    return Number.isInteger(pending) && pending >= 0 && pending < options.length ? pending : null;
+  });
+  state.selectedPlanIndexes = [];
 }
 
 function raceSecondFavorite(race) {
@@ -718,22 +736,20 @@ function couponPicksMarkup(coupon, race, raceIndex) {
   return `<span class="pick-list">${horses.map((horse) => `<span class="number-chip ${horseBadgeClass(race, horse)}">${esc(horse.number)}</span>`).join('')}</span>`;
 }
 
-function renderCombinationOptions() {
-  const box = $('#combination-options');
-  if (!box) return;
+function combinationPickerMarkup(couponIndex) {
   const target = budget();
   const rowPrice = state.round?.rowPrice || 1;
-  box.innerHTML = state.combinationOptions.map((options, couponIndex) => {
-    if (!options?.length) return '';
-    const locked = state.combinationLocks.has(couponIndex);
-    return `<section class="combination-picker"><div class="combination-picker-head"><div><span class="eyebrow">KUPONG ${couponIndex + 1}</span><strong>Välj radkombination</strong></div><span class="combination-range">±500 kr från ${money(target)}</span></div><div class="combination-slider" data-combination-slider="${couponIndex}"><button type="button" class="combination-arrow" data-combination-prev="${couponIndex}" aria-label="Föregående kombination">‹</button><div class="combination-slide-window">${options.map((option, optionIndex) => { const cost = option.rows * rowPrice; const delta = cost - target; const deltaLabel = delta === 0 ? 'Pris' : `${delta > 0 ? '+' : ''}${money(delta)}`; return `<button type="button" class="combination-option combination-slide" data-combination-coupon="${couponIndex}" data-combination-index="${optionIndex}"><span class="combination-pattern">${option.counts.join('×')}</span><strong>${money(cost)}</strong><small>${deltaLabel}</small></button>`; }).join('')}</div><button type="button" class="combination-arrow" data-combination-next="${couponIndex}" aria-label="Nästa kombination">›</button></div><div class="combination-slide-status"><span data-combination-position="${couponIndex}"></span><button type="button" class="combination-lock ${locked ? 'locked' : ''}" data-lock-combination="${couponIndex}">${locked ? '🔒 Kombination låst' : '🔓 Lås kombinationen'}</button></div></section>`;
-  }).join('');
-  box.querySelectorAll('.combination-option').forEach((button) => {
-    const couponIndex = Number(button.dataset.combinationCoupon);
-    const selectedIndex = state.selectedPlanIndexes[couponIndex] ?? 0;
-    button.classList.toggle('selected', Number(button.dataset.combinationIndex) === selectedIndex);
-  });
-  box.querySelectorAll('[data-combination-position]').forEach((label) => { const couponIndex = Number(label.dataset.combinationPosition); const total = state.combinationOptions[couponIndex]?.length || 0; const current = (state.selectedPlanIndexes[couponIndex] ?? 0) + 1; label.textContent = `${current} / ${total}`; });
+  const options = state.combinationOptions[couponIndex] || [];
+  if (!options.length) return '';
+  const locked = state.combinationLocks.has(couponIndex);
+  const cursor = Math.min(Math.max(0, state.combinationCursors[couponIndex] ?? 0), options.length - 1);
+  const pending = state.pendingCombinationIndexes[couponIndex];
+  const option = options[cursor];
+  const cost = option.rows * rowPrice;
+  const delta = cost - target;
+  const deltaLabel = delta === 0 ? 'Pris enligt budget' : `${delta > 0 ? '+' : ''}${money(delta)} från budget`;
+  const selected = pending === cursor;
+  return `<section class="combination-picker" data-combination-picker="${couponIndex}"><div class="combination-picker-head"><div><span class="eyebrow">FÖRSLAG FÖR KUPONG ${couponIndex + 1}</span><strong>Bläddra bland radkombinationer</strong></div><span class="combination-range">±500 kr från ${money(target)}</span></div><div class="combination-slider" data-combination-slider="${couponIndex}"><button type="button" class="combination-arrow" data-combination-prev="${couponIndex}" aria-label="Föregående kombination">‹</button><div class="combination-slide-window"><div class="combination-option combination-slide ${selected ? 'selected' : ''}"><div><span class="combination-pattern">${option.counts.join('×')}</span><strong>${money(cost)}</strong><small>${deltaLabel}</small></div><button type="button" class="combination-select-marker ${selected ? 'selected' : ''}" data-combination-select="${couponIndex}" aria-pressed="${selected}" title="${selected ? 'Rensa valt förslag' : 'Välj detta förslag när du slumpar kupongerna'}">${selected ? '✓' : '○'}</button></div></div><button type="button" class="combination-arrow" data-combination-next="${couponIndex}" aria-label="Nästa kombination">›</button></div><div class="combination-slide-status"><span>${cursor + 1} / ${options.length}</span><button type="button" class="combination-lock ${locked ? 'locked' : ''}" data-lock-combination="${couponIndex}">${locked ? '🔒 Kombination låst' : '🔓 Lås kombinationen'}</button><small>${selected ? 'Vald till nästa slumpning' : 'Bläddra utan att ändra kupongen'}</small></div></section>`;
 }
 
 function renderCoupons() {
@@ -742,11 +758,10 @@ function renderCoupons() {
   $('#budget-total').textContent = money(target * state.couponCount);
   $$('#coupon-count button').forEach((button) => button.classList.toggle('selected', Number(button.dataset.count) === state.couponCount));
   $$('#spike-count button').forEach((button) => button.classList.toggle('selected', Number(button.dataset.spikes) === state.spikeCount));
-  const couponCards = state.coupons.map((coupon, couponIndex) => `<article class="coupon-card"><div class="coupon-top"><span>KUPONG ${couponIndex + 1} · ${esc(coupon.name)}</span><span class="coupon-cost">${money(coupon.cost)}</span></div><p class="strategy-note">${esc(coupon.note)}</p>${(state.round?.races || []).map((race, raceIndex) => `<div class="coupon-race" data-edit-coupon="${couponIndex}" data-edit-division="${raceIndex}"><span class="race-label">${race.division}</span>${couponPicksMarkup(coupon, race, raceIndex)}<button class="lock ${state.locks.has(`${couponIndex}:${raceIndex}`) ? 'locked' : ''}" data-lock-coupon="${couponIndex}" data-lock-division="${raceIndex}" title="Lås avdelning">${state.locks.has(`${couponIndex}:${raceIndex}`) ? '🔒' : '🔓'}</button></div>`).join('')}<div class="coupon-footer"><span>${coupon.rows.toLocaleString('sv-SE')} rader · ${coupon.spikeCount ?? 0} spikar</span><span>Variation ${coupon.variation}%</span></div></article>`).join('');
+  const couponCards = state.coupons.map((coupon, couponIndex) => `<article class="coupon-card"><div class="coupon-top"><span>KUPONG ${couponIndex + 1} · ${esc(coupon.name)}</span><span class="coupon-cost">${money(coupon.cost)}</span></div><p class="strategy-note">${esc(coupon.note)}</p>${(state.round?.races || []).map((race, raceIndex) => `<div class="coupon-race" data-edit-coupon="${couponIndex}" data-edit-division="${raceIndex}"><span class="race-label">${race.division}</span>${couponPicksMarkup(coupon, race, raceIndex)}<button class="lock ${state.locks.has(`${couponIndex}:${raceIndex}`) ? 'locked' : ''}" data-lock-coupon="${couponIndex}" data-lock-division="${raceIndex}" title="Lås avdelning">${state.locks.has(`${couponIndex}:${raceIndex}`) ? '🔒' : '🔓'}</button></div>`).join('')}${combinationPickerMarkup(couponIndex)}<div class="coupon-footer"><span>${coupon.rows.toLocaleString('sv-SE')} rader · ${coupon.spikeCount ?? 0} spikar</span><span>Variation ${coupon.variation}%</span></div></article>`).join('');
   const missingSlots = state.couponCount < 4 ? Array.from({ length: Math.max(0, 3 - state.couponCount) }, () => '<article class="coupon-slot-placeholder" aria-hidden="true"></article>').join('') : '';
   const inlineShuffle = state.couponCount < 4 ? '<article class="inline-shuffle-card"><span class="eyebrow">TILLSAMMANS</span><strong>Vill du skapa nya kombinationer?</strong><button type="button" data-shuffle-inline>⤨ Slumpa kuponger</button></article>' : '';
-  $('#coupon-list').innerHTML = `${couponCards}${missingSlots}${inlineShuffle}`;
-  renderCombinationOptions();
+   $('#coupon-list').innerHTML = `${couponCards}${missingSlots}${inlineShuffle}`;
   const allSelections = state.coupons.flatMap((coupon) => coupon.selections.map((picks, index) => `${index}:${picks.join(',')}`));
   const unique = new Set(allSelections).size;
   $('#package-summary').innerHTML = `<strong>${state.couponCount} kuponger</strong> · ${money(state.coupons.reduce((sum, coupon) => sum + coupon.cost, 0))} totalt<br><span class="summary-check">✓ Favorit och andrahandsfavorit prioriteras &nbsp; ✓ ${unique === allSelections.length ? 'Varierade upplägg' : 'Gemensamma lopp'} &nbsp; ✓ Låsningar bevaras</span>`;
@@ -760,7 +775,7 @@ function renderBudgetLabels() {
 
 function scheduleCouponRegeneration() {
   renderBudgetLabels();
-  resetUnlockedCombinationChoices();
+  clearPendingCombinationChoices();
   $('#coupon-list')?.classList.add('recalculating');
   clearTimeout(state.regenerateTimer);
   state.regenerateTimer = setTimeout(() => { generateCoupons(); renderCoupons(); $('#coupon-list')?.classList.remove('recalculating'); }, 180);
@@ -804,7 +819,7 @@ async function saveRoundEditor(event) { event.preventDefault(); const form = eve
 function openCouponEditor(couponIndex, raceIndex) { const race = state.round.races[raceIndex]; const selected = new Set(state.coupons[couponIndex].selections[raceIndex] || []); $('#editor-content').innerHTML = `<div class="eyebrow">KUPONG ${couponIndex + 1}</div><h2 class="editor-title">Avd ${race.division} – välj hästar</h2><p class="editor-intro">Ändra valen manuellt. Kostnad och rader räknas om direkt när du sparar.</p><form id="coupon-editor-form"><div class="horse-picker">${race.horses.map((horse) => `<label class="picker-row"><input type="checkbox" name="horse" value="${esc(horse.number)}" ${selected.has(horse.number) ? 'checked' : ''}><strong>${esc(horse.number)}</strong><span>${esc(horse.name)}</span><small>${fmtPercent(horse.winPercent)} · ${esc(horse.driver || '–')}</small></label>`).join('')}</div><div class="modal-actions"><button type="button" class="secondary-button" id="make-spike">Gör till spik</button><button type="submit" class="primary-button">Klar</button></div></form>`; $('#editor-modal').hidden = false; $('#coupon-editor-form').dataset.coupon = couponIndex; $('#coupon-editor-form').dataset.race = raceIndex; }
 function saveCouponEditor(event) { event.preventDefault(); const form = event.currentTarget; const coupon = state.coupons[Number(form.dataset.coupon)]; const race = Number(form.dataset.race); const selected = Array.from(form.querySelectorAll('input[name="horse"]:checked')).map((input) => Number(input.value)); if (!selected.length) return showToast('Välj minst en häst'); coupon.selections[race] = selected; coupon.rows = rowsFor(coupon); coupon.cost = coupon.rows * (state.round.rowPrice || 1); coupon.spikeCount = coupon.selections.filter((selection) => selection.length === 1).length; $('#editor-modal').hidden = true; renderCoupons(); showToast('Avdelningen sparades på kupongen'); }
 
-async function refreshFromAtgLegacy() { if (!state.round) return; const config = { date: state.round.date, gameType: state.round.gameType, track: state.round.track }; $('#refresh-round').disabled = true; try { const fresh = await importRound(config, state.round.id); state.round = fresh; generateCoupons(); renderRound(); showToast('Startlistan uppdaterades från ATG'); } catch (error) { showToast(error.message); } finally { $('#refresh-round').disabled = false; } }
+async function refreshFromAtgLegacy() { if (!state.round) return; const config = { date: state.round.date, gameType: state.round.gameType, track: state.round.track, track2: state.round.track2 }; $('#refresh-round').disabled = true; try { const fresh = await importRound(config, state.round.id); state.round = fresh; generateCoupons(); renderRound(); showToast('Startlistan uppdaterades från ATG'); } catch (error) { showToast(error.message); } finally { $('#refresh-round').disabled = false; } }
 function markUpdatedFields(previous, fresh) {
   for (const race of fresh.races || []) {
     const oldRace = (previous.races || []).find((item) => item.division === race.division);
@@ -819,20 +834,20 @@ function markUpdatedFields(previous, fresh) {
   }
 }
 
-function shuffleCoupons() { const old = state.coupons.map((coupon) => coupon.selections.map((picks) => [...picks])); resetUnlockedCombinationChoices(); state.seed += 1; state.shuffleSeed += 1; generateCoupons(old); renderCoupons(); showToast('Kupongerna slumpades – låsta kombinationer, avdelningar och spikregeln behölls'); }
+function shuffleCoupons() { const old = state.coupons.map((coupon) => coupon.selections.map((picks) => [...picks])); state.selectedPlanIndexes = state.combinationOptions.map((options, couponIndex) => { const pending = state.pendingCombinationIndexes[couponIndex]; return Number.isInteger(pending) && options[pending] ? pending : null; }); state.pendingCombinationIndexes = []; state.seed += 1; state.shuffleSeed += 1; generateCoupons(old); renderCoupons(); showToast('Kupongerna slumpades – valda förslag, låsta kombinationer, avdelningar och spikregeln användes'); }
 
-async function savePackage() { if (!state.round?.id) return showToast('Skapa eller öppna en omgång först'); const automaticName = `${state.round.gameType} ${state.round.track} · ${dateLabel(state.round.date)}`; const enteredName = window.prompt('Rubrik för kupongpaketet (valfritt):', ''); const packageName = enteredName?.trim() || automaticName; const packageId = (window.crypto?.randomUUID?.() || `package-${Date.now()}-${state.seed}`); const packageCreatedAt = new Date().toISOString(); try { for (const coupon of state.coupons) { const response = await apiFetch(`/games/${encodeURIComponent(state.round.id)}/coupons`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `Tillsammans · ${coupon.name}`, source: 'tillsammans', packageId, packageName, packageCreatedAt, rows: coupon.rows, cost: coupon.cost, spikeCount: coupon.spikeCount, variation: coupon.variation, stakeLevel: 'original', selections: coupon.selections.map((horses, index) => ({ divisionIndex: state.round.races[index]?.division || index + 1, horses })) }) }); if (!response.ok) throw new Error(await response.text() || 'Kunde inte spara paket'); } await loadGames(); state.savedCoupons = state.games.find((game) => String(game._id) === String(state.round.id))?.coupons || []; renderSavedCoupons(); showToast('Kupongerna sparades som ett paket under Kuponger'); } catch (error) { showToast(error.message); } }
+async function savePackage() { if (!state.round?.id) return showToast('Skapa eller öppna en omgång först'); const automaticName = `${state.round.gameType} ${trackLabel(state.round.track, state.round.track2)} · ${dateLabel(state.round.date)}`; const enteredName = window.prompt('Rubrik för kupongpaketet (valfritt):', ''); const packageName = enteredName?.trim() || automaticName; const packageId = (window.crypto?.randomUUID?.() || `package-${Date.now()}-${state.seed}`); const packageCreatedAt = new Date().toISOString(); try { for (const coupon of state.coupons) { const response = await apiFetch(`/games/${encodeURIComponent(state.round.id)}/coupons`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `Tillsammans · ${coupon.name}`, source: 'tillsammans', packageId, packageName, packageCreatedAt, rows: coupon.rows, cost: coupon.cost, spikeCount: coupon.spikeCount, variation: coupon.variation, stakeLevel: 'original', selections: coupon.selections.map((horses, index) => ({ divisionIndex: state.round.races[index]?.division || index + 1, horses })) }) }); if (!response.ok) throw new Error(await response.text() || 'Kunde inte spara paket'); } await loadGames(); state.savedCoupons = state.games.find((game) => String(game._id) === String(state.round.id))?.coupons || []; renderSavedCoupons(); showToast('Kupongerna sparades som ett paket under Kuponger'); } catch (error) { showToast(error.message); } }
 
-async function refreshFromAtg() { if (!state.round) return; const previous = state.round; const config = { date: state.round.date, gameType: state.round.gameType, track: state.round.track }; $('#refresh-round').disabled = true; setRefreshImportOverlay(config); try { const fresh = await importRound(config, state.round.id); markUpdatedFields(previous, fresh); state.round = fresh; resetUnlockedCombinationChoices(); generateCoupons(); renderRound(); setRefreshImportOverlay(config, 'complete'); showToast('Startlistan uppdaterades – gröna värden är ändrade'); setTimeout(hideRefreshImportOverlay, 900); } catch (error) { setRefreshImportOverlay(config, 'error', error.message); showToast(error.message); setTimeout(hideRefreshImportOverlay, 1800); } finally { $('#refresh-round').disabled = false; } }
+async function refreshFromAtg() { if (!state.round) return; const previous = state.round; const config = { date: state.round.date, gameType: state.round.gameType, track: state.round.track, track2: state.round.track2 }; $('#refresh-round').disabled = true; setRefreshImportOverlay(config); try { const fresh = await importRound(config, state.round.id); markUpdatedFields(previous, fresh); state.round = fresh; clearPendingCombinationChoices(); generateCoupons(); renderRound(); setRefreshImportOverlay(config, 'complete'); showToast('Startlistan uppdaterades – gröna värden är ändrade'); setTimeout(hideRefreshImportOverlay, 900); } catch (error) { setRefreshImportOverlay(config, 'error', error.message); showToast(error.message); setTimeout(hideRefreshImportOverlay, 1800); } finally { $('#refresh-round').disabled = false; } }
 
 function bindEvents() {
   $$('#open-create,#empty-create').forEach((button) => button.addEventListener('click', () => { $('#round-date').value = $('#round-date').value || today(); $('#create-modal').hidden = false; renderPreview(); }));
-  $$('#round-date,#round-type,#round-track').forEach((field) => field.addEventListener('input', renderPreview));
+  $$('#round-date,#round-type,#round-track,#round-track2').forEach((field) => field.addEventListener('input', renderPreview));
   $('#create-form').addEventListener('submit', (event) => submitCreate(event, false)); $('#manual-round').addEventListener('click', () => submitCreate(null, true));
   $$('[data-close-modal]').forEach((button) => button.addEventListener('click', () => { $(`#${button.dataset.closeModal}`).hidden = true; }));
-  document.addEventListener('click', (event) => { const view = event.target.closest('[data-view]'); if (view) { if (view.dataset.view === 'round' && !state.round) { showToast('Öppna eller skapa en omgång först'); return; } showView(view.dataset.view); if (view.dataset.view === 'coupons') loadSavedCoupons(); if (view.dataset.view === 'results') loadResults(); } const inlineShuffle = event.target.closest('[data-shuffle-inline]'); if (inlineShuffle) { event.stopPropagation(); shuffleCoupons(); return; } const sliderArrow = event.target.closest('[data-combination-prev],[data-combination-next]'); if (sliderArrow) { event.stopPropagation(); const couponIndex = Number(sliderArrow.dataset.combinationPrev ?? sliderArrow.dataset.combinationNext); const options = state.combinationOptions[couponIndex] || []; if (options.length) { const direction = sliderArrow.hasAttribute('data-combination-next') ? 1 : -1; const current = state.selectedPlanIndexes[couponIndex] ?? 0; const next = (current + direction + options.length) % options.length; state.selectedPlanIndexes[couponIndex] = next; if (state.combinationLocks.has(couponIndex)) state.lockedCombinationPatterns.set(couponIndex, countPlanSignature(options[next].counts)); generateCoupons(); renderCoupons(); } return; } const combinationOption = event.target.closest('[data-combination-coupon]'); if (combinationOption) { event.stopPropagation(); const couponIndex = Number(combinationOption.dataset.combinationCoupon); const optionIndex = Number(combinationOption.dataset.combinationIndex); state.selectedPlanIndexes[couponIndex] = optionIndex; if (state.combinationLocks.has(couponIndex)) state.lockedCombinationPatterns.set(couponIndex, countPlanSignature(state.combinationOptions[couponIndex]?.[optionIndex]?.counts || [])); generateCoupons(); renderCoupons(); showToast(`Ny kombination vald för kupong ${couponIndex + 1}`); return; } const combinationLock = event.target.closest('[data-lock-combination]'); if (combinationLock) { event.stopPropagation(); const couponIndex = Number(combinationLock.dataset.lockCombination); if (state.combinationLocks.has(couponIndex)) { state.combinationLocks.delete(couponIndex); state.lockedCombinationPatterns.delete(couponIndex); } else { const option = state.combinationOptions[couponIndex]?.[state.selectedPlanIndexes[couponIndex] ?? 0]; state.combinationLocks.add(couponIndex); if (option) state.lockedCombinationPatterns.set(couponIndex, countPlanSignature(option.counts)); } renderCoupons(); showToast(state.combinationLocks.has(couponIndex) ? `Kombinationen för kupong ${couponIndex + 1} är låst` : `Kombinationen för kupong ${couponIndex + 1} är upplåst`); return; } const resultButton = event.target.closest('[data-fetch-results]'); if (resultButton) { event.stopPropagation(); fetchGameResults(resultButton.dataset.fetchResults); return; } const deleteButton = event.target.closest('[data-delete-saved-coupon]'); if (deleteButton) { event.stopPropagation(); deleteSavedCoupon(deleteButton.dataset.deleteGame, deleteButton.dataset.deleteSavedCoupon); return; } const deleteGameButton = event.target.closest('[data-delete-game]'); if (deleteGameButton) { event.stopPropagation(); deleteGame(deleteGameButton.dataset.deleteGame); return; } const card = event.target.closest('[data-game-id]'); if (card) { const game = state.games.find((item) => String(item._id) === card.dataset.gameId); if (game) { state.round = normalizeGame(game); state.savedCoupons = Array.isArray(game.coupons) ? game.coupons : []; resetCombinationState(); state.seed += 1; state.shuffleSeed = 0; generateCoupons(); renderRound(); showView('round'); } } const race = event.target.closest('.race-summary'); if (race) race.parentElement.classList.toggle('open'); const edit = event.target.closest('[data-edit-coupon]'); if (edit && !event.target.closest('[data-lock-coupon]')) openCouponEditor(Number(edit.dataset.editCoupon), Number(edit.dataset.editDivision)); const lock = event.target.closest('[data-lock-coupon]'); if (lock) { event.stopPropagation(); const key = `${lock.dataset.lockCoupon}:${lock.dataset.lockDivision}`; state.locks.has(key) ? state.locks.delete(key) : state.locks.add(key); renderCoupons(); } });
+  document.addEventListener('click', (event) => { const view = event.target.closest('[data-view]'); if (view) { if (view.dataset.view === 'round' && !state.round) { showToast('Öppna eller skapa en omgång först'); return; } showView(view.dataset.view); if (view.dataset.view === 'coupons') loadSavedCoupons(); if (view.dataset.view === 'results') loadResults(); } const inlineShuffle = event.target.closest('[data-shuffle-inline]'); if (inlineShuffle) { event.stopPropagation(); shuffleCoupons(); return; } const sliderArrow = event.target.closest('[data-combination-prev],[data-combination-next]'); if (sliderArrow) { event.stopPropagation(); const couponIndex = Number(sliderArrow.dataset.combinationPrev ?? sliderArrow.dataset.combinationNext); const options = state.combinationOptions[couponIndex] || []; if (options.length) { const direction = sliderArrow.hasAttribute('data-combination-next') ? 1 : -1; const current = state.combinationCursors[couponIndex] ?? 0; state.combinationCursors[couponIndex] = (current + direction + options.length) % options.length; renderCoupons(); } return; } const combinationSelect = event.target.closest('[data-combination-select]'); if (combinationSelect) { event.stopPropagation(); const couponIndex = Number(combinationSelect.dataset.combinationSelect); const cursor = state.combinationCursors[couponIndex] ?? 0; state.pendingCombinationIndexes[couponIndex] = state.pendingCombinationIndexes[couponIndex] === cursor ? null : cursor; renderCoupons(); showToast(state.pendingCombinationIndexes[couponIndex] === null ? `Förslag för kupong ${couponIndex + 1} rensat` : `Förslag för kupong ${couponIndex + 1} valt till nästa slumpning`); return; } const combinationLock = event.target.closest('[data-lock-combination]'); if (combinationLock) { event.stopPropagation(); const couponIndex = Number(combinationLock.dataset.lockCombination); if (state.combinationLocks.has(couponIndex)) { state.combinationLocks.delete(couponIndex); state.lockedCombinationPatterns.delete(couponIndex); } else { const optionIndex = state.pendingCombinationIndexes[couponIndex] ?? state.combinationCursors[couponIndex] ?? 0; const option = state.combinationOptions[couponIndex]?.[optionIndex]; state.combinationLocks.add(couponIndex); if (option) state.lockedCombinationPatterns.set(couponIndex, countPlanSignature(option.counts)); } renderCoupons(); showToast(state.combinationLocks.has(couponIndex) ? `Kombinationen för kupong ${couponIndex + 1} är låst` : `Kombinationen för kupong ${couponIndex + 1} är upplåst`); return; } const resultButton = event.target.closest('[data-fetch-results]'); if (resultButton) { event.stopPropagation(); fetchGameResults(resultButton.dataset.fetchResults); return; } const deleteButton = event.target.closest('[data-delete-saved-coupon]'); if (deleteButton) { event.stopPropagation(); deleteSavedCoupon(deleteButton.dataset.deleteGame, deleteButton.dataset.deleteSavedCoupon); return; } const deleteGameButton = event.target.closest('[data-delete-game]'); if (deleteGameButton) { event.stopPropagation(); deleteGame(deleteGameButton.dataset.deleteGame); return; } const card = event.target.closest('[data-game-id]'); if (card) { const game = state.games.find((item) => String(item._id) === card.dataset.gameId); if (game) { state.round = normalizeGame(game); state.savedCoupons = Array.isArray(game.coupons) ? game.coupons : []; resetCombinationState(); state.seed += 1; state.shuffleSeed = 0; generateCoupons(); renderRound(); showView('round'); } } const race = event.target.closest('.race-summary'); if (race) race.parentElement.classList.toggle('open'); const edit = event.target.closest('[data-edit-coupon]'); if (edit && !event.target.closest('[data-lock-coupon]')) openCouponEditor(Number(edit.dataset.editCoupon), Number(edit.dataset.editDivision)); const lock = event.target.closest('[data-lock-coupon]'); if (lock) { event.stopPropagation(); const key = `${lock.dataset.lockCoupon}:${lock.dataset.lockDivision}`; state.locks.has(key) ? state.locks.delete(key) : state.locks.add(key); renderCoupons(); } });
   $('#edit-round').addEventListener('click', openRoundEditor); $('#refresh-round').addEventListener('click', refreshFromAtg);   $('#round-editor-form')?.addEventListener('submit', saveRoundEditor);
-  $('#coupon-count').addEventListener('click', (event) => { const button = event.target.closest('[data-count]'); if (!button) return; resetCombinationState(); state.couponCount = Number(button.dataset.count); generateCoupons(); renderCoupons(); }); $('#spike-count').addEventListener('click', (event) => { const button = event.target.closest('[data-spikes]'); if (!button) return; resetUnlockedCombinationChoices(); state.spikeCount = Number(button.dataset.spikes); $$('#spike-count button').forEach((item) => item.classList.toggle('selected', item === button)); generateCoupons(); renderCoupons(); }); $('#share-price').addEventListener('input', scheduleCouponRegeneration); $('#share-count').addEventListener('change', scheduleCouponRegeneration);
+  $('#coupon-count').addEventListener('click', (event) => { const button = event.target.closest('[data-count]'); if (!button) return; resetCombinationState(); state.couponCount = Number(button.dataset.count); generateCoupons(); renderCoupons(); }); $('#spike-count').addEventListener('click', (event) => { const button = event.target.closest('[data-spikes]'); if (!button) return; clearPendingCombinationChoices(); state.spikeCount = Number(button.dataset.spikes); $$('#spike-count button').forEach((item) => item.classList.toggle('selected', item === button)); generateCoupons(); renderCoupons(); }); $('#share-price').addEventListener('input', scheduleCouponRegeneration); $('#share-count').addEventListener('change', scheduleCouponRegeneration);
   $$('[data-step]').forEach((button) => button.addEventListener('click', () => { const input = $('#share-price'); input.value = Math.max(1, Number(input.value) + Number(button.dataset.dir)); scheduleCouponRegeneration(); })); $('#shuffle-coupons').addEventListener('click', shuffleCoupons); $('#save-package').addEventListener('click', savePackage);
   document.addEventListener('submit', (event) => { if (event.target.id === 'round-editor-form') saveRoundEditor(event); if (event.target.id === 'coupon-editor-form') saveCouponEditor(event); }); document.addEventListener('click', (event) => { if (event.target.id === 'make-spike') { const form = event.target.closest('#coupon-editor-form'); const race = state.round?.races?.[Number(form?.dataset.race)]; const favorite = raceFavorite(race || { horses: [] }); form?.querySelectorAll('input[name="horse"]').forEach((input) => { input.checked = Number(input.value) === favorite?.number; }); } });
 }

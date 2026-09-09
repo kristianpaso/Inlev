@@ -20,7 +20,11 @@ app.get('/', (req, res) => {
 
 app.get('/health', (req, res) => {
   const ready = mongoose.connection.readyState === 1;
-  res.status(ready ? 200 : 503).json({ ok: ready, api: 'up' });
+  res.status(ready ? 200 : 503).json({
+    ok: ready,
+    api: 'up',
+    database: ready ? mongoose.connection.name : 'travet',
+  });
 });
 
 function requireMongo(req, res, next) {

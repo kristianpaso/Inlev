@@ -21,7 +21,7 @@ function normalizeRound(races, config) {
 }
 
 router.post('/import', async (req, res) => {
-  const { gameId, date, gameType, track } = req.body || {};
+  const { gameId, date, gameType, track, track2 } = req.body || {};
   const normalizedType = String(gameType || '').trim().toUpperCase();
   const normalizedTrack = String(track || '').trim();
   const divisionCount = getDivisionCount(normalizedType);
@@ -29,7 +29,8 @@ router.post('/import', async (req, res) => {
     return res.status(400).json({ error: 'Datum, spelform och bana krävs.' });
   }
 
-  const config = { date, gameType: normalizedType, track: normalizedTrack };
+  const normalizedTrack2 = String(track2 || '').trim();
+  const config = { date, gameType: normalizedType, track: normalizedTrack, track2: normalizedTrack2 };
   const urls = buildAtgDivisionUrls(config);
   try {
     const imported = await importDivisionStartlists(urls, normalizedType);
@@ -37,10 +38,11 @@ router.post('/import', async (req, res) => {
     if (gameId) game = await TravGame.findById(gameId);
     if (!game) {
       game = new TravGame({
-        title: `${normalizedType} ${normalizedTrack}`,
+        title: `${normalizedType} ${normalizedTrack}${normalizedTrack2 ? `-${normalizedTrack2}` : ''}`,
         date: String(date),
         track: normalizedTrack,
-        trackSlug: getTrackSlug(normalizedTrack),
+        track2: normalizedTrack2,
+        trackSlug: getTrackSlug(normalizedTrack, normalizedTrack2),
         gameType: normalizedType,
       });
     }
@@ -64,10 +66,11 @@ router.post('/import', async (req, res) => {
     const importedNumbers = new Set(importedDivisions.map((division) => Number(division.division)));
     const divisions = [...importedDivisions, ...oldDivisions.filter((division) => !importedNumbers.has(Number(division.division)))].sort((a, b) => Number(a.division) - Number(b.division));
 
-    game.title = `${normalizedType} ${normalizedTrack}`;
+    game.title = `${normalizedType} ${normalizedTrack}${normalizedTrack2 ? `-${normalizedTrack2}` : ''}`;
     game.date = String(date);
     game.track = normalizedTrack;
-    game.trackSlug = getTrackSlug(normalizedTrack);
+    game.track2 = normalizedTrack2;
+    game.trackSlug = getTrackSlug(normalizedTrack, normalizedTrack2);
     game.gameType = normalizedType;
     game.horseText = `${normalizedType} ${normalizedTrack}\n${divisions.flatMap((division) => division.horses.map((horse) => horse.rawLine)).join('\n')}`;
     game.parsedHorseInfo = {
@@ -83,6 +86,7 @@ router.post('/import', async (req, res) => {
         date: game.date,
         gameType: game.gameType,
         track: game.track,
+        track2: game.track2 || '',
         trackSlug: game.trackSlug,
         divisionCount,
         rowPrice: 1,
@@ -120,12 +124,13 @@ router.put('/:id', async (req, res) => {
     game.title = String(incoming.name || `${incoming.gameType} ${incoming.track}`);
     game.date = String(incoming.date || game.date);
     game.track = String(incoming.track || game.track);
-    game.trackSlug = String(incoming.trackSlug || getTrackSlug(game.track));
+    game.track2 = String(incoming.track2 || game.track2 || '');
+    game.trackSlug = String(incoming.trackSlug || getTrackSlug(game.track, game.track2));
     game.gameType = String(incoming.gameType || game.gameType).toUpperCase();
     game.parsedHorseInfo = { header: game.title, divisions: races, expectedDivisions: Number(incoming.divisionCount) || races.length };
     game.horseText = `${game.title}\n${races.flatMap((race) => race.horses.map((horse) => horse.rawLine || `${horse.number} ${horse.name}`)).join('\n')}`;
     await game.save();
-    return res.json({ id: String(game._id), name: game.title, date: game.date, gameType: game.gameType, track: game.track, trackSlug: game.trackSlug, divisionCount: Number(incoming.divisionCount) || races.length, rowPrice: 1, source: 'manual', races });
+    return res.json({ id: String(game._id), name: game.title, date: game.date, gameType: game.gameType, track: game.track, track2: game.track2 || '', trackSlug: game.trackSlug, divisionCount: Number(incoming.divisionCount) || races.length, rowPrice: 1, source: 'manual', races });
   } catch (error) {
     console.error('PUT /rounds/:id error', error);
     return res.status(500).json({ error: 'Kunde inte spara omgången.' });

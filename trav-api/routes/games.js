@@ -116,7 +116,7 @@ router.get('/:id', async (req, res) => {
 // Skapa nytt spel
 router.post('/', async (req, res) => {
   try {
-  const { title, date, track, trackSlug, gameType, horseText = '' } = req.body;
+  const { title, date, track, track2 = '', trackSlug, gameType, horseText = '' } = req.body;
 
 
     if (!title || !date || !track || !gameType) {
@@ -129,6 +129,7 @@ router.post('/', async (req, res) => {
   title,
   date,
   track,
+  track2,
   gameType,
   trackSlug,
   horseText,
@@ -805,7 +806,7 @@ if (hits.length) {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-  const { title, date, track, trackSlug, gameType, horseText = '' } = req.body;
+  const { title, date, track, track2 = '', trackSlug, gameType, horseText = '' } = req.body;
 
 
     if (!title || !date || !track || !gameType) {
@@ -820,6 +821,7 @@ router.put('/:id', async (req, res) => {
   title,
   date,
   track,
+  track2,
   gameType,
   trackSlug,
   horseText,

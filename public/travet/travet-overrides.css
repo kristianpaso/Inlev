@@ -90,8 +90,9 @@
 .combination-pattern{color:#dff7ff;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .combination-option strong{font-size:11px;color:#fff}.combination-option small{font-size:9px;color:#9fd2e9}
 .combination-slide-status{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;color:#9cc9e4;font-size:10px}.combination-lock{border:0;background:transparent;color:#afd8ec;font-size:10px;padding:0}.combination-lock:hover{color:#fff}.combination-lock.locked{color:#ffd12d;font-weight:900}
+.coupon-card>.combination-picker{margin:7px 0 0;border-color:#176b8e;background:#072f51;padding:7px}.coupon-card>.combination-picker .combination-picker-head{margin-bottom:5px}.combination-option{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left}.combination-option>div{display:grid;gap:2px;min-width:0}.combination-select-marker{flex:0 0 27px;width:27px;height:27px;border:1px solid #2b8aab;border-radius:50%;background:#063254;color:#bde8f5;font-size:17px;line-height:1}.combination-select-marker:hover,.combination-select-marker.selected{border-color:#39e5dc;background:#18aeb6;color:#052d4a;box-shadow:0 0 0 2px #28d9d644}.combination-slide-status{flex-wrap:wrap}.combination-slide-status small{width:100%;color:#77aeca;font-size:9px}.combination-picker .eyebrow{font-size:9px}
 @media (max-width:700px){
-  .combination-picker{padding:8px 5px}.combination-picker-head{align-items:flex-start;display:block}.combination-range{display:block;margin-top:3px;font-size:9px}
+  .combination-picker{padding:8px 5px}.coupon-card>.combination-picker{padding:6px 4px}.combination-picker-head{align-items:flex-start;display:block}.combination-range{display:block;margin-top:3px;font-size:9px}
   .combination-slider{grid-template-columns:25px minmax(0,1fr) 25px;gap:4px}.combination-option{padding:6px 2px}.combination-pattern{font-size:9px}.combination-option strong{font-size:9px}.combination-option small{font-size:8px}.combination-slide-status{font-size:9px}
 }
 

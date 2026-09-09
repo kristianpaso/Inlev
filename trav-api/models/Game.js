@@ -47,6 +47,7 @@ const TravGameSchema = new mongoose.Schema(
     title: { type: String, required: true },
     date: { type: String, required: true },
     track: { type: String, required: true },
+    track2: { type: String, default: '' },
     trackSlug: { type: String, default: '' }, // ex: "orebro"
 
 results: {

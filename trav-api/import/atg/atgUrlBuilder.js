@@ -25,14 +25,17 @@ function toAtgTrackSlug(trackName) {
     .replace(/\s+/g, '-');
 }
 
-function getTrackSlug(trackName) {
-  const value = String(trackName || '').trim();
-  return TRACK_SLUG_MAP[value] || toAtgTrackSlug(value);
+function getTrackSlug(trackName, secondTrackName = '') {
+  return [trackName, secondTrackName]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .map((value) => TRACK_SLUG_MAP[value] || toAtgTrackSlug(value))
+    .join('-');
 }
 
-function buildAtgDivisionUrls({ date, gameType, track }) {
+function buildAtgDivisionUrls({ date, gameType, track, track2 }) {
   const normalizedType = String(gameType || '').trim().toUpperCase();
-  const trackSlug = getTrackSlug(track);
+  const trackSlug = getTrackSlug(track, track2);
   const count = getDivisionCount(normalizedType);
   return Array.from({ length: count }, (_, index) => {
     const division = index + 1;

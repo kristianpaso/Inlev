@@ -26,3 +26,5 @@ services:
         value: production
       - key: MONGODB_URI
         sync: false
+      - key: TRAV_MONGODB_DB
+        value: travet
