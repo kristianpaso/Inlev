@@ -1,6 +1,6 @@
 const GAME_DIVISIONS = { V64: 6, V65: 6, V85: 8, V86: 8, GS75: 7 };
 const LOCAL_API_ROOT = 'http://127.0.0.1:4000/api/trav';
-const RENDER_API_ROOT = 'https://trav-api.onrender.com/api/trav';
+const RENDER_API_ROOT = 'https://travet-api.onrender.com/api/trav';
 const isLocalApp = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname) || window.location.protocol === 'file:';
 // Lokal sida = lokal API/MongoDB. Render används bara när Travet körs hostat,
 // till exempel från Netlify. Det ska aldrig finnas en tyst cross-over från
