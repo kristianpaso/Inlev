@@ -403,7 +403,7 @@ async function submitCreate(event, manual = false) {
   finally { setCreateBusy(false); }
 }
 
-function renderRoundHeader() { const round = state.round; $('#round-header').innerHTML = `<div class="round-header"><div class="round-title"><div class="track-orb">⌁</div><div><div class="eyebrow">AKTUELL OMGÅNG</div><h1>${esc(round.gameType)} – ${esc(trackLabel(round.track, round.track2) || 'Bana saknas')}</h1><p>${esc(dateLabel(round.date))} · ${round.divisionCount} avdelningar · Radpris ${money(round.rowPrice)}</p></div></div><div class="header-actions"><button class="primary-button" id="header-edit">✎ Redigera omgång</button><a class="ghost-button" href="${esc(atgUrls(round)[0] || '#')}" target="_blank" rel="noreferrer">Öppna ATG ↗</a></div></div>`; }
+function renderRoundHeader() { const round = state.round; const primaryTrackSlug = trackSlug(round.track); const primaryTrack = trackLabel(round.track, round.track2) || 'Bana saknas'; $('#round-header').innerHTML = `<div class="round-header"><div class="round-title"><div class="track-orb">⌁</div><div><div class="eyebrow">AKTUELL OMGÅNG</div><h1>${esc(round.gameType)} – ${esc(primaryTrack)}</h1><p>${esc(dateLabel(round.date))} · ${round.divisionCount} avdelningar · Radpris ${money(round.rowPrice)}</p><div class="round-track-context"><span>BANPROFIL</span><strong>${esc(primaryTrack)}</strong><a href="./banor.html?track=${encodeURIComponent(primaryTrackSlug)}">Baninfo ↗</a></div></div></div><div class="header-actions"><button class="primary-button" id="header-edit">✎ Redigera omgång</button><a class="ghost-button" href="${esc(atgUrls(round)[0] || '#')}" target="_blank" rel="noreferrer">Öppna ATG ↗</a></div></div>`; }
 
 function raceFavorite(race) { return [...(race.horses || [])].filter((horse) => !horse.scratched).sort((a, b) => (b.winPercent ?? -1) - (a.winPercent ?? -1))[0]; }
 function renderRacesLegacyOriginal() {
@@ -537,15 +537,15 @@ function findNearBudgetPlans(races, targetRows, desiredSpikes, currentPlan, coup
   const cached = state.combinationPlanCache.get(cacheKey);
   if (cached) return cached.map((option) => ({ ...option, counts: [...option.counts] }));
   const minRows = Math.max(1, targetRows - Math.floor(500 / Math.max(1, rowPrice)));
-  const maxRows = Math.max(minRows, targetRows + Math.floor(500 / Math.max(1, rowPrice)));
+  const maxRows = Math.max(minRows, targetRows + Math.floor(250 / Math.max(1, rowPrice)));
   const limits = races.map((race) => Math.min(10, Math.max(1, race.horses.filter((horse) => !horse.scratched).length)));
   const suffixMax = Array(limits.length + 1).fill(1);
   for (let index = limits.length - 1; index >= 0; index -= 1) suffixMax[index] = suffixMax[index + 1] * limits[index];
   const candidates = [];
   const seen = new Set();
   let nodes = 0;
-  const nodeLimit = 30000;
-  const candidateLimit = 36;
+  const nodeLimit = 50000;
+  const candidateLimit = 90;
   const visit = (index, product, singles, counts) => {
     if (++nodes > nodeLimit || candidates.length >= candidateLimit) return;
     const remaining = limits.length - index;
@@ -575,23 +575,33 @@ function findNearBudgetPlans(races, targetRows, desiredSpikes, currentPlan, coup
     state.combinationPlanCache.set(cacheKey, fallback.map((option) => ({ ...option, counts: [...option.counts] })));
     return fallback;
   }
-  candidates.sort((a, b) => a.distance - b.distance || b.difference - a.difference);
   const selected = [];
   const addCandidate = (candidate) => {
     if (!selected.some((item) => countPlanSignature(item.counts) === countPlanSignature(candidate.counts))) selected.push(candidate);
   };
   addCandidate({ counts: [...currentPlan], rows: countPlanProduct(currentPlan), distance: Math.abs(countPlanProduct(currentPlan) - targetRows), difference: 0 });
-  while (selected.length < Math.min(6, candidates.length)) {
-    const next = candidates
-      .filter((candidate) => !selected.some((item) => countPlanSignature(item.counts) === countPlanSignature(candidate.counts)))
-      .sort((a, b) => {
-        const aDiversity = Math.min(...selected.map((item) => countPlanDistance(item.counts, a.counts)));
-        const bDiversity = Math.min(...selected.map((item) => countPlanDistance(item.counts, b.counts)));
-        return (bDiversity * 40 - b.distance) - (aDiversity * 40 - a.distance);
-      })[0];
-    if (!next) break;
-    addCandidate(next);
-  }
+  const isSelected = (candidate) => selected.some((item) => countPlanSignature(item.counts) === countPlanSignature(candidate.counts));
+  const chooseFrom = (pool, amount) => {
+    while (pool.some((candidate) => !isSelected(candidate)) && amount > 0 && selected.length < 30) {
+      const next = pool
+        .filter((candidate) => !isSelected(candidate))
+        .sort((a, b) => {
+          const aDiversity = selected.length ? Math.min(...selected.map((item) => countPlanDistance(item.counts, a.counts))) : 0;
+          const bDiversity = selected.length ? Math.min(...selected.map((item) => countPlanDistance(item.counts, b.counts))) : 0;
+          return (bDiversity * 40 - b.distance) - (aDiversity * 40 - a.distance);
+        })[0];
+      if (!next) break;
+      addCandidate(next);
+      amount -= 1;
+    }
+  };
+  const nearTarget = candidates.filter((candidate) => candidate.rows <= targetRows);
+  const aboveTarget = candidates.filter((candidate) => candidate.rows > targetRows && candidate.rows <= maxRows);
+  const nearSelected = selected.filter((candidate) => candidate.rows <= targetRows).length;
+  const aboveSelected = selected.filter((candidate) => candidate.rows > targetRows).length;
+  chooseFrom(nearTarget, Math.max(0, 20 - nearSelected));
+  chooseFrom(aboveTarget, Math.max(0, 10 - aboveSelected));
+  chooseFrom(candidates, 30 - selected.length);
   state.combinationPlanCache.set(cacheKey, selected.map((option) => ({ ...option, counts: [...option.counts] })));
   if (state.combinationPlanCache.size > 80) state.combinationPlanCache.delete(state.combinationPlanCache.keys().next().value);
   return selected;
@@ -799,7 +809,6 @@ function couponPicksMarkup(coupon, race, raceIndex, winnerNumber = null) {
 }
 
 function combinationPickerMarkup(couponIndex) {
-  const target = budget();
   const rowPrice = state.round?.rowPrice || 1;
   const options = state.combinationOptions[couponIndex] || [];
   if (!options.length) return '';
@@ -809,12 +818,21 @@ function combinationPickerMarkup(couponIndex) {
   const cursor = lockedIndex >= 0 ? lockedIndex : Math.min(Math.max(0, state.combinationCursors[couponIndex] ?? 0), options.length - 1);
   const pending = state.pendingCombinationIndexes[couponIndex];
   const option = options[cursor];
-  const cost = option.rows * rowPrice;
-  const delta = cost - target;
-  const deltaLabel = delta === 0 ? 'Pris enligt budget' : `${delta > 0 ? '+' : ''}${money(delta)} från budget`;
-  const selected = pending === cursor;
-  const lockedChoice = locked && lockedSignature ? `<div class="combination-locked-choice">Vald kombination: <strong>${esc(lockedSignature)}</strong></div>` : '';
-  return `<section class="combination-picker" data-combination-picker="${couponIndex}"><div class="combination-picker-head"><div><span class="eyebrow">FÖRSLAG FÖR KUPONG ${couponIndex + 1}</span><strong>Bläddra bland radkombinationer</strong></div><span class="combination-range">±500 kr från ${money(target)}</span></div><div class="combination-slider" data-combination-slider="${couponIndex}"><button type="button" class="combination-arrow" data-combination-prev="${couponIndex}" aria-label="Föregående kombination">‹</button><div class="combination-slide-window"><div class="combination-option combination-slide ${selected ? 'selected' : ''}"><div><span class="combination-pattern-label">Kombination</span><span class="combination-pattern">${option.counts.join('x')}</span><strong>${money(cost)}</strong><small>${deltaLabel}</small></div><button type="button" class="combination-select-marker ${selected ? 'selected' : ''}" data-combination-select="${couponIndex}" aria-pressed="${selected}" title="${selected ? 'Rensa valt förslag' : 'Välj detta förslag när du slumpar kupongerna'}">${selected ? '✓' : '○'}</button></div></div><button type="button" class="combination-arrow" data-combination-next="${couponIndex}" aria-label="Nästa kombination">›</button></div>${lockedChoice}<div class="combination-slide-status"><span>${cursor + 1} / ${options.length}</span><button type="button" class="combination-lock ${locked ? 'locked' : ''}" data-lock-combination="${couponIndex}">${locked ? '🔒 Kombination låst' : '🔓 Lås kombinationen'}</button><small>${selected ? 'Vald till nästa slumpning' : 'Bläddra utan att ändra kupongen'}</small></div></section>`;
+  const displayCounts = (locked && lockedSignature ? lockedSignature.split('x').map(Number) : option.counts).slice().sort((a, b) => a - b);
+  const cost = countPlanProduct(displayCounts) * rowPrice;
+  const selected = locked || pending === cursor;
+  const sectionClass = locked ? ' locked' : '';
+  const markerTitle = locked ? 'Lås upp denna kombination' : 'Lås denna kombination när du slumpar kupongerna';
+  return `<section class="combination-picker${sectionClass}" data-combination-picker="${couponIndex}"><div class="combination-slider" data-combination-slider="${couponIndex}"><button type="button" class="combination-arrow" data-combination-prev="${couponIndex}" aria-label="Föregående kombination"${locked ? ' disabled' : ''}>‹</button><div class="combination-slide-window"><div class="combination-option combination-slide${locked ? ' locked' : ''} ${selected ? 'selected' : ''}"><div class="combination-option-copy"><span class="combination-pattern">${displayCounts.join('x')}</span><strong>${money(cost)}</strong></div><button type="button" class="combination-select-marker ${selected ? 'selected' : ''}${locked ? ' locked' : ''}" data-combination-select="${couponIndex}" aria-pressed="${locked}" title="${markerTitle}">${locked ? '●' : '○'}</button></div></div><button type="button" class="combination-arrow" data-combination-next="${couponIndex}" aria-label="Nästa kombination"${locked ? ' disabled' : ''}>›</button></div><div class="combination-control-row"><span>${locked ? 'Låst kombination' : `${cursor + 1} / ${options.length}`}</span></div></section>`;
+}
+
+function moveCombinationCursor(couponIndex, direction) {
+  if (state.combinationLocks.has(couponIndex)) return;
+  const options = state.combinationOptions[couponIndex] || [];
+  if (!options.length) return;
+  const current = state.combinationCursors[couponIndex] ?? 0;
+  state.combinationCursors[couponIndex] = (current + direction + options.length) % options.length;
+  renderCoupons();
 }
 
 function renderCoupons() {
@@ -827,7 +845,7 @@ function renderCoupons() {
   $$('#spike-count button').forEach((button) => { button.classList.toggle('selected', Number(button.dataset.spikes) === state.spikeCount); button.disabled = state.together2; });
   const couponCards = state.coupons.map((coupon, couponIndex) => `<article class="coupon-card"><div class="coupon-top"><span>KUPONG ${couponIndex + 1} · ${esc(coupon.name)}</span><span class="coupon-cost">${money(coupon.cost)}</span></div><p class="strategy-note">${esc(coupon.note)}</p>${(state.round?.races || []).map((race, raceIndex) => `<div class="coupon-race" data-edit-coupon="${couponIndex}" data-edit-division="${raceIndex}"><span class="race-label">${race.division}</span>${couponPicksMarkup(coupon, race, raceIndex)}<button class="lock ${state.locks.has(`${couponIndex}:${raceIndex}`) ? 'locked' : ''}" data-lock-coupon="${couponIndex}" data-lock-division="${raceIndex}" title="Lås avdelning">${state.locks.has(`${couponIndex}:${raceIndex}`) ? '🔒' : '🔓'}</button></div>`).join('')}${combinationPickerMarkup(couponIndex)}<div class="coupon-footer"><span>${coupon.rows.toLocaleString('sv-SE')} rader · ${coupon.spikeCount ?? 0} spikar</span><span>Variation ${coupon.variation}%</span></div></article>`).join('');
   const missingSlots = state.couponCount < 4 ? Array.from({ length: Math.max(0, 3 - state.couponCount) }, () => '<article class="coupon-slot-placeholder" aria-hidden="true"></article>').join('') : '';
-  const inlineShuffle = state.couponCount < 4 ? '<article class="inline-shuffle-card"><span class="eyebrow">TILLSAMMANS</span><strong>Vill du skapa nya kombinationer?</strong><button type="button" data-shuffle-inline>⤨ Slumpa kuponger</button></article>' : '';
+  const inlineShuffle = state.couponCount < 4 ? '<article class="inline-shuffle-card"><span class="eyebrow">TILLSAMMANS</span><strong>Vill du skapa nya kombinationer?</strong><div class="inline-shuffle-actions"><button type="button" data-shuffle-inline>⤨ Slumpa kuponger</button><button type="button" data-save-inline>▣ Spara kuponger</button></div></article>' : '';
    $('#coupon-list').innerHTML = `${couponCards}${missingSlots}${inlineShuffle}`;
   const allSelections = state.coupons.flatMap((coupon) => coupon.selections.map((picks, index) => `${index}:${picks.join(',')}`));
   const unique = new Set(allSelections).size;
@@ -901,7 +919,7 @@ function markUpdatedFields(previous, fresh) {
   }
 }
 
-function shuffleCoupons() { const old = state.coupons.map((coupon) => coupon.selections.map((picks) => [...picks])); state.selectedPlanIndexes = state.combinationOptions.map((options, couponIndex) => { const pending = state.pendingCombinationIndexes[couponIndex]; return Number.isInteger(pending) && options[pending] ? pending : null; }); state.pendingCombinationIndexes = []; state.seed += 1; state.shuffleSeed += 1; generateCoupons(old); renderCoupons(); }
+function shuffleCoupons() { const old = state.coupons.map((coupon) => coupon.selections.map((picks) => [...picks])); state.selectedPlanIndexes = []; state.pendingCombinationIndexes = []; state.seed += 1; state.shuffleSeed += 1; generateCoupons(old); renderCoupons(); }
 
 async function savePackage() { if (!state.round?.id) return showToast('Skapa eller öppna en omgång först'); const automaticName = `${state.round.gameType} ${trackLabel(state.round.track, state.round.track2)} · ${dateLabel(state.round.date)}`; const enteredName = window.prompt('Rubrik för kupongpaketet (valfritt):', ''); const packageName = enteredName?.trim() || automaticName; const packageId = (window.crypto?.randomUUID?.() || `package-${Date.now()}-${state.seed}`); const packageCreatedAt = new Date().toISOString(); try { for (const coupon of state.coupons) { const response = await apiFetch(`/games/${encodeURIComponent(state.round.id)}/coupons`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `Tillsammans · ${coupon.name}`, source: 'tillsammans', packageId, packageName, packageCreatedAt, rows: coupon.rows, cost: coupon.cost, spikeCount: coupon.spikeCount, variation: coupon.variation, stakeLevel: 'original', selections: coupon.selections.map((horses, index) => ({ divisionIndex: state.round.races[index]?.division || index + 1, horses })) }) }); if (!response.ok) throw new Error(await response.text() || 'Kunde inte spara paket'); } await loadGames(); state.savedCoupons = state.games.find((game) => String(game._id) === String(state.round.id))?.coupons || []; renderSavedCoupons(); showToast('Kupongerna sparades som ett paket under Kuponger'); } catch (error) { showToast(error.message); } }
 
@@ -912,7 +930,10 @@ function bindEvents() {
   $$('#round-date,#round-type,#round-track,#round-track2').forEach((field) => field.addEventListener('input', renderPreview));
   $('#create-form').addEventListener('submit', (event) => submitCreate(event, false)); $('#manual-round').addEventListener('click', () => submitCreate(null, true));
   $$('[data-close-modal]').forEach((button) => button.addEventListener('click', () => { $(`#${button.dataset.closeModal}`).hidden = true; }));
-  document.addEventListener('click', (event) => { const view = event.target.closest('[data-view]'); if (view) { if (view.dataset.view === 'round' && !state.round) { showToast('Öppna eller skapa en omgång först'); return; } showView(view.dataset.view); if (view.dataset.view === 'coupons') loadSavedCoupons(); if (view.dataset.view === 'results') loadResults(); } const inlineShuffle = event.target.closest('[data-shuffle-inline]'); if (inlineShuffle) { event.stopPropagation(); shuffleCoupons(); return; } const sliderArrow = event.target.closest('[data-combination-prev],[data-combination-next]'); if (sliderArrow) { event.stopPropagation(); const couponIndex = Number(sliderArrow.dataset.combinationPrev ?? sliderArrow.dataset.combinationNext); const options = state.combinationOptions[couponIndex] || []; if (options.length) { const direction = sliderArrow.hasAttribute('data-combination-next') ? 1 : -1; const current = state.combinationCursors[couponIndex] ?? 0; state.combinationCursors[couponIndex] = (current + direction + options.length) % options.length; renderCoupons(); } return; } const combinationSelect = event.target.closest('[data-combination-select]'); if (combinationSelect) { event.stopPropagation(); const couponIndex = Number(combinationSelect.dataset.combinationSelect); const cursor = state.combinationCursors[couponIndex] ?? 0; state.pendingCombinationIndexes[couponIndex] = state.pendingCombinationIndexes[couponIndex] === cursor ? null : cursor; renderCoupons(); showToast(state.pendingCombinationIndexes[couponIndex] === null ? `Förslag för kupong ${couponIndex + 1} rensat` : `Förslag för kupong ${couponIndex + 1} valt till nästa slumpning`); return; } const combinationLock = event.target.closest('[data-lock-combination]'); if (combinationLock) { event.stopPropagation(); const couponIndex = Number(combinationLock.dataset.lockCombination); if (state.combinationLocks.has(couponIndex)) { state.combinationLocks.delete(couponIndex); state.lockedCombinationPatterns.delete(couponIndex); } else { const optionIndex = state.pendingCombinationIndexes[couponIndex] ?? state.combinationCursors[couponIndex] ?? 0; const option = state.combinationOptions[couponIndex]?.[optionIndex]; state.combinationLocks.add(couponIndex); if (option) state.lockedCombinationPatterns.set(couponIndex, countPlanSignature(option.counts)); } renderCoupons(); showToast(state.combinationLocks.has(couponIndex) ? `Kombinationen för kupong ${couponIndex + 1} är låst` : `Kombinationen för kupong ${couponIndex + 1} är upplåst`); return; } const resultButton = event.target.closest('[data-fetch-results]'); if (resultButton) { event.stopPropagation(); fetchGameResults(resultButton.dataset.fetchResults); return; } const deleteButton = event.target.closest('[data-delete-saved-coupon]'); if (deleteButton) { event.stopPropagation(); deleteSavedCoupon(deleteButton.dataset.deleteGame, deleteButton.dataset.deleteSavedCoupon); return; } const deleteGameButton = event.target.closest('[data-delete-game]'); if (deleteGameButton) { event.stopPropagation(); deleteGame(deleteGameButton.dataset.deleteGame); return; } const card = event.target.closest('[data-game-id]'); if (card) { const game = state.games.find((item) => String(item._id) === card.dataset.gameId); if (game) { state.round = normalizeGame(game); state.savedCoupons = Array.isArray(game.coupons) ? game.coupons : []; resetCombinationState(); state.seed += 1; state.shuffleSeed = 0; generateCoupons(); renderRound(); showView('round'); } } const race = event.target.closest('.race-summary'); if (race) race.parentElement.classList.toggle('open'); const edit = event.target.closest('[data-edit-coupon]'); if (edit && !event.target.closest('[data-lock-coupon]')) openCouponEditor(Number(edit.dataset.editCoupon), Number(edit.dataset.editDivision)); const lock = event.target.closest('[data-lock-coupon]'); if (lock) { event.stopPropagation(); const key = `${lock.dataset.lockCoupon}:${lock.dataset.lockDivision}`; state.locks.has(key) ? state.locks.delete(key) : state.locks.add(key); renderCoupons(); } });
+  document.addEventListener('click', (event) => { const view = event.target.closest('[data-view]'); if (view) { if (view.dataset.view === 'round' && !state.round) { showToast('Öppna eller skapa en omgång först'); return; } showView(view.dataset.view); if (view.dataset.view === 'coupons') loadSavedCoupons(); if (view.dataset.view === 'results') loadResults(); } const inlineShuffle = event.target.closest('[data-shuffle-inline]'); if (inlineShuffle) { event.stopPropagation(); shuffleCoupons(); return; } const inlineSave = event.target.closest('[data-save-inline]'); if (inlineSave) { event.stopPropagation(); savePackage(); return; } const sliderArrow = event.target.closest('[data-combination-prev],[data-combination-next]'); if (sliderArrow) { event.stopPropagation(); if (sliderArrow.disabled) return; const couponIndex = Number(sliderArrow.dataset.combinationPrev ?? sliderArrow.dataset.combinationNext); moveCombinationCursor(couponIndex, sliderArrow.hasAttribute('data-combination-next') ? 1 : -1); return; } const combinationSelect = event.target.closest('[data-combination-select]'); if (combinationSelect) { event.stopPropagation(); const couponIndex = Number(combinationSelect.dataset.combinationSelect); const optionIndex = state.combinationCursors[couponIndex] ?? 0; if (state.combinationLocks.has(couponIndex)) { state.combinationLocks.delete(couponIndex); state.lockedCombinationPatterns.delete(couponIndex); showToast(`Kombinationen för kupong ${couponIndex + 1} är upplåst`); } else { const option = state.combinationOptions[couponIndex]?.[optionIndex]; if (option) { state.combinationLocks.add(couponIndex); state.lockedCombinationPatterns.set(couponIndex, countPlanSignature(option.counts)); showToast(`Kombinationen för kupong ${couponIndex + 1} är låst`); } } state.pendingCombinationIndexes[couponIndex] = null; renderCoupons(); return; } const resultButton = event.target.closest('[data-fetch-results]'); if (resultButton) { event.stopPropagation(); fetchGameResults(resultButton.dataset.fetchResults); return; } const deleteButton = event.target.closest('[data-delete-saved-coupon]'); if (deleteButton) { event.stopPropagation(); deleteSavedCoupon(deleteButton.dataset.deleteGame, deleteButton.dataset.deleteSavedCoupon); return; } const deleteGameButton = event.target.closest('[data-delete-game]'); if (deleteGameButton) { event.stopPropagation(); deleteGame(deleteGameButton.dataset.deleteGame); return; } const card = event.target.closest('[data-game-id]'); if (card) { const game = state.games.find((item) => String(item._id) === card.dataset.gameId); if (game) { state.round = normalizeGame(game); state.savedCoupons = Array.isArray(game.coupons) ? game.coupons : []; resetCombinationState(); state.seed += 1; state.shuffleSeed = 0; generateCoupons(); renderRound(); showView('round'); } } const race = event.target.closest('.race-summary'); if (race) race.parentElement.classList.toggle('open'); const edit = event.target.closest('[data-edit-coupon]'); if (edit && !event.target.closest('[data-lock-coupon]')) openCouponEditor(Number(edit.dataset.editCoupon), Number(edit.dataset.editDivision)); const lock = event.target.closest('[data-lock-coupon]'); if (lock) { event.stopPropagation(); const key = `${lock.dataset.lockCoupon}:${lock.dataset.lockDivision}`; state.locks.has(key) ? state.locks.delete(key) : state.locks.add(key); renderCoupons(); } });
+  let combinationSwipe = null;
+  document.addEventListener('touchstart', (event) => { const slider = event.target.closest('[data-combination-slider]'); if (slider && event.touches.length === 1) combinationSwipe = { slider, x: event.touches[0].clientX }; }, { passive: true });
+  document.addEventListener('touchend', (event) => { if (!combinationSwipe || !event.changedTouches.length) return; const { slider, x } = combinationSwipe; combinationSwipe = null; if (!slider.isConnected) return; const delta = event.changedTouches[0].clientX - x; if (Math.abs(delta) < 32) return; const arrow = slider.querySelector(delta < 0 ? '[data-combination-next]' : '[data-combination-prev]'); if (arrow && !arrow.disabled) arrow.click(); }, { passive: true });
   $('#edit-round').addEventListener('click', openRoundEditor); $('#refresh-round').addEventListener('click', refreshFromAtg);   $('#round-editor-form')?.addEventListener('submit', saveRoundEditor);
   $('#together-2-toggle').addEventListener('change', (event) => { state.together2 = event.target.checked; if (state.together2) { state.manualSpikeCount = state.spikeCount; state.spikeCount = 2; } else { state.spikeCount = state.manualSpikeCount; } resetCombinationState(); state.seed += 1; generateCoupons(); renderCoupons(); }); $('#coupon-count').addEventListener('click', (event) => { const button = event.target.closest('[data-count]'); if (!button) return; resetCombinationState(); state.couponCount = Number(button.dataset.count); generateCoupons(); renderCoupons(); }); $('#spike-count').addEventListener('click', (event) => { const button = event.target.closest('[data-spikes]'); if (!button || state.together2) return; clearPendingCombinationChoices(); state.spikeCount = Number(button.dataset.spikes); state.manualSpikeCount = state.spikeCount; $$('#spike-count button').forEach((item) => item.classList.toggle('selected', item === button)); scheduleCouponRegeneration(); }); $('#share-price').addEventListener('input', scheduleCouponRegeneration); $('#share-count').addEventListener('change', scheduleCouponRegeneration);
   $$('[data-step]').forEach((button) => button.addEventListener('click', () => { const input = $('#share-price'); input.value = Math.max(1, Number(input.value) + Number(button.dataset.dir)); scheduleCouponRegeneration(); })); $('#shuffle-coupons').addEventListener('click', shuffleCoupons); $('#save-package').addEventListener('click', savePackage);

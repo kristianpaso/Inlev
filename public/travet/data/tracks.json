@@ -1,0 +1,1301 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-09-10",
+  "country": "SE",
+  "track_count": 33,
+  "notes": [
+    "Råa banfakta hålls separerade från analys_profile.",
+    "analysis_profile är härledd metadata och ska inte tolkas som vinstsannolikhet.",
+    "Svensk Travsport anger att radie/doseringsmätningarna är ögonblicksbilder från 2021–2022 och kan ändras över tid.",
+    "Vaggeryd och Oviken har avvikande angivna mät-/startdistanser i källdatan; därför lagras bredd som start_widths[] i stället för fasta width_2140/width_1640-fält."
+  ],
+  "tracks": [
+    {
+      "id": "arvika",
+      "name": "Arvika",
+      "atg_slug": "arvika",
+      "abbr": "Ar",
+      "length_m": 800,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 19.2
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 19.2
+        }
+      ],
+      "homestretch_m": 114,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 80,
+        "radius_turn1_m": 79,
+        "radius_turn2_m": 78,
+        "banking_turn1_pct": 10,
+        "banking_turn2_pct": 10
+      },
+      "analysis_profile": {
+        "track_size": "small_800m",
+        "homestretch_class": "very_short"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/mellersta-sverige/arvika",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "axevalla",
+      "name": "Axevalla",
+      "atg_slug": "axevalla",
+      "abbr": "Ax",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 21.6
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 22.5
+        }
+      ],
+      "homestretch_m": 227,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 80,
+        "radius_turn1_m": 78,
+        "radius_turn2_m": 77,
+        "banking_turn1_pct": 18,
+        "banking_turn2_pct": 15
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "very_long"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/mellersta-sverige/axevalla",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "bergsaker",
+      "name": "Bergsåker",
+      "atg_slug": "bergsaker",
+      "abbr": "B",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 21.5
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 21.0
+        }
+      ],
+      "homestretch_m": 200,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 87,
+        "radius_turn1_m": 84,
+        "radius_turn2_m": 85,
+        "banking_turn1_pct": 15,
+        "banking_turn2_pct": 15
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "normal"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/norra-sverige/bergsaker",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "boden",
+      "name": "Boden",
+      "atg_slug": "boden",
+      "abbr": "Bo",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 23.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 22.0
+        }
+      ],
+      "homestretch_m": 200,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 84,
+        "radius_turn1_m": 84,
+        "radius_turn2_m": 82,
+        "banking_turn1_pct": 14,
+        "banking_turn2_pct": 13
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "normal"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/norra-sverige/boden",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "bollnas",
+      "name": "Bollnäs",
+      "atg_slug": "bollnas",
+      "abbr": "Bs",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 22.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 22.0
+        }
+      ],
+      "homestretch_m": 207,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 81,
+        "radius_turn1_m": 77,
+        "radius_turn2_m": 77,
+        "banking_turn1_pct": 14,
+        "banking_turn2_pct": 13
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "long"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/mellersta-sverige/bollnas",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "dannero",
+      "name": "Dannero",
+      "atg_slug": "dannero",
+      "abbr": "D",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 20.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 21.0
+        }
+      ],
+      "homestretch_m": 200,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 75,
+        "radius_turn1_m": 74,
+        "radius_turn2_m": 72,
+        "banking_turn1_pct": 15,
+        "banking_turn2_pct": 15
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "normal"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/norra-sverige/dannero",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "eskilstuna",
+      "name": "Eskilstuna",
+      "atg_slug": "eskilstuna",
+      "abbr": "E",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 21.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 21.6
+        }
+      ],
+      "homestretch_m": 182,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 91,
+        "radius_turn1_m": 89,
+        "radius_turn2_m": 90,
+        "banking_turn1_pct": 16,
+        "banking_turn2_pct": 15
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "normal"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/mellersta-sverige/eskilstuna",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "farjestad",
+      "name": "Färjestad",
+      "atg_slug": "farjestad",
+      "abbr": "F",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 20.4
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 21.1
+        }
+      ],
+      "homestretch_m": 177,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 91,
+        "radius_turn1_m": 89,
+        "radius_turn2_m": 90,
+        "banking_turn1_pct": 16,
+        "banking_turn2_pct": 14
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "short"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/mellersta-sverige/farjestad",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "gavle",
+      "name": "Gävle",
+      "atg_slug": "gavle",
+      "abbr": "G",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 22.6
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 20.3
+        }
+      ],
+      "homestretch_m": 178,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 91,
+        "radius_turn1_m": 89,
+        "radius_turn2_m": 89,
+        "banking_turn1_pct": 16,
+        "banking_turn2_pct": 16
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "short"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/mellersta-sverige/gavle",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "hagmyren",
+      "name": "Hagmyren",
+      "atg_slug": "hagmyren",
+      "abbr": "H",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 21.5
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 22.0
+        }
+      ],
+      "homestretch_m": 170,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 89,
+        "radius_turn1_m": 88,
+        "radius_turn2_m": 87,
+        "banking_turn1_pct": 15,
+        "banking_turn2_pct": 14
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "short"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/norra-sverige/hagmyren",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "halmstad",
+      "name": "Halmstad",
+      "atg_slug": "halmstad",
+      "abbr": "Hd",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 23.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 23.0
+        }
+      ],
+      "homestretch_m": 203,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 84,
+        "radius_turn1_m": 82,
+        "radius_turn2_m": 82,
+        "banking_turn1_pct": 18,
+        "banking_turn2_pct": 16
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "normal"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/sodra-sverige/halmstad",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "hoting",
+      "name": "Hoting",
+      "atg_slug": "hoting",
+      "abbr": "Hg",
+      "length_m": 800,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 18.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 17.0
+        }
+      ],
+      "homestretch_m": 160,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 83,
+        "radius_turn1_m": 85,
+        "radius_turn2_m": 82,
+        "banking_turn1_pct": 13,
+        "banking_turn2_pct": 13
+      },
+      "analysis_profile": {
+        "track_size": "small_800m",
+        "homestretch_class": "very_short"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/norra-sverige/hoting",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "jagersro",
+      "name": "Jägersro",
+      "atg_slug": "jagersro",
+      "abbr": "J",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 23.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 23.0
+        }
+      ],
+      "homestretch_m": 190,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": true,
+      "turns": {
+        "radius_large_m": 84,
+        "radius_turn1_m": 82,
+        "radius_turn2_m": 82,
+        "banking_turn1_pct": 17,
+        "banking_turn2_pct": 17
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "normal"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/sodra-sverige/jagersro",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "kalmar",
+      "name": "Kalmar",
+      "atg_slug": "kalmar",
+      "abbr": "Kr",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 25.5
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 26.0
+        }
+      ],
+      "homestretch_m": 207,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 80,
+        "radius_turn1_m": 79,
+        "radius_turn2_m": 79,
+        "banking_turn1_pct": 17,
+        "banking_turn2_pct": 15
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "long"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/sodra-sverige/kalmar",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "karlshamn",
+      "name": "Karlshamn",
+      "atg_slug": "karlshamn",
+      "abbr": "Kh",
+      "length_m": 800,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 19.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 19.0
+        }
+      ],
+      "homestretch_m": 157,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 77,
+        "radius_turn1_m": 75,
+        "radius_turn2_m": 74,
+        "banking_turn1_pct": 11,
+        "banking_turn2_pct": 11
+      },
+      "analysis_profile": {
+        "track_size": "small_800m",
+        "homestretch_class": "very_short"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/sodra-sverige/karlshamn",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "lindesberg",
+      "name": "Lindesberg",
+      "atg_slug": "lindesberg",
+      "abbr": "L",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 20.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 19.7
+        }
+      ],
+      "homestretch_m": 192,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 81,
+        "radius_turn1_m": 78,
+        "radius_turn2_m": 90,
+        "banking_turn1_pct": 14,
+        "banking_turn2_pct": 14
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "normal"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/mellersta-sverige/lindesberg",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "lycksele",
+      "name": "Lycksele",
+      "atg_slug": "lycksele",
+      "abbr": "Ly",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 20.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 19.0
+        }
+      ],
+      "homestretch_m": 200,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 85,
+        "radius_turn1_m": 84,
+        "radius_turn2_m": 86,
+        "banking_turn1_pct": 14,
+        "banking_turn2_pct": 13
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "normal"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/norra-sverige/lycksele",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "mantorp",
+      "name": "Mantorp",
+      "atg_slug": "mantorp",
+      "abbr": "Mp",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 23.4
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 23.6
+        }
+      ],
+      "homestretch_m": 177,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 90,
+        "radius_turn1_m": 89,
+        "radius_turn2_m": 88,
+        "banking_turn1_pct": 13,
+        "banking_turn2_pct": 12
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "short"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/mellersta-sverige/mantorp",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "oviken",
+      "name": "Oviken",
+      "atg_slug": "oviken",
+      "abbr": "Ov",
+      "length_m": 800,
+      "start_widths": [
+        {
+          "distance_m": 2100,
+          "width_m": 19.0
+        },
+        {
+          "distance_m": 1700,
+          "width_m": 17.0
+        }
+      ],
+      "homestretch_m": 140,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 80,
+        "radius_turn1_m": 81,
+        "radius_turn2_m": 81,
+        "banking_turn1_pct": 7,
+        "banking_turn2_pct": 8
+      },
+      "analysis_profile": {
+        "track_size": "small_800m",
+        "homestretch_class": "very_short"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/norra-sverige/oviken",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "romme",
+      "name": "Romme",
+      "atg_slug": "romme",
+      "abbr": "Ro",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 21.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 21.0
+        }
+      ],
+      "homestretch_m": 205,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 80,
+        "radius_turn1_m": 78,
+        "radius_turn2_m": 77,
+        "banking_turn1_pct": 16,
+        "banking_turn2_pct": 16
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "normal"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/mellersta-sverige/romme",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "rattvik",
+      "name": "Rättvik",
+      "atg_slug": "rattvik",
+      "abbr": "Rä",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 20.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 20.0
+        }
+      ],
+      "homestretch_m": 187,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 90,
+        "radius_turn1_m": 90,
+        "radius_turn2_m": 87,
+        "banking_turn1_pct": 15,
+        "banking_turn2_pct": 14
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "normal"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/mellersta-sverige/rattvik",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "skelleftea",
+      "name": "Skellefteå",
+      "atg_slug": "skelleftea",
+      "abbr": "Sk",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 21.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 21.0
+        }
+      ],
+      "homestretch_m": 175,
+      "open_stretch": {
+        "enabled": true,
+        "lanes": 1
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 85,
+        "radius_turn1_m": 84,
+        "radius_turn2_m": 86,
+        "banking_turn1_pct": 12,
+        "banking_turn2_pct": 10
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "short"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/norra-sverige/skelleftea",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "solvalla",
+      "name": "Solvalla",
+      "atg_slug": "solvalla",
+      "abbr": "S",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 20.7
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 21.7
+        }
+      ],
+      "homestretch_m": 200,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 89,
+        "radius_turn1_m": 87,
+        "radius_turn2_m": 86,
+        "banking_turn1_pct": 18,
+        "banking_turn2_pct": 18
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "normal"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/mellersta-sverige/solvalla",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "solanget",
+      "name": "Solänget",
+      "atg_slug": "solanget",
+      "abbr": "Sä",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 20.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 20.0
+        }
+      ],
+      "homestretch_m": 193,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 83,
+        "radius_turn1_m": 78,
+        "radius_turn2_m": 82,
+        "banking_turn1_pct": 11,
+        "banking_turn2_pct": 11
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "normal"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/norra-sverige/solanget",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "tingsryd",
+      "name": "Tingsryd",
+      "atg_slug": "tingsryd",
+      "abbr": "Ti",
+      "length_m": 1609,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 25.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 25.0
+        }
+      ],
+      "homestretch_m": 285,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": true,
+      "turns": {
+        "radius_large_m": 129,
+        "radius_turn1_m": 125,
+        "radius_turn2_m": 129,
+        "banking_turn1_pct": 11,
+        "banking_turn2_pct": 11
+      },
+      "analysis_profile": {
+        "track_size": "mile_1609m",
+        "homestretch_class": "very_long"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/sodra-sverige/tingsryd",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "umaker",
+      "name": "Umåker",
+      "atg_slug": "umaker",
+      "abbr": "U",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 22.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 22.0
+        }
+      ],
+      "homestretch_m": 190,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 82,
+        "radius_turn1_m": 80,
+        "radius_turn2_m": 81,
+        "banking_turn1_pct": 17,
+        "banking_turn2_pct": 17
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "normal"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/norra-sverige/umaker",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "vaggeryd",
+      "name": "Vaggeryd",
+      "atg_slug": "vaggeryd",
+      "abbr": "Vg",
+      "length_m": 1004,
+      "start_widths": [
+        {
+          "distance_m": 2148,
+          "width_m": 19.5
+        },
+        {
+          "distance_m": 1646,
+          "width_m": 19.5
+        }
+      ],
+      "homestretch_m": 200,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 84,
+        "radius_turn1_m": 81,
+        "radius_turn2_m": 81,
+        "banking_turn1_pct": 13,
+        "banking_turn2_pct": 14
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "normal"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/sodra-sverige/vaggeryd",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "visby",
+      "name": "Visby",
+      "atg_slug": "visby",
+      "abbr": "Vi",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 19.1
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 20.3
+        }
+      ],
+      "homestretch_m": 156,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 100,
+        "radius_turn1_m": 98,
+        "radius_turn2_m": 98,
+        "banking_turn1_pct": 13,
+        "banking_turn2_pct": 13
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "very_short"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/sodra-sverige/visby",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "aby",
+      "name": "Åby",
+      "atg_slug": "aby",
+      "abbr": "Å",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 22.3
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 22.3
+        }
+      ],
+      "homestretch_m": 180,
+      "open_stretch": {
+        "enabled": true,
+        "lanes": 2
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 89,
+        "radius_turn1_m": 87,
+        "radius_turn2_m": 87,
+        "banking_turn1_pct": 14,
+        "banking_turn2_pct": 15
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "short"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/sodra-sverige/aby",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "amal",
+      "name": "Åmål",
+      "atg_slug": "amal",
+      "abbr": "Åm",
+      "length_m": 800,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 20.5
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 22.0
+        }
+      ],
+      "homestretch_m": 105,
+      "open_stretch": {
+        "enabled": true,
+        "lanes": 1
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 76,
+        "radius_turn1_m": 74,
+        "radius_turn2_m": 47,
+        "banking_turn1_pct": 15,
+        "banking_turn2_pct": 15
+      },
+      "analysis_profile": {
+        "track_size": "small_800m",
+        "homestretch_class": "very_short"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/mellersta-sverige/amal",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "arjang",
+      "name": "Årjäng",
+      "atg_slug": "arjang",
+      "abbr": "År",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 19.0
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 20.0
+        }
+      ],
+      "homestretch_m": 205,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 80,
+        "radius_turn1_m": 72,
+        "radius_turn2_m": 72,
+        "banking_turn1_pct": 16,
+        "banking_turn2_pct": 16
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "normal"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/mellersta-sverige/arjang",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "orebro",
+      "name": "Örebro",
+      "atg_slug": "orebro",
+      "abbr": "Ö",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 21.4
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 20.8
+        }
+      ],
+      "homestretch_m": 178,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 80,
+        "radius_turn1_m": 78,
+        "radius_turn2_m": 78,
+        "banking_turn1_pct": 16,
+        "banking_turn2_pct": 15
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "short"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/mellersta-sverige/orebro",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    },
+    {
+      "id": "ostersund",
+      "name": "Östersund",
+      "atg_slug": "ostersund",
+      "abbr": "Ös",
+      "length_m": 1000,
+      "start_widths": [
+        {
+          "distance_m": 2140,
+          "width_m": 21.2
+        },
+        {
+          "distance_m": 1640,
+          "width_m": 20.2
+        }
+      ],
+      "homestretch_m": 218,
+      "open_stretch": {
+        "enabled": false,
+        "lanes": 0
+      },
+      "angled_starting_gate": false,
+      "turns": {
+        "radius_large_m": 90,
+        "radius_turn1_m": 90,
+        "radius_turn2_m": 90,
+        "banking_turn1_pct": 13,
+        "banking_turn2_pct": 12
+      },
+      "analysis_profile": {
+        "track_size": "standard_1000m",
+        "homestretch_class": "long"
+      },
+      "source": {
+        "provider": "Svensk Travsport",
+        "track_page": "https://www.travsport.se/vara-travbanor/norra-sverige/ostersund",
+        "radius_banking_page": "https://www.travsport.se/svensk-travsport/travsporten-i-sverige/travbanorna"
+      }
+    }
+  ]
+}

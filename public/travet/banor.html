@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#061f3d">
+  <title>Travet – Banor</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <link rel="stylesheet" href="./travet.css">
+  <link rel="stylesheet" href="./travet-overrides.css">
+  <link rel="stylesheet" href="./banor.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Huvudmeny">
+      <a class="brand" href="./index.html"><span class="brand-mark">〽</span><span>TRAV</span></a>
+      <nav class="side-nav">
+        <a class="nav-item" href="./index.html"><span>⌂</span> Start</a>
+        <a class="nav-item" href="./index.html#coupons"><span>▣</span> Kuponger</a>
+        <a class="nav-item" href="./index.html#round"><span>▦</span> V64</a>
+        <a class="nav-item" href="./index.html#round"><span>▤</span> V75</a>
+        <a class="nav-item" href="./index.html#round"><span>◷</span> GS75</a>
+        <a class="nav-item" href="./index.html#results"><span>▥</span> Resultat</a>
+        <a class="nav-item" href="./index.html#stats"><span>⌁</span> Statistik</a>
+        <a class="nav-item" href="./index.html#news"><span>▤</span> Nyheter</a>
+        <a class="nav-item active" href="./banor.html"><span>⌁</span> Banor</a>
+        <a class="nav-item" href="./index.html#tools"><span>⚒</span> Verktyg</a>
+      </nav>
+      <div class="sidebar-horse" aria-hidden="true">♞</div>
+      <div class="sidebar-note">Större<br>upplevelser<br>tillsammans</div>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <nav class="top-nav" aria-label="Sektioner"><a class="top-item active" href="./index.html">Spel</a><a class="top-item" href="./index.html#live">Live</a><a class="top-item" href="./index.html#round">Mina spel</a><a class="top-item" href="./index.html#stats">Statistik</a><a class="top-item" href="./index.html#tools">Verktyg <span>⌄</span></a></nav>
+        <div class="top-actions"><label class="search"><span>⌕</span><input id="global-search" placeholder="Sök häst, kusk eller bana ..."></label><button class="icon-button" title="Notiser">♧</button><div class="avatar">JT</div><span class="chevron">⌄</span></div>
+      </header>
+
+      <main class="tracks-page">
+        <section class="tracks-hero">
+          <div><span class="eyebrow">TRAVET · BANPROFIL</span><h1>Svenska travbanor.</h1><p>Se objektiva banfakta som kan ge analysen rätt kontext. Banprofilen är ett komplement – aldrig ensam grund för spik eller gardering.</p></div>
+          <div class="tracks-hero-mark" aria-hidden="true">⌁</div>
+        </section>
+
+        <section class="tracks-toolbar" aria-label="Sök och filtrera banor">
+          <label class="track-search"><span>⌕</span><input id="track-search" type="search" placeholder="Sök bana, förkortning eller ATG-slug"></label>
+          <label class="track-filter"><span>Visa</span><select id="track-filter"><option value="all">Alla banor</option><option value="small_800m">800 m-banor</option><option value="standard_1000m">1000 m-banor</option><option value="mile_1609m">Tingsryd · 1609 m</option><option value="open">Med open stretch</option><option value="angled">Med vinklad vinge</option></select></label>
+        </section>
+
+        <section class="track-stats" aria-label="Översikt"><div><strong id="track-total">–</strong><span>banor i registret</span></div><div><strong id="track-small">–</strong><span>800 m-banor</span></div><div><strong id="track-open">–</strong><span>med open stretch</span></div><div><strong id="track-mile">–</strong><span>milebana</span></div></section>
+
+        <section><div class="section-heading tracks-heading"><div><span class="eyebrow">BANREGISTER</span><h2 id="track-result-title">Alla svenska travbanor</h2></div><span id="track-result-count" class="status-pill">Hämtar banor…</span></div><div id="track-list" class="track-list"><div class="empty-state"><div class="empty-icon">⌁</div><h3>Hämtar banprofiler</h3></div></div></section>
+      </main>
+    </section>
+  </div>
+
+  <div id="track-modal" class="track-modal" hidden><div class="track-modal-backdrop" data-close-track-modal></div><section class="track-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="track-modal-title"><button class="modal-close" data-close-track-modal aria-label="Stäng">×</button><div id="track-modal-content"></div></section></div>
+  <script type="module" src="./banor.js"></script>
+</body>
+</html>
