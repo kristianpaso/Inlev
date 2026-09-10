@@ -11,12 +11,19 @@ function winningTrendPercent(horse) {
   return Number.isFinite(winPercent) && Number.isFinite(trendPercent) ? winPercent - trendPercent : null;
 }
 
+function rowPriceForGameType(gameType) {
+  const type = String(gameType || '').trim().toUpperCase();
+  if (type === 'V85') return 0.5;
+  if (type === 'V86') return 0.25;
+  return 1;
+}
+
 function normalizeRound(races, config) {
   return races.map((race) => ({
     index: race.division,
     division: race.division,
     sourceUrl: race.sourceUrl,
-    horses: race.horses.map((horse) => ({ ...horse, rawLine: [horse.number, horse.name, horse.sexAge, horse.driver, horse.winPercent == null ? '' : `${horse.winPercent}%`, horse.trendPercent ?? '', horse.winOdds ?? '', horse.trainer, horse.sulky].join('\t') })),
+      horses: race.horses.map((horse) => ({ ...horse, rawLine: [horse.number, horse.name, horse.sexAge, horse.driver, horse.winPercent == null ? '' : `${horse.winPercent}%`, horse.trendPercent ?? '', horse.scratched ? 'EJ' : (horse.winOdds ?? ''), horse.trainer, horse.sulky].join('\t') })),
   }));
 }
 
@@ -89,7 +96,7 @@ router.post('/import', async (req, res) => {
         track2: game.track2 || '',
         trackSlug: game.trackSlug,
         divisionCount,
-        rowPrice: 1,
+        rowPrice: rowPriceForGameType(game.gameType),
         source: 'atg',
         races: divisions,
       },
@@ -130,7 +137,7 @@ router.put('/:id', async (req, res) => {
     game.parsedHorseInfo = { header: game.title, divisions: races, expectedDivisions: Number(incoming.divisionCount) || races.length };
     game.horseText = `${game.title}\n${races.flatMap((race) => race.horses.map((horse) => horse.rawLine || `${horse.number} ${horse.name}`)).join('\n')}`;
     await game.save();
-    return res.json({ id: String(game._id), name: game.title, date: game.date, gameType: game.gameType, track: game.track, track2: game.track2 || '', trackSlug: game.trackSlug, divisionCount: Number(incoming.divisionCount) || races.length, rowPrice: 1, source: 'manual', races });
+    return res.json({ id: String(game._id), name: game.title, date: game.date, gameType: game.gameType, track: game.track, track2: game.track2 || '', trackSlug: game.trackSlug, divisionCount: Number(incoming.divisionCount) || races.length, rowPrice: rowPriceForGameType(game.gameType), source: 'manual', races });
   } catch (error) {
     console.error('PUT /rounds/:id error', error);
     return res.status(500).json({ error: 'Kunde inte spara omgången.' });

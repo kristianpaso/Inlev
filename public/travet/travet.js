@@ -1,11 +1,13 @@
 const GAME_DIVISIONS = { V64: 6, V65: 6, V85: 8, V86: 8, GS75: 7 };
 const LOCAL_API_ROOT = 'http://127.0.0.1:4000/api/trav';
 const RENDER_API_ROOT = 'https://trav-api.onrender.com/api/trav';
-const query = new URLSearchParams(window.location.search);
-const forcedApi = query.get('api');
-const API_ROOTS = forcedApi === 'local' ? [LOCAL_API_ROOT] : forcedApi === 'render' ? [RENDER_API_ROOT] : [LOCAL_API_ROOT, RENDER_API_ROOT];
+const isLocalApp = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname) || window.location.protocol === 'file:';
+// Lokal sida = lokal API/MongoDB. Render används bara när Travet körs hostat,
+// till exempel från Netlify. Det ska aldrig finnas en tyst cross-over från
+// localhost till Render.
+const API_ROOTS = isLocalApp ? [LOCAL_API_ROOT] : [RENDER_API_ROOT];
 let activeApiRoot = API_ROOTS[0];
-const state = { games: [], round: null, coupons: [], savedCoupons: [], locks: new Set(), combinationLocks: new Set(), lockedCombinationPatterns: new Map(), selectedPlanIndexes: [], pendingCombinationIndexes: [], combinationCursors: [], combinationOptions: [], couponCount: 3, spikeCount: 2, editingRound: false, seed: 1, shuffleSeed: 0, countPlanCache: new Map(), regenerateTimer: null, refreshImportTimer: null };
+const state = { games: [], round: null, coupons: [], savedCoupons: [], locks: new Set(), combinationLocks: new Set(), lockedCombinationPatterns: new Map(), selectedPlanIndexes: [], pendingCombinationIndexes: [], combinationCursors: [], combinationOptions: [], couponCount: 3, spikeCount: 2, manualSpikeCount: 2, together2: false, editingRound: false, seed: 1, shuffleSeed: 0, countPlanCache: new Map(), combinationPlanCache: new Map(), regenerateTimer: null, refreshImportTimer: null };
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
@@ -15,21 +17,12 @@ async function apiFetch(endpoint, options = {}) {
   let lastError = null;
   for (const root of [...new Set([activeApiRoot, ...API_ROOTS])]) {
     const controller = new AbortController();
-    const rootTimeout = root === LOCAL_API_ROOT && forcedApi !== 'local' ? Math.min(timeoutMs, 2500) : timeoutMs;
+    const rootTimeout = timeoutMs;
     const timer = setTimeout(() => controller.abort(), rootTimeout);
     try {
       const response = await fetch(`${root}${path}`, { ...fetchOptions, signal: fetchOptions.signal || controller.signal });
-      if (response.ok || root === RENDER_API_ROOT || forcedApi === 'local') {
-        activeApiRoot = root;
-        return response;
-      }
-      // En lokal API utan MongoDB kan svara 503. Då ska Render fortfarande
-      // kunna ta över som reserv, på samma sätt som vid en saknad route.
-      if (response.status !== 404 && response.status < 500) {
-        activeApiRoot = root;
-        return response;
-      }
-      lastError = new Error(`Trav API svarade med ${response.status}`);
+      activeApiRoot = root;
+      return response;
     } catch (error) { lastError = error; }
     finally { clearTimeout(timer); }
   }
@@ -37,7 +30,8 @@ async function apiFetch(endpoint, options = {}) {
 }
 
 function esc(value) { return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
-function money(value) { return `${Math.round(Number(value) || 0).toLocaleString('sv-SE')} kr`; }
+function rowPriceForGameType(gameType) { const type = String(gameType || '').toUpperCase(); if (type === 'V85') return 0.5; if (type === 'V86') return 0.25; return 1; }
+function money(value) { const parsed = Number(value) || 0; const fraction = Math.abs(parsed - Math.round(parsed)) > 0.001; return `${parsed.toLocaleString('sv-SE', { minimumFractionDigits: fraction ? 2 : 0, maximumFractionDigits: 2 })} kr`; }
 function number(value, fallback = null) { const parsed = Number(String(value ?? '').replace('%', '').replace(',', '.').trim()); return Number.isFinite(parsed) ? parsed : fallback; }
 function fmtPercent(value) { const parsed = number(value); return parsed === null ? '–' : `${parsed % 1 ? parsed.toFixed(1) : parsed}%`; }
 function fmtTrendValue(value) { const parsed = number(value); return parsed === null ? '–' : `${parsed % 1 ? parsed.toFixed(2) : parsed}`; }
@@ -55,12 +49,15 @@ function parseHorse(raw, index = 0) {
     const line = String(raw.rawLine || '');
     const cells = line.split('\t');
     const match = String(raw.name || cells[1] || '').match(/^\s*(\d+)\s+(.+)$/);
-    return { id: raw.id || `${raw.number || index}-${raw.name || 'horse'}`, number: number(raw.number, match ? Number(match[1]) : number(cells[0], index + 1)), name: raw.name || (match ? match[2] : cells[1] || line), sexAge: raw.sexAge || cells[2] || '', driver: raw.driver || cells[3] || '', winPercent: number(raw.winPercent, number(cells[4])), startTrendPercent: number(raw.startTrendPercent, number(cells[5])), trendPercent: number(raw.trendPercent, number(cells[5])), winOdds: number(raw.winOdds, number(cells[6])), trainer: raw.trainer || cells[7] || '', sulky: raw.sulky || cells[8] || '', scratched: Boolean(raw.scratched), manualScore: number(raw.manualScore, 0), note: raw.note || '' };
+    const oddsValue = raw.winOdds ?? cells[6] ?? '';
+    const scratched = Boolean(raw.scratched) || /^EJ$/i.test(String(oddsValue).trim());
+    return { id: raw.id || `${raw.number || index}-${raw.name || 'horse'}`, number: number(raw.number, match ? Number(match[1]) : number(cells[0], index + 1)), name: raw.name || (match ? match[2] : cells[1] || line), sexAge: raw.sexAge || cells[2] || '', driver: raw.driver || cells[3] || '', winPercent: number(raw.winPercent, number(cells[4])), startTrendPercent: number(raw.startTrendPercent, number(cells[5])), trendPercent: number(raw.trendPercent, number(cells[5])), winOdds: scratched ? null : number(raw.winOdds, number(cells[6])), trainer: raw.trainer || cells[7] || '', sulky: raw.sulky || cells[8] || '', scratched, manualScore: number(raw.manualScore, 0), note: raw.note || '' };
   }
   const line = String(raw || '').trim();
   const parts = line.split('\t');
   const match = line.match(/^(\d+)\s+(.+)$/);
-  return { id: `${index}-${line}`, number: match ? Number(match[1]) : number(parts[0], index + 1), name: match ? match[2] : parts[1] || line, sexAge: parts[2] || '', driver: parts[3] || '', winPercent: number(parts[4]), startTrendPercent: number(parts[5]), trendPercent: number(parts[5]), winOdds: number(parts[6]), trainer: parts[7] || '', sulky: parts[8] || '', scratched: false, manualScore: 0, note: '' };
+  const scratched = /^EJ$/i.test(String(parts[6] || '').trim());
+  return { id: `${index}-${line}`, number: match ? Number(match[1]) : number(parts[0], index + 1), name: match ? match[2] : parts[1] || line, sexAge: parts[2] || '', driver: parts[3] || '', winPercent: number(parts[4]), startTrendPercent: number(parts[5]), trendPercent: number(parts[5]), winOdds: scratched ? null : number(parts[6]), trainer: parts[7] || '', sulky: parts[8] || '', scratched, manualScore: 0, note: '' };
 }
 
 function normalizeGame(game) {
@@ -68,7 +65,7 @@ function normalizeGame(game) {
   const source = Array.isArray(parsed.divisions) ? parsed.divisions : [];
   const races = source.map((division, index) => ({ division: Number(division.index || division.division || index + 1), sourceUrl: division.sourceUrl || '', horses: (division.horses || []).map((horse, horseIndex) => { const parsedHorse = parseHorse(horse, horseIndex); if (parsedHorse.startTrendPercent === null || parsedHorse.startTrendPercent === 0) parsedHorse.startTrendPercent = winningTrendPercent(parsedHorse); return parsedHorse; }).filter((horse) => horse.name || horse.number) })).filter((race) => race.horses.length);
   const expected = divisionCount(game?.gameType) || Number(parsed.expectedDivisions) || 0;
-  return { id: String(game?._id || game?.id || ''), name: game?.title || `${game?.gameType || 'Trav'} ${trackLabel(game?.track, game?.track2)}`.trim(), date: game?.date || today(), gameType: String(game?.gameType || 'V64').toUpperCase(), track: game?.track || '', track2: game?.track2 || '', trackSlug: game?.trackSlug || trackSlug(game?.track, game?.track2), divisionCount: expected || races.length, rowPrice: 1, source: 'database', races };
+  return { id: String(game?._id || game?.id || ''), name: game?.title || `${game?.gameType || 'Trav'} ${trackLabel(game?.track, game?.track2)}`.trim(), date: game?.date || today(), gameType: String(game?.gameType || 'V64').toUpperCase(), track: game?.track || '', track2: game?.track2 || '', trackSlug: game?.trackSlug || trackSlug(game?.track, game?.track2), divisionCount: expected || races.length, rowPrice: rowPriceForGameType(game?.gameType), source: 'database', races };
 }
 
 function renderDatabaseStatus(message, mode = '') { const el = $('#db-status'); el.textContent = message; el.className = `status-pill ${mode}`; }
@@ -91,7 +88,9 @@ async function loadGames() {
     state.games = [];
     renderDatabaseStatus('Databasen kunde inte nås', 'offline');
     renderHome();
-    showToast('Kunde inte läsa Trav-data. Starta Trav API eller kontrollera Render.');
+    showToast(isLocalApp
+      ? 'Kunde inte läsa Trav-data lokalt. Starta D:\\Bigplus\\STARTA-BIGPLUS-AKTIV.cmd.'
+      : 'Kunde inte läsa Trav-data från Render. Kontrollera att Netlify-versionen är deployad.');
     console.error(error);
   }
 }
@@ -143,9 +142,11 @@ function savedCouponRuntime(coupon, round) {
   return { ...coupon, selections, rows, cost: Number.isFinite(Number(coupon.cost)) ? Number(coupon.cost) : rows * (round.rowPrice || 1), spikeCount: coupon.spikeCount ?? selections.filter((selection) => selection.length === 1).length, variation: coupon.variation ?? 0 };
 }
 
-function renderSavedCouponCard(coupon, round, couponIndex) {
+function renderSavedCouponCard(coupon, round, couponIndex, winnerMap = new Map()) {
   const runtime = savedCouponRuntime(coupon, round);
-  return `<article class="coupon-card saved-coupon-design"><div class="coupon-top"><span>KUPONG ${couponIndex + 1} · ${esc(String(coupon.name || '').replace(/^Tillsammans\s*·\s*/i, ''))}</span><span class="coupon-cost">${money(runtime.cost)}</span></div><p class="strategy-note">Sparad kupong</p>${(round.races || []).map((race, raceIndex) => `<div class="coupon-race saved-coupon-race"><span class="race-label">${race.division}</span>${couponPicksMarkup(runtime, race, raceIndex)}</div>`).join('')}<div class="coupon-footer"><span>${runtime.rows.toLocaleString('sv-SE')} rader · ${runtime.spikeCount} spikar</span><button class="delete-coupon-button" data-delete-saved-coupon="${esc(coupon._id)}" data-delete-game="${esc(round.id)}" title="Ta bort kupong">Ta bort</button></div></article>`;
+  const hasResults = winnerMap.size > 0;
+  const hitCount = (round.races || []).reduce((total, race, raceIndex) => { const winner = winnerMap.get(String(race.division)); return total + (Number.isFinite(winner) && (runtime.selections[raceIndex] || []).includes(winner) ? 1 : 0); }, 0);
+  return `<article class="coupon-card saved-coupon-design"><div class="coupon-top"><span>KUPONG ${couponIndex + 1} · ${esc(String(coupon.name || '').replace(/^Tillsammans\s*·\s*/i, ''))}</span><span class="coupon-cost">${money(runtime.cost)}</span></div><p class="strategy-note">Sparad kupong${hasResults ? ` · ${hitCount} av ${round.races.length} rätt` : ''}</p>${(round.races || []).map((race, raceIndex) => { const winner = winnerMap.get(String(race.division)); const picks = runtime.selections[raceIndex] || []; const hit = Number.isFinite(winner) && picks.includes(winner); return `<div class="coupon-race saved-coupon-race ${hit ? 'result-coupon-row-hit' : ''}"><span class="race-label">${race.division}</span>${couponPicksMarkup(runtime, race, raceIndex, winner)}</div>`; }).join('')}<div class="coupon-footer"><span>${runtime.rows.toLocaleString('sv-SE')} rader · ${runtime.spikeCount} spikar</span><button class="delete-coupon-button" data-delete-saved-coupon="${esc(coupon._id)}" data-delete-game="${esc(round.id)}" title="Ta bort kupong">Ta bort</button></div></article>`;
 }
 
 function renderSavedCoupons() {
@@ -156,7 +157,7 @@ function renderSavedCoupons() {
   const totalCoupons = groups.reduce((total, group) => total + group.coupons.length, 0);
   status.textContent = `${totalCoupons} sparade kuponger · ${groups.length} paket`;
   if (!groups.length) { list.innerHTML = '<div class="empty-state"><div class="empty-icon">▣</div><h3>Inga sparade kuponger</h3><p>Spara ett kupongpaket från en omgång så visas kupongerna här.</p></div>'; return; }
-  list.innerHTML = groups.map((group) => { const round = normalizeGame(group.game); const groupDate = group.createdAt ? new Date(group.createdAt).toLocaleString('sv-SE') : 'Sparat paket'; const title = group.coupons[0]?.packageName || `${round.gameType} ${trackLabel(round.track, round.track2)}`; return `<section class="saved-coupon-group"><div class="saved-coupon-group-header"><div><span class="eyebrow">KUPONGPAKET</span><h3>${esc(title)}</h3><p>${esc(dateLabel(round.date))} · ${esc(trackLabel(round.track, round.track2))} · ${esc(groupDate)}</p></div><span class="status-pill ok">${group.coupons.length} kuponger</span></div><div class="saved-coupon-group-grid">${group.coupons.map((coupon, index) => renderSavedCouponCard(coupon, round, index)).join('')}</div></section>`; }).join('');
+  list.innerHTML = groups.map((group) => { const round = normalizeGame(group.game); const groupDate = group.createdAt ? new Date(group.createdAt).toLocaleString('sv-SE') : 'Sparat paket'; const roundName = `${round.gameType} ${trackLabel(round.track, round.track2)}`.trim() || round.name; const title = group.coupons[0]?.packageName || roundName; const typeClass = `game-type-${String(round.gameType || '').toLowerCase()}`; const winnerMap = resultWinnerMapFor(group.game, round); return `<section class="saved-coupon-group ${typeClass}"><div class="saved-coupon-group-header"><div><span class="eyebrow">KUPONGPAKET</span><h3>${esc(title)}</h3><p><strong>${esc(roundName)}</strong> · ${esc(dateLabel(round.date))} · ${esc(groupDate)}</p></div><span class="status-pill ok">${group.coupons.length} kuponger</span></div><div class="saved-coupon-group-grid">${group.coupons.map((coupon, index) => renderSavedCouponCard(coupon, round, index, winnerMap)).join('')}</div></section>`; }).join('');
 }
 
 async function loadSavedCoupons() {
@@ -176,6 +177,18 @@ async function loadSavedCoupons() {
 function resultDetailsFor(game) {
   const details = game?.resultDetails;
   return details && typeof details === 'object' ? details : { divisions: {}, payouts: {} };
+}
+
+function resultWinnerMapFor(game, round) {
+  const details = resultDetailsFor(game);
+  const divisions = details.divisions || {};
+  const resultMap = game?.results || {};
+  return new Map(Array.from({ length: round.divisionCount || Object.keys(resultMap).length }, (_, index) => {
+    const division = String(index + 1);
+    const detail = divisions[division] || {};
+    const winnerNumber = Number.isFinite(Number(detail.horseNumber)) ? Number(detail.horseNumber) : Number(resultMap[division]);
+    return [division, winnerNumber];
+  }).filter(([, winnerNumber]) => Number.isFinite(winnerNumber)));
 }
 
 function resultMoney(value, fallback = '–') {
@@ -218,10 +231,9 @@ function renderResultCard(game) {
     const horse = race?.horses?.find((item) => Number(item.number) === winnerNumber);
     return { division, detail, winnerNumber, horse };
   }).filter((item) => Number.isFinite(item.winnerNumber) || item.detail.horseText);
-  const winnerMap = new Map(winners.map((item) => [String(item.division), item.winnerNumber]));
   const payouts = Object.entries(details.payouts || {}).sort((a, b) => Number(b[0]) - Number(a[0]));
   const updated = game.resultsUpdatedAt ? new Date(game.resultsUpdatedAt).toLocaleString('sv-SE') : '';
-  return `<article class="result-card" data-result-game="${esc(game._id)}"><div class="result-card-header"><div><span class="eyebrow">${esc(game.gameType)} · RESULTAT</span><h3>${esc(trackLabel(game.track, game.track2))}</h3><p>${esc(dateLabel(game.date))} · ${round.divisionCount || '–'} avdelningar</p></div><button class="ghost-button result-fetch-button" data-fetch-results="${esc(game._id)}">${hasResults ? '↻ Uppdatera resultat' : 'Hämta resultat'}</button></div>${hasResults ? `<div class="result-winner-grid">${winners.map((item) => `<div class="result-winner-row"><span class="result-division">${esc(item.division)}</span><div><strong>${item.winnerNumber ? `${esc(item.winnerNumber)} ` : ''}${esc(item.horse?.name || item.detail.horseName || item.detail.horseText || 'Vinnare')}</strong>${item.horse?.driver ? `<small>${esc(item.horse.driver)}</small>` : ''}</div><span class="result-value">${resultMoney(item.detail.value, item.detail.valueText || '–')}</span></div>`).join('')}</div><div class="result-summary">${payouts.length ? payouts.map(([count, payout]) => `<div><span>Utdelning ${esc(count)} rätt</span><strong>${esc(payout.label || resultMoney(payout.amount))}</strong></div>`).join('') : '<div><span>Utdelning</span><strong>Ej hämtad</strong></div>'}${details.turnover ? `<div><span>Omsättning</span><strong>${esc(details.turnover.label || resultMoney(details.turnover.amount))}</strong></div>` : ''}${details.systemCount ? `<div><span>Antal system</span><strong>${esc(details.systemCount.label || resultMoney(details.systemCount.amount))}</strong></div>` : ''}</div>${Array.isArray(game.coupons) && game.coupons.length ? `<section class="result-saved-coupons"><div class="result-saved-heading"><span class="eyebrow">KUPONGKONTROLL</span><strong>Sparade kuponger mot resultatet</strong></div>${game.coupons.map((coupon, couponIndex) => renderSavedCouponResult(coupon, round, winnerMap, couponIndex)).join('')}</section>` : ''}<p class="result-updated">Senast uppdaterad ${esc(updated)}</p>` : '<div class="result-empty"><span>◎</span><p>Resultat är inte hämtat för den här omgången.</p></div>'}</article>`;
+  return `<article class="result-card" data-result-game="${esc(game._id)}"><div class="result-card-header"><div><span class="eyebrow">${esc(game.gameType)} · RESULTAT</span><h3>${esc(trackLabel(game.track, game.track2))}</h3><p>${esc(dateLabel(game.date))} · ${round.divisionCount || '–'} avdelningar</p></div><button class="ghost-button result-fetch-button" data-fetch-results="${esc(game._id)}">${hasResults ? '↻ Uppdatera resultat' : 'Hämta resultat'}</button></div>${hasResults ? `<div class="result-winner-grid">${winners.map((item) => `<div class="result-winner-row"><span class="result-division">${esc(item.division)}</span><div><strong>${item.winnerNumber ? `${esc(item.winnerNumber)} ` : ''}${esc(item.horse?.name || item.detail.horseName || item.detail.horseText || 'Vinnare')}</strong>${item.horse?.driver ? `<small>${esc(item.horse.driver)}</small>` : ''}</div><span class="result-value">${resultMoney(item.detail.value, item.detail.valueText || '–')}</span></div>`).join('')}</div><div class="result-summary">${payouts.length ? payouts.map(([count, payout]) => `<div><span>Utdelning ${esc(count)} rätt</span><strong>${esc(payout.label || resultMoney(payout.amount))}</strong></div>`).join('') : '<div><span>Utdelning</span><strong>Ej hämtad</strong></div>'}${details.turnover ? `<div><span>Omsättning</span><strong>${esc(details.turnover.label || resultMoney(details.turnover.amount))}</strong></div>` : ''}${details.systemCount ? `<div><span>Antal system</span><strong>${esc(details.systemCount.label || resultMoney(details.systemCount.amount))}</strong></div>` : ''}</div><p class="result-updated">Senast uppdaterad ${esc(updated)}</p>` : '<div class="result-empty"><span>◎</span><p>Resultat är inte hämtat för den här omgången.</p></div>'}</article>`;
 }
 
 function renderResults() {
@@ -401,7 +413,7 @@ function renderRacesLegacyOriginal() {
 
 function rowsFor(coupon) { return coupon.selections.reduce((total, picks) => total * Math.max(1, picks.length), 1); }
 function budget() { return Math.max(1, Number($('#share-price')?.value || 20)) * Math.max(1, Number($('#share-count')?.value || 50)); }
-function requestedSpikes() { const selected = $('#spike-count')?.querySelector('.selected'); const value = Number(selected?.dataset.spikes ?? state.spikeCount ?? 2); return Math.max(0, Math.min(5, Number.isFinite(value) ? value : 2)); }
+function requestedSpikes() { if (state.together2) return 2; const selected = $('#spike-count')?.querySelector('.selected'); const value = Number(selected?.dataset.spikes ?? state.manualSpikeCount ?? state.spikeCount ?? 2); return Math.max(0, Math.min(5, Number.isFinite(value) ? value : 2)); }
 function strategies(count) { return count === 2 ? [{ name: 'Favorit', note: 'Favoriter och starka chanser' }, { name: 'Mellan', note: 'Balanserad med bredd' }] : count === 4 ? [{ name: 'Favorit', note: 'Favoriter och starka chanser' }, { name: 'Mellan A', note: 'Balanserad med variation' }, { name: 'Mellan B', note: 'Alternativa utfall' }, { name: 'Skräll', note: 'Högre risk – högre utdelning' }] : [{ name: 'Favorit', note: 'Favoriter och starka chanser' }, { name: 'Mellan', note: 'Balanserad med bredd' }, { name: 'Skräll', note: 'Högre risk – högre utdelning' }]; }
 function randomValue(seed) { const x = Math.sin(seed * 12.9898) * 43758.5453; return x - Math.floor(x); }
 function generateCouponsLegacy() {
@@ -427,7 +439,10 @@ function pickCountsForBudget(races, target, desiredSpikes = null, fixedCounts = 
   function search(spikeRequirement) {
     let best = null;
     const visited = new Set();
+    let nodes = 0;
+    const nodeLimit = 50000;
     function visit(index, product, counts) {
+      if (++nodes > nodeLimit) return;
       if (index >= races.length) {
         const singles = counts.filter((count) => count === 1).length;
         if (spikeRequirement !== null && singles !== spikeRequirement) return;
@@ -440,7 +455,7 @@ function pickCountsForBudget(races, target, desiredSpikes = null, fixedCounts = 
       const key = `${index}:${product}:${singlesSoFar}`;
       if (visited.has(key)) return;
       visited.add(key);
-      const allowedCounts = Number.isFinite(fixedCounts[index]) ? [Math.max(1, Math.min(limits[index], Number(fixedCounts[index])))] : Array.from({ length: limits[index] }, (_, offset) => ((offset + (state.shuffleSeed + index) % limits[index]) % limits[index]) + 1);
+      const allowedCounts = Number.isFinite(fixedCounts[index]) ? [Math.max(1, Math.min(limits[index], Number(fixedCounts[index])))] : Array.from({ length: limits[index] }, (_, offset) => ((offset + (state.shuffleSeed + index) % limits[index]) % limits[index]) + 1).sort((a, b) => Math.abs(Math.log(Math.max(1, maxRows / product) ** (1 / Math.max(1, races.length - index)) / a)) - Math.abs(Math.log(Math.max(1, maxRows / product) ** (1 / Math.max(1, races.length - index)) / b)));
       for (const count of allowedCounts) {
         const next = product * count;
         if (next > maxRows) continue;
@@ -471,7 +486,16 @@ function findComplementaryCountPlan(races, targetRows, avoidSingles, previousPla
   const options = limits.map((limit, index) => Number.isFinite(fixedCounts[index]) ? [Math.max(1, Math.min(limit, Number(fixedCounts[index])))] : Array.from({ length: limit }, (_, offset) => ((offset + (state.shuffleSeed + index) % limit) % limit) + 1));
   let best = null;
   let bestScore = -Infinity;
+  let nodes = 0;
+  const nodeLimit = 50000;
+  const suffixMax = Array(limits.length + 1).fill(1);
+  for (let index = limits.length - 1; index >= 0; index -= 1) suffixMax[index] = suffixMax[index + 1] * limits[index];
   function visit(index, product, counts) {
+    if (++nodes > nodeLimit) return;
+    const remaining = limits.length - index;
+    const singlesSoFar = counts.slice(0, index).filter((count) => count === 1).length;
+    if (desiredSpikes !== null && (singlesSoFar > desiredSpikes || singlesSoFar + remaining < desiredSpikes)) return;
+    if (product > maxRows || product * suffixMax[index] < minRows) return;
     if (index >= limits.length) {
       if (product < minRows || product > maxRows) return;
       const signature = countPlanSignature(counts);
@@ -486,7 +510,9 @@ function findComplementaryCountPlan(races, targetRows, avoidSingles, previousPla
       if (score > bestScore) { bestScore = score; best = [...counts]; }
       return;
     }
-    for (const count of options[index]) {
+    const ideal = Math.max(1, targetRows / Math.max(1, product)) ** (1 / Math.max(1, remaining));
+    const orderedOptions = [...options[index]].sort((a, b) => Math.abs(Math.log(a / ideal)) - Math.abs(Math.log(b / ideal)));
+    for (const count of orderedOptions) {
       const next = product * count;
       if (next > maxRows) continue;
       counts[index] = count;
@@ -506,6 +532,10 @@ function countPlanDistance(first, second) {
 }
 
 function findNearBudgetPlans(races, targetRows, desiredSpikes, currentPlan, couponIndex, rowPrice) {
+  const raceSignature = races.map((race) => `${race.division}:${race.horses.filter((horse) => !horse.scratched).length}`).join('|');
+  const cacheKey = JSON.stringify([state.round?.id || '', raceSignature, targetRows, desiredSpikes, currentPlan, couponIndex, rowPrice, state.shuffleSeed]);
+  const cached = state.combinationPlanCache.get(cacheKey);
+  if (cached) return cached.map((option) => ({ ...option, counts: [...option.counts] }));
   const minRows = Math.max(1, targetRows - Math.floor(500 / Math.max(1, rowPrice)));
   const maxRows = Math.max(minRows, targetRows + Math.floor(500 / Math.max(1, rowPrice)));
   const limits = races.map((race) => Math.min(10, Math.max(1, race.horses.filter((horse) => !horse.scratched).length)));
@@ -514,8 +544,10 @@ function findNearBudgetPlans(races, targetRows, desiredSpikes, currentPlan, coup
   const candidates = [];
   const seen = new Set();
   let nodes = 0;
+  const nodeLimit = 30000;
+  const candidateLimit = 36;
   const visit = (index, product, singles, counts) => {
-    if (++nodes > 220000) return;
+    if (++nodes > nodeLimit || candidates.length >= candidateLimit) return;
     const remaining = limits.length - index;
     if (desiredSpikes !== null && (singles > desiredSpikes || singles + remaining < desiredSpikes)) return;
     if (product > maxRows || product * suffixMax[index] < minRows) return;
@@ -534,11 +566,15 @@ function findNearBudgetPlans(races, targetRows, desiredSpikes, currentPlan, coup
     for (const count of order) {
       counts[index] = count;
       visit(index + 1, product * count, singles + (count === 1 ? 1 : 0), counts);
-      if (nodes > 220000) return;
+      if (nodes > nodeLimit || candidates.length >= candidateLimit) return;
     }
   };
   visit(0, 1, 0, []);
-  if (!candidates.length) return [{ counts: [...currentPlan], rows: countPlanProduct(currentPlan) }];
+  if (!candidates.length) {
+    const fallback = [{ counts: [...currentPlan], rows: countPlanProduct(currentPlan) }];
+    state.combinationPlanCache.set(cacheKey, fallback.map((option) => ({ ...option, counts: [...option.counts] })));
+    return fallback;
+  }
   candidates.sort((a, b) => a.distance - b.distance || b.difference - a.difference);
   const selected = [];
   const addCandidate = (candidate) => {
@@ -547,7 +583,7 @@ function findNearBudgetPlans(races, targetRows, desiredSpikes, currentPlan, coup
   addCandidate({ counts: [...currentPlan], rows: countPlanProduct(currentPlan), distance: Math.abs(countPlanProduct(currentPlan) - targetRows), difference: 0 });
   while (selected.length < Math.min(6, candidates.length)) {
     const next = candidates
-      .filter((candidate) => !selected.some((item) => sameCountPlan(item.counts, candidate.counts)))
+      .filter((candidate) => !selected.some((item) => countPlanSignature(item.counts) === countPlanSignature(candidate.counts)))
       .sort((a, b) => {
         const aDiversity = Math.min(...selected.map((item) => countPlanDistance(item.counts, a.counts)));
         const bDiversity = Math.min(...selected.map((item) => countPlanDistance(item.counts, b.counts)));
@@ -556,6 +592,8 @@ function findNearBudgetPlans(races, targetRows, desiredSpikes, currentPlan, coup
     if (!next) break;
     addCandidate(next);
   }
+  state.combinationPlanCache.set(cacheKey, selected.map((option) => ({ ...option, counts: [...option.counts] })));
+  if (state.combinationPlanCache.size > 80) state.combinationPlanCache.delete(state.combinationPlanCache.keys().next().value);
   return selected;
 }
 
@@ -566,6 +604,7 @@ function resetCombinationState() {
   state.pendingCombinationIndexes = [];
   state.combinationCursors = [];
   state.combinationOptions = [];
+  state.combinationPlanCache.clear();
 }
 
 function clearPendingCombinationChoices() {
@@ -576,37 +615,49 @@ function countPlanSignature(counts) {
   return [...counts].map((value) => Number(value || 1)).sort((a, b) => a - b).join('x');
 }
 
-function permuteCountPlanForRaces(races, signature, seed = 0, avoidPlan = []) {
+function spikeIndexes(plan) { return plan.reduce((indexes, count, index) => { if (Number(count) === 1) indexes.push(index); return indexes; }, []); }
+function spikeOverlap(first, second) { const other = new Set(spikeIndexes(second)); return spikeIndexes(first).reduce((total, index) => total + (other.has(index) ? 1 : 0), 0); }
+function permuteCountPlanForRaces(races, signature, seed = 0, avoidPlans = [], fixedCounts = {}, fallbackPlan = []) {
   const values = String(signature || '').split('x').map(Number).filter((value) => Number.isFinite(value) && value > 0);
   const limits = races.map((race) => Math.min(10, Math.max(1, race.horses.filter((horse) => !horse.scratched).length)));
+  const previousPlans = Array.isArray(avoidPlans[0]) ? avoidPlans : (avoidPlans.length ? [avoidPlans] : []);
   const plans = [];
   const visit = (index, remaining, plan) => {
-    if (plans.length >= 80) return;
+    if (plans.length >= 2000) return;
     if (index >= limits.length) {
       if (!remaining.length && countPlanSignature(plan) === signature) plans.push([...plan]);
       return;
     }
-    const candidates = [...new Set(remaining.filter((value) => value <= limits[index]))].sort((a, b) => ((a + index + seed) % 11) - ((b + index + seed) % 11));
+    const lockedCount = Number(fixedCounts[index]);
+    const candidates = [...new Set(remaining.filter((value) => value <= limits[index] && (!Number.isFinite(lockedCount) || value === lockedCount)))].sort((a, b) => ((a + index + seed) % 11) - ((b + index + seed) % 11));
     for (const value of candidates) {
       const position = remaining.indexOf(value);
       visit(index + 1, [...remaining.slice(0, position), ...remaining.slice(position + 1)], [...plan, value]);
-      if (plans.length >= 80) return;
+      if (plans.length >= 2000) return;
     }
   };
   visit(0, values, []);
-  const different = plans.filter((plan) => !sameCountPlan(plan, avoidPlan));
-  return different[Math.abs(Math.floor(seed)) % Math.max(1, different.length)] || plans[0] || [...avoidPlan];
+  if (!plans.length) return [...fallbackPlan];
+  const nonExact = plans.filter((plan) => !previousPlans.some((previous) => sameCountPlan(plan, previous)));
+  const pool = nonExact.length ? nonExact : plans;
+  const minOverlap = Math.min(...pool.map((plan) => previousPlans.length ? Math.max(...previousPlans.map((previous) => spikeOverlap(plan, previous))) : 0));
+  const best = pool.filter((plan) => (previousPlans.length ? Math.max(...previousPlans.map((previous) => spikeOverlap(plan, previous))) : 0) === minOverlap);
+  return best[Math.abs(Math.floor(seed)) % Math.max(1, best.length)] || pool[0] || [...fallbackPlan];
 }
 
-function chooseCouponHorses(race, count, couponIndex) {
+function chooseCouponHorses(race, count, couponIndex, previousSelections = []) {
   const ranked = [...race.horses].filter((horse) => !horse.scratched).sort((a, b) => (b.winPercent ?? 0) - (a.winPercent ?? 0));
   if (!ranked.length || count < 1) return [];
   const couponTotal = Math.max(1, state.couponCount || 1);
   const coveragePool = ranked.slice(0, Math.min(ranked.length, Math.max(3, couponTotal)));
   const lowest = [...ranked].sort((a, b) => (a.winPercent ?? 0) - (b.winPercent ?? 0));
+  const alreadyCovered = new Set(previousSelections.flat().map((value) => Number(value)));
   const selected = [];
   const add = (horse) => {
     if (horse && !selected.some((item) => item.number === horse.number)) selected.push(horse);
+  };
+  const addNew = (horse) => {
+    if (horse && !alreadyCovered.has(Number(horse.number))) add(horse);
   };
 
   // En spik ska inte kopieras till alla kuponger. Kupong 1 tar favoriten,
@@ -617,16 +668,20 @@ function chooseCouponHorses(race, count, couponIndex) {
   } else {
     const offset = (couponIndex + (state.shuffleSeed || 0)) % coveragePool.length;
     add(raceFavorite(race) || coveragePool[0]);
-    if (selected.length < count) add(coveragePool[offset]);
-    if (selected.length < count) add(coveragePool[(offset + 1) % coveragePool.length]);
+    if (selected.length < count) addNew(coveragePool[offset]);
+    if (selected.length < count) addNew(coveragePool[(offset + 1) % coveragePool.length]);
 
     // Sprid de fyra lägst spelade hästarna över kupongerna när det finns plats.
     // På så sätt får skrällkupongen verklig täckning utan att alla kuponger blir identiska.
     const lowStart = (couponIndex + (state.shuffleSeed || 0)) % Math.max(1, Math.min(4, lowest.length));
     for (let index = 0; index < Math.min(4, lowest.length); index += 1) {
       if (selected.length >= count) break;
-      add(lowest[(lowStart + index) % lowest.length]);
+      addNew(lowest[(lowStart + index) % lowest.length]);
     }
+  }
+  for (const horse of ranked) {
+    if (selected.length >= count) break;
+    addNew(horse);
   }
   for (const horse of ranked) {
     if (selected.length >= count) break;
@@ -675,20 +730,26 @@ function generateCoupons(preservedSelections = null) {
     state.countPlanCache.set(planCacheKey, countPlans.map((plan) => [...plan]));
     if (state.countPlanCache.size > 40) state.countPlanCache.delete(state.countPlanCache.keys().next().value);
   }
+  const finalPlans = [];
   countPlans = countPlans.map((plan, couponIndex) => {
     const selectedIndex = state.selectedPlanIndexes[couponIndex];
     const option = state.combinationOptions[couponIndex]?.[selectedIndex];
     const lockedSignature = state.lockedCombinationPatterns.get(couponIndex);
-    if (state.combinationLocks.has(couponIndex) && lockedSignature) {
-      const current = state.combinationOptions[couponIndex]?.[0]?.counts || plan;
-      return permuteCountPlanForRaces(races, lockedSignature, state.shuffleSeed + couponIndex, current);
-    }
-    return option?.counts ? [...option.counts] : [...plan];
+    const candidate = state.combinationLocks.has(couponIndex) && lockedSignature ? lockedSignature : (option?.counts ? countPlanSignature(option.counts) : countPlanSignature(plan));
+    const current = option?.counts ? [...option.counts] : [...plan];
+    const hasChosenPattern = Boolean((state.combinationLocks.has(couponIndex) && lockedSignature) || option?.counts);
+    const finalPlan = couponIndex === 0 && !hasChosenPattern
+      ? current
+      : permuteCountPlanForRaces(races, candidate, state.shuffleSeed + couponIndex, finalPlans, fixedCounts[couponIndex], current);
+    finalPlans.push(finalPlan);
+    return finalPlan;
   });
   const baseCounts = countPlans[0] || races.map(() => 1);
+  const builtSelections = [];
   state.coupons = names.map((strategy, couponIndex) => {
-    const plan = countPlans[couponIndex] || baseCounts;
-    const selections = races.map((race, raceIndex) => chooseCouponHorses(race, plan[raceIndex] || 1, couponIndex));
+    const plan = finalPlans[couponIndex] || countPlans[couponIndex] || baseCounts;
+    const selections = races.map((race, raceIndex) => chooseCouponHorses(race, plan[raceIndex] || 1, couponIndex, builtSelections.map((previous) => previous[raceIndex] || [])));
+    builtSelections.push(selections);
     const rows = selections.reduce((total, picks) => total * Math.max(1, picks.length), 1);
     return { name: strategy.name, note: strategy.note, selections, rows, cost: rows * (state.round?.rowPrice || 1), spikeCount: plan.filter((count) => count === 1).length, variation: 0 };
   });
@@ -716,24 +777,25 @@ function raceSecondFavorite(race) {
   return [...(race.horses || [])].filter((horse) => !horse.scratched).sort((a, b) => (b.winPercent ?? -1) - (a.winPercent ?? -1))[1];
 }
 
-function horseBadgeClass(race, horse) {
+function horseBadgeClass(race, horse, winnerNumber = null) {
   const percent = number(horse.winPercent);
   const classes = [];
   if (raceFavorite(race)?.number === horse.number) classes.push('favorite-chip');
   if (percent !== null && percent < 5) classes.push('low-win-chip');
   else if (raceSecondFavorite(race)?.number === horse.number) classes.push('second-favorite-chip');
   if (trendIsSignificant(horse)) classes.push('trend-hot-chip');
+  if (Number.isFinite(winnerNumber) && Number(horse.number) === Number(winnerNumber)) classes.push('winner-chip');
   return classes.join(' ');
 }
 
-function couponPicksMarkup(coupon, race, raceIndex) {
+function couponPicksMarkup(coupon, race, raceIndex, winnerNumber = null) {
   const picks = coupon.selections[raceIndex] || [];
   const horses = picks.map((numberValue) => race.horses.find((horse) => horse.number === numberValue)).filter(Boolean);
   if (horses.length === 1) {
     const horse = horses[0];
-    return `<span class="spike-pick"><span class="number-ball ${horseBadgeClass(race, horse)}">${esc(horse.number)}</span><span class="spike-name">${esc(horse.name)}</span><strong>${fmtPercent(horse.winPercent)}</strong></span>`;
+    return `<span class="spike-pick"><span class="number-ball ${horseBadgeClass(race, horse, winnerNumber)}">${esc(horse.number)}</span><span class="spike-name">${esc(horse.name)}</span><strong>${fmtPercent(horse.winPercent)}</strong></span>`;
   }
-  return `<span class="pick-list">${horses.map((horse) => `<span class="number-chip ${horseBadgeClass(race, horse)}">${esc(horse.number)}</span>`).join('')}</span>`;
+  return `<span class="pick-list">${horses.map((horse) => `<span class="number-chip ${horseBadgeClass(race, horse, winnerNumber)}">${esc(horse.number)}</span>`).join('')}</span>`;
 }
 
 function combinationPickerMarkup(couponIndex) {
@@ -742,14 +804,17 @@ function combinationPickerMarkup(couponIndex) {
   const options = state.combinationOptions[couponIndex] || [];
   if (!options.length) return '';
   const locked = state.combinationLocks.has(couponIndex);
-  const cursor = Math.min(Math.max(0, state.combinationCursors[couponIndex] ?? 0), options.length - 1);
+  const lockedSignature = state.lockedCombinationPatterns.get(couponIndex);
+  const lockedIndex = lockedSignature ? options.findIndex((option) => countPlanSignature(option.counts) === lockedSignature) : -1;
+  const cursor = lockedIndex >= 0 ? lockedIndex : Math.min(Math.max(0, state.combinationCursors[couponIndex] ?? 0), options.length - 1);
   const pending = state.pendingCombinationIndexes[couponIndex];
   const option = options[cursor];
   const cost = option.rows * rowPrice;
   const delta = cost - target;
   const deltaLabel = delta === 0 ? 'Pris enligt budget' : `${delta > 0 ? '+' : ''}${money(delta)} från budget`;
   const selected = pending === cursor;
-  return `<section class="combination-picker" data-combination-picker="${couponIndex}"><div class="combination-picker-head"><div><span class="eyebrow">FÖRSLAG FÖR KUPONG ${couponIndex + 1}</span><strong>Bläddra bland radkombinationer</strong></div><span class="combination-range">±500 kr från ${money(target)}</span></div><div class="combination-slider" data-combination-slider="${couponIndex}"><button type="button" class="combination-arrow" data-combination-prev="${couponIndex}" aria-label="Föregående kombination">‹</button><div class="combination-slide-window"><div class="combination-option combination-slide ${selected ? 'selected' : ''}"><div><span class="combination-pattern">${option.counts.join('×')}</span><strong>${money(cost)}</strong><small>${deltaLabel}</small></div><button type="button" class="combination-select-marker ${selected ? 'selected' : ''}" data-combination-select="${couponIndex}" aria-pressed="${selected}" title="${selected ? 'Rensa valt förslag' : 'Välj detta förslag när du slumpar kupongerna'}">${selected ? '✓' : '○'}</button></div></div><button type="button" class="combination-arrow" data-combination-next="${couponIndex}" aria-label="Nästa kombination">›</button></div><div class="combination-slide-status"><span>${cursor + 1} / ${options.length}</span><button type="button" class="combination-lock ${locked ? 'locked' : ''}" data-lock-combination="${couponIndex}">${locked ? '🔒 Kombination låst' : '🔓 Lås kombinationen'}</button><small>${selected ? 'Vald till nästa slumpning' : 'Bläddra utan att ändra kupongen'}</small></div></section>`;
+  const lockedChoice = locked && lockedSignature ? `<div class="combination-locked-choice">Vald kombination: <strong>${esc(lockedSignature)}</strong></div>` : '';
+  return `<section class="combination-picker" data-combination-picker="${couponIndex}"><div class="combination-picker-head"><div><span class="eyebrow">FÖRSLAG FÖR KUPONG ${couponIndex + 1}</span><strong>Bläddra bland radkombinationer</strong></div><span class="combination-range">±500 kr från ${money(target)}</span></div><div class="combination-slider" data-combination-slider="${couponIndex}"><button type="button" class="combination-arrow" data-combination-prev="${couponIndex}" aria-label="Föregående kombination">‹</button><div class="combination-slide-window"><div class="combination-option combination-slide ${selected ? 'selected' : ''}"><div><span class="combination-pattern-label">Kombination</span><span class="combination-pattern">${option.counts.join('x')}</span><strong>${money(cost)}</strong><small>${deltaLabel}</small></div><button type="button" class="combination-select-marker ${selected ? 'selected' : ''}" data-combination-select="${couponIndex}" aria-pressed="${selected}" title="${selected ? 'Rensa valt förslag' : 'Välj detta förslag när du slumpar kupongerna'}">${selected ? '✓' : '○'}</button></div></div><button type="button" class="combination-arrow" data-combination-next="${couponIndex}" aria-label="Nästa kombination">›</button></div>${lockedChoice}<div class="combination-slide-status"><span>${cursor + 1} / ${options.length}</span><button type="button" class="combination-lock ${locked ? 'locked' : ''}" data-lock-combination="${couponIndex}">${locked ? '🔒 Kombination låst' : '🔓 Lås kombinationen'}</button><small>${selected ? 'Vald till nästa slumpning' : 'Bläddra utan att ändra kupongen'}</small></div></section>`;
 }
 
 function renderCoupons() {
@@ -757,14 +822,16 @@ function renderCoupons() {
   $('#budget-each').textContent = money(target);
   $('#budget-total').textContent = money(target * state.couponCount);
   $$('#coupon-count button').forEach((button) => button.classList.toggle('selected', Number(button.dataset.count) === state.couponCount));
-  $$('#spike-count button').forEach((button) => button.classList.toggle('selected', Number(button.dataset.spikes) === state.spikeCount));
+  const preset = $('#together-2-toggle');
+  if (preset) preset.checked = state.together2;
+  $$('#spike-count button').forEach((button) => { button.classList.toggle('selected', Number(button.dataset.spikes) === state.spikeCount); button.disabled = state.together2; });
   const couponCards = state.coupons.map((coupon, couponIndex) => `<article class="coupon-card"><div class="coupon-top"><span>KUPONG ${couponIndex + 1} · ${esc(coupon.name)}</span><span class="coupon-cost">${money(coupon.cost)}</span></div><p class="strategy-note">${esc(coupon.note)}</p>${(state.round?.races || []).map((race, raceIndex) => `<div class="coupon-race" data-edit-coupon="${couponIndex}" data-edit-division="${raceIndex}"><span class="race-label">${race.division}</span>${couponPicksMarkup(coupon, race, raceIndex)}<button class="lock ${state.locks.has(`${couponIndex}:${raceIndex}`) ? 'locked' : ''}" data-lock-coupon="${couponIndex}" data-lock-division="${raceIndex}" title="Lås avdelning">${state.locks.has(`${couponIndex}:${raceIndex}`) ? '🔒' : '🔓'}</button></div>`).join('')}${combinationPickerMarkup(couponIndex)}<div class="coupon-footer"><span>${coupon.rows.toLocaleString('sv-SE')} rader · ${coupon.spikeCount ?? 0} spikar</span><span>Variation ${coupon.variation}%</span></div></article>`).join('');
   const missingSlots = state.couponCount < 4 ? Array.from({ length: Math.max(0, 3 - state.couponCount) }, () => '<article class="coupon-slot-placeholder" aria-hidden="true"></article>').join('') : '';
   const inlineShuffle = state.couponCount < 4 ? '<article class="inline-shuffle-card"><span class="eyebrow">TILLSAMMANS</span><strong>Vill du skapa nya kombinationer?</strong><button type="button" data-shuffle-inline>⤨ Slumpa kuponger</button></article>' : '';
    $('#coupon-list').innerHTML = `${couponCards}${missingSlots}${inlineShuffle}`;
   const allSelections = state.coupons.flatMap((coupon) => coupon.selections.map((picks, index) => `${index}:${picks.join(',')}`));
   const unique = new Set(allSelections).size;
-  $('#package-summary').innerHTML = `<strong>${state.couponCount} kuponger</strong> · ${money(state.coupons.reduce((sum, coupon) => sum + coupon.cost, 0))} totalt<br><span class="summary-check">✓ Favorit och andrahandsfavorit prioriteras &nbsp; ✓ ${unique === allSelections.length ? 'Varierade upplägg' : 'Gemensamma lopp'} &nbsp; ✓ Låsningar bevaras</span>`;
+   $('#package-summary').innerHTML = `<strong>${state.couponCount} kuponger</strong> · ${money(state.coupons.reduce((sum, coupon) => sum + coupon.cost, 0))} totalt<br><span class="summary-check">✓ Favorit och andrahandsfavorit prioriteras &nbsp; ✓ ${unique === allSelections.length ? 'Varierade upplägg' : 'Gemensamma lopp'} &nbsp; ✓ Låsningar bevaras${state.together2 ? ' &nbsp; ✓ Tillsammans 2: 2 olika spikar per kupong' : ''}</span>`;
 }
 
 function renderBudgetLabels() {
@@ -806,7 +873,7 @@ function formatTrendDelta(delta) {
 function renderRaces() {
   const races = state.round?.races || []; const count = state.round?.divisionCount || 0;
   if (!races.length) { $('#races-list').innerHTML = `<div class="empty-state"><div class="empty-icon">◎</div><h3>Ingen startlista i denna omgång</h3><p>ATG-importen kan ha misslyckats eller så är omgången skapad manuellt. Redigera omgången för att lägga in hästar.</p><button class="secondary-button" id="empty-edit">Redigera omgång</button></div>`; return; }
-  $('#races-list').innerHTML = races.map((race) => { const favorite = raceFavorite(race); const horses = [...race.horses].sort((a, b) => (a.number || 0) - (b.number || 0)); return `<article class="race-card" data-division="${race.division}"><div class="race-summary"><div class="race-number">${race.division}</div><div><h3>Avd ${race.division}</h3><p>${horses.length} hästar · ${favorite ? `Favorit ${favorite.number} ${esc(favorite.name)}` : 'ingen favorit'}</p></div><div class="race-favorite">Favorit<strong>${favorite ? `${favorite.number} · ${fmtPercent(favorite.winPercent)}` : '–'}</strong></div></div><div class="race-body"><div class="horse-row header-row"><span>#</span><span>Häst</span><span>Kusk</span><span>%</span><span>Start trend%</span><span>Trend%</span><span>Odds</span></div>${horses.slice(0, 30).map((horse) => { const delta = trendDelta(horse); const significant = trendIsSignificant(horse); return `<div class="horse-row ${favorite?.number === horse.number ? 'favorite-row' : ''} ${significant ? 'trend-significant' : ''}"><span class="horse-num">${favorite?.number === horse.number ? '<span class="star">★</span>' : ''}${esc(horse.number)}</span><span class="horse-name">${esc(horse.name)}${horse.scratched ? ' · struken' : ''}</span><span class="horse-meta ${horse.updatedFields?.includes('driver') ? 'updated-field' : ''}">${esc(horse.driver || horse.trainer || '–')}</span><span class="horse-percent ${horse.updatedFields?.includes('winPercent') ? 'updated-field' : ''}">${fmtPercent(horse.winPercent)}</span><span class="horse-start-trend">${fmtPercent(horse.startTrendPercent ?? winningTrendPercent(horse))}</span><span class="horse-trend ${significant || horse.updatedFields?.includes('trendPercent') ? 'updated-field' : ''}">${fmtTrendValue(horse.trendPercent)}</span><span class="horse-odds ${horse.updatedFields?.includes('winOdds') ? 'updated-field' : ''}">${horse.winOdds ?? '–'}</span></div>`; }).join('')}</div></article>`; }).join('') + (races.length < count ? `<div class="partial-note">${races.length} av ${count} avdelningar importerade · använd Redigera för att komplettera.</div>` : '');
+  $('#races-list').innerHTML = races.map((race) => { const favorite = raceFavorite(race); const horses = [...race.horses].sort((a, b) => (a.number || 0) - (b.number || 0)); return `<article class="race-card" data-division="${race.division}"><div class="race-summary"><div class="race-number">${race.division}</div><div><h3>Avd ${race.division}</h3><p>${horses.length} hästar · ${favorite ? `Favorit ${favorite.number} ${esc(favorite.name)}` : 'ingen favorit'}</p></div><div class="race-favorite">Favorit<strong>${favorite ? `${favorite.number} · ${fmtPercent(favorite.winPercent)}` : '–'}</strong></div></div><div class="race-body"><div class="horse-row header-row"><span>#</span><span>Häst</span><span>Kusk</span><span>%</span><span>Start trend%</span><span>Trend%</span><span>Odds</span></div>${horses.slice(0, 30).map((horse) => { const delta = trendDelta(horse); const significant = trendIsSignificant(horse); return `<div class="horse-row ${favorite?.number === horse.number ? 'favorite-row' : ''} ${significant ? 'trend-significant' : ''} ${horse.scratched ? 'scratched-row' : ''}"><span class="horse-num">${favorite?.number === horse.number ? '<span class="star">★</span>' : ''}${esc(horse.number)}</span><span class="horse-name">${esc(horse.name)}${horse.scratched ? ' · struken' : ''}</span><span class="horse-meta ${horse.updatedFields?.includes('driver') ? 'updated-field' : ''}">${esc(horse.driver || horse.trainer || '–')}</span><span class="horse-percent ${horse.updatedFields?.includes('winPercent') ? 'updated-field' : ''}">${fmtPercent(horse.winPercent)}</span><span class="horse-start-trend">${fmtPercent(horse.startTrendPercent ?? winningTrendPercent(horse))}</span><span class="horse-trend ${significant || horse.updatedFields?.includes('trendPercent') ? 'updated-field' : ''}">${fmtTrendValue(horse.trendPercent)}</span><span class="horse-odds ${horse.updatedFields?.includes('winOdds') ? 'updated-field' : ''}">${horse.scratched ? 'EJ' : (horse.winOdds ?? '–')}</span></div>`; }).join('')}</div></article>`; }).join('') + (races.length < count ? `<div class="partial-note">${races.length} av ${count} avdelningar importerade · använd Redigera för att komplettera.</div>` : '');
 }
 
 function renderRound() { if (!state.round) return; renderRoundHeader(); renderRaces(); renderCoupons(); }
@@ -816,7 +883,7 @@ function openRoundEditor() {
 }
 async function saveRoundEditor(event) { event.preventDefault(); const form = event.currentTarget; form.querySelectorAll('tr[data-race]').forEach((row) => { const race = state.round.races.find((item) => item.division === Number(row.dataset.race)); const horse = race?.horses?.[Number(row.dataset.horse)]; if (!horse) return; row.querySelectorAll('[data-field]').forEach((input) => { const field = input.dataset.field; horse[field] = ['number', 'winPercent', 'winOdds'].includes(field) ? number(input.value) : input.value; }); }); try { const response = await apiFetch(`/rounds/${encodeURIComponent(state.round.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ round: state.round }) }); if (!response.ok) throw new Error(await response.text() || 'Kunde inte spara'); state.round = await response.json(); $('#editor-modal').hidden = true; generateCoupons(); renderRound(); showToast('Omgången sparades'); } catch (error) { showToast(error.message); } }
 
-function openCouponEditor(couponIndex, raceIndex) { const race = state.round.races[raceIndex]; const selected = new Set(state.coupons[couponIndex].selections[raceIndex] || []); $('#editor-content').innerHTML = `<div class="eyebrow">KUPONG ${couponIndex + 1}</div><h2 class="editor-title">Avd ${race.division} – välj hästar</h2><p class="editor-intro">Ändra valen manuellt. Kostnad och rader räknas om direkt när du sparar.</p><form id="coupon-editor-form"><div class="horse-picker">${race.horses.map((horse) => `<label class="picker-row"><input type="checkbox" name="horse" value="${esc(horse.number)}" ${selected.has(horse.number) ? 'checked' : ''}><strong>${esc(horse.number)}</strong><span>${esc(horse.name)}</span><small>${fmtPercent(horse.winPercent)} · ${esc(horse.driver || '–')}</small></label>`).join('')}</div><div class="modal-actions"><button type="button" class="secondary-button" id="make-spike">Gör till spik</button><button type="submit" class="primary-button">Klar</button></div></form>`; $('#editor-modal').hidden = false; $('#coupon-editor-form').dataset.coupon = couponIndex; $('#coupon-editor-form').dataset.race = raceIndex; }
+function openCouponEditor(couponIndex, raceIndex) { const race = state.round.races[raceIndex]; const selected = new Set(state.coupons[couponIndex].selections[raceIndex] || []); $('#editor-content').innerHTML = `<div class="eyebrow">KUPONG ${couponIndex + 1}</div><h2 class="editor-title">Avd ${race.division} – välj hästar</h2><p class="editor-intro">Ändra valen manuellt. Kostnad och rader räknas om direkt när du sparar.</p><form id="coupon-editor-form"><div class="horse-picker">${race.horses.map((horse) => `<label class="picker-row ${horse.scratched ? 'scratched-row' : ''}"><input type="checkbox" name="horse" value="${esc(horse.number)}" ${selected.has(horse.number) ? 'checked' : ''} ${horse.scratched ? 'disabled' : ''}><strong>${esc(horse.number)}</strong><span>${esc(horse.name)}${horse.scratched ? ' · struken' : ''}</span><small>${horse.scratched ? 'EJ' : `${fmtPercent(horse.winPercent)} · ${esc(horse.driver || '–')}`}</small></label>`).join('')}</div><div class="modal-actions"><button type="button" class="secondary-button" id="make-spike">Gör till spik</button><button type="submit" class="primary-button">Klar</button></div></form>`; $('#editor-modal').hidden = false; $('#coupon-editor-form').dataset.coupon = couponIndex; $('#coupon-editor-form').dataset.race = raceIndex; }
 function saveCouponEditor(event) { event.preventDefault(); const form = event.currentTarget; const coupon = state.coupons[Number(form.dataset.coupon)]; const race = Number(form.dataset.race); const selected = Array.from(form.querySelectorAll('input[name="horse"]:checked')).map((input) => Number(input.value)); if (!selected.length) return showToast('Välj minst en häst'); coupon.selections[race] = selected; coupon.rows = rowsFor(coupon); coupon.cost = coupon.rows * (state.round.rowPrice || 1); coupon.spikeCount = coupon.selections.filter((selection) => selection.length === 1).length; $('#editor-modal').hidden = true; renderCoupons(); showToast('Avdelningen sparades på kupongen'); }
 
 async function refreshFromAtgLegacy() { if (!state.round) return; const config = { date: state.round.date, gameType: state.round.gameType, track: state.round.track, track2: state.round.track2 }; $('#refresh-round').disabled = true; try { const fresh = await importRound(config, state.round.id); state.round = fresh; generateCoupons(); renderRound(); showToast('Startlistan uppdaterades från ATG'); } catch (error) { showToast(error.message); } finally { $('#refresh-round').disabled = false; } }
@@ -834,7 +901,7 @@ function markUpdatedFields(previous, fresh) {
   }
 }
 
-function shuffleCoupons() { const old = state.coupons.map((coupon) => coupon.selections.map((picks) => [...picks])); state.selectedPlanIndexes = state.combinationOptions.map((options, couponIndex) => { const pending = state.pendingCombinationIndexes[couponIndex]; return Number.isInteger(pending) && options[pending] ? pending : null; }); state.pendingCombinationIndexes = []; state.seed += 1; state.shuffleSeed += 1; generateCoupons(old); renderCoupons(); showToast('Kupongerna slumpades – valda förslag, låsta kombinationer, avdelningar och spikregeln användes'); }
+function shuffleCoupons() { const old = state.coupons.map((coupon) => coupon.selections.map((picks) => [...picks])); state.selectedPlanIndexes = state.combinationOptions.map((options, couponIndex) => { const pending = state.pendingCombinationIndexes[couponIndex]; return Number.isInteger(pending) && options[pending] ? pending : null; }); state.pendingCombinationIndexes = []; state.seed += 1; state.shuffleSeed += 1; generateCoupons(old); renderCoupons(); }
 
 async function savePackage() { if (!state.round?.id) return showToast('Skapa eller öppna en omgång först'); const automaticName = `${state.round.gameType} ${trackLabel(state.round.track, state.round.track2)} · ${dateLabel(state.round.date)}`; const enteredName = window.prompt('Rubrik för kupongpaketet (valfritt):', ''); const packageName = enteredName?.trim() || automaticName; const packageId = (window.crypto?.randomUUID?.() || `package-${Date.now()}-${state.seed}`); const packageCreatedAt = new Date().toISOString(); try { for (const coupon of state.coupons) { const response = await apiFetch(`/games/${encodeURIComponent(state.round.id)}/coupons`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `Tillsammans · ${coupon.name}`, source: 'tillsammans', packageId, packageName, packageCreatedAt, rows: coupon.rows, cost: coupon.cost, spikeCount: coupon.spikeCount, variation: coupon.variation, stakeLevel: 'original', selections: coupon.selections.map((horses, index) => ({ divisionIndex: state.round.races[index]?.division || index + 1, horses })) }) }); if (!response.ok) throw new Error(await response.text() || 'Kunde inte spara paket'); } await loadGames(); state.savedCoupons = state.games.find((game) => String(game._id) === String(state.round.id))?.coupons || []; renderSavedCoupons(); showToast('Kupongerna sparades som ett paket under Kuponger'); } catch (error) { showToast(error.message); } }
 
@@ -847,7 +914,7 @@ function bindEvents() {
   $$('[data-close-modal]').forEach((button) => button.addEventListener('click', () => { $(`#${button.dataset.closeModal}`).hidden = true; }));
   document.addEventListener('click', (event) => { const view = event.target.closest('[data-view]'); if (view) { if (view.dataset.view === 'round' && !state.round) { showToast('Öppna eller skapa en omgång först'); return; } showView(view.dataset.view); if (view.dataset.view === 'coupons') loadSavedCoupons(); if (view.dataset.view === 'results') loadResults(); } const inlineShuffle = event.target.closest('[data-shuffle-inline]'); if (inlineShuffle) { event.stopPropagation(); shuffleCoupons(); return; } const sliderArrow = event.target.closest('[data-combination-prev],[data-combination-next]'); if (sliderArrow) { event.stopPropagation(); const couponIndex = Number(sliderArrow.dataset.combinationPrev ?? sliderArrow.dataset.combinationNext); const options = state.combinationOptions[couponIndex] || []; if (options.length) { const direction = sliderArrow.hasAttribute('data-combination-next') ? 1 : -1; const current = state.combinationCursors[couponIndex] ?? 0; state.combinationCursors[couponIndex] = (current + direction + options.length) % options.length; renderCoupons(); } return; } const combinationSelect = event.target.closest('[data-combination-select]'); if (combinationSelect) { event.stopPropagation(); const couponIndex = Number(combinationSelect.dataset.combinationSelect); const cursor = state.combinationCursors[couponIndex] ?? 0; state.pendingCombinationIndexes[couponIndex] = state.pendingCombinationIndexes[couponIndex] === cursor ? null : cursor; renderCoupons(); showToast(state.pendingCombinationIndexes[couponIndex] === null ? `Förslag för kupong ${couponIndex + 1} rensat` : `Förslag för kupong ${couponIndex + 1} valt till nästa slumpning`); return; } const combinationLock = event.target.closest('[data-lock-combination]'); if (combinationLock) { event.stopPropagation(); const couponIndex = Number(combinationLock.dataset.lockCombination); if (state.combinationLocks.has(couponIndex)) { state.combinationLocks.delete(couponIndex); state.lockedCombinationPatterns.delete(couponIndex); } else { const optionIndex = state.pendingCombinationIndexes[couponIndex] ?? state.combinationCursors[couponIndex] ?? 0; const option = state.combinationOptions[couponIndex]?.[optionIndex]; state.combinationLocks.add(couponIndex); if (option) state.lockedCombinationPatterns.set(couponIndex, countPlanSignature(option.counts)); } renderCoupons(); showToast(state.combinationLocks.has(couponIndex) ? `Kombinationen för kupong ${couponIndex + 1} är låst` : `Kombinationen för kupong ${couponIndex + 1} är upplåst`); return; } const resultButton = event.target.closest('[data-fetch-results]'); if (resultButton) { event.stopPropagation(); fetchGameResults(resultButton.dataset.fetchResults); return; } const deleteButton = event.target.closest('[data-delete-saved-coupon]'); if (deleteButton) { event.stopPropagation(); deleteSavedCoupon(deleteButton.dataset.deleteGame, deleteButton.dataset.deleteSavedCoupon); return; } const deleteGameButton = event.target.closest('[data-delete-game]'); if (deleteGameButton) { event.stopPropagation(); deleteGame(deleteGameButton.dataset.deleteGame); return; } const card = event.target.closest('[data-game-id]'); if (card) { const game = state.games.find((item) => String(item._id) === card.dataset.gameId); if (game) { state.round = normalizeGame(game); state.savedCoupons = Array.isArray(game.coupons) ? game.coupons : []; resetCombinationState(); state.seed += 1; state.shuffleSeed = 0; generateCoupons(); renderRound(); showView('round'); } } const race = event.target.closest('.race-summary'); if (race) race.parentElement.classList.toggle('open'); const edit = event.target.closest('[data-edit-coupon]'); if (edit && !event.target.closest('[data-lock-coupon]')) openCouponEditor(Number(edit.dataset.editCoupon), Number(edit.dataset.editDivision)); const lock = event.target.closest('[data-lock-coupon]'); if (lock) { event.stopPropagation(); const key = `${lock.dataset.lockCoupon}:${lock.dataset.lockDivision}`; state.locks.has(key) ? state.locks.delete(key) : state.locks.add(key); renderCoupons(); } });
   $('#edit-round').addEventListener('click', openRoundEditor); $('#refresh-round').addEventListener('click', refreshFromAtg);   $('#round-editor-form')?.addEventListener('submit', saveRoundEditor);
-  $('#coupon-count').addEventListener('click', (event) => { const button = event.target.closest('[data-count]'); if (!button) return; resetCombinationState(); state.couponCount = Number(button.dataset.count); generateCoupons(); renderCoupons(); }); $('#spike-count').addEventListener('click', (event) => { const button = event.target.closest('[data-spikes]'); if (!button) return; clearPendingCombinationChoices(); state.spikeCount = Number(button.dataset.spikes); $$('#spike-count button').forEach((item) => item.classList.toggle('selected', item === button)); generateCoupons(); renderCoupons(); }); $('#share-price').addEventListener('input', scheduleCouponRegeneration); $('#share-count').addEventListener('change', scheduleCouponRegeneration);
+  $('#together-2-toggle').addEventListener('change', (event) => { state.together2 = event.target.checked; if (state.together2) { state.manualSpikeCount = state.spikeCount; state.spikeCount = 2; } else { state.spikeCount = state.manualSpikeCount; } resetCombinationState(); state.seed += 1; generateCoupons(); renderCoupons(); }); $('#coupon-count').addEventListener('click', (event) => { const button = event.target.closest('[data-count]'); if (!button) return; resetCombinationState(); state.couponCount = Number(button.dataset.count); generateCoupons(); renderCoupons(); }); $('#spike-count').addEventListener('click', (event) => { const button = event.target.closest('[data-spikes]'); if (!button || state.together2) return; clearPendingCombinationChoices(); state.spikeCount = Number(button.dataset.spikes); state.manualSpikeCount = state.spikeCount; $$('#spike-count button').forEach((item) => item.classList.toggle('selected', item === button)); scheduleCouponRegeneration(); }); $('#share-price').addEventListener('input', scheduleCouponRegeneration); $('#share-count').addEventListener('change', scheduleCouponRegeneration);
   $$('[data-step]').forEach((button) => button.addEventListener('click', () => { const input = $('#share-price'); input.value = Math.max(1, Number(input.value) + Number(button.dataset.dir)); scheduleCouponRegeneration(); })); $('#shuffle-coupons').addEventListener('click', shuffleCoupons); $('#save-package').addEventListener('click', savePackage);
   document.addEventListener('submit', (event) => { if (event.target.id === 'round-editor-form') saveRoundEditor(event); if (event.target.id === 'coupon-editor-form') saveCouponEditor(event); }); document.addEventListener('click', (event) => { if (event.target.id === 'make-spike') { const form = event.target.closest('#coupon-editor-form'); const race = state.round?.races?.[Number(form?.dataset.race)]; const favorite = raceFavorite(race || { horses: [] }); form?.querySelectorAll('input[name="horse"]').forEach((input) => { input.checked = Number(input.value) === favorite?.number; }); } });
 }

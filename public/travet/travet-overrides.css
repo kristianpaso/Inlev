@@ -39,6 +39,9 @@
 .saved-coupon-design .coupon-race{grid-template-columns:38px minmax(0,1fr)!important;min-height:42px;padding:5px 6px}.saved-coupon-design .spike-pick{width:100%;grid-template-columns:23px minmax(0,1fr)!important;grid-template-rows:auto auto;gap:0 4px}.saved-coupon-design .spike-name{font-size:10px;line-height:1.05}.saved-coupon-design .spike-pick strong{grid-column:2;text-align:left;font-size:9px;line-height:1.05}.saved-coupon-design .pick-list{overflow:visible;flex-wrap:wrap;gap:3px;align-content:center}.saved-coupon-design .number-chip{min-width:19px;height:19px;font-size:10px}.saved-coupon-design .number-chip.favorite-chip{width:24px;min-width:24px;height:24px}
 .coupon-list.recalculating{opacity:.62;pointer-events:none;transition:opacity .12s ease}
 .saved-coupons-list{grid-template-columns:1fr}.saved-coupon-group-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.saved-coupon-design .coupon-race{height:39px;min-height:39px;overflow:hidden}.saved-coupon-design .spike-pick{grid-template-columns:24px minmax(0,1fr) auto!important;grid-template-rows:1fr!important;align-items:center;gap:4px}.saved-coupon-design .spike-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.saved-coupon-design .spike-pick strong{grid-column:auto;font-size:10px;white-space:nowrap}.saved-coupon-design .pick-list{height:24px;min-width:0;overflow:hidden!important;flex-wrap:nowrap!important;white-space:nowrap;gap:4px}.saved-coupon-design .number-chip{flex:0 0 20px}
+.saved-coupon-group.game-type-v86{background:#802c7e;border-color:#b255a9}.saved-coupon-group.game-type-v85{background:#004f9f;border-color:#4d93d5}.saved-coupon-group.game-type-v64{background:#ed6c15;border-color:#ffb067}.saved-coupon-group.game-type-v65{background:#c00a26;border-color:#ef6375}.saved-coupon-group.game-type-gs75{background:#15614e;border-color:#4eaa8f}.saved-coupon-group.game-type-v86 .saved-coupon-group-header p,.saved-coupon-group.game-type-v85 .saved-coupon-group-header p,.saved-coupon-group.game-type-v64 .saved-coupon-group-header p,.saved-coupon-group.game-type-v65 .saved-coupon-group-header p,.saved-coupon-group.game-type-gs75 .saved-coupon-group-header p{color:#f2fbff}.saved-coupon-group.game-type-v86 .saved-coupon-group-header p strong,.saved-coupon-group.game-type-v85 .saved-coupon-group-header p strong,.saved-coupon-group.game-type-v64 .saved-coupon-group-header p strong,.saved-coupon-group.game-type-v65 .saved-coupon-group-header p strong,.saved-coupon-group.game-type-gs75 .saved-coupon-group-header p strong{color:#fff}
+.number-chip.winner-chip,.number-ball.winner-chip{border:2px solid #39e199!important;box-shadow:0 0 0 2px #0a3b2e,0 0 10px #39e19988!important}
+.together-preset{display:flex;align-items:center;gap:10px;margin-top:12px;border:1px solid #1b7f9f;border-radius:12px;background:#073b60;padding:10px 12px;cursor:pointer}.together-preset:has(input:checked){border-color:#26dbd8;background:#07536f;box-shadow:0 0 0 1px #26dbd866 inset}.together-preset input{width:18px;height:18px;accent-color:var(--cyan);flex:0 0 auto}.together-preset span{min-width:0;display:grid;gap:2px}.together-preset strong{color:#f2f8ff;font-size:12px}.together-preset small{color:#a7d1e7;font-size:10px;line-height:1.35}.together-preset em{margin-left:auto;color:var(--yellow);font-size:9px;font-style:normal;font-weight:900;white-space:nowrap}.segmented button:disabled{cursor:not-allowed;opacity:.6;filter:saturate(.5)}#spike-count button:disabled.selected{background:#11aeb6;color:#dffcff;border-color:#11aeb6;opacity:1}
 @media (max-width:900px){.saved-coupon-group-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:700px){.saved-coupon-group-grid{grid-template-columns:1fr}}
 .inline-shuffle-card,.coupon-slot-placeholder{display:none}
@@ -85,15 +88,14 @@
 .combination-slide-window{min-width:0}
 .combination-option{min-width:0;border:1px solid #155e82;border-radius:8px;background:#0a4168;color:#fff;padding:7px 4px;text-align:center;display:grid;gap:2px;transition:.16s}
 .combination-option:hover{border-color:var(--cyan);background:#0c5278}.combination-option.selected{border-color:var(--cyan);background:#0c627b;box-shadow:0 0 0 1px #24e3df66 inset}
-.combination-slide:not(.selected){display:none}
 .combination-arrow{border:1px solid #176b8e;border-radius:8px;background:#0a4168;color:#dff8ff;font-size:24px;line-height:1}.combination-arrow:hover{background:#0c627b;border-color:var(--cyan)}
-.combination-pattern{color:#dff7ff;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.combination-pattern-label{display:block;color:#79b8d3;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}.combination-pattern{display:block;color:#dff7ff;font-size:13px;font-weight:900;line-height:1.2;white-space:normal;overflow:visible;text-overflow:clip;word-break:keep-all;letter-spacing:.02em}
 .combination-option strong{font-size:11px;color:#fff}.combination-option small{font-size:9px;color:#9fd2e9}
 .combination-slide-status{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;color:#9cc9e4;font-size:10px}.combination-lock{border:0;background:transparent;color:#afd8ec;font-size:10px;padding:0}.combination-lock:hover{color:#fff}.combination-lock.locked{color:#ffd12d;font-weight:900}
 .coupon-card>.combination-picker{margin:7px 0 0;border-color:#176b8e;background:#072f51;padding:7px}.coupon-card>.combination-picker .combination-picker-head{margin-bottom:5px}.combination-option{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left}.combination-option>div{display:grid;gap:2px;min-width:0}.combination-select-marker{flex:0 0 27px;width:27px;height:27px;border:1px solid #2b8aab;border-radius:50%;background:#063254;color:#bde8f5;font-size:17px;line-height:1}.combination-select-marker:hover,.combination-select-marker.selected{border-color:#39e5dc;background:#18aeb6;color:#052d4a;box-shadow:0 0 0 2px #28d9d644}.combination-slide-status{flex-wrap:wrap}.combination-slide-status small{width:100%;color:#77aeca;font-size:9px}.combination-picker .eyebrow{font-size:9px}
 @media (max-width:700px){
   .combination-picker{padding:8px 5px}.coupon-card>.combination-picker{padding:6px 4px}.combination-picker-head{align-items:flex-start;display:block}.combination-range{display:block;margin-top:3px;font-size:9px}
-  .combination-slider{grid-template-columns:25px minmax(0,1fr) 25px;gap:4px}.combination-option{padding:6px 2px}.combination-pattern{font-size:9px}.combination-option strong{font-size:9px}.combination-option small{font-size:8px}.combination-slide-status{font-size:9px}
+  .combination-slider{grid-template-columns:25px minmax(0,1fr) 25px;gap:4px}.combination-option{padding:6px 2px}.combination-pattern-label{font-size:8px}.combination-pattern{font-size:11px}.combination-option strong{font-size:9px}.combination-option small{font-size:8px}.combination-slide-status{font-size:9px}
 }
 
 .result-saved-coupons{border-top:1px solid #1b6385;margin-top:14px;padding-top:13px;display:grid;gap:8px}.result-saved-heading{display:flex;justify-content:space-between;align-items:end;gap:10px}.result-saved-heading strong{font-size:14px;color:#f2f8ff}.result-saved-coupon{border:1px solid #17668d;border-radius:10px;background:#082f53;padding:8px}.result-saved-coupon-head{display:flex;justify-content:space-between;gap:8px;color:#bfe5f6;font-size:11px;margin-bottom:5px}.result-saved-coupon-head span{color:#9ccfe4;white-space:nowrap}.result-coupon-rows{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.result-coupon-row{display:grid;grid-template-columns:25px minmax(0,1fr) 18px;align-items:center;gap:5px;border:1px solid #155a7c;border-radius:7px;background:#0a4168;padding:4px 6px;min-width:0}.result-coupon-row-hit{border-color:#30db91;background:#0b684d99;color:#d7ffeb}.result-coupon-division{font-weight:900;color:#b8ddf0}.result-coupon-picks{display:flex;gap:3px;align-items:center;min-width:0;overflow:hidden}.result-coupon-number{display:inline-grid;place-items:center;min-width:17px;height:17px;border-radius:50%;background:#155b82;color:#f0fbff;font-size:9px;font-weight:900}.result-coupon-number-hit{background:transparent;color:#45efa9;border:2px solid #39e199;box-shadow:0 0 0 1px #0a3b2e}.result-coupon-check{color:#45efa9;font-weight:900;text-align:right}
@@ -108,6 +110,27 @@ html,body{overflow-x:hidden}
 .refresh-import-panel h2{margin:7px 0 8px;font-size:25px}.refresh-import-panel p{margin:0;color:#b9d8ee;font-size:13px;line-height:1.5}
 .refresh-import-meter{margin-top:22px;text-align:left}.refresh-import-meter-head{display:flex;justify-content:space-between;gap:12px;color:#ddf5ff;font-size:12px;margin-bottom:8px}.refresh-import-meter-head strong{color:var(--cyan)}
 .refresh-import-meter progress{display:block;width:100%;height:13px;accent-color:var(--cyan)}.refresh-import-eta{display:block;color:#9bc4dd;font-size:11px;margin-top:8px;text-align:right}
+
+/* Desktop: jämför kupongerna i en rad och visa avdelningarna under byggaren. */
+@media (min-width:1051px){
+  .round-layout{grid-template-columns:1fr;gap:18px}
+  .together-column{order:-1}
+  .coupon-list{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+}
+
+/* Strukna hästar ska synas i startlistan men aldrig bli valbara. */
+.horse-row.scratched-row,.picker-row.scratched-row{opacity:.5}
+.horse-row.scratched-row .horse-num,.horse-row.scratched-row .horse-name,.picker-row.scratched-row strong,.picker-row.scratched-row span,.picker-row.scratched-row small{text-decoration:line-through}
+.horse-row.scratched-row .horse-odds{color:#ff9b9b!important;font-weight:900}
+.picker-row.scratched-row input{cursor:not-allowed}
+
+/* Tydlig markering av den kombination som ligger låst på kupongen. */
+.combination-locked-choice{margin-top:6px;padding:5px 7px;border-left:3px solid var(--yellow);border-radius:4px;background:#0a4168;color:#c7e4f2;font-size:10px}
+.combination-locked-choice strong{color:var(--yellow);font-size:12px;letter-spacing:.02em}
+
+/* Kompaktare avdelningskolumn med vit siffra. */
+.coupon-race{grid-template-columns:34px minmax(0,1fr) 25px;gap:4px}
+.race-label{color:#fff!important;margin-right:0}
 .refresh-import-spinner{width:28px;height:28px;margin:18px auto 0;border:3px solid #ffffff2e;border-top-color:var(--cyan);border-radius:50%;animation:trav-spin .8s linear infinite}.refresh-import-overlay.is-complete .refresh-import-spinner{border-color:var(--green)}.refresh-import-overlay.is-error .refresh-import-spinner{border-color:var(--danger)}
 @keyframes trav-spin{to{transform:rotate(360deg)}}
 @media (max-width:700px){

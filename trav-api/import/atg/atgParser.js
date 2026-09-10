@@ -49,6 +49,8 @@ function parseExportRows(rows, gameType = 'V64') {
     if (!horse.number && /^\d{1,2}$/.test(String(row[horseIndex] || '').trim()) && row[horseIndex + 1]) {
       horse = { number: Number(row[horseIndex]), name: String(row[horseIndex + 1] || '').trim() };
     }
+    const oddsValue = oddsIndex === null ? '' : String(row[oddsIndex] || '').trim();
+    const scratched = /^EJ$/i.test(oddsValue);
     return {
       id: `${horse.number || 'horse'}-${horse.name || 'okand'}`.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
       number: horse.number,
@@ -57,10 +59,10 @@ function parseExportRows(rows, gameType = 'V64') {
       driver: driverIndex === null ? '' : String(row[driverIndex] || '').trim(),
       winPercent: percentIndex === null ? null : parseSwedishNumber(row[percentIndex]),
       trendPercent: trendIndex === null ? null : parseSwedishNumber(row[trendIndex]),
-      winOdds: oddsIndex === null ? null : parseSwedishNumber(row[oddsIndex]),
+      winOdds: scratched ? null : (oddsIndex === null ? null : parseSwedishNumber(row[oddsIndex])),
       trainer: trainerIndex === null ? '' : String(row[trainerIndex] || '').trim(),
       sulky: sulkyIndex === null ? '' : String(row[sulkyIndex] || '').trim(),
-      scratched: false,
+      scratched,
       manualScore: 0,
       note: '',
     };
