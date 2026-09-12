@@ -24,6 +24,10 @@ const CouponSchema = new mongoose.Schema({
   cost: { type: Number, default: null },
   spikeCount: { type: Number, default: null },
   variation: { type: Number, default: null },
+  sourceUrl: { type: String, default: '' },
+  atgGameId: { type: String, default: '' },
+  myCost: { type: Number, default: null },
+  shareCount: { type: Number, default: null },
   stakeLevel: {
     type: String,
     enum: ['original', '70', '50', '30'],
@@ -49,6 +53,9 @@ const TravGameSchema = new mongoose.Schema(
     track: { type: String, required: true },
     track2: { type: String, default: '' },
     trackSlug: { type: String, default: '' }, // ex: "orebro"
+    // ATG:s omgångs-ID används när en sparad butiksandel bara har spelarens
+    // prefix (t.ex. 130723_) och ska kopplas till nästa omgång.
+    atgGameId: { type: String, default: '' },
 
 results: {
   type: Object,

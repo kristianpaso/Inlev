@@ -7,6 +7,7 @@ const { chromium } = require('playwright');
 const express = require('express');
 const TravGame = require('../models/Game');
 const { parseHorseText } = require('../utils/horseParser');
+const { importShopCoupon, findAtgGameId, gameIdFromUrl, parseGameId } = require('../import/atg/shopCouponImporter');
 
 const router = express.Router();
 
@@ -141,6 +142,87 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error('POST /games error', err);
     res.status(500).send('Serverfel vid skapande av spel.');
+  }
+});
+
+// Importera en butiksandel från ATG:s HorseReceipt-markup och lägg den under rätt omgång.
+router.post('/import/shop', async (req, res) => {
+  try {
+    let sourceUrl = String(req.body?.url || '')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      .trim()
+      .replace(/[),.;]+$/, '');
+    let parsedSourceUrl;
+    try { parsedSourceUrl = new URL(sourceUrl); } catch { parsedSourceUrl = null; }
+    if (!parsedSourceUrl || !/^https?:$/.test(parsedSourceUrl.protocol) || !/(^|\.)atg\.se$/i.test(parsedSourceUrl.hostname) || !parsedSourceUrl.pathname.includes('/butik/')) {
+      return res.status(400).json({ error: 'Klistra in en giltig ATG-länk till en butiksandel.' });
+    }
+    sourceUrl = parsedSourceUrl.toString();
+    const gameId = String(req.body?.gameId || '').trim();
+    let game = gameId ? await TravGame.findById(gameId) : null;
+
+    // En sparad länk innehåller avsiktligt bara spelarens andels-ID, till
+    // exempel .../spel/130723_. Lös den mot den aktuella omgången innan
+    // Playwright öppnar sidan.
+    if (/\/spel\/\d+_$/.test(sourceUrl)) {
+      if (!game) return res.status(400).json({ error: 'Öppna en spelomgång först så att det sparade andels-ID:t kan kopplas till rätt omgång.' });
+      const resolvedGameId = game.atgGameId || await findAtgGameId({ date: game.date, gameType: game.gameType, trackSlug: game.trackSlug }).catch(() => '');
+      if (!resolvedGameId) return res.status(409).json({ error: 'Kunde inte hitta ATG:s omgångs-ID för den aktuella omgången.' });
+      sourceUrl = `${sourceUrl}${resolvedGameId}`;
+    }
+
+    const explicitGameId = gameIdFromUrl(sourceUrl);
+    const explicitGame = parseGameId(explicitGameId);
+    const imported = await importShopCoupon(sourceUrl);
+    const matchesImportedRound = (candidate) => candidate && candidate.gameType === imported.gameType && String(candidate.date) === String(imported.date);
+    if (!matchesImportedRound(game)) {
+      const candidates = await TravGame.find({ gameType: imported.gameType, date: imported.date }).sort({ createdAt: -1 });
+      game = candidates.find((candidate) => {
+        const wanted = String(imported.track || '').toLowerCase();
+        const available = `${candidate.track || ''} ${candidate.track2 || ''}`.toLowerCase();
+        return !wanted || available.includes(wanted) || wanted.includes(String(candidate.track || '').toLowerCase());
+      }) || candidates[0] || null;
+    }
+    if (!game) {
+      const parsedGameId = parseGameId(imported.atgGameId || explicitGameId);
+      game = new TravGame({
+        title: `${imported.gameType} ${imported.track || 'Importerad butiksandel'}`,
+        date: imported.date,
+        track: imported.track || 'Okänd bana',
+        track2: '',
+        trackSlug: String(imported.track || 'okand-bana').toLowerCase().replace(/\s+/g, '-'),
+        gameType: imported.gameType,
+        atgGameId: imported.atgGameId || explicitGameId || '',
+        parsedHorseInfo: { header: `${imported.gameType} ${imported.track || ''}`, expectedDivisions: imported.races.length, divisions: imported.races.map((race) => ({ index: race.division, division: race.division, horses: race.picks.map((number) => ({ number, name: `Häst ${number}`, winPercent: null })) })) },
+      });
+      if (parsedGameId.gameType) game.atgGameId = imported.atgGameId || explicitGameId;
+    }
+    if (!game.atgGameId && (imported.atgGameId || explicitGameId)) game.atgGameId = imported.atgGameId || explicitGameId;
+    const duplicate = game.coupons.find((coupon) => coupon.source === 'shop' && coupon.sourceUrl === sourceUrl);
+    if (duplicate) {
+      await game.save();
+      return res.json({ game, importedCoupon: duplicate, duplicate: true });
+    }
+    const selections = imported.races.map((race) => ({ divisionIndex: race.division, horses: race.picks }));
+    game.coupons.push({
+      source: 'shop',
+      sourceUrl,
+      atgGameId: imported.atgGameId || game.atgGameId || '',
+      name: imported.name || `Butiksandel ${imported.gameType}`,
+      packageId: `shop-${Date.now()}`,
+      packageName: 'Butiksandelar',
+      rows: imported.rows,
+      cost: imported.cost,
+      myCost: imported.myCost,
+      shareCount: imported.shareCount,
+      spikeCount: selections.filter((selection) => selection.horses.length === 1).length,
+      selections,
+    });
+    await game.save();
+    return res.status(201).json({ game, importedCoupon: game.coupons[game.coupons.length - 1] });
+  } catch (error) {
+    console.error('POST /games/import/shop error', error);
+    return res.status(500).json({ error: error.message || 'Kunde inte importera butiksandelen.' });
   }
 });
 

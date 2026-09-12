@@ -8,6 +8,7 @@ const gamesRouter = require('./routes/games');
 const tracksRouter = require('./routes/tracks'); // 🔹 NY
 const analysesRouter = require('./routes/analyses'); // 🔹 NY // 🔹 NY
 const roundsRouter = require('./routes/rounds');
+const tipstersRouter = require('./routes/tipsters');
 
 const app = express();
 
@@ -40,6 +41,7 @@ app.use('/api/trav/games', requireMongo, gamesRouter);
 app.use('/api/trav/tracks', requireMongo, tracksRouter);
 app.use('/api/trav/analyses', requireMongo, analysesRouter);
 app.use('/api/trav/rounds', requireMongo, roundsRouter);
+app.use('/api/trav/rounds', requireMongo, tipstersRouter);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

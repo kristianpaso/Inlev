@@ -1,0 +1,11 @@
+{
+  "sourceId": "travnet",
+  "sections": [
+    { "tipster": "Emil Berglund", "text": "V85-5 – 10 Soot Blaze\nHär tycker jag det luktar spelvärde. Givet motbud!" },
+    { "tipster": "Tobias Liljendahl", "text": "V85-5 3 Powwow\nSpelvärd till under 5%." }
+  ],
+  "expected": [
+    { "tipsterId": "emil-berglund", "division": 5, "horseNumber": 10, "signalType": "STRONG_OUTSIDER" },
+    { "tipsterId": "tobias-liljendahl", "division": 5, "horseNumber": 3, "signalType": "VALUE" }
+  ]
+}

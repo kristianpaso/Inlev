@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "tipsters": [
+    { "id": "emil-berglund", "name": "Emil Berglund", "aliases": ["Emil Berglund"], "primarySource": "travnet", "startingWeight": 1, "enabled": true },
+    { "id": "tobias-liljendahl", "name": "Tobias Liljendahl", "aliases": ["Tobias Liljendahl"], "primarySource": "travnet", "startingWeight": 1, "enabled": true },
+    { "id": "per-anders-johansson", "name": "Per-Anders Johansson", "aliases": ["Per-Anders Johansson", "Pajen"], "primarySource": "andelstorget", "startingWeight": 1, "enabled": true },
+    { "id": "travtjansten", "name": "Travtjänsten", "aliases": ["Travtjänsten", "Andreas Henriksson"], "primarySource": "andelstorget", "startingWeight": 1, "enabled": true },
+    { "id": "christoffer-wickman", "name": "Christoffer Wickman", "aliases": ["Christoffer Wickman"], "primarySource": "andelstorget", "startingWeight": 1, "enabled": true }
+  ],
+  "sources": {
+    "travnet": { "domain": "travnet.se", "articleHints": ["V85-panelen", "V86-panelen", "panelen"], "minimumDelayMs": 3000, "discoveryCooldownMinutes": 15, "articleCooldownMinutes": 30 },
+    "andelstorget": { "domain": "andelstorget.se", "articleHints": ["Experternas bästa", "tips", "inför V85", "inför V86"], "minimumDelayMs": 3000, "discoveryCooldownMinutes": 15, "articleCooldownMinutes": 30 }
+  }
+}

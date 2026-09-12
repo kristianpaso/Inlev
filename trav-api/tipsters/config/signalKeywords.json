@@ -1,0 +1,31 @@
+{
+  "positive": [
+    { "phrase": "omgångens bästa spik", "type": "SUPER_SPIK", "weight": 1 },
+    { "phrase": "spika och bläddra blad", "type": "SUPER_SPIK", "weight": 1 },
+    { "phrase": "spikbud", "type": "SPIK", "weight": 0.95 },
+    { "phrase": "spets och slut", "type": "STRONG_WIN", "weight": 0.92 },
+    { "phrase": "givet motbud", "type": "STRONG_OUTSIDER", "weight": 0.92 },
+    { "phrase": "miljonskräll", "type": "STRONG_OUTSIDER", "weight": 0.94 },
+    { "phrase": "skrällbud", "type": "STRONG_OUTSIDER", "weight": 0.9 },
+    { "phrase": "skräll", "type": "OUTSIDER", "weight": 0.8 },
+    { "phrase": "spelvärd", "type": "VALUE", "weight": 0.86 },
+    { "phrase": "spelvärde", "type": "VALUE", "weight": 0.86 },
+    { "phrase": "bortglömd", "type": "VALUE", "weight": 0.84 },
+    { "phrase": "borttappad", "type": "VALUE", "weight": 0.84 },
+    { "phrase": "singelprocentare", "type": "VALUE", "weight": 0.84 },
+    { "phrase": "given", "type": "EARLY_PICK", "weight": 0.8 },
+    { "phrase": "tidigt", "type": "EARLY_PICK", "weight": 0.76 },
+    { "phrase": "intressant", "type": "POSITIVE", "weight": 0.68 },
+    { "phrase": "formtopp", "type": "POSITIVE", "weight": 0.75 },
+    { "phrase": "toppform", "type": "POSITIVE", "weight": 0.75 }
+  ],
+  "negative": [
+    { "phrase": "helt iskall", "type": "FADE_FAVORITE", "weight": 0.1 },
+    { "phrase": "överspelad", "type": "NEGATIVE", "weight": 0.2 }
+  ],
+  "negationRules": [
+    { "pattern": "inte chanslös", "overrideType": "POSITIVE", "weight": 0.66 },
+    { "pattern": "inte given", "blockPhrase": "given" },
+    { "pattern": "inte intressant", "overrideType": "NEGATIVE", "weight": 0.25 }
+  ]
+}
