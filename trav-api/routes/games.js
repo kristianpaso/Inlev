@@ -949,7 +949,7 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/coupons', async (req, res) => {
   try {
     const { id } = req.params;
-    const { selections, name, source, stakeLevel, status, packageId, packageName, packageCreatedAt, rows, cost, spikeCount, variation } = req.body;
+    const { selections, name, source, stakeLevel, status, packageId, packageName, packageCreatedAt, rows, cost, spikeCount, variation, revisionOf, originalCoupon } = req.body;
 
     if (!Array.isArray(selections) || !selections.length) {
       return res.status(400).send('Minst en avdelning krävs för kupong.');
@@ -977,6 +977,24 @@ router.post('/:id/coupons', async (req, res) => {
 
   const normalizedStatus = normalizeCouponStatus(status);
   const packageDate = packageCreatedAt && Number.isFinite(new Date(packageCreatedAt).getTime()) ? new Date(packageCreatedAt) : null;
+  const normalizedOriginalCoupon = originalCoupon && typeof originalCoupon === 'object'
+    ? {
+        name: String(originalCoupon.name || ''),
+        rows: Number.isFinite(Number(originalCoupon.rows)) ? Number(originalCoupon.rows) : null,
+        cost: Number.isFinite(Number(originalCoupon.cost)) ? Number(originalCoupon.cost) : null,
+        spikeCount: Number.isFinite(Number(originalCoupon.spikeCount)) ? Number(originalCoupon.spikeCount) : null,
+        selections: Array.isArray(originalCoupon.selections)
+          ? originalCoupon.selections
+              .map((sel) => ({
+                divisionIndex: Number(sel.divisionIndex),
+                horses: Array.isArray(sel.horses)
+                  ? sel.horses.map((n) => Number(n)).filter((n) => Number.isFinite(n) && n > 0)
+                  : [],
+              }))
+              .filter((sel) => sel.divisionIndex > 0 && sel.horses.length > 0)
+          : [],
+      }
+    : null;
 
 game.coupons.push({
   selections: normalized,
@@ -990,6 +1008,8 @@ game.coupons.push({
   spikeCount: Number.isFinite(Number(spikeCount)) ? Number(spikeCount) : null,
   variation: Number.isFinite(Number(variation)) ? Number(variation) : null,
   stakeLevel: stakeLevel || 'original',
+  revisionOf: revisionOf ? String(revisionOf) : '',
+  originalCoupon: normalizedOriginalCoupon,
   status: normalizedStatus,
   active: normalizedStatus === 'active',
 });

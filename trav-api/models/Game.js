@@ -26,6 +26,10 @@ const CouponSchema = new mongoose.Schema({
   variation: { type: Number, default: null },
   sourceUrl: { type: String, default: '' },
   atgGameId: { type: String, default: '' },
+  // Om kupongen är en redigerad kopia sparas originalets val så att
+  // användaren kan växla mellan gammal och ny kupong.
+  revisionOf: { type: String, default: '' },
+  originalCoupon: { type: Object, default: null },
   myCost: { type: Number, default: null },
   shareCount: { type: Number, default: null },
   stakeLevel: {

@@ -8,6 +8,8 @@ const isLocalApp = ['localhost', '127.0.0.1', '::1'].includes(window.location.ho
 const API_ROOTS = isLocalApp ? [LOCAL_API_ROOT] : [RENDER_API_ROOT];
 let activeApiRoot = API_ROOTS[0];
 const state = { games: [], round: null, coupons: [], savedCoupons: [], savedCouponDrafts: {}, purchasedCoupons: [], shopLinks: [], lastShopCouponTitle: '', selectedPurchasedCouponId: null, reverseCoupon: null, reverseMode: 'reverse', reversePrice: 20, reverseSpikeCount: 2, reverseShareEnabled: false, reverseShareCount: 50, reverseStakePercent: 100, reverseStakePrice: null, togetherStakePercent: 100, togetherStakePrice: null, complementMode: 'uncovered', complementTipsterId: 'all', reverseSourceIds: [], reverseManualSelections: {}, reverseCombinationOptions: [], reverseCombinationCursor: 0, reverseCombinationLocked: false, reverseLockedCombinationSignature: '', reverseShufflePattern: '', downgradeSourceIds: [], downgradePrice: 1000, downgradeNewCombination: false, downgradeCoupons: [], downgradeDrafts: [], roundBuilderTab: 'together', tipsterCouponTab: 'started', tipsterBuzz: null, tipsterDivision: 1, tipsterHorseNumber: null, tipsterLoading: false, tipstersHasNewInfo: false, focusedTogetherPackages: {}, locks: new Set(), combinationLocks: new Set(), lockedCombinationPatterns: new Map(), selectedPlanIndexes: [], pendingCombinationIndexes: [], combinationCursors: [], combinationOptions: [], couponCount: 3, spikeCount: 2, manualSpikeCount: 2, togetherPreset: null, together2: false, editingRound: false, seed: 1, shuffleSeed: 0, countPlanCache: new Map(), combinationPlanCache: new Map(), regenerateTimer: null, refreshImportTimer: null, weeklyImportTimer: null };
+state.markTipsterHorses = false;
+state.complementDrafts = {};
 const DOWNGRADE_DRAFTS_STORAGE_KEY = 'travet.downgradeDrafts.v1';
 const FOCUSED_TOGETHER_STORAGE_KEY = 'travet.focusedTogether.v1';
 const $ = (selector) => document.querySelector(selector);
@@ -246,15 +248,66 @@ function tipsterSavedCouponCardMarkup(coupon, round, couponIndex, winnerMap = ne
   return `<article class="coupon-card unified-coupon-card saved-coupon-design ${draft ? 'has-saved-coupon-draft' : ''}"><div class="coupon-top"><span><i class="coupon-index-badge">${couponIndex + 1}</i><span class="coupon-title">${esc(title)}</span></span><span class="coupon-cost">${money(runtime.cost)}</span></div><p class="strategy-note">${draft ? 'Ändrad kupong · ej sparad ännu' : `Sparad kupong${hasResults ? ` · ${hitCount} av ${round.races.length} rätt` : ''}`}</p><div class="coupon-stats"><span>▥ ${runtime.rows.toLocaleString('sv-SE')} rader</span><span>★ ${runtime.spikeCount} spikar</span></div>${(round.races || []).map((race, raceIndex) => { const winner = winnerMap.get(String(race.division)); const picks = runtime.selections[raceIndex] || []; const hit = Number.isFinite(winner) && picks.includes(winner); return `<div class="coupon-race saved-coupon-race ${hit ? 'result-coupon-row-hit' : ''}" data-edit-saved-coupon="${esc(identity)}" data-edit-game="${esc(round.id)}" data-edit-division="${raceIndex}" title="Ändra hästar"><span class="race-label">${race.division}</span>${couponPicksMarkup(runtime, race, raceIndex, winner)}</div>`; }).join('')}<div class="coupon-footer"><span>${runtime.rows.toLocaleString('sv-SE')} rader · ${runtime.spikeCount} spikar</span><div class="saved-coupon-actions">${draft ? `<button type="button" class="gold-button" data-save-saved-coupon="${esc(identity)}" data-save-game="${esc(round.id)}">Spara som ny</button><button type="button" class="outline-button" data-discard-saved-coupon="${esc(identity)}" data-discard-game="${esc(round.id)}">Ångra</button>` : ''}<button class="delete-coupon-button" data-delete-saved-coupon="${esc(identity)}" data-delete-game="${esc(round.id)}" title="Ta bort kupong">Ta bort</button></div></div></article>`;
 }
 
+function enhanceSavedCouponComparisonCards(container) {
+  if (!container || !state.round) return;
+  Array.from(container.querySelectorAll('.tipster-saved-coupon-list .saved-coupon-design')).forEach((card) => {
+    if (card.dataset.savedComparisonReady) return;
+    const firstRow = card.querySelector('[data-edit-saved-coupon]');
+    if (!firstRow) return;
+    const game = state.games.find((item) => String(item._id ?? item.id) === String(firstRow.dataset.editGame));
+    const coupon = game?.coupons?.find((item, index) => savedCouponIdentity(item, index) === String(firstRow.dataset.editSavedCoupon));
+    if (!coupon) return;
+    const key = `${firstRow.dataset.editGame}:${firstRow.dataset.editSavedCoupon}`;
+    const draft = state.savedCouponDrafts[key];
+    const original = coupon.originalCoupon?.selections ? savedCouponSelections(coupon.originalCoupon, state.round) : draft ? savedCouponSelections(coupon, state.round) : null;
+    if (!original) return;
+    const tabs = document.createElement('div');
+    tabs.className = 'saved-coupon-comparison-tabs';
+    tabs.innerHTML = '<button type="button" class="active" data-saved-comparison-tab="new">Ny</button><button type="button" data-saved-comparison-tab="old">Gammal</button>';
+    const newPanel = document.createElement('div');
+    newPanel.className = 'saved-coupon-comparison-panel active';
+    newPanel.dataset.savedComparisonPanel = 'new';
+    const oldPanel = document.createElement('div');
+    oldPanel.className = 'saved-coupon-comparison-panel';
+    oldPanel.dataset.savedComparisonPanel = 'old';
+    oldPanel.hidden = true;
+    oldPanel.innerHTML = (state.round.races || []).map((race, raceIndex) => `<div class="coupon-race saved-coupon-race"><span class="race-label">${race.division}</span>${couponPicksMarkup({ selections: original }, race, raceIndex)}</div>`).join('');
+    const rows = Array.from(card.querySelectorAll('.saved-coupon-race'));
+    if (!rows.length) return;
+    rows[0].before(newPanel, oldPanel);
+    rows.forEach((row) => newPanel.append(row));
+    card.append(tabs);
+    card.dataset.savedComparisonReady = 'true';
+  });
+}
+
 function renderTipsterSavedCouponsMarkup() {
   const game = state.games.find((item) => String(item._id ?? item.id) === String(state.round?.id));
-  const coupons = tipsterSavedCoupons();
-  if (!coupons.length) return '';
+  const savedCoupons = tipsterSavedCoupons().filter((coupon) => {
+    const name = String(coupon?.name || '').toLowerCase();
+    return !coupon?.complement && !name.includes('komplement') && !name.includes('tipsterkupong');
+  });
+  const supplementCoupons = [
+    buildComplementCoupon(state.coupons || [], 'together', 'uncovered', 'all'),
+    buildComplementCoupon(state.coupons || [], 'together', 'tipsters', 'all'),
+  ];
+  const coupons = [...savedCoupons, ...supplementCoupons];
   const winnerMap = resultWinnerMapFor(game || {}, state.round);
   const races = state.round?.races || [];
-  const divisionLabels = `<div class="together-division-labels"><strong>AVDELNING</strong>${races.map((race) => `<span>Avd ${race.division}</span>`).join('')}</div>`;
-  const cards = coupons.map((coupon, index) => tipsterSavedCouponCardMarkup(coupon, state.round, index, winnerMap)).join('');
-  return `<section class="tipster-saved-coupon-overview"><div class="tipster-coupon-overview-heading"><div><span class="eyebrow">SPARADE KUPONGER</span><h2>Omgångens sparade kuponger</h2><p>Samma kupongdesign som under Påbörjad kupong.</p></div><button type="button" class="outline-button" data-view="coupons">Öppna Kuponger</button></div><div class="tipster-coupon-list tipster-saved-coupon-list" style="--coupon-columns:${coupons.length}">${divisionLabels}${cards}</div></section>`;
+  if (!coupons.length) return '';
+  const rows = [];
+  for (let start = 0; start < coupons.length; start += 3) {
+    const group = coupons.slice(start, start + 3);
+    const labels = `<div class="together-division-labels"><strong>AVDELNING</strong>${races.map((race) => `<span>Avd ${race.division}</span>`).join('')}</div>`;
+    const cards = group.map((coupon, offset) => {
+      const index = start + offset;
+      return coupon.complement
+        ? `<article class="coupon-card unified-coupon-card saved-coupon-design complement-coupon-card"><div class="coupon-top"><span><i class="coupon-index-badge">${index + 1}</i><span class="coupon-title">${esc(coupon.name)}</span></span><span class="coupon-cost">${money(coupon.cost)}</span></div>${races.map((race, raceIndex) => `<div class="coupon-race" data-edit-complement="true" data-edit-complement-source="together" data-edit-complement-mode="${coupon.name.startsWith('Tipsterkupong') ? 'tipsters' : 'uncovered'}" data-edit-complement-tipster="all" data-edit-complement-division="${raceIndex}" title="Ändra komplementkupong"><span class="race-label">${race.division}</span>${couponPicksMarkup(coupon, race, raceIndex)}</div>`).join('')}<div class="coupon-footer"><span>${Number(coupon.rows || 0).toLocaleString('sv-SE')} rader · ${coupon.spikeCount || 0} spikar</span></div></article>`
+        : tipsterSavedCouponCardMarkup(coupon, state.round, index, winnerMap);
+    }).join('');
+    rows.push(`<div class="tipster-saved-coupon-row">${labels}${cards}</div>`);
+  }
+  return `<section class="tipster-saved-coupon-overview"><div class="tipster-coupon-overview-heading"><div><span class="eyebrow">SPARADE KUPONGER</span><h2>Omgångens sparade kuponger</h2><p>Samma kupongdesign som under Påbörjad kupong. Tre kuponger per rad.</p></div><button type="button" class="outline-button" data-view="coupons">Öppna Kuponger</button></div><div class="tipster-coupon-list tipster-saved-coupon-list" style="--division-count:${races.length}">${rows.join('')}</div></section>`;
 }
 
 function renderTipsters() {
@@ -368,6 +421,7 @@ function renderRoundTipsters() {
   const sourceHealth = Object.values(state.tipsterBuzz?.sourceHealth || {});
   const sourceStatus = sourceCount ? `${sourceCount} tipsters med signal` : sourceHealth.some((source) => source.status === 'degraded' || source.status === 'blocked') ? 'Källor kunde inte läsas' : 'Inga signaler för omgången';
   content.innerHTML = `<div class="tipster-layout round-tipster-layout"><section class="tipster-race-panel"><div class="tipster-race-toolbar"><button type="button" class="tipster-race-arrow" data-tipster-division="prev" aria-label="Föregående avdelning">‹</button><label>Avdelning<select id="round-tipster-division">${races.map((item, index) => `<option value="${index + 1}" ${index === raceIndex ? 'selected' : ''}>Avd ${item.division}</option>`).join('')}</select></label><button type="button" class="tipster-race-arrow" data-tipster-division="next" aria-label="Nästa avdelning">›</button><span>${esc(race.distance || 'Startlista')} · ${horses.length} aktiva hästar</span></div><div class="tipster-table"><div class="tipster-table-head"><span>Nr</span><span>Häst</span><span>Kusk</span><span>V%</span><span>Odds</span><span>Buzz</span><span>Kommentar / källa</span></div>${rows || '<p class="tipster-empty-copy">Inga aktiva hästar i avdelningen.</p>'}</div></section><aside id="round-tipster-buzz-panel" class="tipster-buzz-panel"></aside></div><small class="round-tipster-footnote">${configured.length ? `Källor: ${configured.length} konfigurerade tipsters` : 'Tipsterkällor väntar på uppdatering.'}</small>${renderTipsterCouponTabsMarkup()}${state.tipsterCouponTab === 'saved' ? renderTipsterSavedCouponsMarkup() : renderTipstersCouponOverviewMarkup()}`;
+  enhanceSavedCouponComparisonCards(content);
   renderTipsterBuzzPanel(selectedBuzzHorse, race, '#round-tipster-buzz-panel');
 }
 
@@ -915,7 +969,7 @@ function reverseCombinationPickerMarkup(coupon) {
 function renderReversePreview() {
   const round = state.round || matchingRoundForPurchased(selectedReverseSources()[0]);
   const markup = state.reverseCoupon && round ? reverseCouponCardMarkup(state.reverseCoupon, round) : '';
-  ['#reverse-coupon-preview', '#round-reverse-coupon-preview'].forEach((selector) => { const box = $(selector); if (!box) return; const isRoundPanel = selector.includes('round-'); const belongsToRound = !isRoundPanel || Boolean(round); box.hidden = !markup || !belongsToRound; box.innerHTML = box.hidden ? '' : markup; });
+  ['#reverse-coupon-preview', '#round-reverse-coupon-preview'].forEach((selector) => { const box = $(selector); if (!box) return; const isRoundPanel = selector.includes('round-'); const belongsToRound = !isRoundPanel || Boolean(round); box.hidden = !markup || !belongsToRound; box.innerHTML = box.hidden ? '' : markup; prepareCombinationOptions(box); });
 }
 
 function renderReverseSettings() {
@@ -1014,6 +1068,37 @@ function buildDowngradeCoupon(source, round, sourceIndex) {
   return { id: `downgrade-${source.id}`, kind: 'downgrade', name: `Downgrade · ${source.name || 'kupong'}`, gameType: round.gameType, date: round.date, track: trackLabel(round.track, round.track2), rows, cost: rows * rowPriceForGameType(round.gameType), spikeCount: selections.filter((picks) => picks.length === 1).length, selections, sourceId: source.id, constrained: plan.constrained, targetRows: plan.targetRows };
 }
 
+function enhanceDowngradeCards(container, coupons = []) {
+  if (!container || !state.round) return;
+  Array.from(container.querySelectorAll('.downgrade-result-card, .downgrade-draft-coupon')).forEach((card, index) => {
+    if (card.dataset.downgradeComparisonReady) return;
+    const coupon = coupons[index];
+    if (!coupon) return;
+    const source = reverseSourcesForRound().find((item) => String(item.id) === String(coupon.sourceId));
+    const races = state.round.races || [];
+    const originalSelections = races.map((race) => source?.races?.find((item) => Number(item.division) === Number(race.division))?.picks || []);
+    const original = { selections: originalSelections };
+    const tabs = document.createElement('div');
+    tabs.className = 'downgrade-comparison-tabs';
+    tabs.innerHTML = '<button type="button" class="active" data-downgrade-comparison-tab="new">Ny kupong</button><button type="button" data-downgrade-comparison-tab="old">Gammal kupong</button>';
+    const newPanel = document.createElement('div');
+    newPanel.className = 'downgrade-comparison-panel active';
+    newPanel.dataset.downgradeComparisonPanel = 'new';
+    const oldPanel = document.createElement('div');
+    oldPanel.className = 'downgrade-comparison-panel';
+    oldPanel.dataset.downgradeComparisonPanel = 'old';
+    oldPanel.hidden = true;
+    oldPanel.innerHTML = source ? races.map((race, raceIndex) => `<div class="coupon-race"><span class="race-label">${race.division}</span>${couponPicksMarkup(original, race, raceIndex)}</div>`).join('') : '<div class="downgrade-original-missing">Originalkupongen kunde inte hittas.</div>';
+    const rows = Array.from(card.querySelectorAll('.coupon-race'));
+    const firstRow = rows[0];
+    if (!firstRow) return;
+    firstRow.before(tabs, newPanel, oldPanel);
+    rows.forEach((row) => newPanel.append(row));
+    card.dataset.downgradeComparisonReady = 'true';
+    card.classList.add('downgrade-comparison-card');
+  });
+}
+
 function renderDowngradeBuilder() {
   ensureDowngradeMarkup();
   const list = $('#downgrade-source-list');
@@ -1025,8 +1110,15 @@ function renderDowngradeBuilder() {
   if (status) status.textContent = state.downgradeSourceIds.length ? `${state.downgradeSourceIds.length} kupong${state.downgradeSourceIds.length === 1 ? '' : 'er'} vald${state.downgradeSourceIds.length === 1 ? '' : 'a'}` : 'Välj minst en sparad kupong.';
   const newCombination = $('#downgrade-new-combination');
   if (newCombination) newCombination.checked = state.downgradeNewCombination;
-  if (result) result.innerHTML = state.downgradeCoupons.map((coupon, couponIndex) => `<article class="coupon-card unified-coupon-card downgrade-result-card"><div class="coupon-top"><span><i class="coupon-index-badge">${couponIndex + 1}</i><span class="coupon-title">${esc(coupon.name)}</span></span><span class="coupon-cost">${money(coupon.cost)}</span></div><p class="strategy-note">Spikarna är bevarade. Endast hästar har tagits bort.</p><div class="coupon-stats"><span>▥ ${coupon.rows.toLocaleString('sv-SE')} rader</span><span>★ ${coupon.spikeCount} spikar</span></div>${state.round.races.map((race, index) => `<div class="coupon-race"><span class="race-label">${race.division}</span>${couponPicksMarkup(coupon, race, index)}<span class="lock locked" title="Spikregeln är låst">🔒</span></div>`).join('')}<div class="coupon-footer"><span>${coupon.rows.toLocaleString('sv-SE')} rader · ${coupon.spikeCount} spikar</span><span>${coupon.constrained ? 'Minsta möjliga pris' : `Mål ${money(state.downgradePrice)}`}</span></div></article>`).join('');
+  if (result) {
+    const downgradedCards = state.downgradeCoupons.map((coupon, couponIndex) => `<article class="coupon-card unified-coupon-card downgrade-result-card"><div class="coupon-top"><span><i class="coupon-index-badge">${couponIndex + 1}</i><span class="coupon-title">${esc(coupon.name)}</span></span><span class="coupon-cost">${money(coupon.cost)}</span></div><p class="strategy-note">Spikarna är bevarade. Endast hästar har tagits bort.</p><div class="coupon-stats"><span>▥ ${coupon.rows.toLocaleString('sv-SE')} rader</span><span>★ ${coupon.spikeCount} spikar</span></div>${state.round.races.map((race, index) => `<div class="coupon-race"><span class="race-label">${race.division}</span>${couponPicksMarkup(coupon, race, index)}<span class="lock locked" title="Spikregeln är låst">🔒</span></div>`).join('')}<div class="coupon-footer"><span>${coupon.rows.toLocaleString('sv-SE')} rader · ${coupon.spikeCount} spikar</span><span>${coupon.constrained ? 'Minsta möjliga pris' : `Mål ${money(state.downgradePrice)}`}</span></div></article>`).join('');
+    const downgradeComplement = state.downgradeCoupons.length ? buildComplementCoupon(state.downgradeCoupons, 'downgrade') : null;
+    result.innerHTML = downgradedCards + (downgradeComplement ? togetherCouponCardMarkup(downgradeComplement, 3, true) : '');
+  }
   renderDowngradeDrafts();
+  enhanceDowngradeCards(result, state.downgradeCoupons);
+  const savedDraftCoupons = state.downgradeDrafts.filter((draft) => String(draft.roundId) === String(state.round.id)).flatMap((draft) => draft.coupons || []);
+  enhanceDowngradeCards($('#downgrade-drafts'), savedDraftCoupons);
 }
 
 function renderDowngradeDrafts() {
@@ -1552,7 +1644,7 @@ function ensureTogetherCascadeButton() {
 }
 function hasTogetherPreset() { return state.togetherPreset !== null && state.togetherPreset !== undefined && Number.isFinite(Number(state.togetherPreset)); }
 function requestedSpikes() { if (hasTogetherPreset()) return Math.max(1, Math.min(4, Number(state.togetherPreset))); if (state.together2) return 2; const selected = $('#spike-count')?.querySelector('.selected'); const value = Number(selected?.dataset.spikes ?? state.manualSpikeCount ?? state.spikeCount ?? 2); return Math.max(0, Math.min(5, Number.isFinite(value) ? value : 2)); }
-function strategies(count) { return count === 2 ? [{ name: 'Favorit', note: 'Favoriter och starka chanser' }, { name: 'Mellan', note: 'Balanserad med bredd' }] : count === 4 ? [{ name: 'Favorit', note: 'Favoriter och starka chanser' }, { name: 'Mellan A', note: 'Balanserad med variation' }, { name: 'Mellan B', note: 'Alternativa utfall' }, { name: 'Skräll', note: 'Högre risk – högre utdelning' }] : [{ name: 'Favorit', note: 'Favoriter och starka chanser' }, { name: 'Mellan', note: 'Balanserad med bredd' }, { name: 'Skräll', note: 'Högre risk – högre utdelning' }]; }
+function strategies(count) { const safeCount = Math.min(3, Math.max(2, Number(count) || 3)); return safeCount === 2 ? [{ name: 'Favorit', note: 'Favoriter och starka chanser' }, { name: 'Mellan', note: 'Balanserad med bredd' }] : [{ name: 'Favorit', note: 'Favoriter och starka chanser' }, { name: 'Mellan', note: 'Balanserad med bredd' }, { name: 'Skräll', note: 'Högre risk – högre utdelning' }]; }
 function randomValue(seed) { const x = Math.sin(seed * 12.9898) * 43758.5453; return x - Math.floor(x); }
 function generateCouponsLegacy() {
   const races = state.round?.races || []; const target = budget(); const names = strategies(state.couponCount); const usedSpikes = new Set();
@@ -1922,6 +2014,7 @@ function chooseCouponHorses(race, count, couponIndex, previousSelections = []) {
 
 function generateCoupons(preservedSelections = null) {
   const races = state.round?.races || [];
+  state.couponCount = Math.min(3, Math.max(2, Number(state.couponCount) || 3));
   const target = budget();
   const cascadeActive = state.togetherCascadePreset === 'safety';
   const names = strategies(cascadeActive ? 3 : state.couponCount);
@@ -2041,16 +2134,26 @@ function couponPicksMarkup(coupon, race, raceIndex, winnerNumber = null) {
   const picks = coupon.selections[raceIndex] || [];
   const horses = picks.map((numberValue) => race.horses.find((horse) => Number(horse.number) === Number(numberValue))).filter(Boolean);
   if (!horses.length) return '<span class="empty-picks">–</span>';
+  const markTipsterHorse = (horse) => state.roundBuilderTab === 'together' && state.complementMode === 'tipsters' && state.markTipsterHorses && !coupon?.complement && tipsterPositiveNumbersForRace(race).includes(Number(horse.number));
   if (horses.length === 1) {
     const horse = horses[0];
-    return `<span class="spike-pick"><span class="number-ball ${horseBadgeClass(race, horse, winnerNumber)}">${esc(horse.number)}</span><span class="spike-name">${esc(horse.name)}</span><strong>${fmtPercent(horse.winPercent)}</strong></span>`;
+    return `<span class="spike-pick"><span class="number-ball ${horseBadgeClass(race, horse, winnerNumber)} ${markTipsterHorse(horse) ? 'tipster-positive-chip' : ''}">${esc(horse.number)}</span><span class="spike-name">${esc(horse.name)}</span><strong>${fmtPercent(horse.winPercent)}</strong></span>`;
   }
-  return `<span class="pick-list">${horses.map((horse) => `<span class="number-chip ${horseBadgeClass(race, horse, winnerNumber)}">${esc(horse.number)}</span>`).join('')}</span>`;
+  return `<span class="pick-list">${horses.map((horse) => `<span class="number-chip ${horseBadgeClass(race, horse, winnerNumber)} ${markTipsterHorse(horse) ? 'tipster-positive-chip' : ''}">${esc(horse.number)}</span>`).join('')}</span>`;
 }
 
 function complementControlsMarkup() {
   const configured = state.tipsterBuzz?.configuredTipsters || [];
-  return `<div class="complement-controls"><label>Komplement<select data-complement-mode><option value="uncovered" ${state.complementMode === 'uncovered' ? 'selected' : ''}>Ej valda hästar</option><option value="tipsters" ${state.complementMode === 'tipsters' ? 'selected' : ''}>Tipsterkupong</option></select></label>${state.complementMode === 'tipsters' ? `<label>Tipster<select data-complement-tipster><option value="all" ${state.complementTipsterId === 'all' ? 'selected' : ''}>Alla positiva</option>${configured.map((tipster) => `<option value="${esc(tipster.id)}" ${String(state.complementTipsterId) === String(tipster.id) ? 'selected' : ''}>${esc(tipster.name)}</option>`).join('')}</select></label>` : ''}</div>`;
+  return `<div class="complement-controls"><label>Komplement<select data-complement-mode><option value="uncovered" ${state.complementMode === 'uncovered' ? 'selected' : ''}>Ej valda hästar</option><option value="tipsters" ${state.complementMode === 'tipsters' ? 'selected' : ''}>Tipsterkupong</option></select></label>${state.complementMode === 'tipsters' ? `<label>Tipster<select data-complement-tipster><option value="all" ${state.complementTipsterId === 'all' ? 'selected' : ''}>Alla positiva</option>${configured.map((tipster) => `<option value="${esc(tipster.id)}" ${String(state.complementTipsterId) === String(tipster.id) ? 'selected' : ''}>${esc(tipster.name)}</option>`).join('')}</select></label><label class="tipster-mark-toggle"><input type="checkbox" data-tipster-mark-positive ${state.markTipsterHorses ? 'checked' : ''}> Markera positiva hästar på övriga kuponger</label>` : ''}</div>`;
+}
+
+function prepareCombinationOptions(container) {
+  if (!container) return;
+  container.querySelectorAll('.combination-picker .combination-option').forEach((option) => {
+    option.setAttribute('role', 'button');
+    option.setAttribute('tabindex', '0');
+    option.setAttribute('aria-label', 'Lås eller lås upp kombination');
+  });
 }
 
 function combinationPickerMarkup(couponIndex) {
@@ -2080,26 +2183,30 @@ function moveCombinationCursor(couponIndex, direction) {
   renderCoupons();
 }
 
-function tipsterPositiveNumbersForRace(race) {
+function tipsterPositiveNumbersForRace(race, tipsterId = state.complementTipsterId) {
   const buzzRace = state.tipsterBuzz?.races?.find((item) => Number(item.division) === Number(race?.division));
-  const selectedTipsterId = String(state.complementTipsterId || 'all');
+  const selectedTipsterId = String(tipsterId || 'all');
   return (buzzRace?.horses || []).filter((horse) => {
     const signals = (horse.signals || []).filter((signal) => selectedTipsterId === 'all' || String(signal.tipster?.id) === selectedTipsterId);
     return signals.some((signal) => signal.signal?.positive === true);
   }).map((horse) => Number(horse.number)).filter((horseNumber) => Number.isFinite(horseNumber));
 }
 
-function buildComplementCoupon(coupons) {
+function complementDraftKey(source = 'together', mode = state.complementMode, tipsterId = state.complementTipsterId) { return `${state.round?.id || ''}:${source}:${mode}:${tipsterId || 'all'}`; }
+
+function buildComplementCoupon(coupons, source = 'together', modeOverride = state.complementMode, tipsterOverride = state.complementTipsterId) {
   const races = state.round?.races || [];
-  const tipsterMode = state.complementMode === 'tipsters';
+  const tipsterMode = modeOverride === 'tipsters';
   const selections = races.map((race, raceIndex) => {
-    if (tipsterMode) return tipsterPositiveNumbersForRace(race);
+    if (tipsterMode) return tipsterPositiveNumbersForRace(race, tipsterOverride);
     const covered = new Set(coupons.flatMap((coupon) => coupon.selections?.[raceIndex] || []).map(Number));
     return race.horses.filter((horse) => !horse.scratched && !covered.has(Number(horse.number))).map((horse) => Number(horse.number));
   });
-  const rows = selections.reduce((total, picks) => total * Math.max(1, picks.length), 1);
-  const tipster = (state.tipsterBuzz?.configuredTipsters || []).find((item) => String(item.id) === String(state.complementTipsterId));
-  return { name: tipsterMode ? `Tipsterkupong${tipster ? ` · ${tipster.name}` : ''}` : 'Komplement', note: tipsterMode ? 'Alla hästar med positiv tipstersignal' : 'Hästar som inte finns på de andra kupongerna', selections, rows, cost: rows * (state.round?.rowPrice || 1), spikeCount: selections.filter((picks) => picks.length === 1).length, variation: 100, complement: true };
+  const draft = state.complementDrafts[complementDraftKey(source, modeOverride, tipsterOverride)];
+  const finalSelections = Array.isArray(draft) ? races.map((race, raceIndex) => (draft[raceIndex] || []).filter((numberValue) => race.horses.some((horse) => Number(horse.number) === Number(numberValue) && !horse.scratched)).map(Number)) : selections;
+  const rows = finalSelections.reduce((total, picks) => total * Math.max(1, picks.length), 1);
+  const tipster = (state.tipsterBuzz?.configuredTipsters || []).find((item) => String(item.id) === String(tipsterOverride));
+  return { name: tipsterMode ? `Tipsterkupong${tipster ? ` · ${tipster.name}` : ''}` : 'Komplement', note: tipsterMode ? 'Alla hästar med positiv tipstersignal' : 'Hästar som inte finns på de andra kupongerna', selections: finalSelections, rows, cost: rows * (state.round?.rowPrice || 1), spikeCount: finalSelections.filter((picks) => picks.length === 1).length, variation: 100, complement: true };
 }
 
 function displayedTogetherCoupons() { return [...state.coupons, ...(state.complementCoupon ? [state.complementCoupon] : [])]; }
@@ -2147,7 +2254,8 @@ function focusedTogetherMarkup() {
 function togetherCouponCardMarkup(coupon, couponIndex, complement = false) {
   const cardClass = complement ? ' complement-coupon-card' : '';
   const rows = Number(coupon.rows || 0).toLocaleString('sv-SE');
-  const races = (state.round?.races || []).map((race, raceIndex) => `<div class="coupon-race"${complement ? '' : ` data-edit-coupon="${couponIndex}" data-edit-division="${raceIndex}"`}><span class="race-label">${race.division}</span>${couponPicksMarkup(coupon, race, raceIndex)}${complement ? '' : `<button class="lock ${state.locks.has(`${couponIndex}:${raceIndex}`) ? 'locked' : ''}" data-lock-coupon="${couponIndex}" data-lock-division="${raceIndex}" title="Lås avdelning">${state.locks.has(`${couponIndex}:${raceIndex}`) ? '🔒' : '🔓'}</button>`}</div>`).join('');
+  const complementSource = state.roundBuilderTab === 'downgrade' ? 'downgrade' : 'together';
+  const races = (state.round?.races || []).map((race, raceIndex) => `<div class="coupon-race"${complement ? ` data-edit-complement="true" data-edit-complement-source="${complementSource}" data-edit-complement-division="${raceIndex}" title="Ändra komplementkupong"` : ` data-edit-coupon="${couponIndex}" data-edit-division="${raceIndex}"`}><span class="race-label">${race.division}</span>${couponPicksMarkup(coupon, race, raceIndex)}${complement ? '' : `<button class="lock ${state.locks.has(`${couponIndex}:${raceIndex}`) ? 'locked' : ''}" data-lock-coupon="${couponIndex}" data-lock-division="${raceIndex}" title="Lås avdelning">${state.locks.has(`${couponIndex}:${raceIndex}`) ? '🔒' : '🔓'}</button>`}</div>`).join('');
   const combination = complement ? '' : combinationPickerMarkup(couponIndex);
   return `<article class="coupon-card unified-coupon-card${cardClass}"><div class="coupon-top"><span><i class="coupon-index-badge">${couponIndex + 1}</i><span class="coupon-title">${esc(coupon.name)}</span></span><span class="coupon-cost">${money(coupon.cost)}</span></div><p class="strategy-note">${esc(coupon.note)}</p><div class="coupon-stats"><span>▥ ${rows} rader</span><span>★ ${coupon.spikeCount ?? 0} spikar</span></div>${races}${combination}<div class="coupon-footer">${complement ? complementControlsMarkup() : ''}<span>${rows} rader · ${coupon.spikeCount ?? 0} spikar</span>${complement ? '<span>Kompletterar alla kuponger</span>' : `<span>Variation ${coupon.variation}%</span>`}</div></article>`;
 }
@@ -2155,7 +2263,7 @@ function togetherCouponCardMarkup(coupon, couponIndex, complement = false) {
 function ensureMobileShuffleBlock() {
   const couponList = $('#coupon-list');
   if (!couponList || document.querySelector('.mobile-shuffle-block')) return;
-  couponList.insertAdjacentHTML('afterend', '<div class="mobile-shuffle-block" aria-label="Kupongåtgärder"><span>Vill du prova en annan fördelning?</span><button type="button" class="gold-button" data-shuffle-inline>⤨ Slumpa kuponger</button></div>');
+  couponList.insertAdjacentHTML('afterend', '<div class="mobile-shuffle-block" aria-label="Kupongåtgärder"><button type="button" class="gold-button" data-shuffle-inline>⤨ Slumpa kuponger</button></div>');
 }
 
 function renderCoupons() {
@@ -2175,6 +2283,7 @@ function renderCoupons() {
   const divisionLabels = `<div class="together-division-labels"><strong>AVDELNING</strong>${(state.round?.races || []).map((race) => `<span>Avd ${race.division}</span>`).join('')}</div>`;
   $('#coupon-list').style.setProperty('--coupon-columns', visibleCoupons.length);
   $('#coupon-list').innerHTML = `${divisionLabels}${visibleCoupons.map((coupon, couponIndex) => togetherCouponCardMarkup(coupon, couponIndex, Boolean(coupon.complement))).join('')}`;
+  prepareCombinationOptions($('#coupon-list'));
   const allSelections = state.coupons.flatMap((coupon) => coupon.selections.map((picks, index) => `${index}:${picks.join(',')}`));
   const unique = new Set(allSelections).size;
   const presetSummary = hasTogetherPreset() ? ` &nbsp; ✓ Tillsammans ${state.togetherPreset}: ${state.togetherPreset} spik${state.togetherPreset === 1 ? '' : 'ar'} per kupong` : state.togetherCascadePreset === 'safety' ? ' &nbsp; ✓ Säkerhetsförslag: blandad · bred start · bred avslutning' : '';
@@ -2229,6 +2338,36 @@ function openRoundEditor() {
 }
 async function saveRoundEditor(event) { event.preventDefault(); const form = event.currentTarget; form.querySelectorAll('tr[data-race]').forEach((row) => { const race = state.round.races.find((item) => item.division === Number(row.dataset.race)); const horse = race?.horses?.[Number(row.dataset.horse)]; if (!horse) return; row.querySelectorAll('[data-field]').forEach((input) => { const field = input.dataset.field; horse[field] = ['number', 'winPercent', 'winOdds'].includes(field) ? number(input.value) : input.value; }); }); try { const response = await apiFetch(`/rounds/${encodeURIComponent(state.round.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ round: state.round }) }); if (!response.ok) throw new Error(await response.text() || 'Kunde inte spara'); state.round = await response.json(); $('#editor-modal').hidden = true; generateCoupons(); renderRound(); showToast('Omgången sparades'); } catch (error) { showToast(error.message); } }
 
+function openComplementCouponEditor(raceIndex, source = 'together', modeOverride = state.complementMode, tipsterOverride = state.complementTipsterId) {
+  const race = state.round?.races?.[Number(raceIndex)];
+  const coupon = buildComplementCoupon(source === 'downgrade' ? state.downgradeCoupons : state.coupons, source, modeOverride, tipsterOverride);
+  if (!race || !coupon) return;
+  const key = complementDraftKey(source, modeOverride, tipsterOverride);
+  const selected = new Set(coupon.selections?.[Number(raceIndex)] || []);
+  $('#editor-content').innerHTML = `<div class="eyebrow">${modeOverride === 'tipsters' ? 'TIPSTERKUPONG' : 'KOMPLEMENTKUPONG'}</div><h2 class="editor-title">Avd ${race.division} – välj hästar</h2><p class="editor-intro">Lägg till eller ta bort hästar. Ändringen gäller den här komplementkupongen i kupongbyggaren.</p><form id="complement-coupon-editor-form"><div class="horse-picker">${race.horses.map((horse) => `<label class="picker-row ${horse.scratched ? 'scratched-row' : ''}"><input type="checkbox" name="horse" value="${esc(horse.number)}" ${selected.has(Number(horse.number)) ? 'checked' : ''} ${horse.scratched ? 'disabled' : ''}><strong>${esc(horse.number)}</strong><span>${esc(horse.name)}${horse.scratched ? ' · struken' : ''}</span><small>${horse.scratched ? 'EJ' : `${fmtPercent(horse.winPercent)} · ${esc(horse.driver || '–')}`}</small></label>`).join('')}</div><div class="modal-actions"><button type="submit" class="primary-button">Klar</button></div></form>`;
+  $('#editor-modal').hidden = false;
+  const form = $('#complement-coupon-editor-form');
+  form.dataset.complementKey = key;
+  form.dataset.complementRace = raceIndex;
+  form.addEventListener('submit', saveComplementCouponEditor);
+}
+
+function saveComplementCouponEditor(event) {
+  event.preventDefault(); event.stopPropagation();
+  const form = event.currentTarget;
+  const selected = Array.from(form.querySelectorAll('input[name="horse"]:checked')).map((input) => Number(input.value));
+  if (!selected.length) return showToast('Välj minst en häst');
+  const key = form.dataset.complementKey;
+  const draft = state.complementDrafts[key] || state.complementCoupon?.selections?.map((picks) => [...picks]) || [];
+  draft[Number(form.dataset.complementRace)] = selected;
+  state.complementDrafts[key] = draft;
+  $('#editor-modal').hidden = true;
+  renderCoupons();
+  if (state.roundBuilderTab === 'tipsters') renderRoundTipsters();
+  if (state.roundBuilderTab === 'downgrade') renderDowngradeBuilder();
+  showToast('Komplementkupongen uppdaterades');
+}
+
 function openSavedCouponEditor(gameId, couponId, raceIndex) {
   const game = state.games.find((item) => String(item._id ?? item.id) === String(gameId));
   const coupon = game?.coupons?.find((item, index) => savedCouponIdentity(item, index) === String(couponId));
@@ -2277,7 +2416,7 @@ async function saveSavedCouponDraft(gameId, couponId) {
   const selections = (round.races || []).map((race, raceIndex) => ({ divisionIndex: race.division, horses: (draft.selections?.[raceIndex] || []).map(Number) }));
   const rows = selections.reduce((total, selection) => total * Math.max(1, selection.horses.length), 1);
   try {
-    const response = await apiFetch(`/games/${encodeURIComponent(gameId)}/coupons`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `Tillsammans · ${name}`, source: 'tillsammans', packageId: window.crypto?.randomUUID?.() || `edited-${Date.now()}`, packageName: name, packageCreatedAt: new Date().toISOString(), rows, cost: rows * (round.rowPrice || 1), spikeCount: selections.filter((selection) => selection.horses.length === 1).length, variation: coupon.variation ?? 0, stakeLevel: coupon.stakeLevel || 'original', selections }) });
+    const response = await apiFetch(`/games/${encodeURIComponent(gameId)}/coupons`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `Tillsammans · ${name}`, source: 'tillsammans', packageId: window.crypto?.randomUUID?.() || `edited-${Date.now()}`, packageName: name, packageCreatedAt: new Date().toISOString(), rows, cost: rows * (round.rowPrice || 1), spikeCount: selections.filter((selection) => selection.horses.length === 1).length, variation: coupon.variation ?? 0, stakeLevel: coupon.stakeLevel || 'original', revisionOf: coupon._id ?? coupon.id ?? null, originalCoupon: { name: coupon.name, rows: coupon.rows, cost: coupon.cost, spikeCount: coupon.spikeCount, selections: coupon.selections }, selections }) });
     if (!response.ok) throw new Error(await response.text() || 'Kunde inte spara den nya kupongen');
     delete state.savedCouponDrafts[key];
     await loadGames();
@@ -2366,8 +2505,15 @@ function bindEvents() {
     if (division && state.round?.races?.length) { const direction = division.dataset.tipsterDivision === 'next' ? 1 : -1; state.tipsterDivision = ((Number(state.tipsterDivision || 1) - 1 + direction + state.round.races.length) % state.round.races.length) + 1; state.tipsterHorseNumber = null; if (state.roundBuilderTab === 'tipsters') renderRoundTipsters(); else renderTipsters(); return; }
     if (event.target.closest('#tipsters-refresh, #refresh-tipsters, [data-round-tipsters-refresh]')) { void loadTipsterBuzz(true); return; }
   });
-  document.addEventListener('change', (event) => { if (event.target.id === 'tipster-division' || event.target.id === 'round-tipster-division') { state.tipsterDivision = Number(event.target.value) || 1; state.tipsterHorseNumber = null; if (event.target.id === 'round-tipster-division') renderRoundTipsters(); else renderTipsters(); } if (event.target.matches('[data-complement-mode]')) { state.complementMode = event.target.value === 'tipsters' ? 'tipsters' : 'uncovered'; if (state.complementMode !== 'tipsters') state.complementTipsterId = 'all'; renderCoupons(); if (state.roundBuilderTab === 'tipsters') renderRoundTipsters(); if (state.complementMode === 'tipsters' && !state.tipsterBuzz) void loadTipsterBuzz(false); } if (event.target.matches('[data-complement-tipster]')) { state.complementTipsterId = event.target.value || 'all'; renderCoupons(); if (state.roundBuilderTab === 'tipsters') renderRoundTipsters(); } });
+  document.addEventListener('change', (event) => { if (event.target.id === 'tipster-division' || event.target.id === 'round-tipster-division') { state.tipsterDivision = Number(event.target.value) || 1; state.tipsterHorseNumber = null; if (event.target.id === 'round-tipster-division') renderRoundTipsters(); else renderTipsters(); } if (event.target.matches('[data-complement-mode]')) { state.complementMode = event.target.value === 'tipsters' ? 'tipsters' : 'uncovered'; if (state.complementMode !== 'tipsters') state.complementTipsterId = 'all'; renderCoupons(); if (state.roundBuilderTab === 'tipsters') renderRoundTipsters(); if (state.roundBuilderTab === 'downgrade') renderDowngradeBuilder(); if (state.complementMode === 'tipsters' && !state.tipsterBuzz) void loadTipsterBuzz(false); } if (event.target.matches('[data-complement-tipster]')) { state.complementTipsterId = event.target.value || 'all'; renderCoupons(); if (state.roundBuilderTab === 'tipsters') renderRoundTipsters(); if (state.roundBuilderTab === 'downgrade') renderDowngradeBuilder(); } });
   document.addEventListener('click', (event) => { const couponTab = event.target.closest('[data-tipster-coupon-tab]'); if (!couponTab) return; event.preventDefault(); event.stopPropagation(); state.tipsterCouponTab = couponTab.dataset.tipsterCouponTab === 'saved' ? 'saved' : 'started'; renderRoundTipsters(); });
+  document.addEventListener('change', (event) => {
+    if (!event.target.matches('[data-tipster-mark-positive]')) return;
+    state.markTipsterHorses = event.target.checked;
+    renderCoupons();
+    if (state.roundBuilderTab === 'tipsters') renderRoundTipsters();
+    if (state.roundBuilderTab === 'downgrade') renderDowngradeBuilder();
+  });
   document.addEventListener('click', (event) => {
     const savedEdit = event.target.closest('[data-edit-saved-coupon]');
     if (savedEdit) { event.preventDefault(); event.stopPropagation(); openSavedCouponEditor(savedEdit.dataset.editGame, savedEdit.dataset.editSavedCoupon, savedEdit.dataset.editDivision); return; }
@@ -2388,7 +2534,7 @@ function bindEvents() {
   $$('#round-date,#round-type,#round-track,#round-track2').forEach((field) => field.addEventListener('input', renderPreview));
   $('#create-form').addEventListener('submit', (event) => submitCreate(event, false)); $('#manual-round').addEventListener('click', () => submitCreate(null, true));
   $$('[data-close-modal]').forEach((button) => button.addEventListener('click', () => { $(`#${button.dataset.closeModal}`).hidden = true; }));
-  document.addEventListener('click', (event) => { const view = event.target.closest('[data-view]'); if (view) { if (view.dataset.view === 'round' && !state.round) { showToast('Öppna eller skapa en omgång först'); return; } showView(view.dataset.view); if (view.dataset.view === 'coupons') loadSavedCoupons(); if (view.dataset.view === 'results') loadResults(); } const inlineShuffle = event.target.closest('[data-shuffle-inline]'); if (inlineShuffle) { event.stopPropagation(); shuffleCoupons(); return; } const inlineSave = event.target.closest('[data-save-inline]'); if (inlineSave) { event.stopPropagation(); savePackage(); return; } const buildReverse = event.target.closest('[data-build-reverse-coupon]'); if (buildReverse) { event.stopPropagation(); const purchased = state.purchasedCoupons.find((item) => item.id === state.selectedPurchasedCouponId); if (!purchased) return; try { state.reverseCoupon = buildReverseCoupon(purchased); renderReverseBuilder(); } catch (error) { const message = $('#purchased-coupon-message'); if (message) { message.className = 'reverse-message error'; message.textContent = error.message; } } return; } const purchasedCard = event.target.closest('[data-purchased-coupon]'); if (purchasedCard) { event.stopPropagation(); state.selectedPurchasedCouponId = purchasedCard.dataset.purchasedCoupon; state.reverseCoupon = null; renderReverseBuilder(); return; } const saveReverse = event.target.closest('[data-save-reverse-coupon]'); if (saveReverse) { event.stopPropagation(); saveReverseCoupon(); return; } const tab = event.target.closest('[data-round-builder-tab]'); if (tab) { event.stopPropagation(); setRoundBuilderTab(tab.dataset.roundBuilderTab); return; } const sliderArrow = event.target.closest('[data-combination-prev],[data-combination-next]'); if (sliderArrow) { event.stopPropagation(); if (sliderArrow.disabled) return; const couponIndex = Number(sliderArrow.dataset.combinationPrev ?? sliderArrow.dataset.combinationNext); moveCombinationCursor(couponIndex, sliderArrow.hasAttribute('data-combination-next') ? 1 : -1); return; } const combinationSelect = event.target.closest('[data-combination-select]'); if (combinationSelect) { event.stopPropagation(); const couponIndex = Number(combinationSelect.dataset.combinationSelect); const optionIndex = state.combinationCursors[couponIndex] ?? 0; if (state.combinationLocks.has(couponIndex)) { state.combinationLocks.delete(couponIndex); state.lockedCombinationPatterns.delete(couponIndex); showToast(`Kombinationen för kupong ${couponIndex + 1} är upplåst`); } else { const option = state.combinationOptions[couponIndex]?.[optionIndex]; if (option) { state.combinationLocks.add(couponIndex); state.lockedCombinationPatterns.set(couponIndex, countPlanSignature(option.counts)); showToast(`Kombinationen för kupong ${couponIndex + 1} är låst`); } } state.pendingCombinationIndexes[couponIndex] = null; renderCoupons(); return; } const resultButton = event.target.closest('[data-fetch-results]'); if (resultButton) { event.stopPropagation(); fetchGameResults(resultButton.dataset.fetchResults); return; } const deleteButton = event.target.closest('[data-delete-saved-coupon]'); if (deleteButton) { event.stopPropagation(); deleteSavedCoupon(deleteButton.dataset.deleteGame, deleteButton.dataset.deleteSavedCoupon); return; } const deleteGameButton = event.target.closest('[data-delete-game]'); if (deleteGameButton) { event.stopPropagation(); deleteGame(deleteGameButton.dataset.deleteGame); return; } const card = event.target.closest('[data-game-id]'); if (card) { event.stopPropagation(); openRoundById(card.dataset.gameId); return; } const race = event.target.closest('.race-summary'); if (race) race.parentElement.classList.toggle('open'); const edit = event.target.closest('[data-edit-coupon]'); if (edit && !event.target.closest('[data-lock-coupon]')) openCouponEditor(Number(edit.dataset.editCoupon), Number(edit.dataset.editDivision)); const lock = event.target.closest('[data-lock-coupon]'); if (lock) { event.stopPropagation(); const key = `${lock.dataset.lockCoupon}:${lock.dataset.lockDivision}`; state.locks.has(key) ? state.locks.delete(key) : state.locks.add(key); renderCoupons(); } });
+  document.addEventListener('click', (event) => { const view = event.target.closest('[data-view]'); if (view) { if (view.dataset.view === 'round' && !state.round) { showToast('Öppna eller skapa en omgång först'); return; } showView(view.dataset.view); if (view.dataset.view === 'coupons') loadSavedCoupons(); if (view.dataset.view === 'results') loadResults(); } const inlineShuffle = event.target.closest('[data-shuffle-inline]'); if (inlineShuffle) { event.stopPropagation(); shuffleCoupons(); return; } const inlineSave = event.target.closest('[data-save-inline]'); if (inlineSave) { event.stopPropagation(); savePackage(); return; } const buildReverse = event.target.closest('[data-build-reverse-coupon]'); if (buildReverse) { event.stopPropagation(); const purchased = state.purchasedCoupons.find((item) => item.id === state.selectedPurchasedCouponId); if (!purchased) return; try { state.reverseCoupon = buildReverseCoupon(purchased); renderReverseBuilder(); } catch (error) { const message = $('#purchased-coupon-message'); if (message) { message.className = 'reverse-message error'; message.textContent = error.message; } } return; } const purchasedCard = event.target.closest('[data-purchased-coupon]'); if (purchasedCard) { event.stopPropagation(); state.selectedPurchasedCouponId = purchasedCard.dataset.purchasedCoupon; state.reverseCoupon = null; renderReverseBuilder(); return; } const saveReverse = event.target.closest('[data-save-reverse-coupon]'); if (saveReverse) { event.stopPropagation(); saveReverseCoupon(); return; } const tab = event.target.closest('[data-round-builder-tab]'); if (tab) { event.stopPropagation(); setRoundBuilderTab(tab.dataset.roundBuilderTab); return; } const sliderArrow = event.target.closest('[data-combination-prev],[data-combination-next]'); if (sliderArrow) { event.stopPropagation(); if (sliderArrow.disabled) return; const couponIndex = Number(sliderArrow.dataset.combinationPrev ?? sliderArrow.dataset.combinationNext); moveCombinationCursor(couponIndex, sliderArrow.hasAttribute('data-combination-next') ? 1 : -1); return; } const combinationSelect = event.target.closest('[data-combination-select]'); if (combinationSelect) { event.stopPropagation(); const couponIndex = Number(combinationSelect.dataset.combinationSelect); const optionIndex = state.combinationCursors[couponIndex] ?? 0; if (state.combinationLocks.has(couponIndex)) { state.combinationLocks.delete(couponIndex); state.lockedCombinationPatterns.delete(couponIndex); showToast(`Kombinationen för kupong ${couponIndex + 1} är upplåst`); } else { const option = state.combinationOptions[couponIndex]?.[optionIndex]; if (option) { state.combinationLocks.add(couponIndex); state.lockedCombinationPatterns.set(couponIndex, countPlanSignature(option.counts)); showToast(`Kombinationen för kupong ${couponIndex + 1} är låst`); } } state.pendingCombinationIndexes[couponIndex] = null; renderCoupons(); return; } const resultButton = event.target.closest('[data-fetch-results]'); if (resultButton) { event.stopPropagation(); fetchGameResults(resultButton.dataset.fetchResults); return; } const deleteButton = event.target.closest('[data-delete-saved-coupon]'); if (deleteButton) { event.stopPropagation(); deleteSavedCoupon(deleteButton.dataset.deleteGame, deleteButton.dataset.deleteSavedCoupon); return; } const deleteGameButton = event.target.closest('[data-delete-game]'); if (deleteGameButton) { event.stopPropagation(); deleteGame(deleteGameButton.dataset.deleteGame); return; } const card = event.target.closest('[data-game-id]'); if (card) { event.stopPropagation(); openRoundById(card.dataset.gameId); return; } const race = event.target.closest('.race-summary'); if (race) race.parentElement.classList.toggle('open'); const editComplement = event.target.closest('[data-edit-complement]'); if (editComplement) { event.stopPropagation(); openComplementCouponEditor(Number(editComplement.dataset.editComplementDivision), editComplement.dataset.editComplementSource || 'together', editComplement.dataset.editComplementMode || state.complementMode, editComplement.dataset.editComplementTipster || state.complementTipsterId); return; } const edit = event.target.closest('[data-edit-coupon]'); if (edit && !event.target.closest('[data-lock-coupon]')) openCouponEditor(Number(edit.dataset.editCoupon), Number(edit.dataset.editDivision)); const lock = event.target.closest('[data-lock-coupon]'); if (lock) { event.stopPropagation(); const key = `${lock.dataset.lockCoupon}:${lock.dataset.lockDivision}`; state.locks.has(key) ? state.locks.delete(key) : state.locks.add(key); renderCoupons(); } });
   document.addEventListener('click', (event) => {
     const closeModal = event.target.closest('[data-close-modal]');
     if (closeModal && closeModal.dataset.closeModal === 'reverse-editor-modal') { const modal = document.getElementById('reverse-editor-modal'); if (modal) modal.hidden = true; return; }
@@ -2429,6 +2575,31 @@ function bindEvents() {
   document.addEventListener('input', (event) => { if (event.target.id === 'reverse-price') { state.reversePrice = Math.max(1, Number(event.target.value) || 20); } if (event.target.id === 'together-stake-price') { state.togetherStakePrice = Number(event.target.value) > 0 ? Number(event.target.value) : null; scheduleCouponRegeneration(); } if (event.target.id === 'reverse-stake-price') { state.reverseStakePrice = Number(event.target.value) > 0 ? Number(event.target.value) : null; if (state.reverseCoupon) { state.reverseCoupon.cost = state.reverseCoupon.rows * rowPriceForGameType((state.round || matchingRoundForPurchased(selectedReverseSources()[0]))?.gameType || state.reverseCoupon.gameType); renderReversePreview(); } } if (event.target.id === 'downgrade-price') { state.downgradePrice = Math.max(1, Number(event.target.value) || 1000); state.downgradeCoupons = []; } });
   document.addEventListener('change', (event) => { if (event.target.id === 'downgrade-new-combination') { state.downgradeNewCombination = event.target.checked; state.downgradeCoupons = []; renderDowngradeBuilder(); } });
   document.addEventListener('change', (event) => { if (event.target.id === 'reverse-share-enabled') { state.reverseShareEnabled = event.target.checked; renderReverseSettings(); } if (event.target.id === 'reverse-share-count') state.reverseShareCount = Number(event.target.value) || 50; if (event.target.id === 'together-stake-percent') { state.togetherStakePercent = Number(event.target.value) || 100; generateCoupons(); renderCoupons(); } if (event.target.id === 'reverse-stake-percent') { state.reverseStakePercent = Number(event.target.value) || 100; const reverseRound = state.round || matchingRoundForPurchased(selectedReverseSources()[0]); if (state.reverseCoupon && reverseRound) state.reverseCoupon.cost = state.reverseCoupon.rows * rowPriceForGameType(reverseRound.gameType); renderReverseSettings(); renderReverseBuilder(); } });
+  document.addEventListener('click', (event) => {
+    const togetherOption = event.target.closest('.combination-picker:not(.reverse-combination-picker) .combination-option');
+    if (togetherOption && !event.target.closest('.combination-arrow')) {
+      const picker = togetherOption.closest('[data-combination-picker]');
+      if (picker) { event.preventDefault(); event.stopPropagation(); const couponIndex = Number(picker.dataset.combinationPicker); const optionIndex = state.combinationCursors[couponIndex] ?? 0; if (state.combinationLocks.has(couponIndex)) { state.combinationLocks.delete(couponIndex); state.lockedCombinationPatterns.delete(couponIndex); showToast(`Kombinationen för kupong ${couponIndex + 1} är upplåst`); } else { const option = state.combinationOptions[couponIndex]?.[optionIndex]; if (option) { state.combinationLocks.add(couponIndex); state.lockedCombinationPatterns.set(couponIndex, countPlanSignature(option.counts)); showToast(`Kombinationen för kupong ${couponIndex + 1} är låst`); } } state.pendingCombinationIndexes[couponIndex] = null; renderCoupons(); return; }
+    }
+    const reverseOption = event.target.closest('.reverse-combination-picker .combination-option');
+    if (reverseOption && !event.target.closest('.combination-arrow')) { event.preventDefault(); event.stopPropagation(); toggleReverseCombinationLock(); }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (!['Enter', ' '].includes(event.key)) return;
+    const option = event.target.closest('.combination-picker .combination-option');
+    if (!option) return;
+    event.preventDefault(); option.click();
+  });
+  document.addEventListener('click', (event) => {
+    const tab = event.target.closest('[data-downgrade-comparison-tab]');
+    if (!tab) return;
+    const card = tab.closest('[data-downgrade-comparison-ready]');
+    if (!card) return;
+    event.preventDefault(); event.stopPropagation();
+    const selected = tab.dataset.downgradeComparisonTab;
+    card.querySelectorAll('[data-downgrade-comparison-tab]').forEach((button) => button.classList.toggle('active', button === tab));
+    card.querySelectorAll('[data-downgrade-comparison-panel]').forEach((panel) => { const active = panel.dataset.downgradeComparisonPanel === selected; panel.hidden = !active; panel.classList.toggle('active', active); });
+  });
   let reverseCombinationSwipe = null;
   document.addEventListener('touchstart', (event) => { const slider = event.target.closest('.reverse-combination-slider'); if (slider && event.touches.length === 1) reverseCombinationSwipe = { x: event.touches[0].clientX }; }, { passive: true });
   document.addEventListener('touchend', (event) => { if (!reverseCombinationSwipe || !event.changedTouches.length) return; const delta = event.changedTouches[0].clientX - reverseCombinationSwipe.x; reverseCombinationSwipe = null; if (Math.abs(delta) < 32) return; moveReverseCombination(delta < 0 ? 1 : -1); }, { passive: true });
