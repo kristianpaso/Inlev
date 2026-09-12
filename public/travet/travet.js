@@ -7,7 +7,7 @@ const isLocalApp = ['localhost', '127.0.0.1', '::1'].includes(window.location.ho
 // localhost till Render.
 const API_ROOTS = isLocalApp ? [LOCAL_API_ROOT] : [RENDER_API_ROOT];
 let activeApiRoot = API_ROOTS[0];
-const state = { games: [], round: null, coupons: [], savedCoupons: [], purchasedCoupons: [], shopLinks: [], lastShopCouponTitle: '', selectedPurchasedCouponId: null, reverseCoupon: null, reverseMode: 'reverse', reversePrice: 20, reverseSpikeCount: 2, reverseShareEnabled: false, reverseShareCount: 50, reverseStakePercent: 100, reverseStakePrice: null, togetherStakePercent: 100, togetherStakePrice: null, reverseSourceIds: [], reverseManualSelections: {}, reverseCombinationOptions: [], reverseCombinationCursor: 0, reverseCombinationLocked: false, reverseLockedCombinationSignature: '', reverseShufflePattern: '', downgradeSourceIds: [], downgradePrice: 1000, downgradeNewCombination: false, downgradeCoupons: [], downgradeDrafts: [], roundBuilderTab: 'together', tipsterBuzz: null, tipsterDivision: 1, tipsterHorseNumber: null, tipsterLoading: false, tipstersHasNewInfo: false, focusedTogetherPackages: {}, locks: new Set(), combinationLocks: new Set(), lockedCombinationPatterns: new Map(), selectedPlanIndexes: [], pendingCombinationIndexes: [], combinationCursors: [], combinationOptions: [], couponCount: 3, spikeCount: 2, manualSpikeCount: 2, togetherPreset: null, together2: false, editingRound: false, seed: 1, shuffleSeed: 0, countPlanCache: new Map(), combinationPlanCache: new Map(), regenerateTimer: null, refreshImportTimer: null, weeklyImportTimer: null };
+const state = { games: [], round: null, coupons: [], savedCoupons: [], savedCouponDrafts: {}, purchasedCoupons: [], shopLinks: [], lastShopCouponTitle: '', selectedPurchasedCouponId: null, reverseCoupon: null, reverseMode: 'reverse', reversePrice: 20, reverseSpikeCount: 2, reverseShareEnabled: false, reverseShareCount: 50, reverseStakePercent: 100, reverseStakePrice: null, togetherStakePercent: 100, togetherStakePrice: null, complementMode: 'uncovered', complementTipsterId: 'all', reverseSourceIds: [], reverseManualSelections: {}, reverseCombinationOptions: [], reverseCombinationCursor: 0, reverseCombinationLocked: false, reverseLockedCombinationSignature: '', reverseShufflePattern: '', downgradeSourceIds: [], downgradePrice: 1000, downgradeNewCombination: false, downgradeCoupons: [], downgradeDrafts: [], roundBuilderTab: 'together', tipsterCouponTab: 'started', tipsterBuzz: null, tipsterDivision: 1, tipsterHorseNumber: null, tipsterLoading: false, tipstersHasNewInfo: false, focusedTogetherPackages: {}, locks: new Set(), combinationLocks: new Set(), lockedCombinationPatterns: new Map(), selectedPlanIndexes: [], pendingCombinationIndexes: [], combinationCursors: [], combinationOptions: [], couponCount: 3, spikeCount: 2, manualSpikeCount: 2, togetherPreset: null, together2: false, editingRound: false, seed: 1, shuffleSeed: 0, countPlanCache: new Map(), combinationPlanCache: new Map(), regenerateTimer: null, refreshImportTimer: null, weeklyImportTimer: null };
 const DOWNGRADE_DRAFTS_STORAGE_KEY = 'travet.downgradeDrafts.v1';
 const FOCUSED_TOGETHER_STORAGE_KEY = 'travet.focusedTogether.v1';
 const $ = (selector) => document.querySelector(selector);
@@ -180,21 +180,126 @@ function tipsterClassificationLabel(value) { return String(value || 'INGEN_STARK
 function tipsterBuzzClass(buzz) { const score = Number(buzz?.score || 0); return score >= 80 ? 'strong' : score >= 55 ? 'watch' : score > 0 ? 'positive' : 'empty'; }
 function tipsterBuzzText(buzz, configuredCount) { if (!buzz || !buzz.positiveCount) return 'Inga positiva signaler ännu'; return `${buzz.positiveCount} av ${configuredCount} positiva`; }
 
-function renderTipsterBuzzPanel(horse, race, selector = '#tipster-buzz-panel') {
+function renderTipsterBuzzPanelLegacy(horse, race, selector = '#tipster-buzz-panel') {
   const container = $(selector);
   if (!container || !horse) return;
   const configured = state.tipsterBuzz?.configuredTipsters || [];
   const buzz = horse.buzz || { score: 0, classification: 'INGEN_STARK_SIGNAL', positiveCount: 0, negativeCount: 0 };
-  const source = horse.signals?.find((signal) => signal.source?.url)?.source?.url || '';
   const signalRows = configured.map((tipster) => {
     const signal = tipsterSignalFor(horse, tipster.id);
     const positive = signal?.signal?.positive;
-    return `<div class="tipster-signal-row"><span class="tipster-avatar">${esc(tipster.name.split(' ').map((part) => part[0]).join('').slice(0, 2))}</span><strong>${esc(tipster.name)}</strong><span class="tipster-signal-label ${positive === false ? 'negative' : positive ? 'positive' : 'neutral'}">${positive === false ? '▼ Negativ' : positive ? '▲ Positiv' : '— Ingen signal'}</span><span class="tipster-signal-type">${signal ? esc(signal.signal.type.replaceAll('_', ' ')) : '—'}</span><strong class="tipster-signal-score">${signal ? Math.round(Number(signal.signal.score || 0) * 100) : '—'}</strong></div>`;
+    const sourceUrls = [...new Set((horse.signals || []).filter((item) => item.tipster?.id === tipster.id).map((item) => item.source?.url || item.source?.canonicalUrl).filter(Boolean))];
+    const tipsterName = sourceUrls.length ? sourceUrls.map((source, index) => `<a class="tipster-name-source" href="${esc(source)}" target="_blank" rel="noreferrer">${esc(index ? `Källa ${index + 1}` : tipster.name)} ↗</a>`).join(' ') : esc(tipster.name);
+    return `<div class="tipster-signal-row"><span class="tipster-avatar">${esc(tipster.name.split(' ').map((part) => part[0]).join('').slice(0, 2))}</span><strong>${tipsterName}</strong><span class="tipster-signal-label ${positive === false ? 'negative' : positive ? 'positive' : 'neutral'}">${positive === false ? '▼ Negativ' : positive ? '▲ Positiv' : '— Ingen signal'}</span><span class="tipster-signal-type">${signal ? esc(signal.signal.type.replaceAll('_', ' ')) : '—'}</span><strong class="tipster-signal-score">${signal ? Math.round(Number(signal.signal.score || 0) * 100) : '—'}</strong></div>`;
   }).join('');
-  container.innerHTML = `<div class="tipster-buzz-heading"><div><span class="eyebrow">TIPSTER BUZZ</span><h2>${esc(horse.name)}</h2><p>${esc(horse.driver || 'Kusk saknas')} · ${fmtPercent(horse.winPercent)} · Odds ${horse.winOdds ?? '–'}</p></div><div class="tipster-buzz-score ${tipsterBuzzClass(buzz)}"><span>${buzz.score}</span><small>/ 100</small></div></div><div class="tipster-buzz-summary ${tipsterBuzzClass(buzz)}"><strong>${buzz.score ? tipsterClassificationLabel(buzz.classification) : 'Ingen stark signal'}</strong><span>${tipsterBuzzText(buzz, configured.length)}</span></div><div class="tipster-buzz-copy">${buzz.score ? 'Strukturerade signaler från publika tipsterkällor. Fulla artiklar sparas inte.' : 'När en källa har importerats visas signaltyp och styrka här utan att återpublicera hela artikeln.'}</div><div class="tipster-signal-list"><div class="tipster-signal-head"><strong>Tipsters (${configured.length} st)</strong><span>Signal</span><span>Score</span></div>${signalRows || '<p class="tipster-empty-copy">Ingen tipsterkonfiguration är aktiv.</p>'}</div>${source ? `<a class="outline-button tipster-source-link" href="${esc(source)}" target="_blank" rel="noreferrer">Öppna källa ↗</a>` : ''}`;
+  container.innerHTML = `<div class="tipster-buzz-heading"><div><span class="eyebrow">TIPSTER BUZZ</span><h2>${esc(horse.name)}</h2><p>${esc(horse.driver || 'Kusk saknas')} · ${fmtPercent(horse.winPercent)} · Odds ${horse.winOdds ?? '–'}</p></div><div class="tipster-buzz-score ${tipsterBuzzClass(buzz)}"><span>${buzz.score}</span><small>/ 100</small></div></div><div class="tipster-buzz-summary ${tipsterBuzzClass(buzz)}"><strong>${buzz.score ? tipsterClassificationLabel(buzz.classification) : 'Ingen stark signal'}</strong><span>${tipsterBuzzText(buzz, configured.length)}</span></div><div class="tipster-buzz-copy">${buzz.score ? 'Strukturerade signaler från publika tipsterkällor. Fulla artiklar sparas inte.' : 'När en källa har importerats visas signaltyp och styrka här utan att återpublicera hela artikeln.'}</div><div class="tipster-signal-list"><div class="tipster-signal-head"><strong>Tipsters (${configured.length} st)</strong><span>Signal</span><span>Score</span></div>${signalRows || '<p class="tipster-empty-copy">Ingen tipsterkonfiguration är aktiv.</p>'}</div>`;
+}
+
+function renderTipsterBuzzPanel(horse, race, selector = '#tipster-buzz-panel') {
+  renderTipsterBuzzPanelLegacy(horse, race, selector);
+}
+
+function renderTipstersCouponOverviewMarkup() {
+  const races = state.round?.races || [];
+  state.complementCoupon = buildComplementCoupon(state.coupons || []);
+  const visibleCoupons = displayedTogetherCoupons();
+  const divisionLabels = `<div class="together-division-labels"><strong>AVDELNING</strong>${races.map((race) => `<span>Avd ${race.division}</span>`).join('')}</div>`;
+  const cards = visibleCoupons.map((coupon, index) => togetherCouponCardMarkup(coupon, index, Boolean(coupon.complement))).join('');
+  return `<section class="tipster-coupon-overview"><div class="tipster-coupon-overview-heading"><div><span class="eyebrow">KUPONGER</span><h2>Omgångens kuponger</h2><p>Ändra hästar direkt i tabellen eller öppna Tillsammans för fler inställningar.</p></div><button type="button" class="outline-button" id="tipsters-together">👥 Tillsammans</button></div><div class="tipster-coupon-list" style="--coupon-columns:${visibleCoupons.length}">${divisionLabels}${cards || '<div class="tipster-coupon-empty">Skapa kuponger i Tillsammans för att visa dem här.</div>'}</div></section>`;
+}
+
+function tipsterSavedCoupons() {
+  const game = state.games.find((item) => String(item._id ?? item.id) === String(state.round?.id));
+  return Array.isArray(game?.coupons) ? game.coupons : (state.savedCoupons || []);
+}
+
+function savedCouponIdentity(coupon, fallback = '') { return String(coupon?._id || coupon?.id || fallback); }
+function savedCouponSelections(coupon, round) {
+  return (round?.races || []).map((race) => {
+    const selection = (coupon?.selections || []).find((item) => Number(item?.divisionIndex) === Number(race.division));
+    return Array.isArray(selection) ? selection.map(Number) : (selection?.horses || []).map(Number);
+  });
+}
+function savedCouponWithDraft(coupon, round, couponIndex = 0) {
+  const key = `${round?.id}:${savedCouponIdentity(coupon, couponIndex)}`;
+  const draft = state.savedCouponDrafts[key];
+  if (!draft) return coupon;
+  const selections = (round?.races || []).map((race, raceIndex) => ({ divisionIndex: race.division, horses: (draft.selections?.[raceIndex] || []).map(Number) }));
+  const rows = selections.reduce((total, selection) => total * Math.max(1, selection.horses.length), 1);
+  return { ...coupon, name: draft.name || coupon.name, rows, cost: rows * (round?.rowPrice || 1), spikeCount: selections.filter((selection) => selection.horses.length === 1).length, selections };
+}
+
+function renderTipsterCouponTabsMarkup() {
+  const savedCount = tipsterSavedCoupons().length;
+  return `<div class="tipster-coupon-tabs" role="tablist" aria-label="Kupongvisning"><button type="button" class="tipster-coupon-tab ${state.tipsterCouponTab === 'started' ? 'active' : ''}" data-tipster-coupon-tab="started" role="tab" aria-selected="${state.tipsterCouponTab === 'started'}">Påbörjad kupong</button><button type="button" class="tipster-coupon-tab ${state.tipsterCouponTab === 'saved' ? 'active' : ''}" data-tipster-coupon-tab="saved" role="tab" aria-selected="${state.tipsterCouponTab === 'saved'}">Sparade kuponger${savedCount ? ` <span>${savedCount}</span>` : ''}</button></div>`;
+}
+
+function tipsterSavedCouponCardMarkup(coupon, round, couponIndex, winnerMap = new Map()) {
+  const identity = savedCouponIdentity(coupon, couponIndex);
+  const editKey = `${round?.id}:${identity}`;
+  const draft = state.savedCouponDrafts[editKey];
+  const displayCoupon = savedCouponWithDraft(coupon, round, couponIndex);
+  const runtime = savedCouponRuntime(displayCoupon, round);
+  const hitCount = (round.races || []).reduce((total, race, raceIndex) => { const winner = winnerMap.get(String(race.division)); return total + (Number.isFinite(winner) && (runtime.selections[raceIndex] || []).includes(winner) ? 1 : 0); }, 0);
+  const hasResults = winnerMap.size > 0;
+  const title = String(displayCoupon.name || 'Sparad kupong').replace(/^Tillsammans\s*·\s*/i, '');
+  return `<article class="coupon-card unified-coupon-card saved-coupon-design ${draft ? 'has-saved-coupon-draft' : ''}"><div class="coupon-top"><span><i class="coupon-index-badge">${couponIndex + 1}</i><span class="coupon-title">${esc(title)}</span></span><span class="coupon-cost">${money(runtime.cost)}</span></div><p class="strategy-note">${draft ? 'Ändrad kupong · ej sparad ännu' : `Sparad kupong${hasResults ? ` · ${hitCount} av ${round.races.length} rätt` : ''}`}</p><div class="coupon-stats"><span>▥ ${runtime.rows.toLocaleString('sv-SE')} rader</span><span>★ ${runtime.spikeCount} spikar</span></div>${(round.races || []).map((race, raceIndex) => { const winner = winnerMap.get(String(race.division)); const picks = runtime.selections[raceIndex] || []; const hit = Number.isFinite(winner) && picks.includes(winner); return `<div class="coupon-race saved-coupon-race ${hit ? 'result-coupon-row-hit' : ''}" data-edit-saved-coupon="${esc(identity)}" data-edit-game="${esc(round.id)}" data-edit-division="${raceIndex}" title="Ändra hästar"><span class="race-label">${race.division}</span>${couponPicksMarkup(runtime, race, raceIndex, winner)}</div>`; }).join('')}<div class="coupon-footer"><span>${runtime.rows.toLocaleString('sv-SE')} rader · ${runtime.spikeCount} spikar</span><div class="saved-coupon-actions">${draft ? `<button type="button" class="gold-button" data-save-saved-coupon="${esc(identity)}" data-save-game="${esc(round.id)}">Spara som ny</button><button type="button" class="outline-button" data-discard-saved-coupon="${esc(identity)}" data-discard-game="${esc(round.id)}">Ångra</button>` : ''}<button class="delete-coupon-button" data-delete-saved-coupon="${esc(identity)}" data-delete-game="${esc(round.id)}" title="Ta bort kupong">Ta bort</button></div></div></article>`;
+}
+
+function renderTipsterSavedCouponsMarkup() {
+  const game = state.games.find((item) => String(item._id ?? item.id) === String(state.round?.id));
+  const coupons = tipsterSavedCoupons();
+  if (!coupons.length) return '';
+  const winnerMap = resultWinnerMapFor(game || {}, state.round);
+  const races = state.round?.races || [];
+  const divisionLabels = `<div class="together-division-labels"><strong>AVDELNING</strong>${races.map((race) => `<span>Avd ${race.division}</span>`).join('')}</div>`;
+  const cards = coupons.map((coupon, index) => tipsterSavedCouponCardMarkup(coupon, state.round, index, winnerMap)).join('');
+  return `<section class="tipster-saved-coupon-overview"><div class="tipster-coupon-overview-heading"><div><span class="eyebrow">SPARADE KUPONGER</span><h2>Omgångens sparade kuponger</h2><p>Samma kupongdesign som under Påbörjad kupong.</p></div><button type="button" class="outline-button" data-view="coupons">Öppna Kuponger</button></div><div class="tipster-coupon-list tipster-saved-coupon-list" style="--coupon-columns:${coupons.length}">${divisionLabels}${cards}</div></section>`;
 }
 
 function renderTipsters() {
+  const content = $('#tipsters-content');
+  if (!content) return;
+  if (!state.round) {
+    content.innerHTML = '<div class="empty-state tipster-empty-state"><div class="empty-icon">★</div><h2>Öppna en spelomgång först</h2><p>Tipster Buzz kopplas till den aktuella omgångens startlista.</p><button class="secondary-button" data-view="home">Till start</button></div>';
+    return;
+  }
+  const races = state.round.races || [];
+  if (!races.length) {
+    content.innerHTML = '<div class="empty-state tipster-empty-state"><div class="empty-icon">★</div><h2>Startlista saknas</h2><p>Importera startlistan innan Tipsters kan matchas mot hästarna.</p></div>';
+    return;
+  }
+  if (state.tipsterLoading) {
+    content.innerHTML = '<div class="tipster-loading-state" role="status" aria-live="polite"><div class="tipster-loading-spinner">⟳</div><strong>Laddar tipstersignaler…</strong><span>Hämtar publika källor och matchar signalerna mot startlistan.</span></div>';
+    return;
+  }
+  const raceIndex = Math.max(0, Math.min(races.length - 1, Number(state.tipsterDivision || 1) - 1));
+  state.tipsterDivision = raceIndex + 1;
+  const race = races[raceIndex];
+  const buzzRace = state.tipsterBuzz?.races?.find((item) => Number(item.division) === Number(race.division));
+  const horses = race.horses.filter((horse) => !horse.scratched);
+  if (!state.tipsterHorseNumber || !horses.some((horse) => Number(horse.number) === Number(state.tipsterHorseNumber))) state.tipsterHorseNumber = horses[0]?.number || null;
+  const selectedHorse = horses.find((horse) => Number(horse.number) === Number(state.tipsterHorseNumber));
+  const selectedBuzzHorse = buzzRace?.horses?.find((horse) => Number(horse.number) === Number(state.tipsterHorseNumber)) || { ...selectedHorse, buzz: { score: 0, positiveCount: 0, classification: 'INGEN_STARK_SIGNAL' }, signals: [] };
+  const favorite = raceFavorite(race);
+  const rows = horses.map((horse) => {
+    const item = buzzRace?.horses?.find((entry) => Number(entry.number) === Number(horse.number)) || { ...horse, buzz: { score: 0 }, signals: [] };
+    const buzz = item.buzz || { score: 0 };
+    const selected = Number(horse.number) === Number(state.tipsterHorseNumber);
+    const sourceSignal = item.signals?.find((signal) => signal.source?.url || signal.source?.canonicalUrl);
+    const source = sourceSignal?.source?.url || sourceSignal?.source?.canonicalUrl || '';
+    return `<button type="button" class="tipster-horse-row ${selected ? 'selected' : ''} ${favorite?.number === horse.number ? 'favorite' : ''}" data-tipster-horse="${esc(horse.number)}"><span class="tipster-horse-number">${esc(horse.number)}</span><strong>${esc(horse.name)}</strong><span>${esc(horse.driver || '–')}</span><span>${fmtPercent(horse.winPercent)}</span><span>${horse.winOdds ?? '–'}</span><span class="buzz-pill ${tipsterBuzzClass(buzz)}">${buzz.score || '–'}</span><span>${source ? `<a class="tipster-row-source" href="${esc(source)}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">${buzz.positiveCount ? `${buzz.positiveCount} positiva` : 'Öppna källa'} ↗</a>` : (buzz.positiveCount ? `${buzz.positiveCount} positiva` : 'Ingen signal')}</span></button>`;
+  }).join('');
+  const sourceCount = state.tipsterBuzz?.availableTipsters || 0;
+  const sourceHealth = Object.values(state.tipsterBuzz?.sourceHealth || {});
+  const sourceStatus = sourceCount ? `${sourceCount} tipsters med signal` : sourceHealth.some((source) => source.status === 'degraded' || source.status === 'blocked') ? 'Källor kunde inte läsas' : 'Inga signaler för omgången';
+  const primaryTrack = trackLabel(state.round.track, state.round.track2);
+  const atgUrl = atgUrls(state.round)[0] || '#';
+  content.innerHTML = `<div class="tipster-round-header"><div class="tipster-round-title"><div class="tipster-round-orb">♞</div><div><span class="eyebrow">AKTUELL OMGÅNG</span><h1>${esc(state.round.gameType)} – ${esc(primaryTrack)}</h1><p>${esc(dateLabel(state.round.date))} · ${state.round.divisionCount} avdelningar · Radpris ${money(state.round.rowPrice)}</p><div class="tipster-round-links"><a href="./banor.html?track=${encodeURIComponent(trackSlug(state.round.track))}">Banprofilen ↗</a><span>Startlista</span><span>Omgångsinfo</span></div></div></div><div class="tipster-header-actions"><button type="button" class="primary-button" id="tipsters-edit">✎ Redigera omgång</button><button type="button" class="ghost-button" id="tipsters-refresh">↻ Uppdatera tipsters</button><a class="ghost-button" href="${esc(atgUrl)}" target="_blank" rel="noreferrer">Öppna ATG ↗</a><button type="button" class="ghost-button" id="tipsters-together">👥 Tillsammans</button></div></div><div class="tipster-layout"><section class="tipster-race-panel"><div class="tipster-race-toolbar"><button type="button" class="tipster-race-arrow" data-tipster-division="prev" aria-label="Föregående avdelning">‹</button><label>Avdelning<select id="tipster-division">${races.map((item, index) => `<option value="${index + 1}" ${index === raceIndex ? 'selected' : ''}>Avd ${item.division}</option>`).join('')}</select></label><button type="button" class="tipster-race-arrow" data-tipster-division="next" aria-label="Nästa avdelning">›</button><span>${esc(race.distance || 'Startlista')} · ${horses.length} aktiva hästar</span></div><div class="tipster-table"><div class="tipster-table-head"><span>Nr</span><span>Häst</span><span>Kusk</span><span>V%</span><span>Odds</span><span>Buzz</span><span>Kommentar / källa</span></div>${rows}</div></section><aside id="tipster-buzz-panel" class="tipster-buzz-panel"></aside></div>`;
+  renderTipsterBuzzPanel(selectedBuzzHorse, race);
+}
+
+function renderTipstersLegacy() {
   const content = $('#tipsters-content');
   if (!content) return;
   if (!state.round) { content.innerHTML = '<div class="empty-state tipster-empty-state"><div class="empty-icon">★</div><h2>Öppna en spelomgång först</h2><p>Tipster Buzz kopplas till den aktuella omgångens startlista.</p><button class="secondary-button" data-view="home">Till start</button></div>'; return; }
@@ -232,7 +337,7 @@ function ensureRoundTipstersMarkup() {
   const aside = document.querySelector('#round-layout .together-column');
   if (tabs && aside && tabs.parentElement !== aside) aside.insertBefore(tabs, aside.firstElementChild);
   if (aside && !$('#round-tipsters-panel')) {
-    aside.insertAdjacentHTML('beforeend', '<div id="round-tipsters-panel" data-round-builder-panel="tipsters" hidden><div class="round-tipsters-heading"><div><span class="eyebrow">TIPSTERS</span><h2>Tipster Buzz</h2><p>Signalerna visas inne i den aktuella omgången.</p></div><button type="button" class="outline-button" data-round-tipsters-refresh>↻ Uppdatera</button></div><div id="round-tipsters-content"></div></div>');
+    aside.insertAdjacentHTML('beforeend', '<div id="round-tipsters-panel" class="round-tipsters-panel" data-round-builder-panel="tipsters" hidden><div class="round-tipsters-heading"><div><span class="eyebrow">TIPSTERS</span><h2>Tipster Buzz</h2><p>Signalerna visas inne i den aktuella omgången.</p></div><button type="button" class="outline-button" data-round-tipsters-refresh>↻ Uppdatera</button></div><div id="round-tipsters-content"></div></div>');
   }
 }
 
@@ -255,13 +360,14 @@ function renderRoundTipsters() {
     const item = buzzRace?.horses?.find((entry) => Number(entry.number) === Number(horse.number)) || { ...horse, buzz: { score: 0 }, signals: [] };
     const buzz = item.buzz || { score: 0 };
     const selected = Number(horse.number) === Number(state.tipsterHorseNumber);
-    return `<button type="button" class="round-tipster-horse ${selected ? 'selected' : ''}" data-tipster-horse="${esc(horse.number)}"><span class="tipster-horse-number">${esc(horse.number)}</span><strong>${esc(horse.name)}</strong><span>${fmtPercent(horse.winPercent)}</span><span class="buzz-pill ${tipsterBuzzClass(buzz)}">${buzz.score || '–'}</span></button>`;
+    const source = item.signals?.find((signal) => signal.source?.url || signal.source?.canonicalUrl)?.source?.url || item.signals?.find((signal) => signal.source?.canonicalUrl)?.source?.canonicalUrl || '';
+    return `<button type="button" class="tipster-horse-row ${selected ? 'selected' : ''}" data-tipster-horse="${esc(horse.number)}"><span class="tipster-horse-number">${esc(horse.number)}</span><strong>${esc(horse.name)}</strong><span>${esc(horse.driver || '–')}</span><span>${fmtPercent(horse.winPercent)}</span><span>${horse.winOdds ?? '–'}</span><span class="buzz-pill ${tipsterBuzzClass(buzz)}">${buzz.score || '–'}</span><span>${source ? `<a class="tipster-row-source" href="${esc(source)}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">${buzz.positiveCount ? `${buzz.positiveCount} positiva` : 'Öppna källa'} ↗</a>` : (buzz.positiveCount ? `${buzz.positiveCount} positiva` : 'Ingen signal')}</span></button>`;
   }).join('');
   const configured = state.tipsterBuzz?.configuredTipsters || [];
   const sourceCount = state.tipsterBuzz?.availableTipsters || 0;
   const sourceHealth = Object.values(state.tipsterBuzz?.sourceHealth || {});
   const sourceStatus = sourceCount ? `${sourceCount} tipsters med signal` : sourceHealth.some((source) => source.status === 'degraded' || source.status === 'blocked') ? 'Källor kunde inte läsas' : 'Inga signaler för omgången';
-  content.innerHTML = `<div class="round-tipster-toolbar"><button type="button" class="tipster-race-arrow" data-tipster-division="prev" aria-label="Föregående avdelning">‹</button><strong>Avdelning ${esc(race.division)}</strong><button type="button" class="tipster-race-arrow" data-tipster-division="next" aria-label="Nästa avdelning">›</button><span class="status-pill">${esc(sourceStatus)}</span></div><div class="round-tipster-list">${rows || '<p class="tipster-empty-copy">Inga aktiva hästar i avdelningen.</p>'}</div><div id="round-tipster-buzz-panel" class="tipster-buzz-panel compact-buzz-panel"></div><small class="round-tipster-footnote">${configured.length ? `Källor: ${configured.length} konfigurerade tipsters` : 'Tipsterkällor väntar på uppdatering.'}</small>`;
+  content.innerHTML = `<div class="tipster-layout round-tipster-layout"><section class="tipster-race-panel"><div class="tipster-race-toolbar"><button type="button" class="tipster-race-arrow" data-tipster-division="prev" aria-label="Föregående avdelning">‹</button><label>Avdelning<select id="round-tipster-division">${races.map((item, index) => `<option value="${index + 1}" ${index === raceIndex ? 'selected' : ''}>Avd ${item.division}</option>`).join('')}</select></label><button type="button" class="tipster-race-arrow" data-tipster-division="next" aria-label="Nästa avdelning">›</button><span>${esc(race.distance || 'Startlista')} · ${horses.length} aktiva hästar</span></div><div class="tipster-table"><div class="tipster-table-head"><span>Nr</span><span>Häst</span><span>Kusk</span><span>V%</span><span>Odds</span><span>Buzz</span><span>Kommentar / källa</span></div>${rows || '<p class="tipster-empty-copy">Inga aktiva hästar i avdelningen.</p>'}</div></section><aside id="round-tipster-buzz-panel" class="tipster-buzz-panel"></aside></div><small class="round-tipster-footnote">${configured.length ? `Källor: ${configured.length} konfigurerade tipsters` : 'Tipsterkällor väntar på uppdatering.'}</small>${renderTipsterCouponTabsMarkup()}${state.tipsterCouponTab === 'saved' ? renderTipsterSavedCouponsMarkup() : renderTipstersCouponOverviewMarkup()}`;
   renderTipsterBuzzPanel(selectedBuzzHorse, race, '#round-tipster-buzz-panel');
 }
 
@@ -380,6 +486,7 @@ function openRoundById(gameId, updateUrl = true) {
   state.tipsterHorseNumber = null;
   state.savedCoupons = Array.isArray(game.coupons) ? game.coupons : [];
   state.roundBuilderTab = 'together';
+  state.tipsterCouponTab = 'started';
   state.togetherCascadePreset = null;
   state.reverseSourceIds = [];
   state.reverseCoupon = null;
@@ -487,13 +594,9 @@ function renderSavedCoupons() {
 
 function renderRoundSavedCoupons() {
   const container = $('#round-saved-coupons');
-  if (!container || !state.round) return;
-  const game = state.games.find((item) => String(item._id) === String(state.round.id));
-  const coupons = Array.isArray(game?.coupons) ? game.coupons : state.savedCoupons;
-  if (!coupons.length) { container.hidden = true; container.innerHTML = ''; return; }
-  const winnerMap = resultWinnerMapFor(game || {}, state.round);
-  container.hidden = false;
-  container.innerHTML = `<div class="round-saved-coupons-heading"><div><span class="eyebrow">DEN HÄR OMGÅNGEN</span><h2>Sparade kuponger</h2></div><span>${coupons.length} kuponger</span></div><div class="round-saved-coupons-grid">${coupons.map((coupon, index) => renderSavedCouponCard(coupon, state.round, index, winnerMap)).join('')}</div>`;
+  if (!container) return;
+  container.hidden = true;
+  container.innerHTML = '';
 }
 
 async function loadSavedCoupons() {
@@ -1292,8 +1395,10 @@ async function deleteSavedCoupon(gameId, couponId) {
     if (!response.ok) throw new Error(await response.text() || 'Kunde inte ta bort kupongen');
     const game = state.games.find((item) => String(item._id) === String(gameId));
     if (game) game.coupons = (game.coupons || []).filter((coupon) => String(coupon._id) !== String(couponId));
+    delete state.savedCouponDrafts[`${gameId}:${couponId}`];
     renderSavedCoupons();
     renderRoundSavedCoupons();
+    if (state.roundBuilderTab === 'tipsters' && String(state.round?.id) === String(gameId)) renderRoundTipsters();
     showToast('Kupongen togs bort');
   } catch (error) { showToast(error.message); }
 }
@@ -1644,14 +1749,20 @@ function cascadeCountLimits(races) {
   return races.map((race) => Math.max(1, race.horses.filter((horse) => !horse.scratched).length));
 }
 
-function cascadeSpikeIndexes(limits, desiredSpikes, couponIndex) {
-  const available = limits.map((limit, index) => ({ limit, index })).filter((item) => item.limit > 0);
-  if (!desiredSpikes || !available.length) return new Set();
-  const ordered = couponIndex === 1
-    ? [...available].sort((a, b) => b.index - a.index)
+function cascadeSpikeIndexes(limits, desiredSpikes, couponIndex, usedSpikeIndexes = new Set()) {
+  const available = limits.map((limit, index) => ({ limit, index })).filter((item) => item.limit > 0 && !usedSpikeIndexes.has(item.index));
+  const fallback = limits.map((limit, index) => ({ limit, index })).filter((item) => item.limit > 0);
+  if (!desiredSpikes || !fallback.length) return new Set();
+  const order = (items) => couponIndex === 1
+    ? [...items].sort((a, b) => b.index - a.index)
     : couponIndex === 2
-      ? [...available].sort((a, b) => a.index - b.index)
-      : [...available].sort((a, b) => ((a.index + couponIndex) % 2) - ((b.index + couponIndex) % 2) || a.index - b.index);
+      ? [...items].sort((a, b) => a.index - b.index)
+      : [...items].sort((a, b) => ((a.index + couponIndex) % 2) - ((b.index + couponIndex) % 2) || a.index - b.index);
+  const unusedFirst = order(available);
+  const source = unusedFirst.length >= desiredSpikes
+    ? unusedFirst
+    : [...unusedFirst, ...order(fallback.filter((item) => usedSpikeIndexes.has(item.index)))];
+  const ordered = source;
   return new Set(ordered.slice(0, Math.min(desiredSpikes, ordered.length)).map((item) => item.index));
 }
 
@@ -1687,8 +1798,10 @@ function buildCascadeCountPlans(races, targetRows, desiredSpikes, fixedCounts = 
   const ascending = [...descending].reverse();
   const mixed = limits.map((_, index) => [0.78, 0.42, 0.68, 0.35, 0.62, 0.48, 0.72, 0.3][index % 8]);
   const profiles = [mixed, descending, ascending];
+  const usedSpikeIndexes = new Set();
   return profiles.map((weights, couponIndex) => {
-    const spikes = cascadeSpikeIndexes(limits, desiredSpikes, couponIndex);
+    const spikes = cascadeSpikeIndexes(limits, desiredSpikes, couponIndex, usedSpikeIndexes);
+    spikes.forEach((index) => usedSpikeIndexes.add(index));
     const minimums = {};
     if (couponIndex === 1 && limits.length) {
       minimums[0] = limits[0];
@@ -1935,6 +2048,11 @@ function couponPicksMarkup(coupon, race, raceIndex, winnerNumber = null) {
   return `<span class="pick-list">${horses.map((horse) => `<span class="number-chip ${horseBadgeClass(race, horse, winnerNumber)}">${esc(horse.number)}</span>`).join('')}</span>`;
 }
 
+function complementControlsMarkup() {
+  const configured = state.tipsterBuzz?.configuredTipsters || [];
+  return `<div class="complement-controls"><label>Komplement<select data-complement-mode><option value="uncovered" ${state.complementMode === 'uncovered' ? 'selected' : ''}>Ej valda hästar</option><option value="tipsters" ${state.complementMode === 'tipsters' ? 'selected' : ''}>Tipsterkupong</option></select></label>${state.complementMode === 'tipsters' ? `<label>Tipster<select data-complement-tipster><option value="all" ${state.complementTipsterId === 'all' ? 'selected' : ''}>Alla positiva</option>${configured.map((tipster) => `<option value="${esc(tipster.id)}" ${String(state.complementTipsterId) === String(tipster.id) ? 'selected' : ''}>${esc(tipster.name)}</option>`).join('')}</select></label>` : ''}</div>`;
+}
+
 function combinationPickerMarkup(couponIndex) {
   const rowPrice = state.round?.rowPrice || 1;
   const options = state.combinationOptions[couponIndex] || [];
@@ -1962,14 +2080,26 @@ function moveCombinationCursor(couponIndex, direction) {
   renderCoupons();
 }
 
+function tipsterPositiveNumbersForRace(race) {
+  const buzzRace = state.tipsterBuzz?.races?.find((item) => Number(item.division) === Number(race?.division));
+  const selectedTipsterId = String(state.complementTipsterId || 'all');
+  return (buzzRace?.horses || []).filter((horse) => {
+    const signals = (horse.signals || []).filter((signal) => selectedTipsterId === 'all' || String(signal.tipster?.id) === selectedTipsterId);
+    return signals.some((signal) => signal.signal?.positive === true);
+  }).map((horse) => Number(horse.number)).filter((horseNumber) => Number.isFinite(horseNumber));
+}
+
 function buildComplementCoupon(coupons) {
   const races = state.round?.races || [];
+  const tipsterMode = state.complementMode === 'tipsters';
   const selections = races.map((race, raceIndex) => {
+    if (tipsterMode) return tipsterPositiveNumbersForRace(race);
     const covered = new Set(coupons.flatMap((coupon) => coupon.selections?.[raceIndex] || []).map(Number));
     return race.horses.filter((horse) => !horse.scratched && !covered.has(Number(horse.number))).map((horse) => Number(horse.number));
   });
   const rows = selections.reduce((total, picks) => total * Math.max(1, picks.length), 1);
-  return { name: 'Komplement', note: 'Hästar som inte finns på de andra kupongerna', selections, rows, cost: rows * (state.round?.rowPrice || 1), spikeCount: selections.filter((picks) => picks.length === 1).length, variation: 100, complement: true };
+  const tipster = (state.tipsterBuzz?.configuredTipsters || []).find((item) => String(item.id) === String(state.complementTipsterId));
+  return { name: tipsterMode ? `Tipsterkupong${tipster ? ` · ${tipster.name}` : ''}` : 'Komplement', note: tipsterMode ? 'Alla hästar med positiv tipstersignal' : 'Hästar som inte finns på de andra kupongerna', selections, rows, cost: rows * (state.round?.rowPrice || 1), spikeCount: selections.filter((picks) => picks.length === 1).length, variation: 100, complement: true };
 }
 
 function displayedTogetherCoupons() { return [...state.coupons, ...(state.complementCoupon ? [state.complementCoupon] : [])]; }
@@ -2019,10 +2149,17 @@ function togetherCouponCardMarkup(coupon, couponIndex, complement = false) {
   const rows = Number(coupon.rows || 0).toLocaleString('sv-SE');
   const races = (state.round?.races || []).map((race, raceIndex) => `<div class="coupon-race"${complement ? '' : ` data-edit-coupon="${couponIndex}" data-edit-division="${raceIndex}"`}><span class="race-label">${race.division}</span>${couponPicksMarkup(coupon, race, raceIndex)}${complement ? '' : `<button class="lock ${state.locks.has(`${couponIndex}:${raceIndex}`) ? 'locked' : ''}" data-lock-coupon="${couponIndex}" data-lock-division="${raceIndex}" title="Lås avdelning">${state.locks.has(`${couponIndex}:${raceIndex}`) ? '🔒' : '🔓'}</button>`}</div>`).join('');
   const combination = complement ? '' : combinationPickerMarkup(couponIndex);
-  return `<article class="coupon-card unified-coupon-card${cardClass}"><div class="coupon-top"><span><i class="coupon-index-badge">${couponIndex + 1}</i><span class="coupon-title">${esc(coupon.name)}</span></span><span class="coupon-cost">${money(coupon.cost)}</span></div><p class="strategy-note">${esc(coupon.note)}</p><div class="coupon-stats"><span>▥ ${rows} rader</span><span>★ ${coupon.spikeCount ?? 0} spikar</span></div>${races}${combination}<div class="coupon-footer"><span>${rows} rader · ${coupon.spikeCount ?? 0} spikar</span>${complement ? '<span>Kompletterar alla kuponger</span>' : `<span>Variation ${coupon.variation}%</span>`}</div></article>`;
+  return `<article class="coupon-card unified-coupon-card${cardClass}"><div class="coupon-top"><span><i class="coupon-index-badge">${couponIndex + 1}</i><span class="coupon-title">${esc(coupon.name)}</span></span><span class="coupon-cost">${money(coupon.cost)}</span></div><p class="strategy-note">${esc(coupon.note)}</p><div class="coupon-stats"><span>▥ ${rows} rader</span><span>★ ${coupon.spikeCount ?? 0} spikar</span></div>${races}${combination}<div class="coupon-footer">${complement ? complementControlsMarkup() : ''}<span>${rows} rader · ${coupon.spikeCount ?? 0} spikar</span>${complement ? '<span>Kompletterar alla kuponger</span>' : `<span>Variation ${coupon.variation}%</span>`}</div></article>`;
+}
+
+function ensureMobileShuffleBlock() {
+  const couponList = $('#coupon-list');
+  if (!couponList || document.querySelector('.mobile-shuffle-block')) return;
+  couponList.insertAdjacentHTML('afterend', '<div class="mobile-shuffle-block" aria-label="Kupongåtgärder"><span>Vill du prova en annan fördelning?</span><button type="button" class="gold-button" data-shuffle-inline>⤨ Slumpa kuponger</button></div>');
 }
 
 function renderCoupons() {
+  ensureMobileShuffleBlock();
   ensureTogetherStakeControl();
   ensureTogetherCascadeButton();
   state.complementCoupon = buildComplementCoupon(state.coupons);
@@ -2034,7 +2171,7 @@ function renderCoupons() {
   $$('#together-preset-options [data-together-preset]').forEach((button) => { const selected = hasTogetherPreset() && Number(button.dataset.togetherPreset) === Number(state.togetherPreset); button.classList.toggle('selected', selected); button.setAttribute('aria-pressed', String(selected)); });
   const cascadeButton = $('#together-preset-options [data-together-cascade]');
   if (cascadeButton) { const selected = state.togetherCascadePreset === 'safety'; cascadeButton.classList.toggle('selected', selected); cascadeButton.setAttribute('aria-pressed', String(selected)); }
-  $$('#spike-count button').forEach((button) => { button.classList.toggle('selected', Number(button.dataset.spikes) === state.spikeCount); button.disabled = hasTogetherPreset() || state.together2 || state.togetherCascadePreset === 'safety'; });
+  $$('#spike-count button').forEach((button) => { button.classList.toggle('selected', Number(button.dataset.spikes) === state.spikeCount); button.disabled = hasTogetherPreset() || state.together2; });
   const divisionLabels = `<div class="together-division-labels"><strong>AVDELNING</strong>${(state.round?.races || []).map((race) => `<span>Avd ${race.division}</span>`).join('')}</div>`;
   $('#coupon-list').style.setProperty('--coupon-columns', visibleCoupons.length);
   $('#coupon-list').innerHTML = `${divisionLabels}${visibleCoupons.map((coupon, couponIndex) => togetherCouponCardMarkup(coupon, couponIndex, Boolean(coupon.complement))).join('')}`;
@@ -2092,7 +2229,65 @@ function openRoundEditor() {
 }
 async function saveRoundEditor(event) { event.preventDefault(); const form = event.currentTarget; form.querySelectorAll('tr[data-race]').forEach((row) => { const race = state.round.races.find((item) => item.division === Number(row.dataset.race)); const horse = race?.horses?.[Number(row.dataset.horse)]; if (!horse) return; row.querySelectorAll('[data-field]').forEach((input) => { const field = input.dataset.field; horse[field] = ['number', 'winPercent', 'winOdds'].includes(field) ? number(input.value) : input.value; }); }); try { const response = await apiFetch(`/rounds/${encodeURIComponent(state.round.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ round: state.round }) }); if (!response.ok) throw new Error(await response.text() || 'Kunde inte spara'); state.round = await response.json(); $('#editor-modal').hidden = true; generateCoupons(); renderRound(); showToast('Omgången sparades'); } catch (error) { showToast(error.message); } }
 
-function openCouponEditor(couponIndex, raceIndex) { const race = state.round.races[raceIndex]; const selected = new Set(state.coupons[couponIndex].selections[raceIndex] || []); $('#editor-content').innerHTML = `<div class="eyebrow">KUPONG ${couponIndex + 1}</div><h2 class="editor-title">Avd ${race.division} – välj hästar</h2><p class="editor-intro">Ändra valen manuellt. Kostnad och rader räknas om direkt när du sparar.</p><form id="coupon-editor-form"><div class="horse-picker">${race.horses.map((horse) => `<label class="picker-row ${horse.scratched ? 'scratched-row' : ''}"><input type="checkbox" name="horse" value="${esc(horse.number)}" ${selected.has(horse.number) ? 'checked' : ''} ${horse.scratched ? 'disabled' : ''}><strong>${esc(horse.number)}</strong><span>${esc(horse.name)}${horse.scratched ? ' · struken' : ''}</span><small>${horse.scratched ? 'EJ' : `${fmtPercent(horse.winPercent)} · ${esc(horse.driver || '–')}`}</small></label>`).join('')}</div><div class="modal-actions"><button type="button" class="secondary-button" id="make-spike">Gör till spik</button><button type="submit" class="primary-button">Klar</button></div></form>`; $('#editor-modal').hidden = false; const form = $('#coupon-editor-form'); form.dataset.coupon = couponIndex; form.dataset.race = raceIndex; form.addEventListener('submit', saveCouponEditor); }
+function openSavedCouponEditor(gameId, couponId, raceIndex) {
+  const game = state.games.find((item) => String(item._id ?? item.id) === String(gameId));
+  const coupon = game?.coupons?.find((item, index) => savedCouponIdentity(item, index) === String(couponId));
+  const round = game ? normalizeGame(game) : null;
+  const race = round?.races?.[Number(raceIndex)];
+  if (!game || !coupon || !race) return;
+  const identity = savedCouponIdentity(coupon, couponId);
+  const key = `${gameId}:${identity}`;
+  const existing = state.savedCouponDrafts[key];
+  const draft = existing || { name: String(coupon.name || 'Sparad kupong').replace(/^Tillsammans\s*·\s*/i, ''), selections: savedCouponSelections(coupon, round) };
+  state.savedCouponDrafts[key] = draft;
+  const selected = new Set(draft.selections?.[Number(raceIndex)] || []);
+  $('#editor-content').innerHTML = `<div class="eyebrow">SPARAD KUPONG</div><h2 class="editor-title">Avd ${race.division} – välj hästar</h2><p class="editor-intro">Ändringen sparas först som ett nytt utkast. Originalkupongen påverkas inte.</p><form id="saved-coupon-editor-form"><div class="horse-picker">${race.horses.map((horse) => `<label class="picker-row ${horse.scratched ? 'scratched-row' : ''}"><input type="checkbox" name="horse" value="${esc(horse.number)}" ${selected.has(Number(horse.number)) ? 'checked' : ''} ${horse.scratched ? 'disabled' : ''}><strong>${esc(horse.number)}</strong><span>${esc(horse.name)}${horse.scratched ? ' · struken' : ''}</span><small>${horse.scratched ? 'EJ' : `${fmtPercent(horse.winPercent)} · ${esc(horse.driver || '–')}`}</small></label>`).join('')}</div><div class="modal-actions"><button type="submit" class="primary-button">Klar</button></div></form>`;
+  $('#editor-modal').hidden = false;
+  const form = $('#saved-coupon-editor-form');
+  form.dataset.savedGame = gameId; form.dataset.savedCoupon = identity; form.dataset.savedRace = raceIndex;
+  form.addEventListener('submit', saveSavedCouponEditorDraft);
+}
+
+function saveSavedCouponEditorDraft(event) {
+  event.preventDefault(); event.stopPropagation();
+  const form = event.currentTarget;
+  const key = `${form.dataset.savedGame}:${form.dataset.savedCoupon}`;
+  const draft = state.savedCouponDrafts[key];
+  const selected = Array.from(form.querySelectorAll('input[name="horse"]:checked')).map((input) => Number(input.value));
+  if (!selected.length) return showToast('Välj minst en häst');
+  if (!draft) return;
+  draft.selections[Number(form.dataset.savedRace)] = selected;
+  $('#editor-modal').hidden = true;
+  if (state.roundBuilderTab === 'tipsters') renderRoundTipsters();
+  showToast('Ändringen är klar – spara som ny kupong när du vill');
+}
+
+async function saveSavedCouponDraft(gameId, couponId) {
+  const game = state.games.find((item) => String(item._id ?? item.id) === String(gameId));
+  const coupon = game?.coupons?.find((item, index) => savedCouponIdentity(item, index) === String(couponId));
+  const round = game ? normalizeGame(game) : null;
+  const key = `${gameId}:${couponId}`;
+  const draft = state.savedCouponDrafts[key];
+  if (!game || !coupon || !round || !draft) return;
+  const defaultName = String(draft.name || coupon.name || 'Sparad kupong').replace(/^Tillsammans\s*·\s*/i, '');
+  const enteredName = window.prompt('Nytt namn för den ändrade kupongen:', `${defaultName} – ändrad`);
+  if (enteredName === null) return;
+  const name = enteredName.trim();
+  if (!name) return showToast('Ange ett nytt namn innan du sparar');
+  const selections = (round.races || []).map((race, raceIndex) => ({ divisionIndex: race.division, horses: (draft.selections?.[raceIndex] || []).map(Number) }));
+  const rows = selections.reduce((total, selection) => total * Math.max(1, selection.horses.length), 1);
+  try {
+    const response = await apiFetch(`/games/${encodeURIComponent(gameId)}/coupons`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `Tillsammans · ${name}`, source: 'tillsammans', packageId: window.crypto?.randomUUID?.() || `edited-${Date.now()}`, packageName: name, packageCreatedAt: new Date().toISOString(), rows, cost: rows * (round.rowPrice || 1), spikeCount: selections.filter((selection) => selection.horses.length === 1).length, variation: coupon.variation ?? 0, stakeLevel: coupon.stakeLevel || 'original', selections }) });
+    if (!response.ok) throw new Error(await response.text() || 'Kunde inte spara den nya kupongen');
+    delete state.savedCouponDrafts[key];
+    await loadGames();
+    state.tipsterCouponTab = 'saved';
+    showView('round');
+    setRoundBuilderTab('tipsters');
+    showToast('Den ändrade kupongen sparades som en ny kupong');
+  } catch (error) { showToast(error.message); }
+}
+
 function saveCouponEditor(event) { event.preventDefault(); event.stopPropagation(); const form = event.currentTarget; const coupon = state.coupons[Number(form.dataset.coupon)]; const race = Number(form.dataset.race); const selected = Array.from(form.querySelectorAll('input[name="horse"]:checked')).map((input) => Number(input.value)); if (!selected.length) return showToast('Välj minst en häst'); coupon.selections[race] = selected; coupon.rows = rowsFor(coupon); coupon.cost = coupon.rows * (state.round.rowPrice || 1); coupon.spikeCount = coupon.selections.filter((selection) => selection.length === 1).length; $('#editor-modal').hidden = true; renderCoupons(); showToast('Avdelningen sparades på kupongen'); }
 
 async function refreshFromAtgLegacy() { if (!state.round) return; const config = { date: state.round.date, gameType: state.round.gameType, track: state.round.track, track2: state.round.track2 }; $('#refresh-round').disabled = true; try { const fresh = await importRound(config, state.round.id); state.round = fresh; generateCoupons(); renderRound(); showToast('Startlistan uppdaterades från ATG'); } catch (error) { showToast(error.message); } finally { $('#refresh-round').disabled = false; } }
@@ -2138,6 +2333,24 @@ async function savePackage() { if (!state.round?.id) return showToast('Skapa ell
 async function refreshFromAtg() { if (!state.round) return; const previous = state.round; const config = { date: state.round.date, gameType: state.round.gameType, track: state.round.track, track2: state.round.track2 }; $('#refresh-round').disabled = true; setRefreshImportOverlay(config); try { const fresh = await importRound(config, state.round.id); markUpdatedFields(previous, fresh); state.round = fresh; clearPendingCombinationChoices(); generateCoupons(); renderRound(); setRefreshImportOverlay(config, 'complete'); showToast('Startlistan uppdaterades – gröna värden är ändrade'); setTimeout(hideRefreshImportOverlay, 900); } catch (error) { setRefreshImportOverlay(config, 'error', error.message); showToast(error.message); setTimeout(hideRefreshImportOverlay, 1800); } finally { $('#refresh-round').disabled = false; } }
 
 function bindEvents() {
+  document.addEventListener('click', (event) => {
+    const navTipsters = event.target.closest('[data-view="tipsters"]');
+    if (!navTipsters) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    state.tipstersHasNewInfo = false;
+    renderTipsterNavBadge();
+    showView('tipsters');
+    if (state.tipsterBuzz) renderTipsters();
+    else if (!state.tipsterLoading) void loadTipsterBuzz(false);
+  }, true);
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('#tipsters-together')) { event.preventDefault(); event.stopPropagation(); showView('round'); setRoundBuilderTab('together'); return; }
+    if (event.target.closest('#tipsters-edit')) { event.preventDefault(); event.stopPropagation(); openRoundEditor(); }
+  });
+  document.addEventListener('submit', (event) => {
+    if (event.target.id === 'coupon-editor-form') setTimeout(() => { if ($('#tipsters-view') && !$('#tipsters-view').hidden) renderTipsters(); }, 0);
+  });
   ensureCouponImportTabMarkup();
   ensureRoundTipstersMarkup();
   ensureTipsterNavBadge();
@@ -2153,7 +2366,16 @@ function bindEvents() {
     if (division && state.round?.races?.length) { const direction = division.dataset.tipsterDivision === 'next' ? 1 : -1; state.tipsterDivision = ((Number(state.tipsterDivision || 1) - 1 + direction + state.round.races.length) % state.round.races.length) + 1; state.tipsterHorseNumber = null; if (state.roundBuilderTab === 'tipsters') renderRoundTipsters(); else renderTipsters(); return; }
     if (event.target.closest('#tipsters-refresh, #refresh-tipsters, [data-round-tipsters-refresh]')) { void loadTipsterBuzz(true); return; }
   });
-  document.addEventListener('change', (event) => { if (event.target.id === 'tipster-division') { state.tipsterDivision = Number(event.target.value) || 1; state.tipsterHorseNumber = null; renderTipsters(); } });
+  document.addEventListener('change', (event) => { if (event.target.id === 'tipster-division' || event.target.id === 'round-tipster-division') { state.tipsterDivision = Number(event.target.value) || 1; state.tipsterHorseNumber = null; if (event.target.id === 'round-tipster-division') renderRoundTipsters(); else renderTipsters(); } if (event.target.matches('[data-complement-mode]')) { state.complementMode = event.target.value === 'tipsters' ? 'tipsters' : 'uncovered'; if (state.complementMode !== 'tipsters') state.complementTipsterId = 'all'; renderCoupons(); if (state.roundBuilderTab === 'tipsters') renderRoundTipsters(); if (state.complementMode === 'tipsters' && !state.tipsterBuzz) void loadTipsterBuzz(false); } if (event.target.matches('[data-complement-tipster]')) { state.complementTipsterId = event.target.value || 'all'; renderCoupons(); if (state.roundBuilderTab === 'tipsters') renderRoundTipsters(); } });
+  document.addEventListener('click', (event) => { const couponTab = event.target.closest('[data-tipster-coupon-tab]'); if (!couponTab) return; event.preventDefault(); event.stopPropagation(); state.tipsterCouponTab = couponTab.dataset.tipsterCouponTab === 'saved' ? 'saved' : 'started'; renderRoundTipsters(); });
+  document.addEventListener('click', (event) => {
+    const savedEdit = event.target.closest('[data-edit-saved-coupon]');
+    if (savedEdit) { event.preventDefault(); event.stopPropagation(); openSavedCouponEditor(savedEdit.dataset.editGame, savedEdit.dataset.editSavedCoupon, savedEdit.dataset.editDivision); return; }
+    const savedSave = event.target.closest('[data-save-saved-coupon]');
+    if (savedSave) { event.preventDefault(); event.stopPropagation(); void saveSavedCouponDraft(savedSave.dataset.saveGame, savedSave.dataset.saveSavedCoupon); return; }
+    const savedDiscard = event.target.closest('[data-discard-saved-coupon]');
+    if (savedDiscard) { event.preventDefault(); event.stopPropagation(); delete state.savedCouponDrafts[`${savedDiscard.dataset.discardGame}:${savedDiscard.dataset.discardSavedCoupon}`]; renderRoundTipsters(); showToast('Ändringen togs bort'); }
+  });
   document.addEventListener('click', (event) => { if (event.target.closest('[data-view="tipsters"]')) { state.tipstersHasNewInfo = false; renderTipsterNavBadge(); if (state.round) { event.preventDefault(); event.stopImmediatePropagation(); showView('round'); setRoundBuilderTab('tipsters'); return; } setTimeout(() => { if (state.tipsterBuzz) renderTipsters(); else if (!state.tipsterLoading) void loadTipsterBuzz(false); }, 0); } });
   document.addEventListener('click', (event) => {
     const tab = event.target.closest('[data-coupon-subtab]');
@@ -2219,7 +2441,7 @@ function bindEvents() {
   $('#save-shop-link')?.addEventListener('click', saveShopLink);
   document.addEventListener('click', (event) => { const importLink = event.target.closest('[data-import-shop-link]'); if (importLink) { event.stopPropagation(); importSavedShopLink(importLink.dataset.importShopLink); } });
   $('#clear-purchased-coupon')?.addEventListener('click', () => { $('#purchased-coupon-input').value = ''; $('#purchased-coupon-message').textContent = ''; $('#purchased-coupon-message').className = 'reverse-message'; });
-  $('#together-preset-options')?.addEventListener('click', (event) => { const cascadeButton = event.target.closest('[data-together-cascade]'); if (cascadeButton) { state.togetherCascadePreset = 'safety'; state.togetherPreset = null; state.together2 = false; state.couponCount = 3; state.spikeCount = requestedSpikes(); resetCombinationState(); state.seed += 1; generateCoupons(); renderCoupons(); return; } const button = event.target.closest('[data-together-preset]'); if (!button) return; state.togetherCascadePreset = null; state.togetherPreset = Number(button.dataset.togetherPreset); state.together2 = state.togetherPreset === 2; state.spikeCount = state.togetherPreset; state.manualSpikeCount = state.togetherPreset; resetCombinationState(); state.seed += 1; generateCoupons(); renderCoupons(); }); $('#coupon-count').addEventListener('click', (event) => { const button = event.target.closest('[data-count]'); if (!button) return; state.togetherCascadePreset = null; resetCombinationState(); state.couponCount = Number(button.dataset.count); generateCoupons(); renderCoupons(); }); $('#spike-count').addEventListener('click', (event) => { const button = event.target.closest('[data-spikes]'); if (!button || hasTogetherPreset() || state.together2 || state.togetherCascadePreset === 'safety') return; state.togetherPreset = null; state.togetherCascadePreset = null; state.together2 = false; clearPendingCombinationChoices(); state.spikeCount = Number(button.dataset.spikes); state.manualSpikeCount = state.spikeCount; $$('#spike-count button').forEach((item) => item.classList.toggle('selected', item === button)); scheduleCouponRegeneration(); }); $('#share-price').addEventListener('input', scheduleCouponRegeneration); $('#share-count').addEventListener('change', scheduleCouponRegeneration);
+  $('#together-preset-options')?.addEventListener('click', (event) => { const cascadeButton = event.target.closest('[data-together-cascade]'); if (cascadeButton) { state.togetherCascadePreset = 'safety'; state.togetherPreset = null; state.together2 = false; state.couponCount = 3; state.spikeCount = requestedSpikes(); resetCombinationState(); state.seed += 1; generateCoupons(); renderCoupons(); return; } const button = event.target.closest('[data-together-preset]'); if (!button) return; state.togetherCascadePreset = null; state.togetherPreset = Number(button.dataset.togetherPreset); state.together2 = state.togetherPreset === 2; state.spikeCount = state.togetherPreset; state.manualSpikeCount = state.togetherPreset; resetCombinationState(); state.seed += 1; generateCoupons(); renderCoupons(); }); $('#coupon-count').addEventListener('click', (event) => { const button = event.target.closest('[data-count]'); if (!button) return; state.togetherCascadePreset = null; resetCombinationState(); state.couponCount = Number(button.dataset.count); generateCoupons(); renderCoupons(); }); $('#spike-count').addEventListener('click', (event) => { const button = event.target.closest('[data-spikes]'); if (!button || hasTogetherPreset() || state.together2) return; state.togetherPreset = null; state.together2 = false; clearPendingCombinationChoices(); state.spikeCount = Number(button.dataset.spikes); state.manualSpikeCount = state.spikeCount; $$('#spike-count button').forEach((item) => item.classList.toggle('selected', item === button)); scheduleCouponRegeneration(); }); $('#share-price').addEventListener('input', scheduleCouponRegeneration); $('#share-count').addEventListener('change', scheduleCouponRegeneration);
   $$('[data-step]').forEach((button) => button.addEventListener('click', () => { const input = $('#share-price'); input.value = Math.max(1, Number(input.value) + Number(button.dataset.dir)); scheduleCouponRegeneration(); })); $('#shuffle-coupons').addEventListener('click', shuffleCoupons); $('#save-package').addEventListener('click', savePackage);
   document.addEventListener('submit', (event) => { if (event.target.id === 'reverse-editor-form') saveReverseEditor(event); });
   document.addEventListener('submit', (event) => { if (event.target.id === 'round-editor-form') saveRoundEditor(event); if (event.target.id === 'coupon-editor-form') saveCouponEditor(event); }); document.addEventListener('click', (event) => { if (event.target.id === 'make-spike') { const form = event.target.closest('#coupon-editor-form'); const race = state.round?.races?.[Number(form?.dataset.race)]; const favorite = raceFavorite(race || { horses: [] }); form?.querySelectorAll('input[name="horse"]').forEach((input) => { input.checked = Number(input.value) === favorite?.number; }); } });
@@ -2230,9 +2452,3 @@ loadPurchasedCoupons(); loadShopLinks(); loadDowngradeDrafts(); loadFocusedToget
 document.addEventListener('click', (event) => {
   if (event.target.closest('#header-edit, #empty-edit')) openRoundEditor();
 });
-
-
-
-
-
-
