@@ -1,5 +1,29 @@
 const { chromium } = require('playwright');
+const fs = require('node:fs');
+const path = require('node:path');
+const { execFile } = require('node:child_process');
+const { promisify } = require('node:util');
 const { parseExportText, parseExportRows, rowsFromDomCells } = require('./atgParser');
+
+const execFileAsync = promisify(execFile);
+let chromiumInstallPromise = null;
+
+async function ensureChromium() {
+  if (fs.existsSync(chromium.executablePath())) return;
+  if (!chromiumInstallPromise) {
+    const playwrightCli = path.join(path.dirname(require.resolve('playwright/package.json')), 'cli.js');
+    chromiumInstallPromise = execFileAsync(process.execPath, [playwrightCli, 'install', 'chromium'], {
+      env: process.env,
+      windowsHide: true,
+      maxBuffer: 1024 * 1024 * 4,
+    }).catch((error) => {
+      chromiumInstallPromise = null;
+      throw new Error(`Chromium kunde inte installeras i API-miljön: ${error.stderr || error.message}`);
+    });
+  }
+  await chromiumInstallPromise;
+  if (!fs.existsSync(chromium.executablePath())) throw new Error('Chromium installerades inte korrekt i API-miljön.');
+}
 
 async function dismissConsent(page) {
   for (const label of ['Godkänn alla', 'Acceptera alla', 'Acceptera', 'Jag förstår', 'OK']) {
@@ -38,6 +62,7 @@ async function fetchDivisionWithBrowser(page, url, gameType) {
 }
 
 async function importDivisionStartlists(urls, gameType, onProgress) {
+  await ensureChromium();
   const browser = await chromium.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
@@ -71,4 +96,4 @@ async function importDivisionStartlists(urls, gameType, onProgress) {
   return { races, errors };
 }
 
-module.exports = { fetchDivisionWithBrowser, importDivisionStartlists };
+module.exports = { fetchDivisionWithBrowser, importDivisionStartlists, ensureChromium };

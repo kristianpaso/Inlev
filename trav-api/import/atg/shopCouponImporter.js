@@ -1,5 +1,6 @@
 const fetch = require('node-fetch');
 const { chromium } = require('playwright');
+const { ensureChromium } = require('./atgBrowserFallback');
 
 function clean(value) {
   return String(value || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
@@ -99,6 +100,7 @@ async function readShopCouponPage(page, sourceUrl) {
 async function importShopCoupon(sourceUrl) {
   let browser;
   try {
+    await ensureChromium();
     browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] });
     const page = await browser.newPage({ locale: 'sv-SE', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36' });
     const documentData = await readShopCouponPage(page, sourceUrl);

@@ -4,7 +4,7 @@
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node server.js",
+    "start": "npx playwright install chromium && node server.js",
     "dev": "nodemon server.js",
     "postinstall": "npx playwright install chromium"
   },
