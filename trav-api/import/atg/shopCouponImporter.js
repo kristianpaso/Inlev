@@ -114,6 +114,32 @@ async function findAtgGameId({ date, gameType, trackSlug = '' }) {
   const type = String(gameType || '').toUpperCase();
   const day = String(date || '');
   if (!type || !day) return '';
+
+  // ATG:s racing-API är snabbare och stabilare än att leta efter gameId i
+  // den klientrenderade andelsspel-sidan. Detta används även när en ny
+  // omgång skapas innan den hunnit få ett atgGameId sparat i databasen.
+  try {
+    const response = await fetch(`https://www.atg.se/services/racinginfo/v1/api/calendar/day/${encodeURIComponent(day)}`, {
+      headers: { accept: 'application/json', 'user-agent': 'Mozilla/5.0' },
+      timeout: 15000,
+    });
+    if (response.ok) {
+      const calendar = await response.json();
+      const candidates = Array.isArray(calendar?.games?.[type]) ? calendar.games[type] : [];
+      const tracksById = new Map((Array.isArray(calendar?.tracks) ? calendar.tracks : []).map((track) => [Number(track.id), track.name]));
+      const wanted = String(trackSlug || '').toLowerCase();
+      const matching = candidates.find((candidate) => {
+        const candidateSlug = (candidate.tracks || [])
+          .map((trackId) => String(tracksById.get(Number(trackId)) || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-'))
+          .filter(Boolean)
+          .join('-');
+        return wanted && (candidateSlug === wanted || candidateSlug.includes(wanted) || wanted.includes(candidateSlug));
+      });
+      if (matching?.id) return String(matching.id);
+      if (candidates.length === 1 && candidates[0]?.id) return String(candidates[0].id);
+    }
+  } catch {}
+
   const pattern = new RegExp(`(?:gameId=|gameId%3D)(${type}_${day}_[^&"'<>]+)`, 'i');
   const pages = ['https://www.atg.se/andelsspel'];
   if (trackSlug) pages.push(`https://www.atg.se/spel/${day}/${type}/${trackSlug}/avd/1`);

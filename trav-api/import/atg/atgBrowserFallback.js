@@ -1,4 +1,5 @@
 const { chromium } = require('playwright');
+const fetch = require('node-fetch');
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFile } = require('node:child_process');
@@ -7,6 +8,76 @@ const { parseExportText, parseExportRows, rowsFromDomCells } = require('./atgPar
 
 const execFileAsync = promisify(execFile);
 let chromiumInstallPromise = null;
+
+const ATG_RACING_INFO_GAMES_URL = 'https://www.atg.se/services/racinginfo/v1/api/games';
+
+function finiteNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function fullName(person) {
+  if (!person) return '';
+  return String(person.name || [person.firstName, person.lastName].filter(Boolean).join(' ') || person.shortName || '').trim();
+}
+
+function sexAge(horse) {
+  const sex = { stallion: 'h', gelding: 'v', mare: 's', filly: 's', colt: 'h' }[String(horse?.sex || '').toLowerCase()] || '';
+  return `${sex}${horse?.age ?? ''}`;
+}
+
+function horseFromAtgStart(start, gameType) {
+  const horse = start?.horse || {};
+  const pool = start?.pools?.[gameType] || start?.pools?.[String(gameType || '').toUpperCase()] || {};
+  const distribution = finiteNumber(pool.betDistribution);
+  const trend = finiteNumber(pool.trend);
+  const odds = finiteNumber(start?.pools?.vinnare?.odds);
+  const scratched = Boolean(start?.scratched || horse?.scratched || /scratched|struken/i.test(String(start?.status || horse?.status || '')));
+  const winPercent = distribution === null ? null : Number((distribution / 100).toFixed(2));
+  const trendPercent = trend === null ? null : Number((Math.abs(trend) <= 1 ? trend * 100 : trend).toFixed(2));
+  return {
+    id: `${start?.number || 'horse'}-${horse.name || 'okand'}`.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    number: finiteNumber(start?.number),
+    name: String(horse.name || '').trim(),
+    sexAge: sexAge(horse),
+    driver: fullName(start?.driver),
+    winPercent,
+    trendPercent,
+    winOdds: scratched || odds === null ? null : Number((odds / 100).toFixed(2)),
+    trainer: fullName(horse.trainer),
+    sulky: String(horse?.sulky?.type?.text || '').trim(),
+    scratched,
+    manualScore: 0,
+    note: '',
+  };
+}
+
+async function fetchDivisionStartlistsFromApi(atgGameId, urls, gameType) {
+  if (!atgGameId) return null;
+  const response = await fetch(`${ATG_RACING_INFO_GAMES_URL}/${encodeURIComponent(atgGameId)}`, {
+    headers: { accept: 'application/json', 'user-agent': 'Mozilla/5.0' },
+    timeout: 20000,
+  });
+  if (!response.ok) throw new Error(`ATG:s racing-API svarade ${response.status}`);
+  const payload = await response.json();
+  const races = Array.isArray(payload?.races) ? payload.races : [];
+  if (!races.length) throw new Error('ATG:s racing-API saknar avdelningar');
+
+  const imported = races.slice(0, urls.length).map((race, index) => ({
+    division: index + 1,
+    sourceUrl: urls[index] || '',
+    horses: (Array.isArray(race?.starts) ? race.starts : [])
+      .map((start) => horseFromAtgStart(start, gameType))
+      .filter((horse) => horse.name || Number.isFinite(horse.number)),
+  })).filter((race) => race.horses.length);
+
+  if (!imported.length) throw new Error('ATG:s racing-API saknar startlistor');
+  const errors = [];
+  for (let index = imported.length; index < urls.length; index += 1) {
+    errors.push({ division: index + 1, sourceUrl: urls[index] || '', message: 'Avdelningen saknades i ATG:s racing-API' });
+  }
+  return { races: imported, errors };
+}
 
 async function ensureChromium() {
   if (fs.existsSync(chromium.executablePath())) return;
@@ -61,7 +132,15 @@ async function fetchDivisionWithBrowser(page, url, gameType) {
   return parseExportText(bodyText, gameType);
 }
 
-async function importDivisionStartlists(urls, gameType, onProgress) {
+async function importDivisionStartlists(urls, gameType, onProgress, atgGameId = '') {
+  if (atgGameId) {
+    const imported = await fetchDivisionStartlistsFromApi(atgGameId, urls, gameType);
+    if (imported) {
+      imported.races.forEach((race) => onProgress?.({ division: race.division, status: 'done', count: race.horses.length }));
+      imported.errors.forEach((error) => onProgress?.({ division: error.division, status: 'error', message: error.message }));
+      return imported;
+    }
+  }
   await ensureChromium();
   const browser = await chromium.launch({
     headless: true,

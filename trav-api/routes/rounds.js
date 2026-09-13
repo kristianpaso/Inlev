@@ -97,8 +97,14 @@ router.post('/import', async (req, res) => {
   const config = { date, gameType: normalizedType, track: normalizedTrack, track2: normalizedTrack2 };
   const urls = buildAtgDivisionUrls(config);
   try {
-    const imported = await importDivisionStartlists(urls, normalizedType);
-    const { game, divisions } = await persistImportedRound(config, gameId, imported);
+    const currentGame = gameId ? await TravGame.findById(gameId).catch(() => null) : null;
+    const atgGameId = currentGame?.atgGameId || await findAtgGameId({
+      date: String(date),
+      gameType: normalizedType,
+      trackSlug: getTrackSlug(normalizedTrack, normalizedTrack2),
+    }).catch(() => '');
+    const imported = await importDivisionStartlists(urls, normalizedType, undefined, atgGameId);
+    const { game, divisions } = await persistImportedRound(config, gameId, imported, atgGameId);
     return res.status(imported.errors.length ? 207 : 200).json({
       round: {
         id: String(game._id),
