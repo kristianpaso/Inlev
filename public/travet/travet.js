@@ -1,3 +1,5 @@
+import { calculateSpikeEngine } from './spikmotor.js';
+
 const GAME_DIVISIONS = { V64: 6, V65: 6, V85: 8, V86: 8, GS75: 7 };
 const LOCAL_API_ROOT = 'http://127.0.0.1:4000/api/trav';
 const RENDER_API_ROOT = 'https://travet-api.onrender.com/api/trav';
@@ -7,11 +9,31 @@ const isLocalApp = ['localhost', '127.0.0.1', '::1'].includes(window.location.ho
 // localhost till Render.
 const API_ROOTS = isLocalApp ? [LOCAL_API_ROOT] : [RENDER_API_ROOT];
 let activeApiRoot = API_ROOTS[0];
-const state = { games: [], round: null, coupons: [], savedCoupons: [], savedCouponDrafts: {}, purchasedCoupons: [], shopLinks: [], lastShopCouponTitle: '', selectedPurchasedCouponId: null, reverseCoupon: null, reverseMode: 'reverse', reversePrice: 20, reverseSpikeCount: 2, reverseShareEnabled: false, reverseShareCount: 50, reverseStakePercent: 100, reverseStakePrice: null, togetherStakePercent: 100, togetherStakePrice: null, complementMode: 'uncovered', complementTipsterId: 'all', reverseSourceIds: [], reverseManualSelections: {}, reverseCombinationOptions: [], reverseCombinationCursor: 0, reverseCombinationLocked: false, reverseLockedCombinationSignature: '', reverseShufflePattern: '', downgradeSourceIds: [], downgradePrice: 1000, downgradeNewCombination: false, downgradeCoupons: [], downgradeDrafts: [], roundBuilderTab: 'together', tipsterCouponTab: 'started', tipsterBuzz: null, tipsterDivision: 1, tipsterHorseNumber: null, tipsterLoading: false, tipstersHasNewInfo: false, focusedTogetherPackages: {}, locks: new Set(), combinationLocks: new Set(), lockedCombinationPatterns: new Map(), selectedPlanIndexes: [], pendingCombinationIndexes: [], combinationCursors: [], combinationOptions: [], couponCount: 3, spikeCount: 2, manualSpikeCount: 2, togetherPreset: null, together2: false, editingRound: false, seed: 1, shuffleSeed: 0, countPlanCache: new Map(), combinationPlanCache: new Map(), regenerateTimer: null, refreshImportTimer: null, weeklyImportTimer: null };
+const state = { games: [], round: null, coupons: [], savedCoupons: [], savedCouponDrafts: {}, purchasedCoupons: [], shopLinks: [], lastShopCouponTitle: '', selectedPurchasedCouponId: null, reverseCoupon: null, reverseMode: 'reverse', reversePrice: 20, reverseSpikeCount: 2, reverseShareEnabled: false, reverseShareCount: 50, reverseStakePercent: 100, reverseStakePrice: null, togetherStakePercent: 100, togetherStakePrice: null, complementMode: 'uncovered', complementTipsterId: 'all', reverseSourceIds: [], reverseManualSelections: {}, reverseCombinationOptions: [], reverseCombinationCursor: 0, reverseCombinationLocked: false, reverseLockedCombinationSignature: '', reverseShufflePattern: '', downgradeSourceIds: [], downgradePrice: 1000, downgradeNewCombination: false, downgradeCoupons: [], downgradeDrafts: [], roundBuilderTab: 'together', tipsterCouponTab: 'started', tipsterBuzz: null, tipsterDivision: 1, tipsterHorseNumber: null, tipsterLoading: false, tipstersHasNewInfo: false, spikeAnalysis: null, spikeDivision: 1, spikeHorseId: null, spikeDetailTab: 'overview', spikeMarks: new Set(), focusedTogetherPackages: {}, locks: new Set(), combinationLocks: new Set(), lockedCombinationPatterns: new Map(), selectedPlanIndexes: [], pendingCombinationIndexes: [], combinationCursors: [], combinationOptions: [], couponCount: 3, spikeCount: 2, manualSpikeCount: 2, togetherPreset: null, together2: false, editingRound: false, seed: 1, shuffleSeed: 0, countPlanCache: new Map(), combinationPlanCache: new Map(), regenerateTimer: null, refreshImportTimer: null, weeklyImportTimer: null, programImportTimer: null };
 state.markTipsterHorses = false;
 state.complementDrafts = {};
+state.infoSourceFilter = 'all';
+state.infoSelectedArticle = null;
+state.infoDetailsOpen = false;
 const DOWNGRADE_DRAFTS_STORAGE_KEY = 'travet.downgradeDrafts.v1';
 const FOCUSED_TOGETHER_STORAGE_KEY = 'travet.focusedTogether.v1';
+
+const INFO_SOURCE_CATEGORIES = [
+  { id: 'all', label: 'Alla källor', icon: '✧' },
+  { id: 'atg', label: 'ATG', icon: '⌁' },
+  { id: 'stable', label: 'Stalltips', icon: '♜' },
+  { id: 'travnet', label: 'Travnet', icon: 'T' },
+  { id: 'svenskatrav', label: 'SvenskaTrav', icon: '◎' },
+  { id: 'social', label: 'Sociala medier', icon: '●' },
+];
+const INFO_SOURCE_CATALOG = [
+  { id: 'atg-round-news', category: 'atg', name: 'ATG Nyheter & intervjuer', url: 'https://www.atg.se/', note: 'Nyheter och intervjuer kopplade till omgången' },
+  { id: 'untersteiner', category: 'stable', name: 'Team Untersteiner', url: 'https://untersteiner.com/stalltips/', note: 'Stalltips från tränarstallet' },
+  { id: 'stall-zet', category: 'stable', name: 'Stall Zet', url: 'https://stallzet.se/hastar-till-start/', note: 'Hästar till start och stallkommentarer' },
+  { id: 'travnet-v86', category: 'travnet', name: 'Travnet', url: 'https://travnet.se/v86/', note: 'Expertkommentarer och V86-tips' },
+  { id: 'svenskatrav-directory', category: 'svenskatrav', name: 'SvenskaTrav stalltipslista', url: 'https://svenskatrav.n.nu/stalltips', note: 'Samlad katalog över stalltips' },
+  { id: 'andelstorget', category: 'social', name: 'Andelstorget', url: 'https://andelstorget.se/', note: 'Publika tipsterinlägg och andelstips' },
+];
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
@@ -55,7 +77,7 @@ function parseHorse(raw, index = 0) {
     const match = String(raw.name || cells[1] || '').match(/^\s*(\d+)\s+(.+)$/);
     const oddsValue = raw.winOdds ?? cells[6] ?? '';
     const scratched = Boolean(raw.scratched) || /^EJ$/i.test(String(oddsValue).trim());
-    return { id: raw.id || `${raw.number || index}-${raw.name || 'horse'}`, number: number(raw.number, match ? Number(match[1]) : number(cells[0], index + 1)), name: raw.name || (match ? match[2] : cells[1] || line), sexAge: raw.sexAge || cells[2] || '', driver: raw.driver || cells[3] || '', winPercent: number(raw.winPercent, number(cells[4])), startTrendPercent: number(raw.startTrendPercent, number(cells[5])), trendPercent: number(raw.trendPercent, number(cells[5])), winOdds: scratched ? null : number(raw.winOdds, number(cells[6])), trainer: raw.trainer || cells[7] || '', sulky: raw.sulky || cells[8] || '', scratched, manualScore: number(raw.manualScore, 0), note: raw.note || '' };
+    return { ...raw, id: raw.id || `${raw.number || index}-${raw.name || 'horse'}`, number: number(raw.number, match ? Number(match[1]) : number(cells[0], index + 1)), name: raw.name || (match ? match[2] : cells[1] || line), sexAge: raw.sexAge || cells[2] || '', driver: raw.driver || cells[3] || '', winPercent: number(raw.winPercent, number(cells[4])), startTrendPercent: number(raw.startTrendPercent, number(cells[5])), trendPercent: number(raw.trendPercent, number(cells[5])), winOdds: scratched ? null : number(raw.winOdds, number(cells[6])), trainer: raw.trainer || cells[7] || '', sulky: raw.sulky || cells[8] || '', scratched, manualScore: number(raw.manualScore, 0), note: raw.note || '', recentStarts: raw.recentStarts || raw.history || raw.latestStarts || [] };
   }
   const line = String(raw || '').trim();
   const parts = line.split('\t');
@@ -67,9 +89,41 @@ function parseHorse(raw, index = 0) {
 function normalizeGame(game) {
   const parsed = game?.parsedHorseInfo || {};
   const source = Array.isArray(parsed.divisions) ? parsed.divisions : [];
-  const races = source.map((division, index) => ({ division: Number(division.index || division.division || index + 1), sourceUrl: division.sourceUrl || '', horses: (division.horses || []).map((horse, horseIndex) => { const parsedHorse = parseHorse(horse, horseIndex); if (parsedHorse.startTrendPercent === null || parsedHorse.startTrendPercent === 0) parsedHorse.startTrendPercent = winningTrendPercent(parsedHorse); return parsedHorse; }).filter((horse) => horse.name || horse.number) })).filter((race) => race.horses.length);
+  const programs = game?.programs || parsed.programs || {};
+  const programItems = programs?.items || {};
+  const races = source.map((division, index) => ({ ...division, division: Number(division.index || division.division || index + 1), sourceUrl: division.sourceUrl || '', horses: (division.horses || []).map((horse, horseIndex) => { const parsedHorse = parseHorse(horse, horseIndex); if (parsedHorse.startTrendPercent === null || parsedHorse.startTrendPercent === 0) parsedHorse.startTrendPercent = winningTrendPercent(parsedHorse); return parsedHorse; }).filter((horse) => horse.name || horse.number) })).filter((race) => race.horses.length).map((race) => {
+    const match = (programs?.matches || []).find((item) => Number(item.division) === Number(race.division) && item.status !== 'unmatched');
+    // Mongoose kan inte alltid behålla den dynamiska pdfKey-egenskapen på
+    // match-objektet. Den finns då i kandidatlistan, så läs båda formaten.
+    const candidateKey = match?.candidates?.find((candidate) => Number(candidate.raceNumber) === Number(match.raceNumber) && String(candidate.trackName || '').toLowerCase() === String(match.trackName || '').toLowerCase())?.pdfKey
+      || match?.candidates?.find((candidate) => Number(candidate.raceNumber) === Number(match.raceNumber))?.pdfKey;
+    const programKey = match?.pdfKey || candidateKey;
+    const program = programKey ? programItems[programKey] : null;
+    const programRace = program?.races?.find((item) => Number(item.raceNumber) === Number(match.raceNumber)) || null;
+    if (!programRace) return race;
+    const horses = race.horses.map((horse) => {
+      const horseNameKey = (value) => String(value || '').toLowerCase().replace(/\([^)]*\)|[*]/g, ' ').replace(/\s+/g, ' ').trim();
+      const programHorse = (programRace.horses || []).find((item) => horseNameKey(item.name) && horseNameKey(item.name) === horseNameKey(horse.name))
+        || (programRace.horses || []).find((item) => Number(item.number) === Number(horse.number));
+      return programHorse ? {
+        ...horse,
+        postPosition: horse.postPosition ?? programHorse.postPosition,
+        distance: horse.distance ?? programHorse.distance,
+        driver: horse.driver || programHorse.driver,
+        trainer: horse.trainer || programHorse.trainer,
+        sexAge: horse.sexAge || programHorse.sexAge,
+        winPercent: horse.winPercent ?? programHorse.winPercent,
+        winOdds: horse.winOdds ?? programHorse.winOdds,
+        startMethod: horse.startMethod || programHorse.startMethod,
+        formRaw: horse.formRaw || programHorse.formRaw,
+        recentStarts: horse.recentStarts?.length ? horse.recentStarts : (programHorse.recentStarts || []),
+        programHistory: programHorse,
+      } : horse;
+    });
+    return { ...race, distance: race.distance || programRace.distance, startMethod: race.startMethod || programRace.startMethod, conditions: race.conditions || programRace.conditions, prizes: race.prizes || programRace.prizes, horses };
+  });
   const expected = divisionCount(game?.gameType) || Number(parsed.expectedDivisions) || 0;
-  return { id: String(game?._id || game?.id || ''), name: game?.title || `${game?.gameType || 'Trav'} ${trackLabel(game?.track, game?.track2)}`.trim(), date: game?.date || today(), gameType: String(game?.gameType || 'V64').toUpperCase(), track: game?.track || '', track2: game?.track2 || '', trackSlug: game?.trackSlug || trackSlug(game?.track, game?.track2), atgGameId: game?.atgGameId || '', divisionCount: expected || races.length, rowPrice: rowPriceForGameType(game?.gameType), source: 'database', races };
+  return { id: String(game?._id || game?.id || ''), name: game?.title || `${game?.gameType || 'Trav'} ${trackLabel(game?.track, game?.track2)}`.trim(), date: game?.date || today(), gameType: String(game?.gameType || 'V64').toUpperCase(), track: game?.track || '', track2: game?.track2 || '', trackSlug: game?.trackSlug || trackSlug(game?.track, game?.track2), atgGameId: game?.atgGameId || '', atgRoundUrl: game?.atgRoundUrl || '', divisionCount: expected || races.length, rowPrice: rowPriceForGameType(game?.gameType), source: 'database', programs, races };
 }
 
 function renderDatabaseStatus(message, mode = '') { const el = $('#db-status'); el.textContent = message; el.className = `status-pill ${mode}`; }
@@ -208,6 +262,126 @@ function renderTipstersCouponOverviewMarkup() {
   const divisionLabels = `<div class="together-division-labels"><strong>AVDELNING</strong>${races.map((race) => `<span>Avd ${race.division}</span>`).join('')}</div>`;
   const cards = visibleCoupons.map((coupon, index) => togetherCouponCardMarkup(coupon, index, Boolean(coupon.complement))).join('');
   return `<section class="tipster-coupon-overview"><div class="tipster-coupon-overview-heading"><div><span class="eyebrow">KUPONGER</span><h2>Omgångens kuponger</h2><p>Ändra hästar direkt i tabellen eller öppna Tillsammans för fler inställningar.</p></div><button type="button" class="outline-button" id="tipsters-together">👥 Tillsammans</button></div><div class="tipster-coupon-list" style="--coupon-columns:${visibleCoupons.length}">${divisionLabels}${cards || '<div class="tipster-coupon-empty">Skapa kuponger i Tillsammans för att visa dem här.</div>'}</div></section>`;
+}
+
+function infoSignalEntries() {
+  return (state.tipsterBuzz?.races || []).flatMap((race) => (race.horses || []).flatMap((horse) => (horse.signals || []).map((signal) => ({ ...signal, division: Number(race.division), horseNumber: Number(horse.number), horseName: horse.name, horse }))))
+    .filter((entry) => entry.signal || entry.source);
+}
+
+function infoSourceCategory(signal) {
+  const sourceId = String(signal?.source?.sourceId || signal?.source?.id || '').toLowerCase();
+  const url = String(signal?.source?.url || signal?.source?.canonicalUrl || '').toLowerCase();
+  const tipster = String(signal?.tipster?.name || '').toLowerCase();
+  if (sourceId.includes('atg') || url.includes('atg.se')) return 'atg';
+  if (sourceId.includes('untersteiner') || sourceId.includes('stall-zet') || /untersteiner|stall zet/.test(tipster)) return 'stable';
+  if (sourceId.includes('travnet') || url.includes('travnet.se') || /emil berglund|tobias liljendahl/.test(tipster)) return 'travnet';
+  if (sourceId.includes('svenskatrav') || url.includes('svenskatrav')) return 'svenskatrav';
+  return 'social';
+}
+
+function infoSourceName(signal) {
+  const category = INFO_SOURCE_CATEGORIES.find((item) => item.id === infoSourceCategory(signal));
+  return signal?.source?.name || signal?.source?.sourceName || signal?.source?.articleSource || signal?.tipster?.name || category?.label || 'Okänd källa';
+}
+
+function infoSourceUrl(signal) {
+  return signal?.source?.url || signal?.source?.canonicalUrl || '';
+}
+
+function infoSignalStrength(signal) {
+  const raw = number(signal?.signal?.score ?? signal?.signalScore ?? signal?.score, 0);
+  return Math.round(Math.max(0, Math.min(100, raw <= 1 ? raw * 100 : raw)));
+}
+
+function infoSignalTone(signal) {
+  if (signal?.signal?.positive === false || signal?.positive === false) return 'negative';
+  if (String(signal?.signal?.type || '').toUpperCase() === 'NEUTRAL') return 'neutral';
+  return 'positive';
+}
+
+function infoSignalLabel(signal) {
+  const type = String(signal?.signal?.type || '').replaceAll('_', ' ').toLowerCase();
+  if (!type) return 'Signal';
+  return type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+function infoSignalReason(signal) {
+  const keywords = signal?.signal?.keywords || signal?.keywords;
+  if (Array.isArray(keywords) && keywords.length) return keywords.slice(0, 2).join(' · ');
+  return signal?.shortReason || signal?.source?.articleTitle || 'Strukturerad signal från tipsterkälla';
+}
+
+function infoArticles() {
+  const grouped = new Map();
+  for (const signal of infoSignalEntries()) {
+    const url = infoSourceUrl(signal);
+    const title = String(signal?.source?.articleTitle || signal?.source?.title || '').trim();
+    const key = url || `${infoSourceName(signal)}:${title || signal.horseName}`;
+    if (!grouped.has(key)) grouped.set(key, { id: key, category: infoSourceCategory(signal), source: infoSourceName(signal), url, title: title || `${infoSourceName(signal)} · strukturerade signaler`, publishedAt: signal?.source?.publishedAt || signal?.publishedAt || null, signals: [] });
+    grouped.get(key).signals.push(signal);
+  }
+  return [...grouped.values()].sort((a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0));
+}
+
+function infoAnalysisRows() {
+  return infoSignalEntries().map((signal) => ({
+    ...signal,
+    track: state.round?.track || '–',
+    signalLabel: infoSignalTone(signal) === 'negative' ? 'Negativ' : infoSignalTone(signal) === 'neutral' ? 'Neutral' : 'Positiv',
+    category: infoSignalLabel(signal),
+    strength: infoSignalStrength(signal),
+    reason: infoSignalReason(signal),
+  })).sort((a, b) => b.strength - a.strength);
+}
+
+function infoImpactRows() {
+  if (!state.round) return [];
+  const analysis = state.spikeAnalysis || calculateSpikeEngine(state.round, state.tipsterBuzz);
+  const baseByHorse = new Map((analysis.races || []).flatMap((race) => (race.horses || []).map((horse) => [`${race.division}:${horse.number}`, Number(horse.spikScore || horse.modelChance || horse.market || 0)])));
+  const grouped = new Map();
+  for (const signal of infoSignalEntries()) {
+    const key = `${signal.division}:${signal.horseNumber}`;
+    const score = infoSignalStrength(signal);
+    const signed = infoSignalTone(signal) === 'negative' ? -score : infoSignalTone(signal) === 'neutral' ? 0 : score;
+    const current = grouped.get(key) || { ...signal, positive: 0, negative: 0, total: 0, sources: new Set() };
+    current.total += signed;
+    current.positive += signed > 0 ? 1 : 0;
+    current.negative += signed < 0 ? 1 : 0;
+    current.sources.add(infoSourceName(signal));
+    grouped.set(key, current);
+  }
+  return [...grouped.values()].map((item) => {
+    const base = Math.round(baseByHorse.get(`${item.division}:${item.horseNumber}`) || 0);
+    const delta = Math.round(Math.max(-12, Math.min(12, item.total / 12)));
+    return { ...item, base, delta, next: Math.max(0, Math.min(100, base + delta)), comment: item.positive ? `Positiv signal från ${item.sources.size} källa${item.sources.size === 1 ? '' : 'or'}` : 'Negativ signal behöver vägas in' };
+  }).sort((a, b) => b.next - a.next);
+}
+
+function renderInfo() {
+  const content = $('#info-content');
+  if (!content) return;
+  const round = state.round;
+  if (round && state.tipsterLoading && !state.tipsterBuzz) {
+    content.innerHTML = '<div class="info-loading-state" role="status" aria-live="polite"><div class="tipster-loading-spinner">⟳</div><h2>Laddar information…</h2><p>Hämtar publika källor och matchar signalerna mot hästarna.</p></div>';
+    return;
+  }
+  const articles = infoArticles().filter((article) => state.infoSourceFilter === 'all' || article.category === state.infoSourceFilter);
+  const allArticles = infoArticles();
+  const selected = articles.find((article) => article.id === state.infoSelectedArticle) || articles[0] || null;
+  state.infoSelectedArticle = selected?.id || null;
+  const counts = INFO_SOURCE_CATEGORIES.reduce((map, source) => { map[source.id] = source.id === 'all' ? allArticles.length : allArticles.filter((article) => article.category === source.id).length; return map; }, {});
+  const sourceTabs = INFO_SOURCE_CATEGORIES.map((source) => `<button type="button" class="info-source-tab ${state.infoSourceFilter === source.id ? 'active' : ''}" data-info-source="${source.id}"><span>${source.icon}</span>${source.label} <small>(${counts[source.id] || 0})</small></button>`).join('');
+  const articleCards = articles.map((article, index) => `<button type="button" class="info-article-card ${selected?.id === article.id ? 'selected' : ''}" data-info-article="${esc(article.id)}"><span class="info-article-media info-source-${article.category}"><strong>${esc(article.source.slice(0, 3).toUpperCase())}</strong><small>${index === 0 ? 'Nyast' : 'Källa'}</small></span><span class="info-article-copy"><span class="info-article-meta">${esc(article.source)} · ${article.publishedAt ? esc(dateLabel(String(article.publishedAt).slice(0, 10))) : 'Importerad signal'}</span><strong>${esc(article.title)}</strong><span>${esc(article.signals.slice(0, 2).map(infoSignalReason).join(' · '))}</span></span></button>`).join('');
+  const sourceCards = INFO_SOURCE_CATALOG.filter((source) => state.infoSourceFilter === 'all' || source.category === state.infoSourceFilter).map((source) => `<a class="info-source-card" href="${esc(source.url)}" target="_blank" rel="noreferrer"><span class="info-source-logo info-source-${source.category}">${esc(source.name.slice(0, 3).toUpperCase())}</span><span><strong>${esc(source.name)}</strong><small>${esc(source.note)}</small></span><b>↗</b></a>`).join('');
+  const feedMarkup = articleCards || `<div class="info-feed-empty">Inga importerade artiklar i filtret ännu.<br><small>Öppna en källa eller tryck på Uppdatera information för att matcha nya signaler.</small></div><div class="info-source-catalog">${sourceCards}</div>`;
+  const selectedSignals = selected?.signals || [];
+  const detail = selected ? `<article class="info-detail-card"><div class="info-detail-hero"><div class="info-detail-source"><span class="info-source-logo info-source-${selected.category}">${esc(selected.source.slice(0, 3).toUpperCase())}</span><div><span class="eyebrow">${esc(selected.source)}</span><h2>${esc(selected.title)}</h2><small>${selected.publishedAt ? `Publicerad ${esc(dateLabel(String(selected.publishedAt).slice(0, 10)))}` : 'Strukturerad information importerad'}</small></div></div><a class="ghost-button" href="${esc(selected.url || '#')}" target="_blank" rel="noreferrer" ${selected.url ? '' : 'aria-disabled="true"'}>Öppna källa ↗</a></div><p class="info-detail-copy">Strukturerade signaler från publika tipsterkällor. Fulla artiklar återpubliceras inte här, men varje signal är kopplad till sin ursprungliga källa.</p><div class="info-detail-signal-list">${selectedSignals.slice(0, 8).map((signal) => `<div class="info-detail-signal"><span class="info-signal-dot ${infoSignalTone(signal)}"></span><strong>Avd ${esc(signal.division)} · ${esc(signal.horseName)}</strong><span>${esc(infoSignalLabel(signal))}</span><b>${infoSignalStrength(signal)}/100</b></div>`).join('')}</div><div class="info-detail-actions"><button type="button" class="secondary-button" data-info-details>${state.infoDetailsOpen ? 'Dölj analysdetaljer' : 'Visa analysdetaljer'}</button><button type="button" class="primary-button" data-info-send-spikes>Skicka till Spikmotor</button></div>${state.infoDetailsOpen ? `<div class="info-raw-details"><strong>Matchade fält</strong>${selectedSignals.map((signal) => `<span>${esc(signal.tipster?.name || selected.source)} · Avd ${esc(signal.division)} · ${esc(signal.horseName)} · ${esc(infoSignalReason(signal))}</span>`).join('')}</div>` : ''}</article>` : '<article class="info-detail-card info-empty-detail"><div class="empty-icon">ⓘ</div><h2>Ingen importerad information ännu</h2><p>Tryck på Uppdatera information för att läsa in publika källor och matcha dem mot hästarna.</p></article>';
+  const analysisRows = infoAnalysisRows().slice(0, 12);
+  const impactRows = infoImpactRows().slice(0, 8);
+  const analysisMarkup = analysisRows.length ? analysisRows.map((row) => `<div class="info-analysis-row"><strong>${esc(row.horseName)}</strong><span>V${esc(state.round?.gameType || '')}-${esc(row.division)}</span><span>${esc(row.track)}</span><span class="info-signal-badge ${infoSignalTone(row)}">${esc(row.signalLabel)}</span><span>${esc(row.category)}</span><i><b style="width:${row.strength}%"></b></i><span>${esc(row.reason)}</span></div>`).join('') : '<div class="info-table-empty">Inga matchade signaler ännu. Uppdatera information för att bygga analysen.</div>';
+  const impactMarkup = impactRows.length ? impactRows.map((row) => `<div class="info-impact-row"><strong>${esc(row.horseName)}</strong><span>${row.base || '–'}</span><span class="${row.delta >= 0 ? 'info-positive' : 'info-negative'}">${row.delta >= 0 ? '+' : ''}${row.delta}</span><strong>${row.next || '–'}</strong><span class="${row.delta >= 0 ? 'info-positive' : 'info-negative'}">${row.delta >= 0 ? '▲' : '▼'} ${row.delta >= 0 ? '+' : ''}${row.delta}</span><span>${esc(row.comment)}</span></div>`).join('') : '<div class="info-table-empty">Påverkan visas när en källa har matchats mot en häst.</div>';
+  content.innerHTML = `<div class="info-page"><header class="info-page-header"><div><span class="eyebrow">TRAVET · INFORMATIONSFLÖDE</span><h1>Info på travet</h1><p>Nyheter, intervjuer och stalltips – automatisk analys för bättre spikar</p></div><div class="info-page-actions"><label>Datum<input type="date" value="${esc(round?.date || today())}" disabled></label><label>Spelform<select disabled><option>${esc(round?.gameType || 'V86')}</option></select></label><label>Bana<select disabled><option>${esc(round ? trackLabel(round.track, round.track2) : 'Välj omgång')}</option></select></label><button type="button" class="ghost-button" data-info-refresh ${round ? '' : 'disabled'}>↻ Uppdatera information</button></div></header><div class="info-source-tabs" role="tablist" aria-label="Informationskällor">${sourceTabs}</div>${!round ? '<div class="info-no-round empty-state"><div class="empty-icon">ⓘ</div><h2>Öppna en spelomgång först</h2><p>Info kopplas till den valda omgångens startlista och hjälper Spikmotor att väga in hästsignaler.</p><button type="button" class="secondary-button" data-view="home">Till start</button></div>' : `<div class="info-main-grid"><section class="info-feed"><div class="info-section-heading"><div><span class="eyebrow">NYHETER & TIPS</span><h2>Senaste från källorna</h2></div><span class="status-pill">${allArticles.length} importerade</span></div>${feedMarkup}</section><section class="info-detail-column">${detail}</section></div><section class="info-panel"><div class="info-section-heading"><div><span class="eyebrow">AUTOMATISK INFO-ANALYS</span><h2>Matchade hästsignaler</h2></div><span class="status-pill">${analysisRows.length ? `${analysisRows.length} hästar identifierade` : 'Väntar på data'}</span></div><div class="info-table info-analysis-table"><div class="info-table-head"><span>Häst</span><span>Lopp</span><span>Bana</span><span>Signal</span><span>Kategori</span><span>Styrka</span><span>Citat / sammanfattning</span></div>${analysisMarkup}</div><div class="info-panel-actions"><button type="button" class="secondary-button" data-info-details>${state.infoDetailsOpen ? 'Dölj rå matchning' : 'Visa råtext och analysdetaljer'}</button><button type="button" class="primary-button" data-info-send-spikes>▣ Skicka till spikdatabas</button></div></section><section class="info-panel"><div class="info-section-heading"><div><span class="eyebrow">PÅVERKAN PÅ SPIKFÖRSLAG</span><h2>Info jämfört med grundscore</h2></div></div><div class="info-table info-impact-table"><div class="info-table-head"><span>Häst</span><span>Grundscore</span><span>Info-score</span><span>Ny spikscore</span><span>Förändring</span><span>Kommentar</span></div>${impactMarkup}</div></section>`}</div>`;
 }
 
 function tipsterSavedCoupons() {
@@ -438,7 +612,7 @@ function renderTipsterNavBadge() {
 async function loadTipsterBuzz(refresh = false) {
   if (!state.round?.id) { renderTipsters(); return; }
   state.tipsterLoading = true;
-  renderTipsters(); renderRoundTipsters();
+  renderTipsters(); renderRoundTipsters(); renderInfo();
   try {
     if (refresh) {
       const refreshResponse = await apiFetch(`/rounds/${encodeURIComponent(state.round.id)}/tipsters/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}), timeoutMs: 30000 });
@@ -458,6 +632,7 @@ async function loadTipsterBuzz(refresh = false) {
     state.tipsterLoading = false;
     renderTipsters();
     renderRoundTipsters();
+    renderInfo();
     // Buzz-score används även i kupongraderna. När den cachade datan har
     // lästs in måste alla vyer som visar avdelningar ritas om direkt.
     if (state.round) {
@@ -469,14 +644,181 @@ async function loadTipsterBuzz(refresh = false) {
   }
 }
 
+function spikeMeter(value, suffix = '') {
+  const score = Math.round(Number(value) || 0);
+  return `<span class="spike-meter"><i style="--meter:${score}%"></i><b>${score}${suffix}</b></span>`;
+}
+
+function spikeRecommendationClass(value) {
+  return String(value || '').toLowerCase().replaceAll('ä', 'a').replaceAll(' ', '-');
+}
+
+function spikeProgramStatus(round) {
+  const programs = round?.programs || round?.programData || round?.parsedHorseInfo?.programs || [];
+  const tracks = Array.isArray(programs?.tracks) ? programs.tracks : [];
+  const count = Array.isArray(programs) ? programs.length : Object.keys(programs?.items || programs || {}).length;
+  const errors = tracks.filter((track) => track.status === 'error').length;
+  if (count && !errors) return `<span class="spike-data-status ready">✓ ${count} banprogram analyserade</span>`;
+  if (count || errors) return `<span class="spike-data-status ${errors ? 'warning' : ''}">${errors ? `! ${errors} banprogram kunde inte läsas` : 'Banprogram importerat'}</span>`;
+  return '<span class="spike-data-status">Startlista aktiv · banprogram saknas</span>';
+}
+
+function programImportTrackRows(round, tracks = []) {
+  if (tracks.length) return tracks;
+  return [...new Set([round?.track, round?.track2].map((value) => String(value || '').trim()).filter(Boolean))].map((name, index) => ({ name, index, status: 'pending' }));
+}
+
+function renderProgramImportSummary(round, tracks = []) {
+  const summary = $('#program-import-summary');
+  if (!summary) return;
+  summary.innerHTML = programImportTrackRows(round, tracks).map((track) => {
+    const status = String(track.status || 'pending');
+    const complete = ['parsed', 'cached', 'done', 'api'].includes(status);
+    const failed = ['error', 'parsed_no_races'].includes(status);
+    const icon = complete ? '✓' : failed ? '×' : status === 'loading' ? '…' : '○';
+    const detail = complete
+      ? status === 'api' ? `${Number(track.races || 0) || '–'} lopp · ATG-data och häststatistik kopplad` : `${Number(track.pages || 0) || '–'} sidor · ${Number(track.races || 0) || '–'} lopp · historik kopplas`
+      : failed ? (track.error || 'PDF-programmet innehöll ingen läsbar loppinformation') : 'Väntar på hämtning…';
+    return `<div class="program-import-row ${complete ? 'done' : failed ? 'error' : 'pending'}"><span>${icon}</span><strong>${esc(track.name || `Bana ${Number(track.index || 0) + 1}`)}</strong><small>${esc(detail)}</small></div>`;
+  }).join('');
+}
+
+function showProgramImportOverlay(round) {
+  const overlay = $('#program-import-overlay');
+  if (!overlay) return;
+  const title = $('#program-import-title');
+  const detail = $('#program-import-detail');
+  const phase = $('#program-import-phase');
+  const progress = $('#program-import-progress');
+  const percent = $('#program-import-percent');
+  const elapsed = $('#program-import-elapsed');
+  overlay.hidden = false;
+  overlay.classList.remove('is-error', 'is-complete');
+  overlay.setAttribute('aria-busy', 'true');
+  if (title) title.textContent = 'Hämtar banprogram';
+  if (detail) detail.textContent = 'ATG-programdata/PDF hämtas, läses och kopplas till lopp och hästar.';
+  renderProgramImportSummary(round, []);
+  const started = Date.now();
+  let ticks = 0;
+  clearInterval(state.programImportTimer);
+  const tick = () => {
+    const seconds = Math.round((Date.now() - started) / 1000);
+    const node = $('#program-import-elapsed');
+    if (node) node.textContent = `Tid: ${seconds} s`;
+    const phases = ['Ansluter till ATG…', 'Hämtar banprogrammens PDF…', 'Läser loppinformation…', 'Kopplar historik till hästarna…'];
+    if (phase) phase.textContent = phases[Math.min(phases.length - 1, Math.floor(ticks / 3))];
+    const value = Math.min(92, 8 + ticks * 4);
+    if (progress) progress.value = value;
+    if (percent) percent.textContent = `${value}%`;
+    ticks += 1;
+  };
+  state.programImportTimer = setInterval(tick, 900);
+  tick();
+}
+
+function finishProgramImportOverlay(round, tracks, mode = 'complete', message = '') {
+  clearInterval(state.programImportTimer);
+  state.programImportTimer = null;
+  const overlay = $('#program-import-overlay');
+  if (!overlay) return;
+  const title = $('#program-import-title');
+  const detail = $('#program-import-detail');
+  const phase = $('#program-import-phase');
+  const progress = $('#program-import-progress');
+  const percent = $('#program-import-percent');
+  overlay.classList.toggle('is-error', mode === 'error');
+  overlay.classList.toggle('is-complete', mode === 'complete');
+  overlay.setAttribute('aria-busy', 'false');
+  renderProgramImportSummary(round, tracks);
+  if (title) title.textContent = mode === 'complete' ? 'Banprogram hämtat' : 'Banprogrammet kunde inte hämtas';
+  if (detail) detail.textContent = message || (mode === 'complete' ? 'Loppinformation och historik har kopplats till omgången.' : 'Kontrollera Trav API/Render och försök igen.');
+  if (phase) phase.textContent = mode === 'complete' ? '✓ Analysen är klar' : '! Hämtningen avbröts';
+  if (progress) progress.value = mode === 'complete' ? 100 : 0;
+  if (percent) percent.textContent = mode === 'complete' ? '100%' : '0%';
+  window.setTimeout(() => { if (overlay) overlay.hidden = true; }, mode === 'complete' ? 1100 : 2200);
+}
+
+async function refreshProgramPdfs() {
+  if (!state.round?.id) return showToast('Öppna en spelomgång först');
+  const buttons = $$('[data-spike-program-refresh]');
+  buttons.forEach((button) => { button.disabled = true; button.dataset.previousLabel = button.textContent; button.textContent = '⟳ Hämtar banprogram…'; });
+  showProgramImportOverlay(state.round);
+  try {
+    const response = await apiFetch(`/rounds/${encodeURIComponent(state.round.id)}/programs/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}), timeoutMs: 120000 });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `Banprogrammet svarade ${response.status}`);
+    state.round.programs = { parserVersion: payload.parserVersion, importedAt: payload.importedAt, tracks: payload.tracks || [], matches: payload.matches || [], items: payload.programs || {} };
+    const game = state.games.find((item) => String(item._id || item.id) === String(state.round.id));
+    if (game) { game.programs = state.round.programs; state.round = normalizeGame(game); }
+    state.spikeAnalysis = null;
+    renderSpikes();
+    const errors = (payload.tracks || []).filter((track) => ['error', 'parsed_no_races'].includes(track.status)).length;
+    finishProgramImportOverlay(state.round, payload.tracks || [], 'complete', errors ? `${errors} banprogram kunde inte läsas. Övriga tillgängliga program är kopplade.` : 'Loppinformation och historik har kopplats till omgången.');
+    showToast('Banprogram hämtat och analyserat');
+  } catch (error) {
+    finishProgramImportOverlay(state.round, [], 'error', error.message || 'Banprogrammet kunde inte hämtas.');
+    showToast(error.message || 'Banprogrammet kunde inte hämtas');
+    console.error(error);
+  } finally {
+    buttons.forEach((button) => { button.disabled = false; button.textContent = button.dataset.previousLabel || '↻ Hämta banprogram igen'; });
+  }
+}
+
+function spikeRaceHeader(race, index) {
+  const meta = race.meta || {};
+  const title = meta.startMethod || meta.distance ? `${meta.distance || '–'} m · ${meta.startMethod || 'startmetod saknas'}` : 'Loppinformation saknas';
+  const prize = meta.firstPrize ? money(meta.firstPrize) : '–';
+  return `<button type="button" class="spike-race-tab ${index + 1 === state.spikeDivision ? 'active' : ''}" data-spike-division="${index + 1}"><strong>${state.round.gameType}-${index + 1}</strong><span>${esc(title)}</span><small>${prize}</small></button>`;
+}
+
+function spikeTableRow(item, index, race) {
+  const division = Number(race?.division || item.division || state.spikeDivision || 1);
+  const marked = state.spikeMarks.has(`${state.round?.id}:${division}:${item.number}`);
+  const selected = state.spikeHorseId === item.id && state.spikeDivision === division;
+  return `<button type="button" class="spike-horse-row ${selected ? 'selected' : ''} ${marked ? 'marked' : ''}" data-spike-horse="${esc(item.id)}" data-spike-division="${esc(division)}"><span class="spike-row-number">${index + 1}</span><span class="spike-horse-main"><strong>${esc(item.name)}</strong><small>${esc(item.driver || 'Kusk saknas')} · ${esc(item.trainer || 'Tränare saknas')}</small></span><span>${esc(item.number || '–')}</span><span>${esc(item.sexAge || '–')}</span><span>${fmtPercent(item.market)}</span><span>${item.winOdds ?? '–'}</span><span class="spike-score-cell">${spikeMeter(item.spikScore)}</span><span class="spike-recommendation ${spikeRecommendationClass(item.recommendation)}">${esc(item.recommendation)}</span><span class="spike-row-mark">${marked ? '✓' : '›'}</span></button>`;
+}
+
+function spikeDetailMarkup(item) {
+  if (!item) return '<div class="spike-detail-empty">Välj en häst i rankingen.</div>';
+  const historyRows = item.history.starts.slice(0, 5).map((start) => `<tr><td>${esc(start.date || '–')}</td><td>${esc(start.track || '–')}</td><td>${esc(start.distance || '–')}</td><td>${esc(start.placeRaw || start.place || '–')}</td><td>${esc(start.odds || '–')}</td></tr>`).join('');
+  const marked = state.spikeMarks.has(`${state.round?.id}:${item.division}:${item.number}`);
+  return `<div class="spike-detail-head"><div class="spike-detail-number">${esc(item.number)}</div><div><span class="eyebrow">AVD ${esc(item.division)} · ${esc(item.recommendation)}</span><h2>${esc(item.name)}</h2><p>${esc(item.driver || 'Kusk saknas')} · ${esc(item.trainer || 'Tränare saknas')}</p></div><button type="button" class="spike-star-button ${marked ? 'active' : ''}" data-spike-mark aria-pressed="${marked}" title="Markera som spik">★</button></div><div class="spike-detail-tabs" role="tablist"><button type="button" class="active" data-spike-detail-tab="overview">Översikt</button><button type="button" data-spike-detail-tab="history">Historik</button><button type="button" data-spike-detail-tab="match">Matchning</button></div><div class="spike-detail-panel" data-spike-detail-panel="overview"><div class="spike-metric-grid"><div><span>SpikScore</span><strong class="accent-green">${Math.round(item.spikScore)}</strong>${spikeMeter(item.spikScore)}</div><div><span>Modellchans</span><strong>${Math.round(item.modelChance)}%</strong>${spikeMeter(item.modelChance)}</div><div><span>Marknad</span><strong>${fmtPercent(item.market)}</strong>${spikeMeter(item.market)}</div><div><span>Värde</span><strong class="${item.edge >= 0 ? 'accent-green' : 'accent-red'}">${item.edge >= 0 ? '+' : ''}${Math.round(item.edge)}%</strong>${spikeMeter(clampForDisplay(item.edge + 50))}</div></div><div class="spike-reason-grid"><section><h3>Styrkor</h3><ul>${item.plus.map((reason) => `<li>${esc(reason)}</li>`).join('')}</ul></section><section><h3>Risker</h3><ul>${item.minus.map((reason) => `<li>${esc(reason)}</li>`).join('')}</ul></section></div><div class="spike-score-lines"><span>Today Fit ${spikeMeter(item.todayFit)}</span><span>CAP ${spikeMeter(item.cap)}</span><span>Reliability ${spikeMeter(item.reliability)}</span><span>Galopprisk ${spikeMeter(item.history.gallopRisk)}</span></div></div><div class="spike-detail-panel" data-spike-detail-panel="history" hidden><h3>Senaste starter <small>Confidence: ${esc(item.confidence)}</small></h3>${historyRows ? `<div class="spike-history-table"><table><thead><tr><th>Datum</th><th>Bana</th><th>Dist</th><th>Plac</th><th>Odds</th></tr></thead><tbody>${historyRows}</tbody></table></div>` : '<p class="spike-muted">Ingen historik är kopplad till hästen ännu.</p>'}</div><div class="spike-detail-panel" data-spike-detail-panel="match" hidden><h3>Dagens matchning</h3><div class="spike-match-list"><div><span>Distansmatch</span>${spikeMeter(item.history.distanceFit ?? 50)}</div><div><span>Startmetod</span>${spikeMeter(item.history.methodFit ?? 50)}</div><div><span>Klasspassning</span>${spikeMeter(item.classFit)}</div><div><span>Tipster Buzz</span>${spikeMeter(item.buzz)}</div></div><p class="spike-muted">Score bygger på tillgängliga startlistefält och blir säkrare när banprogramshistorik har importerats.</p></div><div class="spike-detail-actions"><button type="button" class="primary-button" data-spike-mark>${marked ? '✓ Spik markerad' : 'Markera som spik'}</button><button type="button" class="outline-button" data-spike-add-system>Lägg till i system</button></div>`;
+}
+
+function clampForDisplay(value) { return Math.max(0, Math.min(100, Number(value) || 0)); }
+
+function renderSpikes() {
+  const content = $('#spikes-content');
+  if (!content) return;
+  if (!state.round) { content.innerHTML = '<div class="empty-state spike-empty-state"><div class="empty-icon">◉</div><h2>Öppna en spelomgång först</h2><p>Spikmotorn behöver dagens startlista för att räkna ut kandidater.</p><button type="button" class="secondary-button" data-view="home">Till start</button></div>'; return; }
+  const analysis = calculateSpikeEngine(state.round, state.tipsterBuzz);
+  state.spikeAnalysis = analysis;
+  const raceIndex = Math.max(0, Math.min(analysis.races.length - 1, Number(state.spikeDivision || 1) - 1));
+  state.spikeDivision = raceIndex + 1;
+  const race = analysis.races[raceIndex];
+  const selectedHorse = race?.horses.find((horse) => horse.id === state.spikeHorseId) || race?.horses[0];
+  const selected = selectedHorse ? { ...selectedHorse, division: race.division } : null;
+  state.spikeHorseId = selected?.id || null;
+  const ranking = analysis.ranking.map((item) => `<button type="button" class="spike-ranking-row ${item.id === selected?.id ? 'selected' : ''}" data-spike-horse="${esc(item.id)}" data-spike-division="${esc(item.division)}"><span class="spike-ranking-index">${esc(item.rank)}</span><span><strong>Avd ${esc(item.division)} · ${esc(item.name)}</strong><small>${esc(item.recommendation)} · marknad ${fmtPercent(item.market)} · modell ${Math.round(item.modelChance)}%</small></span><span class="spike-ranking-score">${Math.round(item.spikScore)}</span></button>`).join('');
+  const vulnerable = analysis.vulnerableFavorites.length ? analysis.vulnerableFavorites.map((item) => `<button type="button" class="spike-vulnerable-row" data-spike-horse="${esc(item.id)}" data-spike-division="${esc(item.division)}"><span>Avd ${esc(item.division)}</span><strong>${esc(item.name)}</strong><span>${fmtPercent(item.market)} streck · risk ${Math.round(item.falseFavoriteRisk)}</span></button>`).join('') : '<p class="spike-muted">Inga tydligt sårbara favoriter i tillgänglig data.</p>';
+  const duel = analysis.duel ? `<div class="spike-duel-grid"><div><span>A · ${esc(analysis.duel.left.name)}</span><strong>${Math.round(analysis.duel.left.spikScore)}</strong><small>Modell ${Math.round(analysis.duel.left.modelChance)}% · edge ${analysis.duel.left.edge >= 0 ? '+' : ''}${Math.round(analysis.duel.left.edge)}%</small></div><div><span>B · ${esc(analysis.duel.right.name)}</span><strong>${Math.round(analysis.duel.right.spikScore)}</strong><small>Modell ${Math.round(analysis.duel.right.modelChance)}% · edge ${analysis.duel.right.edge >= 0 ? '+' : ''}${Math.round(analysis.duel.right.edge)}%</small></div></div><p class="spike-duel-verdict">${esc(analysis.duel.verdict)}</p>` : '<p class="spike-muted">Det behövs minst två kandidater för en spikduell.</p>';
+  const raceRows = (race?.horses || []).map((item, index) => spikeTableRow(item, index, race)).join('');
+  const meta = race?.meta || {};
+  content.innerHTML = `<div class="spike-page-header"><div><span class="eyebrow">SPIKMOTOR · ${esc(state.round.gameType)}</span><h1>Spikar för ${esc(trackLabel(state.round.track, state.round.track2))}</h1><p>${esc(dateLabel(state.round.date))} · ${state.round.divisionCount} avdelningar · motorversion V1</p></div><div class="spike-header-status">${spikeProgramStatus(state.round)}<button type="button" class="ghost-button" data-spike-program-refresh>↻ Hämta banprogram igen</button><button type="button" class="ghost-button" data-view="round">Till omgången</button></div></div><div class="spike-race-tabs">${analysis.races.map(spikeRaceHeader).join('')}</div><div class="spike-race-summary"><div><span class="eyebrow">OMGÅNG ${esc(state.round.gameType)}-${esc(race?.division || raceIndex + 1)}</span><h2>${esc(trackLabel(state.round.track, state.round.track2))}</h2><p>${esc(meta.distance || '–')} m · ${esc(meta.startMethod || 'Startmetod saknas')} · Förstapris ${money(meta.firstPrize || 0)}</p></div><div class="spike-summary-chip"><span>Analysstatus</span><strong>${analysis.ranking.length ? 'Klar' : 'Väntar på startlista'}</strong></div></div><div class="spike-main-grid"><section class="spike-table-card"><div class="spike-table-head"><span>#</span><span>Häst</span><span>Nr</span><span>Kön/ålder</span><span>ATG %</span><span>Odds</span><span>SpikScore</span><span>Rek.</span><span></span></div>${raceRows || '<div class="spike-muted spike-table-empty">Inga aktiva hästar i avdelningen.</div>'}</section><aside class="spike-detail-card">${spikeDetailMarkup(selected)}</aside></div><div class="spike-lower-grid"><section class="spike-panel"><div class="spike-panel-heading"><div><span class="eyebrow">SPIKRANKING</span><h2>Bästa spikkandidater</h2></div><span class="spike-panel-count">${analysis.ranking.length} kandidater</span></div><div class="spike-ranking-list">${ranking || '<p class="spike-muted">Startlista saknas.</p>'}</div></section><section class="spike-panel"><div class="spike-panel-heading"><div><span class="eyebrow">SÅRBARA FAVORITER</span><h2>Favoriter att kontrollera</h2></div></div><div class="spike-vulnerable-list">${vulnerable}</div></section><section class="spike-panel"><div class="spike-panel-heading"><div><span class="eyebrow">SPIKDUELL</span><h2>Två kandidater mot varandra</h2></div></div>${duel}</section></div><div class="spike-bottom-note"><span>ⓘ</span><strong>Så ska score läsas:</strong> SpikScore svarar på om hästen är lämplig att låsa systemet på. Modellchans och marknadsvärde visas separat.</div>`;
+}
+
 function showView(name) {
   const isRound = name === 'round' && state.round;
   const isCoupons = name === 'coupons';
   const isResults = name === 'results';
   const isTipsters = name === 'tipsters';
-  $$('.view').forEach((view) => { const active = view.id === (isRound ? 'round-view' : isCoupons ? 'coupons-view' : isResults ? 'results-view' : isTipsters ? 'tipsters-view' : name === 'home' ? 'home-view' : 'placeholder-view'); view.hidden = !active; view.classList.toggle('active-view', active); });
+  const isSpikes = name === 'spikes';
+  const isInfo = name === 'info';
+  $$('.view').forEach((view) => { const active = view.id === (isRound ? 'round-view' : isCoupons ? 'coupons-view' : isResults ? 'results-view' : isTipsters ? 'tipsters-view' : isSpikes ? 'spikes-view' : isInfo ? 'info-view' : name === 'home' ? 'home-view' : 'placeholder-view'); view.hidden = !active; view.classList.toggle('active-view', active); });
   $$('[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === (isRound ? 'round' : name)));
   if (isTipsters) renderTipsters();
+  if (isSpikes) renderSpikes();
+  if (isInfo) { renderInfo(); if (state.round && !state.tipsterBuzz && !state.tipsterLoading) void loadTipsterBuzz(false); }
 }
 
 function setCouponsSubtab(tab = 'saved') {
@@ -536,8 +878,15 @@ function openRoundById(gameId, updateUrl = true) {
   if (!game) return false;
   state.round = normalizeGame(game);
   state.tipsterBuzz = null;
+  state.infoSourceFilter = 'all';
+  state.infoSelectedArticle = null;
+  state.infoDetailsOpen = false;
   state.tipsterDivision = 1;
   state.tipsterHorseNumber = null;
+  state.spikeAnalysis = null;
+  state.spikeDivision = 1;
+  state.spikeHorseId = null;
+  state.spikeDetailTab = 'overview';
   state.savedCoupons = Array.isArray(game.coupons) ? game.coupons : [];
   state.roundBuilderTab = 'together';
   state.tipsterCouponTab = 'started';
@@ -1615,7 +1964,7 @@ async function submitCreate(event, manual = false) {
   finally { setCreateBusy(false); }
 }
 
-function renderRoundHeader() { const round = state.round; const primaryTrackSlug = trackSlug(round.track); const primaryTrack = trackLabel(round.track, round.track2) || 'Bana saknas'; $('#round-header').innerHTML = `<div class="round-header"><div class="round-title"><div class="track-orb">⌁</div><div><div class="eyebrow">AKTUELL OMGÅNG</div><h1>${esc(round.gameType)} – ${esc(primaryTrack)}</h1><p>${esc(dateLabel(round.date))} · ${round.divisionCount} avdelningar · Radpris ${money(round.rowPrice)}</p><div class="round-track-context"><span>BANPROFIL</span><strong>${esc(primaryTrack)}</strong><a href="./banor.html?track=${encodeURIComponent(primaryTrackSlug)}">Baninfo ↗</a></div></div></div><div class="header-actions"><button class="primary-button" id="header-edit">✎ Redigera omgång</button><button class="ghost-button" id="refresh-tipsters">↻ Uppdatera tipsters</button><a class="ghost-button" href="${esc(atgUrls(round)[0] || '#')}" target="_blank" rel="noreferrer">Öppna ATG ↗</a></div></div>`; }
+function renderRoundHeader() { const round = state.round; const primaryTrackSlug = trackSlug(round.track); const primaryTrack = trackLabel(round.track, round.track2) || 'Bana saknas'; $('#round-header').innerHTML = `<div class="round-header"><div class="round-title"><div class="track-orb">⌁</div><div><div class="eyebrow">AKTUELL OMGÅNG</div><h1>${esc(round.gameType)} – ${esc(primaryTrack)}</h1><p>${esc(dateLabel(round.date))} · ${round.divisionCount} avdelningar · Radpris ${money(round.rowPrice)}</p><div class="round-track-context"><span>BANPROFIL</span><strong>${esc(primaryTrack)}</strong><a href="./banor.html?track=${encodeURIComponent(primaryTrackSlug)}">Baninfo ↗</a></div></div></div><div class="header-actions"><button class="primary-button" id="header-edit">✎ Redigera omgång</button><button class="ghost-button" id="refresh-tipsters">↻ Uppdatera tipsters</button><button type="button" class="ghost-button" data-spike-program-refresh>↻ Hämta banprogram</button><a class="ghost-button" href="${esc(round.atgRoundUrl || atgUrls(round)[0] || '#')}" target="_blank" rel="noreferrer">Öppna ATG ↗</a></div></div>`; }
 
 function raceFavorite(race) { return [...(race.horses || [])].filter((horse) => !horse.scratched).sort((a, b) => (b.winPercent ?? -1) - (a.winPercent ?? -1))[0]; }
 function renderRacesLegacyOriginal() {
@@ -2331,7 +2680,7 @@ function renderRaces() {
   $('#races-list').innerHTML = races.map((race) => { const favorite = raceFavorite(race); const horses = [...race.horses].sort((a, b) => (a.number || 0) - (b.number || 0)); return `<article class="race-card" data-division="${race.division}"><div class="race-summary"><div class="race-number">${race.division}</div><div><h3>Avd ${race.division}</h3><p>${horses.length} hästar · ${favorite ? `Favorit ${favorite.number} ${esc(favorite.name)}` : 'ingen favorit'}</p></div><div class="race-favorite">Favorit<strong>${favorite ? `${favorite.number} · ${fmtPercent(favorite.winPercent)}` : '–'}</strong>${favorite && tipsterBuzzScoreFor(race, favorite) ? `<small>Buzz ${tipsterBuzzScoreFor(race, favorite)}</small>` : ''}</div></div><div class="race-body"><div class="horse-row header-row"><span>#</span><span>Häst</span><span>Kusk</span><span>%</span><span>Start trend%</span><span>Trend%</span><span>Odds</span><span>Buzz</span></div>${horses.slice(0, 30).map((horse) => { const delta = trendDelta(horse); const significant = trendIsSignificant(horse); const buzzScore = tipsterBuzzScoreFor(race, horse); return `<div class="horse-row ${favorite?.number === horse.number ? 'favorite-row' : ''} ${significant ? 'trend-significant' : ''} ${horse.scratched ? 'scratched-row' : ''}"><span class="horse-num">${favorite?.number === horse.number ? '<span class="star">★</span>' : ''}${esc(horse.number)}</span><span class="horse-name">${esc(horse.name)}${horse.scratched ? ' · struken' : ''}</span><span class="horse-meta ${horse.updatedFields?.includes('driver') ? 'updated-field' : ''}">${esc(horse.driver || horse.trainer || '–')}</span><span class="horse-percent ${horse.updatedFields?.includes('winPercent') ? 'updated-field' : ''}">${fmtPercent(horse.winPercent)}</span><span class="horse-start-trend">${fmtPercent(horse.startTrendPercent ?? winningTrendPercent(horse))}</span><span class="horse-trend ${significant || horse.updatedFields?.includes('trendPercent') ? 'updated-field' : ''}">${fmtTrendValue(horse.trendPercent)}</span><span class="horse-odds ${horse.updatedFields?.includes('winOdds') ? 'updated-field' : ''}">${horse.scratched ? 'EJ' : (horse.winOdds ?? '–')}</span><span class="horse-buzz ${buzzScore ? tipsterBuzzClass({ score: buzzScore }) : ''}">${buzzScore || '–'}</span></div>`; }).join('')}</div></article>`; }).join('') + (races.length < count ? `<div class="partial-note">${races.length} av ${count} avdelningar importerade · använd Redigera för att komplettera.</div>` : '');
 }
 
-function renderRound() { if (!state.round) return; renderRoundHeader(); renderRaces(); renderCoupons(); renderRoundSavedCoupons(); setRoundBuilderTab(state.roundBuilderTab); }
+function renderRound() { if (!state.round) return; renderRoundHeader(); const actions = $('#round-header .header-actions'); if (actions && !actions.querySelector('[data-view="spikes"]')) actions.insertAdjacentHTML('beforeend', '<button type="button" class="ghost-button" data-view="spikes">◉ Spikmotor</button>'); renderRaces(); renderCoupons(); renderRoundSavedCoupons(); setRoundBuilderTab(state.roundBuilderTab); }
 
 function openRoundEditor() {
   const races = state.round?.races || []; $('#editor-content').innerHTML = `<div class="eyebrow">OMGÅNGSDATA</div><h2 class="editor-title">Redigera ${esc(state.round?.name || 'omgång')}</h2><p class="editor-intro">Ändra startlistan utan att påverka den gamla /trav-sidan. Manuella ändringar sparas i samma TravGame-dokument.</p>${races.length ? `<form id="round-editor-form">${races.map((race) => `<h3>Avd ${race.division}</h3><table class="editor-table"><thead><tr><th>#</th><th>Häst</th><th>Kusk</th><th>%</th><th>Odds</th></tr></thead><tbody>${race.horses.map((horse, index) => `<tr data-race="${race.division}" data-horse="${index}"><td><input data-field="number" value="${esc(horse.number)}"></td><td><input data-field="name" value="${esc(horse.name)}"></td><td><input data-field="driver" value="${esc(horse.driver)}"></td><td><input data-field="winPercent" value="${esc(horse.winPercent ?? '')}"></td><td><input data-field="winOdds" value="${esc(horse.winOdds ?? '')}"></td></tr>`).join('')}</tbody></table>`).join('')}<div class="modal-actions"><button type="submit" class="primary-button">Spara ändringar</button></div></form>` : `<div class="empty-state"><p>Den här omgången saknar hästar. Hämta startlista igen eller använd Skapa utan import och lägg in data via API:t.</p></div>`}`; $('#editor-modal').hidden = false;
@@ -2484,6 +2833,15 @@ function bindEvents() {
     else if (!state.tipsterLoading) void loadTipsterBuzz(false);
   }, true);
   document.addEventListener('click', (event) => {
+    const navInfo = event.target.closest('[data-view="info"]');
+    if (!navInfo) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    showView('info');
+    if (state.round && state.tipsterBuzz) renderInfo();
+    else if (state.round && !state.tipsterLoading) void loadTipsterBuzz(false);
+  }, true);
+  document.addEventListener('click', (event) => {
     if (event.target.closest('#tipsters-together')) { event.preventDefault(); event.stopPropagation(); showView('round'); setRoundBuilderTab('together'); return; }
     if (event.target.closest('#tipsters-edit')) { event.preventDefault(); event.stopPropagation(); openRoundEditor(); }
   });
@@ -2495,10 +2853,34 @@ function bindEvents() {
   ensureTipsterNavBadge();
   renderTipsterNavBadge();
   document.addEventListener('click', (event) => {
+    const programRefresh = event.target.closest('[data-spike-program-refresh]');
+    if (programRefresh) { event.preventDefault(); event.stopPropagation(); void refreshProgramPdfs(); return; }
+    const spikeHorse = event.target.closest('[data-spike-horse]');
+    if (spikeHorse) { state.spikeDivision = Number(spikeHorse.dataset.spikeDivision) || 1; state.spikeHorseId = spikeHorse.dataset.spikeHorse; state.spikeDetailTab = 'overview'; renderSpikes(); return; }
+    const spikeDivision = event.target.closest('[data-spike-division]');
+    if (spikeDivision && !event.target.closest('[data-spike-horse]')) { state.spikeDivision = Number(spikeDivision.dataset.spikeDivision) || 1; state.spikeHorseId = null; renderSpikes(); return; }
+    const detailTab = event.target.closest('[data-spike-detail-tab]');
+    if (detailTab) { state.spikeDetailTab = detailTab.dataset.spikeDetailTab || 'overview'; renderSpikes(); $$('[data-spike-detail-tab]').forEach((button) => button.classList.toggle('active', button.dataset.spikeDetailTab === state.spikeDetailTab)); $$('[data-spike-detail-panel]').forEach((panel) => { panel.hidden = panel.dataset.spikeDetailPanel !== state.spikeDetailTab; }); return; }
+    const markButton = event.target.closest('[data-spike-mark]');
+    if (markButton) { const item = state.spikeAnalysis?.races?.find((race) => Number(race.division) === Number(state.spikeDivision))?.horses?.find((horse) => horse.id === state.spikeHorseId); if (item && state.round) { const key = `${state.round.id}:${state.spikeDivision}:${item.number}`; state.spikeMarks.has(key) ? state.spikeMarks.delete(key) : state.spikeMarks.add(key); renderSpikes(); showToast(state.spikeMarks.has(key) ? `${item.name} markerades som spik` : `${item.name} avmarkerades`); } return; }
+    const addSystem = event.target.closest('[data-spike-add-system]');
+    if (addSystem) { const item = state.spikeAnalysis?.races?.find((race) => Number(race.division) === Number(state.spikeDivision))?.horses?.find((horse) => horse.id === state.spikeHorseId); if (item) showToast(`${item.name} är vald som systemkandidat – lägg till den i kupongens avdelning`); return; }
+  });
+  document.addEventListener('click', (event) => {
     if (event.target.closest('[data-focus-together]')) { event.stopPropagation(); toggleFocusedTogether(); }
     if (event.target.closest('[data-focus-remove]')) { event.stopPropagation(); removeFocusedTogether(); }
   });
   document.addEventListener('click', (event) => {
+    const infoSource = event.target.closest('[data-info-source]');
+    if (infoSource) { event.preventDefault(); state.infoSourceFilter = infoSource.dataset.infoSource || 'all'; state.infoSelectedArticle = null; renderInfo(); return; }
+    const infoArticle = event.target.closest('[data-info-article]');
+    if (infoArticle) { event.preventDefault(); state.infoSelectedArticle = infoArticle.dataset.infoArticle || null; renderInfo(); return; }
+    const infoRefresh = event.target.closest('[data-info-refresh]');
+    if (infoRefresh) { event.preventDefault(); void loadTipsterBuzz(true); return; }
+    const infoDetails = event.target.closest('[data-info-details]');
+    if (infoDetails) { event.preventDefault(); state.infoDetailsOpen = !state.infoDetailsOpen; renderInfo(); return; }
+    const infoSendSpikes = event.target.closest('[data-info-send-spikes]');
+    if (infoSendSpikes) { event.preventDefault(); if (!state.round) return showToast('Öppna en omgång först'); showView('spikes'); showToast('Info-signalerna används nu i Spikmotor'); return; }
     const horse = event.target.closest('[data-tipster-horse]');
     if (horse) { state.tipsterHorseNumber = Number(horse.dataset.tipsterHorse); if (state.roundBuilderTab === 'tipsters') renderRoundTipsters(); else renderTipsters(); return; }
     const division = event.target.closest('[data-tipster-division]');
@@ -2534,7 +2916,7 @@ function bindEvents() {
   $$('#round-date,#round-type,#round-track,#round-track2').forEach((field) => field.addEventListener('input', renderPreview));
   $('#create-form').addEventListener('submit', (event) => submitCreate(event, false)); $('#manual-round').addEventListener('click', () => submitCreate(null, true));
   $$('[data-close-modal]').forEach((button) => button.addEventListener('click', () => { $(`#${button.dataset.closeModal}`).hidden = true; }));
-  document.addEventListener('click', (event) => { const view = event.target.closest('[data-view]'); if (view) { if (view.dataset.view === 'round' && !state.round) { showToast('Öppna eller skapa en omgång först'); return; } showView(view.dataset.view); if (view.dataset.view === 'coupons') loadSavedCoupons(); if (view.dataset.view === 'results') loadResults(); } const inlineShuffle = event.target.closest('[data-shuffle-inline]'); if (inlineShuffle) { event.stopPropagation(); shuffleCoupons(); return; } const inlineSave = event.target.closest('[data-save-inline]'); if (inlineSave) { event.stopPropagation(); savePackage(); return; } const buildReverse = event.target.closest('[data-build-reverse-coupon]'); if (buildReverse) { event.stopPropagation(); const purchased = state.purchasedCoupons.find((item) => item.id === state.selectedPurchasedCouponId); if (!purchased) return; try { state.reverseCoupon = buildReverseCoupon(purchased); renderReverseBuilder(); } catch (error) { const message = $('#purchased-coupon-message'); if (message) { message.className = 'reverse-message error'; message.textContent = error.message; } } return; } const purchasedCard = event.target.closest('[data-purchased-coupon]'); if (purchasedCard) { event.stopPropagation(); state.selectedPurchasedCouponId = purchasedCard.dataset.purchasedCoupon; state.reverseCoupon = null; renderReverseBuilder(); return; } const saveReverse = event.target.closest('[data-save-reverse-coupon]'); if (saveReverse) { event.stopPropagation(); saveReverseCoupon(); return; } const tab = event.target.closest('[data-round-builder-tab]'); if (tab) { event.stopPropagation(); setRoundBuilderTab(tab.dataset.roundBuilderTab); return; } const sliderArrow = event.target.closest('[data-combination-prev],[data-combination-next]'); if (sliderArrow) { event.stopPropagation(); if (sliderArrow.disabled) return; const couponIndex = Number(sliderArrow.dataset.combinationPrev ?? sliderArrow.dataset.combinationNext); moveCombinationCursor(couponIndex, sliderArrow.hasAttribute('data-combination-next') ? 1 : -1); return; } const combinationSelect = event.target.closest('[data-combination-select]'); if (combinationSelect) { event.stopPropagation(); const couponIndex = Number(combinationSelect.dataset.combinationSelect); const optionIndex = state.combinationCursors[couponIndex] ?? 0; if (state.combinationLocks.has(couponIndex)) { state.combinationLocks.delete(couponIndex); state.lockedCombinationPatterns.delete(couponIndex); showToast(`Kombinationen för kupong ${couponIndex + 1} är upplåst`); } else { const option = state.combinationOptions[couponIndex]?.[optionIndex]; if (option) { state.combinationLocks.add(couponIndex); state.lockedCombinationPatterns.set(couponIndex, countPlanSignature(option.counts)); showToast(`Kombinationen för kupong ${couponIndex + 1} är låst`); } } state.pendingCombinationIndexes[couponIndex] = null; renderCoupons(); return; } const resultButton = event.target.closest('[data-fetch-results]'); if (resultButton) { event.stopPropagation(); fetchGameResults(resultButton.dataset.fetchResults); return; } const deleteButton = event.target.closest('[data-delete-saved-coupon]'); if (deleteButton) { event.stopPropagation(); deleteSavedCoupon(deleteButton.dataset.deleteGame, deleteButton.dataset.deleteSavedCoupon); return; } const deleteGameButton = event.target.closest('[data-delete-game]'); if (deleteGameButton) { event.stopPropagation(); deleteGame(deleteGameButton.dataset.deleteGame); return; } const card = event.target.closest('[data-game-id]'); if (card) { event.stopPropagation(); openRoundById(card.dataset.gameId); return; } const race = event.target.closest('.race-summary'); if (race) race.parentElement.classList.toggle('open'); const editComplement = event.target.closest('[data-edit-complement]'); if (editComplement) { event.stopPropagation(); openComplementCouponEditor(Number(editComplement.dataset.editComplementDivision), editComplement.dataset.editComplementSource || 'together', editComplement.dataset.editComplementMode || state.complementMode, editComplement.dataset.editComplementTipster || state.complementTipsterId); return; } const edit = event.target.closest('[data-edit-coupon]'); if (edit && !event.target.closest('[data-lock-coupon]')) openCouponEditor(Number(edit.dataset.editCoupon), Number(edit.dataset.editDivision)); const lock = event.target.closest('[data-lock-coupon]'); if (lock) { event.stopPropagation(); const key = `${lock.dataset.lockCoupon}:${lock.dataset.lockDivision}`; state.locks.has(key) ? state.locks.delete(key) : state.locks.add(key); renderCoupons(); } });
+  document.addEventListener('click', (event) => { const view = event.target.closest('[data-view]'); if (view) { if ((view.dataset.view === 'round' || view.dataset.view === 'spikes') && !state.round) { showToast('Öppna eller skapa en omgång först'); return; } showView(view.dataset.view); if (view.dataset.view === 'coupons') loadSavedCoupons(); if (view.dataset.view === 'results') loadResults(); } const inlineShuffle = event.target.closest('[data-shuffle-inline]'); if (inlineShuffle) { event.stopPropagation(); shuffleCoupons(); return; } const inlineSave = event.target.closest('[data-save-inline]'); if (inlineSave) { event.stopPropagation(); savePackage(); return; } const buildReverse = event.target.closest('[data-build-reverse-coupon]'); if (buildReverse) { event.stopPropagation(); const purchased = state.purchasedCoupons.find((item) => item.id === state.selectedPurchasedCouponId); if (!purchased) return; try { state.reverseCoupon = buildReverseCoupon(purchased); renderReverseBuilder(); } catch (error) { const message = $('#purchased-coupon-message'); if (message) { message.className = 'reverse-message error'; message.textContent = error.message; } } return; } const purchasedCard = event.target.closest('[data-purchased-coupon]'); if (purchasedCard) { event.stopPropagation(); state.selectedPurchasedCouponId = purchasedCard.dataset.purchasedCoupon; state.reverseCoupon = null; renderReverseBuilder(); return; } const saveReverse = event.target.closest('[data-save-reverse-coupon]'); if (saveReverse) { event.stopPropagation(); saveReverseCoupon(); return; } const tab = event.target.closest('[data-round-builder-tab]'); if (tab) { event.stopPropagation(); setRoundBuilderTab(tab.dataset.roundBuilderTab); return; } const sliderArrow = event.target.closest('[data-combination-prev],[data-combination-next]'); if (sliderArrow) { event.stopPropagation(); if (sliderArrow.disabled) return; const couponIndex = Number(sliderArrow.dataset.combinationPrev ?? sliderArrow.dataset.combinationNext); moveCombinationCursor(couponIndex, sliderArrow.hasAttribute('data-combination-next') ? 1 : -1); return; } const combinationSelect = event.target.closest('[data-combination-select]'); if (combinationSelect) { event.stopPropagation(); const couponIndex = Number(combinationSelect.dataset.combinationSelect); const optionIndex = state.combinationCursors[couponIndex] ?? 0; if (state.combinationLocks.has(couponIndex)) { state.combinationLocks.delete(couponIndex); state.lockedCombinationPatterns.delete(couponIndex); showToast(`Kombinationen för kupong ${couponIndex + 1} är upplåst`); } else { const option = state.combinationOptions[couponIndex]?.[optionIndex]; if (option) { state.combinationLocks.add(couponIndex); state.lockedCombinationPatterns.set(couponIndex, countPlanSignature(option.counts)); } } state.pendingCombinationIndexes[couponIndex] = null; renderCoupons(); return; } const resultButton = event.target.closest('[data-fetch-results]'); if (resultButton) { event.stopPropagation(); fetchGameResults(resultButton.dataset.fetchResults); return; } const deleteButton = event.target.closest('[data-delete-saved-coupon]'); if (deleteButton) { event.stopPropagation(); deleteSavedCoupon(deleteButton.dataset.deleteGame, deleteButton.dataset.deleteSavedCoupon); return; } const deleteGameButton = event.target.closest('[data-delete-game]'); if (deleteGameButton) { event.stopPropagation(); deleteGame(deleteGameButton.dataset.deleteGame); return; } const card = event.target.closest('[data-game-id]'); if (card) { event.stopPropagation(); openRoundById(card.dataset.gameId); return; } const race = event.target.closest('.race-summary'); if (race) race.parentElement.classList.toggle('open'); const editComplement = event.target.closest('[data-edit-complement]'); if (editComplement) { event.stopPropagation(); openComplementCouponEditor(Number(editComplement.dataset.editComplementDivision), editComplement.dataset.editComplementSource || 'together', editComplement.dataset.editComplementMode || state.complementMode, editComplement.dataset.editComplementTipster || state.complementTipsterId); return; } const edit = event.target.closest('[data-edit-coupon]'); if (edit && !event.target.closest('[data-lock-coupon]')) openCouponEditor(Number(edit.dataset.editCoupon), Number(edit.dataset.editDivision)); const lock = event.target.closest('[data-lock-coupon]'); if (lock) { event.stopPropagation(); const key = `${lock.dataset.lockCoupon}:${lock.dataset.lockDivision}`; state.locks.has(key) ? state.locks.delete(key) : state.locks.add(key); renderCoupons(); } });
   document.addEventListener('click', (event) => {
     const closeModal = event.target.closest('[data-close-modal]');
     if (closeModal && closeModal.dataset.closeModal === 'reverse-editor-modal') { const modal = document.getElementById('reverse-editor-modal'); if (modal) modal.hidden = true; return; }

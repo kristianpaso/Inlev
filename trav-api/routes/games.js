@@ -8,6 +8,7 @@ const express = require('express');
 const TravGame = require('../models/Game');
 const { parseHorseText } = require('../utils/horseParser');
 const { importShopCoupon, findAtgGameId, gameIdFromUrl, parseGameId } = require('../import/atg/shopCouponImporter');
+const { importTrackProgramsForRound } = require('../import/atg/programImporter');
 
 const router = express.Router();
 
@@ -138,6 +139,16 @@ router.post('/', async (req, res) => {
 });
 
     const saved = await game.save();
+    if (process.env.AUTO_IMPORT_PROGRAMS !== 'false') {
+      const importInput = saved.toObject();
+      importInput.races = importInput.races || importInput.parsedHorseInfo?.divisions || [];
+      void importTrackProgramsForRound(importInput).then(async (result) => {
+        const current = await TravGame.findById(saved._id);
+        if (!current) return;
+        current.programs = { parserVersion: result.parserVersion, importedAt: result.importedAt, tracks: result.tracks, matches: result.matches, items: result.programs };
+        await current.save();
+      }).catch((error) => console.error('Automatic banprogramsimport misslyckades:', error.message));
+    }
     res.status(201).json(saved);
   } catch (err) {
     console.error('POST /games error', err);

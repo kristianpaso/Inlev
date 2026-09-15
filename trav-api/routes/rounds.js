@@ -4,6 +4,7 @@ const { buildAtgDivisionUrls, getDivisionCount, getTrackSlug } = require('../imp
 const { importDivisionStartlists } = require('../import/atg/atgBrowserFallback');
 const { findAtgGameId } = require('../import/atg/shopCouponImporter');
 const { fetchWeeklyGames } = require('../import/atg/weeklyGamesImporter');
+const { importTrackProgramsForRound } = require('../import/atg/programImporter');
 
 const router = express.Router();
 const weeklyJobs = new Map();
@@ -23,6 +24,7 @@ function rowPriceForGameType(gameType) {
 
 function normalizeRound(races, config) {
   return races.map((race) => ({
+    ...race,
     index: race.division,
     division: race.division,
     sourceUrl: race.sourceUrl,
@@ -33,6 +35,7 @@ function normalizeRound(races, config) {
 async function persistImportedRound(config, gameId, imported, atgGameId = '') {
   const { date, gameType, track, track2 = '' } = config;
   let game = gameId ? await TravGame.findById(gameId) : null;
+  const created = !game;
   if (!game) {
     game = await TravGame.findOne({ atgGameId });
   }
@@ -76,12 +79,30 @@ async function persistImportedRound(config, gameId, imported, atgGameId = '') {
   game.track2 = track2;
   game.trackSlug = getTrackSlug(track, track2);
   game.gameType = gameType;
+  game.atgRoundUrl = buildAtgDivisionUrls(config)[0] || game.atgRoundUrl || '';
   if (atgGameId) game.atgGameId = atgGameId;
   if (!game.atgGameId) game.atgGameId = await findAtgGameId({ date: String(date), gameType, trackSlug: getTrackSlug(track, track2) }).catch(() => '');
   game.horseText = `${gameType} ${track}\n${divisions.flatMap((division) => division.horses.map((horse) => horse.rawLine)).join('\n')}`;
   game.parsedHorseInfo = { header: `${gameType} ${track}`, divisions, expectedDivisions: getDivisionCount(gameType) };
   await game.save();
-  return { game, divisions };
+  return { game, divisions, created };
+}
+
+async function persistProgramsForGame(gameId) {
+  const game = await TravGame.findById(gameId);
+  if (!game) return null;
+  const importInput = game.toObject();
+  importInput.races = importInput.races || importInput.parsedHorseInfo?.divisions || [];
+  const result = await importTrackProgramsForRound(importInput);
+  game.programs = {
+    parserVersion: result.parserVersion,
+    importedAt: result.importedAt,
+    tracks: result.tracks,
+    matches: result.matches,
+    items: result.programs,
+  };
+  await game.save();
+  return result;
 }
 
 router.post('/import', async (req, res) => {
@@ -104,7 +125,12 @@ router.post('/import', async (req, res) => {
       trackSlug: getTrackSlug(normalizedTrack, normalizedTrack2),
     }).catch(() => '');
     const imported = await importDivisionStartlists(urls, normalizedType, undefined, atgGameId);
-    const { game, divisions } = await persistImportedRound(config, gameId, imported, atgGameId);
+    const { game, divisions, created } = await persistImportedRound(config, gameId, imported, atgGameId);
+    // Nya omgångar får banprogrammet i bakgrunden. En uppdatering av en
+    // befintlig omgång startar inte om den långsamma PDF-hämtningen.
+    if (created && process.env.AUTO_IMPORT_PROGRAMS !== 'false') {
+      void persistProgramsForGame(game._id).catch((error) => console.error('Automatic banprogramsimport misslyckades:', error.message));
+    }
     return res.status(imported.errors.length ? 207 : 200).json({
       round: {
         id: String(game._id),
@@ -115,6 +141,8 @@ router.post('/import', async (req, res) => {
         track2: game.track2 || '',
         trackSlug: game.trackSlug,
         atgGameId: game.atgGameId || '',
+        atgRoundUrl: game.atgRoundUrl || '',
+        programs: game.programs || {},
         divisionCount,
         rowPrice: rowPriceForGameType(game.gameType),
         source: 'atg',
@@ -195,6 +223,29 @@ router.get('/weekly-import/:jobId', (req, res) => {
   return res.json(publicWeeklyJob(job));
 });
 
+router.get('/:id/programs', async (req, res) => {
+  try {
+    const game = await TravGame.findById(req.params.id).lean();
+    if (!game) return res.status(404).json({ error: 'Omgången hittades inte.' });
+    return res.json(game.programs || {});
+  } catch (error) {
+    console.error('GET /rounds/:id/programs error', error);
+    return res.status(500).json({ error: 'Kunde inte läsa banprogrammen.' });
+  }
+});
+
+router.post('/:id/programs/import', async (req, res) => {
+  try {
+    const game = await TravGame.findById(req.params.id);
+    if (!game) return res.status(404).json({ error: 'Omgången hittades inte.' });
+    const result = await persistProgramsForGame(game._id);
+    return res.json({ programs: result.programs, tracks: result.tracks, matches: result.matches, parserVersion: result.parserVersion, importedAt: result.importedAt });
+  } catch (error) {
+    console.error('POST /rounds/:id/programs/import error', error);
+    return res.status(502).json({ error: error.message || 'Banprogrammet kunde inte hämtas.' });
+  }
+});
+
 router.put('/:id', async (req, res) => {
   const incoming = req.body?.round;
   if (!incoming || !Array.isArray(incoming.races)) {
@@ -204,6 +255,7 @@ router.put('/:id', async (req, res) => {
     const game = await TravGame.findById(req.params.id);
     if (!game) return res.status(404).json({ error: 'Omgången hittades inte.' });
     const races = incoming.races.map((race) => ({
+      ...race,
       index: Number(race.division || race.index),
       division: Number(race.division || race.index),
       sourceUrl: String(race.sourceUrl || ''),
@@ -221,6 +273,7 @@ router.put('/:id', async (req, res) => {
     game.track2 = String(incoming.track2 || game.track2 || '');
     game.trackSlug = String(incoming.trackSlug || getTrackSlug(game.track, game.track2));
     game.gameType = String(incoming.gameType || game.gameType).toUpperCase();
+    game.atgRoundUrl = String(incoming.atgRoundUrl || game.atgRoundUrl || buildAtgDivisionUrls({ date: game.date, gameType: game.gameType, track: game.track, track2: game.track2 })[0] || '');
     game.parsedHorseInfo = { header: game.title, divisions: races, expectedDivisions: Number(incoming.divisionCount) || races.length };
     game.horseText = `${game.title}\n${races.flatMap((race) => race.horses.map((horse) => horse.rawLine || `${horse.number} ${horse.name}`)).join('\n')}`;
     await game.save();

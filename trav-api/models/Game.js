@@ -60,6 +60,8 @@ const TravGameSchema = new mongoose.Schema(
     // ATG:s omgångs-ID används när en sparad butiksandel bara har spelarens
     // prefix (t.ex. 130723_) och ska kopplas till nästa omgång.
     atgGameId: { type: String, default: '' },
+    // Stabil omgångslänk som används av banprogramsimportören.
+    atgRoundUrl: { type: String, default: '' },
 
 results: {
   type: Object,
@@ -76,6 +78,13 @@ resultsUpdatedAt: { type: Date, default: null },
     horseText: { type: String, default: '' },
 
     parsedHorseInfo: {
+      type: Object,
+      default: {},
+    },
+
+    // Banprogram och analyser sparas separat från startlistan så att en
+    // uppdatering av ATG-data inte raderar historik som spikmotorn använder.
+    programs: {
       type: Object,
       default: {},
     },
