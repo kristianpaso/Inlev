@@ -27,6 +27,9 @@ const TipsterSignalSchema = new mongoose.Schema({
     confidence: { type: Number, min: 0, max: 1, required: true },
     method: { type: String, required: true },
   },
+  // Hästen nämndes utan spelform/avdelning. Den får ett neutralt InfoScore
+  // men ska inte ensam skapa en positiv spiksignal.
+  mentionOnly: { type: Boolean, default: false },
   source: {
     url: { type: String, required: true },
     canonicalUrl: { type: String, required: true },

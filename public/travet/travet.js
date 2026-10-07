@@ -1,4 +1,4 @@
-import { calculateSpikeEngine } from './spikmotor.js';
+import { calculateSpikeEngine } from './spikmotor.js?v=20260918-import-validation-1';
 
 const GAME_DIVISIONS = { V64: 6, V65: 6, V85: 8, V86: 8, GS75: 7 };
 const LOCAL_API_ROOT = 'http://127.0.0.1:4000/api/trav';
@@ -9,7 +9,7 @@ const isLocalApp = ['localhost', '127.0.0.1', '::1'].includes(window.location.ho
 // localhost till Render.
 const API_ROOTS = isLocalApp ? [LOCAL_API_ROOT] : [RENDER_API_ROOT];
 let activeApiRoot = API_ROOTS[0];
-const state = { games: [], round: null, coupons: [], savedCoupons: [], savedCouponDrafts: {}, purchasedCoupons: [], shopLinks: [], lastShopCouponTitle: '', selectedPurchasedCouponId: null, reverseCoupon: null, reverseMode: 'reverse', reversePrice: 20, reverseSpikeCount: 2, reverseShareEnabled: false, reverseShareCount: 50, reverseStakePercent: 100, reverseStakePrice: null, togetherStakePercent: 100, togetherStakePrice: null, complementMode: 'uncovered', complementTipsterId: 'all', reverseSourceIds: [], reverseManualSelections: {}, reverseCombinationOptions: [], reverseCombinationCursor: 0, reverseCombinationLocked: false, reverseLockedCombinationSignature: '', reverseShufflePattern: '', downgradeSourceIds: [], downgradePrice: 1000, downgradeNewCombination: false, downgradeCoupons: [], downgradeDrafts: [], roundBuilderTab: 'together', tipsterCouponTab: 'started', tipsterBuzz: null, tipsterDivision: 1, tipsterHorseNumber: null, tipsterLoading: false, tipstersHasNewInfo: false, spikeAnalysis: null, spikeDivision: 1, spikeHorseId: null, spikeDetailTab: 'overview', spikeMarks: new Set(), focusedTogetherPackages: {}, locks: new Set(), combinationLocks: new Set(), lockedCombinationPatterns: new Map(), selectedPlanIndexes: [], pendingCombinationIndexes: [], combinationCursors: [], combinationOptions: [], couponCount: 3, spikeCount: 2, manualSpikeCount: 2, togetherPreset: null, together2: false, editingRound: false, seed: 1, shuffleSeed: 0, countPlanCache: new Map(), combinationPlanCache: new Map(), regenerateTimer: null, refreshImportTimer: null, weeklyImportTimer: null, programImportTimer: null };
+const state = { games: [], round: null, coupons: [], savedCoupons: [], savedCouponDrafts: {}, purchasedCoupons: [], shopLinks: [], lastShopCouponTitle: '', selectedPurchasedCouponId: null, reverseCoupon: null, reverseMode: 'reverse', reversePrice: 20, reverseSpikeCount: 2, reverseShareEnabled: false, reverseShareCount: 50, reverseStakePercent: 100, reverseStakePrice: null, togetherStakePercent: 100, togetherStakePrice: null, complementMode: 'uncovered', complementTipsterId: 'all', reverseSourceIds: [], reverseManualSelections: {}, reverseCombinationOptions: [], reverseCombinationCursor: 0, reverseCombinationLocked: false, reverseLockedCombinationSignature: '', reverseShufflePattern: '', downgradeSourceIds: [], downgradePrice: 1000, downgradeNewCombination: false, downgradeCoupons: [], downgradeDrafts: [], roundBuilderTab: 'together', tipsterCouponTab: 'started', tipsterBuzz: null, tipsterDivision: 1, tipsterHorseNumber: null, tipsterLoading: false, tipstersHasNewInfo: false, spikeAnalysis: null, spikeDivision: 1, spikeHorseId: null, spikeDetailTab: 'overview', spikeTagFilter: 'ALL', spikeTrackFilter: 'all', spikeMethodFilter: 'all', spikeSearch: '', spikeHistoryFilter: 'all', spikeSort: 'spikScore', spikeOnlyPositiveEdge: false, spikeOnlyHighConfidence: false, spikeMarks: new Set(), focusedTogetherPackages: {}, locks: new Set(), combinationLocks: new Set(), lockedCombinationPatterns: new Map(), selectedPlanIndexes: [], pendingCombinationIndexes: [], combinationCursors: [], combinationOptions: [], couponCount: 3, spikeCount: 2, manualSpikeCount: 2, togetherPreset: null, together2: false, editingRound: false, seed: 1, shuffleSeed: 0, countPlanCache: new Map(), combinationPlanCache: new Map(), regenerateTimer: null, refreshImportTimer: null, weeklyImportTimer: null, programImportTimer: null };
 state.markTipsterHorses = false;
 state.complementDrafts = {};
 state.infoSourceFilter = 'all';
@@ -77,13 +77,56 @@ function parseHorse(raw, index = 0) {
     const match = String(raw.name || cells[1] || '').match(/^\s*(\d+)\s+(.+)$/);
     const oddsValue = raw.winOdds ?? cells[6] ?? '';
     const scratched = Boolean(raw.scratched) || /^EJ$/i.test(String(oddsValue).trim());
-    return { ...raw, id: raw.id || `${raw.number || index}-${raw.name || 'horse'}`, number: number(raw.number, match ? Number(match[1]) : number(cells[0], index + 1)), name: raw.name || (match ? match[2] : cells[1] || line), sexAge: raw.sexAge || cells[2] || '', driver: raw.driver || cells[3] || '', winPercent: number(raw.winPercent, number(cells[4])), startTrendPercent: number(raw.startTrendPercent, number(cells[5])), trendPercent: number(raw.trendPercent, number(cells[5])), winOdds: scratched ? null : number(raw.winOdds, number(cells[6])), trainer: raw.trainer || cells[7] || '', sulky: raw.sulky || cells[8] || '', scratched, manualScore: number(raw.manualScore, 0), note: raw.note || '', recentStarts: raw.recentStarts || raw.history || raw.latestStarts || [] };
+    return { ...raw, id: raw.id || `${raw.number || index}-${raw.name || 'horse'}`, number: number(raw.number, match ? Number(match[1]) : number(cells[0], index + 1)), name: raw.name || (match ? match[2] : cells[1] || line), sexAge: raw.sexAge || cells[2] || '', driver: raw.driver || cells[3] || '', winPercent: number(raw.winPercent, number(cells[4])), startTrendPercent: number(raw.startTrendPercent, number(cells[5])), trendPercent: number(raw.trendPercent, number(cells[5])), winOdds: scratched ? null : number(raw.winOdds, number(cells[6])), trainer: raw.trainer || cells[7] || '', sulky: raw.sulky || cells[8] || '', shoeCode: raw.shoeCode || raw.shoes || raw.shoe || cells[9] || '', scratched, manualScore: number(raw.manualScore, 0), note: raw.note || '', recentStarts: raw.recentStarts || raw.history || raw.latestStarts || [] };
   }
   const line = String(raw || '').trim();
   const parts = line.split('\t');
   const match = line.match(/^(\d+)\s+(.+)$/);
   const scratched = /^EJ$/i.test(String(parts[6] || '').trim());
-  return { id: `${index}-${line}`, number: match ? Number(match[1]) : number(parts[0], index + 1), name: match ? match[2] : parts[1] || line, sexAge: parts[2] || '', driver: parts[3] || '', winPercent: number(parts[4]), startTrendPercent: number(parts[5]), trendPercent: number(parts[5]), winOdds: scratched ? null : number(parts[6]), trainer: parts[7] || '', sulky: parts[8] || '', scratched, manualScore: 0, note: '' };
+  return { id: `${index}-${line}`, number: match ? Number(match[1]) : number(parts[0], index + 1), name: match ? match[2] : parts[1] || line, sexAge: parts[2] || '', driver: parts[3] || '', winPercent: number(parts[4]), startTrendPercent: number(parts[5]), trendPercent: number(parts[5]), winOdds: scratched ? null : number(parts[6]), trainer: parts[7] || '', sulky: parts[8] || '', shoeCode: parts[9] || '', scratched, manualScore: 0, note: '' };
+}
+
+function historyValue(start, ...keys) {
+  return keys.map((key) => start?.[key]).find((value) => value !== null && value !== undefined && String(value).trim() !== '') || '';
+}
+
+function historyKey(start) {
+  // API-historik har ibland bara årtal medan PDF-historik har exakt datum.
+  // Matcha därför på de stabila loppfälten och låt PDF-raden komplettera en
+  // grövre API-rad i stället för att ersättas av den.
+  return [
+    historyValue(start, 'date', 'raceDate'),
+    historyValue(start, 'track', 'trackId'),
+    historyValue(start, 'distance'),
+    historyValue(start, 'placeRaw', 'place'),
+    historyValue(start, 'kmTimeRaw', 'kmTime'),
+    historyValue(start, 'startMethod'),
+  ].join('|').toLowerCase();
+}
+
+function mergeRecentStarts(...sources) {
+  const merged = [];
+  const byKey = new Map();
+  sources.flatMap((source) => Array.isArray(source) ? source : []).forEach((start) => {
+    if (!start || typeof start !== 'object') return;
+    const key = historyKey(start);
+    const existingIndex = byKey.get(key);
+    if (existingIndex === undefined) {
+      byKey.set(key, merged.length);
+      merged.push({ ...start });
+      return;
+    }
+    const existing = merged[existingIndex];
+    Object.entries(start).forEach(([field, value]) => {
+      if ((existing[field] === null || existing[field] === undefined || String(existing[field]).trim() === '') && value !== null && value !== undefined && String(value).trim() !== '') existing[field] = value;
+    });
+  });
+  return merged;
+}
+
+function usableEquipmentValue(value) {
+  if (value === null || value === undefined || String(value).trim() === '') return '';
+  return /\[object\s+object\]/i.test(String(value)) ? '' : value;
 }
 
 function normalizeGame(game) {
@@ -91,7 +134,7 @@ function normalizeGame(game) {
   const source = Array.isArray(parsed.divisions) ? parsed.divisions : [];
   const programs = game?.programs || parsed.programs || {};
   const programItems = programs?.items || {};
-  const races = source.map((division, index) => ({ ...division, division: Number(division.index || division.division || index + 1), sourceUrl: division.sourceUrl || '', horses: (division.horses || []).map((horse, horseIndex) => { const parsedHorse = parseHorse(horse, horseIndex); if (parsedHorse.startTrendPercent === null || parsedHorse.startTrendPercent === 0) parsedHorse.startTrendPercent = winningTrendPercent(parsedHorse); return parsedHorse; }).filter((horse) => horse.name || horse.number) })).filter((race) => race.horses.length).map((race) => {
+  const races = source.map((division, index) => ({ ...division, division: Number(division.index || division.division || index + 1), sourceUrl: division.sourceUrl || '', horses: (division.horses || []).map((horse, horseIndex) => { const parsedHorse = parseHorse(horse, horseIndex); if (parsedHorse.startTrendPercent === null || parsedHorse.startTrendPercent === 0) parsedHorse.startTrendPercent = winningTrendPercent(parsedHorse); return parsedHorse; }).filter((horse) => (horse.name || horse.number) && !(horse.number === null && /markera häst nummer|aktuell kostnad för kupongen/i.test(String(horse.name || '')))) })).filter((race) => race.horses.length).map((race) => {
     const match = (programs?.matches || []).find((item) => Number(item.division) === Number(race.division) && item.status !== 'unmatched');
     // Mongoose kan inte alltid behålla den dynamiska pdfKey-egenskapen på
     // match-objektet. Den finns då i kandidatlistan, så läs båda formaten.
@@ -114,13 +157,15 @@ function normalizeGame(game) {
         sexAge: horse.sexAge || programHorse.sexAge,
         winPercent: horse.winPercent ?? programHorse.winPercent,
         winOdds: horse.winOdds ?? programHorse.winOdds,
+        shoeCode: usableEquipmentValue(horse.shoeCode) || usableEquipmentValue(programHorse.shoeCode) || usableEquipmentValue(programHorse.shoes) || usableEquipmentValue(programHorse.shoe),
+        sulky: usableEquipmentValue(horse.sulky) || usableEquipmentValue(programHorse.sulky) || usableEquipmentValue(programHorse.wagon) || usableEquipmentValue(programHorse.cart),
         startMethod: horse.startMethod || programHorse.startMethod,
         formRaw: horse.formRaw || programHorse.formRaw,
-        recentStarts: horse.recentStarts?.length ? horse.recentStarts : (programHorse.recentStarts || []),
+        recentStarts: mergeRecentStarts(programHorse.recentStarts, horse.recentStarts, horse.history, horse.latestStarts),
         programHistory: programHorse,
       } : horse;
     });
-    return { ...race, distance: race.distance || programRace.distance, startMethod: race.startMethod || programRace.startMethod, conditions: race.conditions || programRace.conditions, prizes: race.prizes || programRace.prizes, horses };
+    return { ...race, track: race.track || program.trackName || race.trackName || '', trackName: race.trackName || program.trackName || '', distance: race.distance || programRace.distance, startMethod: race.startMethod || programRace.startMethod, conditions: race.conditions || programRace.conditions, prizes: race.prizes || programRace.prizes, horses };
   });
   const expected = divisionCount(game?.gameType) || Number(parsed.expectedDivisions) || 0;
   return { id: String(game?._id || game?.id || ''), name: game?.title || `${game?.gameType || 'Trav'} ${trackLabel(game?.track, game?.track2)}`.trim(), date: game?.date || today(), gameType: String(game?.gameType || 'V64').toUpperCase(), track: game?.track || '', track2: game?.track2 || '', trackSlug: game?.trackSlug || trackSlug(game?.track, game?.track2), atgGameId: game?.atgGameId || '', atgRoundUrl: game?.atgRoundUrl || '', divisionCount: expected || races.length, rowPrice: rowPriceForGameType(game?.gameType), source: 'database', programs, races };
@@ -269,12 +314,25 @@ function infoSignalEntries() {
     .filter((entry) => entry.signal || entry.source);
 }
 
+function infoHorseEntries() {
+  return (state.tipsterBuzz?.races || []).flatMap((race) => (race.horses || [])
+    .filter((horse) => horse.infoMentioned)
+    .map((horse) => ({
+      ...horse,
+      division: Number(race.division),
+      horseNumber: Number(horse.number),
+      horseName: horse.name,
+      track: state.round?.track || '–',
+      signal: horse.signals?.find((signal) => !signal.mentionOnly && String(signal.signal?.type || '').toUpperCase() !== 'NEUTRAL') || horse.signals?.[0] || null,
+    })));
+}
+
 function infoSourceCategory(signal) {
   const sourceId = String(signal?.source?.sourceId || signal?.source?.id || '').toLowerCase();
   const url = String(signal?.source?.url || signal?.source?.canonicalUrl || '').toLowerCase();
   const tipster = String(signal?.tipster?.name || '').toLowerCase();
   if (sourceId.includes('atg') || url.includes('atg.se')) return 'atg';
-  if (sourceId.includes('untersteiner') || sourceId.includes('stall-zet') || /untersteiner|stall zet/.test(tipster)) return 'stable';
+  if (sourceId.includes('untersteiner') || sourceId.includes('stall-zet') || sourceId.includes('stallzet') || /untersteiner|stall zet/.test(tipster)) return 'stable';
   if (sourceId.includes('travnet') || url.includes('travnet.se') || /emil berglund|tobias liljendahl/.test(tipster)) return 'travnet';
   if (sourceId.includes('svenskatrav') || url.includes('svenskatrav')) return 'svenskatrav';
   return 'social';
@@ -295,6 +353,11 @@ function infoSignalStrength(signal) {
 }
 
 function infoSignalTone(signal) {
+  if (signal?.infoScore !== undefined) {
+    if (Number(signal.infoScore) >= 56) return 'positive';
+    if (Number(signal.infoScore) <= 44) return 'negative';
+    return 'neutral';
+  }
   if (signal?.signal?.positive === false || signal?.positive === false) return 'negative';
   if (String(signal?.signal?.type || '').toUpperCase() === 'NEUTRAL') return 'neutral';
   return 'positive';
@@ -314,6 +377,20 @@ function infoSignalReason(signal) {
 
 function infoArticles() {
   const grouped = new Map();
+  const stallsnack = Array.isArray(state.tipsterBuzz?.stallsnack?.articles) ? state.tipsterBuzz.stallsnack.articles : [];
+  for (const article of stallsnack) {
+    const key = article.url || article.id || article.title;
+    if (!key) continue;
+    grouped.set(key, { id: key, category: 'atg', source: 'ATG Stallsnack', url: article.url || '', title: article.title || 'Stallsnack från ATG', publishedAt: article.publishedAt || null, signals: [], description: article.description || '', excerpt: article.excerpt || '', image: article.image || '', sections: article.sections || [] });
+  }
+  const storedArticles = Array.isArray(state.tipsterBuzz?.infoArticles) ? state.tipsterBuzz.infoArticles : [];
+  for (const article of storedArticles) {
+    const key = article.url || `${article.sourceId}:${article.title}`;
+    if (!key || grouped.has(key)) continue;
+    const source = INFO_SOURCE_CATALOG.find((item) => item.id === article.sourceId);
+    const category = source?.category || infoSourceCategory({ source: { sourceId: article.sourceId, url: article.url } });
+    grouped.set(key, { id: key, category, source: source?.name || article.sourceId || 'Extern källa', url: article.url || '', title: article.title || source?.name || 'Stallinformation', publishedAt: article.publishedAt || null, signals: [], description: [article.description, article.excerpt].filter(Boolean).join('\n\n'), excerpt: article.excerpt || '', sections: article.sections || [] });
+  }
   for (const signal of infoSignalEntries()) {
     const url = infoSourceUrl(signal);
     const title = String(signal?.source?.articleTitle || signal?.source?.title || '').trim();
@@ -324,37 +401,44 @@ function infoArticles() {
   return [...grouped.values()].sort((a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0));
 }
 
+function infoSectionBody(section) {
+  const text = String(section?.text || '').trim();
+  const heading = String(section?.heading || '').trim();
+  if (heading && text.toLowerCase().startsWith(heading.toLowerCase())) return text.slice(heading.length).trim();
+  return text;
+}
+
+function infoArticleSectionsMarkup(article) {
+  const sections = Array.isArray(article?.sections) ? article.sections.filter((section) => section?.text) : [];
+  if (!sections.length) return '';
+  return `<div class="info-article-sections">${sections.map((section) => `<section class="info-article-section"><div class="info-article-section-copy"><h3>${esc(section.heading || 'Kommentar')}</h3><p>${esc(infoSectionBody(section))}</p></div>${section.image ? `<a class="info-article-section-image" href="${esc(section.image)}" target="_blank" rel="noreferrer" title="Öppna bildkälla"><img src="${esc(section.image)}" alt="Bild till ${esc(section.heading || 'kommentaren')}" loading="lazy"></a>` : ''}</section>`).join('')}</div>`;
+}
+
 function infoAnalysisRows() {
-  return infoSignalEntries().map((signal) => ({
-    ...signal,
-    track: state.round?.track || '–',
-    signalLabel: infoSignalTone(signal) === 'negative' ? 'Negativ' : infoSignalTone(signal) === 'neutral' ? 'Neutral' : 'Positiv',
-    category: infoSignalLabel(signal),
-    strength: infoSignalStrength(signal),
-    reason: infoSignalReason(signal),
-  })).sort((a, b) => b.strength - a.strength);
+  return infoHorseEntries().map((horse) => {
+    const tone = infoSignalTone(horse);
+    const signal = horse.signal;
+    const sources = [...new Set((horse.signals || []).map((item) => infoSourceName(item)).filter(Boolean))];
+    return {
+      ...horse,
+      signalLabel: tone === 'negative' ? 'Negativ' : tone === 'neutral' ? (horse.signals?.some((item) => item.mentionOnly) ? 'Omnämnd' : 'Neutral') : 'Positiv',
+      category: signal ? infoSignalLabel(signal) : 'Omnämnd i artikel',
+      strength: Math.round(Number(horse.infoScore ?? 50)),
+      reason: horse.strongestPositive || horse.strongestRisk || (horse.signals?.some((item) => item.mentionOnly) ? `Omnämnd av ${sources.join(', ') || 'källa'}` : infoSignalReason(signal)),
+    };
+  }).sort((a, b) => b.strength - a.strength);
 }
 
 function infoImpactRows() {
   if (!state.round) return [];
   const analysis = state.spikeAnalysis || calculateSpikeEngine(state.round, state.tipsterBuzz);
-  const baseByHorse = new Map((analysis.races || []).flatMap((race) => (race.horses || []).map((horse) => [`${race.division}:${horse.number}`, Number(horse.spikScore || horse.modelChance || horse.market || 0)])));
-  const grouped = new Map();
-  for (const signal of infoSignalEntries()) {
-    const key = `${signal.division}:${signal.horseNumber}`;
-    const score = infoSignalStrength(signal);
-    const signed = infoSignalTone(signal) === 'negative' ? -score : infoSignalTone(signal) === 'neutral' ? 0 : score;
-    const current = grouped.get(key) || { ...signal, positive: 0, negative: 0, total: 0, sources: new Set() };
-    current.total += signed;
-    current.positive += signed > 0 ? 1 : 0;
-    current.negative += signed < 0 ? 1 : 0;
-    current.sources.add(infoSourceName(signal));
-    grouped.set(key, current);
-  }
-  return [...grouped.values()].map((item) => {
+  const baseByHorse = new Map((analysis.races || []).flatMap((race) => (race.horses || []).map((horse) => [`${race.division}:${horse.number}`, Number(horse.baseSpikScore ?? horse.spikScore ?? horse.modelChance ?? horse.market ?? 0)])));
+  return infoHorseEntries().map((item) => {
     const base = Math.round(baseByHorse.get(`${item.division}:${item.horseNumber}`) || 0);
-    const delta = Math.round(Math.max(-12, Math.min(12, item.total / 12)));
-    return { ...item, base, delta, next: Math.max(0, Math.min(100, base + delta)), comment: item.positive ? `Positiv signal från ${item.sources.size} källa${item.sources.size === 1 ? '' : 'or'}` : 'Negativ signal behöver vägas in' };
+    const delta = Number(item.infoAdjustment || 0);
+    const current = (analysis.races || []).find((race) => Number(race.division) === Number(item.division))?.horses?.find((horse) => Number(horse.number) === Number(item.horseNumber));
+    const sourceNames = [...new Set((item.signals || []).map((signal) => infoSourceName(signal)).filter(Boolean))];
+    return { ...item, base, infoScore: Math.round(Number(item.infoScore ?? 50)), delta, next: Math.round(Number(current?.spikScore ?? base + delta)), comment: item.strongestPositive ? `Positiv signal från ${sourceNames.join(', ') || 'källa'}` : item.strongestRisk ? `Risk signal från ${sourceNames.join(', ') || 'källa'}` : 'Hästen är omnämnd men saknar riktad signal.' };
   }).sort((a, b) => b.next - a.next);
 }
 
@@ -372,16 +456,28 @@ function renderInfo() {
   state.infoSelectedArticle = selected?.id || null;
   const counts = INFO_SOURCE_CATEGORIES.reduce((map, source) => { map[source.id] = source.id === 'all' ? allArticles.length : allArticles.filter((article) => article.category === source.id).length; return map; }, {});
   const sourceTabs = INFO_SOURCE_CATEGORIES.map((source) => `<button type="button" class="info-source-tab ${state.infoSourceFilter === source.id ? 'active' : ''}" data-info-source="${source.id}"><span>${source.icon}</span>${source.label} <small>(${counts[source.id] || 0})</small></button>`).join('');
-  const articleCards = articles.map((article, index) => `<button type="button" class="info-article-card ${selected?.id === article.id ? 'selected' : ''}" data-info-article="${esc(article.id)}"><span class="info-article-media info-source-${article.category}"><strong>${esc(article.source.slice(0, 3).toUpperCase())}</strong><small>${index === 0 ? 'Nyast' : 'Källa'}</small></span><span class="info-article-copy"><span class="info-article-meta">${esc(article.source)} · ${article.publishedAt ? esc(dateLabel(String(article.publishedAt).slice(0, 10))) : 'Importerad signal'}</span><strong>${esc(article.title)}</strong><span>${esc(article.signals.slice(0, 2).map(infoSignalReason).join(' · '))}</span></span></button>`).join('');
+  const articleCards = articles.map((article, index) => `<button type="button" class="info-article-card ${selected?.id === article.id ? 'selected' : ''}" data-info-article="${esc(article.id)}">${article.image ? `<span class="info-article-media info-article-media-image"><img src="${esc(article.image)}" alt="" loading="lazy"></span>` : `<span class="info-article-media info-source-${article.category}"><strong>${esc(article.source.slice(0, 3).toUpperCase())}</strong><small>${index === 0 ? 'Nyast' : 'Källa'}</small></span>`}<span class="info-article-copy"><span class="info-article-meta">${esc(article.source)} · ${article.publishedAt ? esc(dateLabel(String(article.publishedAt).slice(0, 10))) : 'Importerad signal'}</span><strong>${esc(article.title)}</strong><span>${esc(article.signals.length ? article.signals.slice(0, 2).map(infoSignalReason).join(' · ') : article.sections?.[0]?.heading || article.description || 'Öppna källan för hela stallkommentaren')}</span></span></button>`).join('');
   const sourceCards = INFO_SOURCE_CATALOG.filter((source) => state.infoSourceFilter === 'all' || source.category === state.infoSourceFilter).map((source) => `<a class="info-source-card" href="${esc(source.url)}" target="_blank" rel="noreferrer"><span class="info-source-logo info-source-${source.category}">${esc(source.name.slice(0, 3).toUpperCase())}</span><span><strong>${esc(source.name)}</strong><small>${esc(source.note)}</small></span><b>↗</b></a>`).join('');
   const feedMarkup = articleCards || `<div class="info-feed-empty">Inga importerade artiklar i filtret ännu.<br><small>Öppna en källa eller tryck på Uppdatera information för att matcha nya signaler.</small></div><div class="info-source-catalog">${sourceCards}</div>`;
   const selectedSignals = selected?.signals || [];
-  const detail = selected ? `<article class="info-detail-card"><div class="info-detail-hero"><div class="info-detail-source"><span class="info-source-logo info-source-${selected.category}">${esc(selected.source.slice(0, 3).toUpperCase())}</span><div><span class="eyebrow">${esc(selected.source)}</span><h2>${esc(selected.title)}</h2><small>${selected.publishedAt ? `Publicerad ${esc(dateLabel(String(selected.publishedAt).slice(0, 10)))}` : 'Strukturerad information importerad'}</small></div></div><a class="ghost-button" href="${esc(selected.url || '#')}" target="_blank" rel="noreferrer" ${selected.url ? '' : 'aria-disabled="true"'}>Öppna källa ↗</a></div><p class="info-detail-copy">Strukturerade signaler från publika tipsterkällor. Fulla artiklar återpubliceras inte här, men varje signal är kopplad till sin ursprungliga källa.</p><div class="info-detail-signal-list">${selectedSignals.slice(0, 8).map((signal) => `<div class="info-detail-signal"><span class="info-signal-dot ${infoSignalTone(signal)}"></span><strong>Avd ${esc(signal.division)} · ${esc(signal.horseName)}</strong><span>${esc(infoSignalLabel(signal))}</span><b>${infoSignalStrength(signal)}/100</b></div>`).join('')}</div><div class="info-detail-actions"><button type="button" class="secondary-button" data-info-details>${state.infoDetailsOpen ? 'Dölj analysdetaljer' : 'Visa analysdetaljer'}</button><button type="button" class="primary-button" data-info-send-spikes>Skicka till Spikmotor</button></div>${state.infoDetailsOpen ? `<div class="info-raw-details"><strong>Matchade fält</strong>${selectedSignals.map((signal) => `<span>${esc(signal.tipster?.name || selected.source)} · Avd ${esc(signal.division)} · ${esc(signal.horseName)} · ${esc(infoSignalReason(signal))}</span>`).join('')}</div>` : ''}</article>` : '<article class="info-detail-card info-empty-detail"><div class="empty-icon">ⓘ</div><h2>Ingen importerad information ännu</h2><p>Tryck på Uppdatera information för att läsa in publika källor och matcha dem mot hästarna.</p></article>';
-  const analysisRows = infoAnalysisRows().slice(0, 12);
-  const impactRows = infoImpactRows().slice(0, 8);
-  const analysisMarkup = analysisRows.length ? analysisRows.map((row) => `<div class="info-analysis-row"><strong>${esc(row.horseName)}</strong><span>V${esc(state.round?.gameType || '')}-${esc(row.division)}</span><span>${esc(row.track)}</span><span class="info-signal-badge ${infoSignalTone(row)}">${esc(row.signalLabel)}</span><span>${esc(row.category)}</span><i><b style="width:${row.strength}%"></b></i><span>${esc(row.reason)}</span></div>`).join('') : '<div class="info-table-empty">Inga matchade signaler ännu. Uppdatera information för att bygga analysen.</div>';
-  const impactMarkup = impactRows.length ? impactRows.map((row) => `<div class="info-impact-row"><strong>${esc(row.horseName)}</strong><span>${row.base || '–'}</span><span class="${row.delta >= 0 ? 'info-positive' : 'info-negative'}">${row.delta >= 0 ? '+' : ''}${row.delta}</span><strong>${row.next || '–'}</strong><span class="${row.delta >= 0 ? 'info-positive' : 'info-negative'}">${row.delta >= 0 ? '▲' : '▼'} ${row.delta >= 0 ? '+' : ''}${row.delta}</span><span>${esc(row.comment)}</span></div>`).join('') : '<div class="info-table-empty">Påverkan visas när en källa har matchats mot en häst.</div>';
+  const detailSections = infoArticleSectionsMarkup(selected);
+  const detailCopy = selected?.category === 'atg' && detailSections ? '' : `<p class="info-detail-copy">${esc(selected?.description || 'Strukturerade signaler från publika källor. Varje signal är kopplad till sin ursprungliga källa.')}</p>`;
+  const detail = selected ? `<article class="info-detail-card"><div class="info-detail-hero"><div class="info-detail-source">${selected.image ? `<img class="info-detail-source-image" src="${esc(selected.image)}" alt="" loading="lazy">` : `<span class="info-source-logo info-source-${selected.category}">${esc(selected.source.slice(0, 3).toUpperCase())}</span>`}<div><span class="eyebrow">${esc(selected.source)}</span><h2>${esc(selected.title)}</h2><small>${selected.publishedAt ? `Publicerad ${esc(dateLabel(String(selected.publishedAt).slice(0, 10)))}` : 'Strukturerad information importerad'}</small></div></div><a class="ghost-button" href="${esc(selected.url || '#')}" target="_blank" rel="noreferrer" ${selected.url ? '' : 'aria-disabled="true"'}>Öppna källa ↗</a></div>${detailCopy}${detailSections}<div class="info-detail-signal-list">${selectedSignals.slice(0, 8).map((signal) => `<div class="info-detail-signal"><span class="info-signal-dot ${infoSignalTone(signal)}"></span><strong>Avd ${esc(signal.division)} · ${esc(signal.horseName)}</strong><span>${esc(infoSignalLabel(signal))}</span><b>${infoSignalStrength(signal)}/100</b></div>`).join('') || '<div class="info-table-empty">Källan är hämtad. Hästsignaler visas när kommentaren har matchats mot aktuell startlista.</div>'}</div><div class="info-detail-actions"><button type="button" class="secondary-button" data-info-details>${state.infoDetailsOpen ? 'Dölj analysdetaljer' : 'Visa analysdetaljer'}</button><button type="button" class="primary-button" data-info-send-spikes>Skicka till Spikmotor</button></div>${state.infoDetailsOpen ? `<div class="info-raw-details"><strong>Matchade fält</strong>${selectedSignals.map((signal) => `<span>${esc(signal.tipster?.name || selected.source)} · Avd ${esc(signal.division)} · ${esc(signal.horseName)} · ${esc(infoSignalReason(signal))}</span>`).join('')}</div>` : ''}</article>` : '<article class="info-detail-card info-empty-detail"><div class="empty-icon">ⓘ</div><h2>Ingen importerad information ännu</h2><p>Tryck på Uppdatera information för att läsa in publika källor och matcha dem mot hästarna.</p></article>';
+  const analysisRows = infoAnalysisRows();
+  const impactRows = infoImpactRows();
+  const analysisMarkup = analysisRows.length ? analysisRows.map((row) => `<div class="info-analysis-row"><strong>${esc(row.horseName)}</strong><span>V${esc(state.round?.gameType || '')}-${esc(row.division)}</span><span>${esc(row.track)}</span><span class="info-signal-badge ${infoSignalTone(row)}">${esc(row.signalLabel)}</span><span>${esc(row.category)}</span><i title="InfoScore ${row.strength}, säkerhet ${row.infoConfidence ?? 0}%"><b style="width:${row.strength}%"></b></i><span>${esc(row.reason)} · InfoScore ${row.strength} (${row.infoConfidence ?? 0}% säkerhet)</span></div>`).join('') : '<div class="info-table-empty">Inga matchade signaler ännu. Uppdatera information för att bygga analysen.</div>';
+  const impactMarkup = impactRows.length ? impactRows.map((row) => `<div class="info-impact-row"><strong>${esc(row.horseName)}</strong><span>${row.base || '–'}</span><span class="${row.infoScore >= 50 ? 'info-positive' : 'info-negative'}">${row.infoScore ?? '–'}</span><strong>${row.next || '–'}</strong><span class="${row.delta >= 0 ? 'info-positive' : 'info-negative'}">${row.delta >= 0 ? '▲' : '▼'} ${row.delta >= 0 ? '+' : ''}${row.delta}</span><span>${esc(row.comment)}</span></div>`).join('') : '<div class="info-table-empty">Påverkan visas när en källa har matchats mot en häst.</div>';
   content.innerHTML = `<div class="info-page"><header class="info-page-header"><div><span class="eyebrow">TRAVET · INFORMATIONSFLÖDE</span><h1>Info på travet</h1><p>Nyheter, intervjuer och stalltips – automatisk analys för bättre spikar</p></div><div class="info-page-actions"><label>Datum<input type="date" value="${esc(round?.date || today())}" disabled></label><label>Spelform<select disabled><option>${esc(round?.gameType || 'V86')}</option></select></label><label>Bana<select disabled><option>${esc(round ? trackLabel(round.track, round.track2) : 'Välj omgång')}</option></select></label><button type="button" class="ghost-button" data-info-refresh ${round ? '' : 'disabled'}>↻ Uppdatera information</button></div></header><div class="info-source-tabs" role="tablist" aria-label="Informationskällor">${sourceTabs}</div>${!round ? '<div class="info-no-round empty-state"><div class="empty-icon">ⓘ</div><h2>Öppna en spelomgång först</h2><p>Info kopplas till den valda omgångens startlista och hjälper Spikmotor att väga in hästsignaler.</p><button type="button" class="secondary-button" data-view="home">Till start</button></div>' : `<div class="info-main-grid"><section class="info-feed"><div class="info-section-heading"><div><span class="eyebrow">NYHETER & TIPS</span><h2>Senaste från källorna</h2></div><span class="status-pill">${allArticles.length} importerade</span></div>${feedMarkup}</section><section class="info-detail-column">${detail}</section></div><section class="info-panel"><div class="info-section-heading"><div><span class="eyebrow">AUTOMATISK INFO-ANALYS</span><h2>Matchade hästsignaler</h2></div><span class="status-pill">${analysisRows.length ? `${analysisRows.length} hästar identifierade` : 'Väntar på data'}</span></div><div class="info-table info-analysis-table"><div class="info-table-head"><span>Häst</span><span>Lopp</span><span>Bana</span><span>Signal</span><span>Kategori</span><span>Styrka</span><span>Citat / sammanfattning</span></div>${analysisMarkup}</div><div class="info-panel-actions"><button type="button" class="secondary-button" data-info-details>${state.infoDetailsOpen ? 'Dölj rå matchning' : 'Visa råtext och analysdetaljer'}</button><button type="button" class="primary-button" data-info-send-spikes>▣ Skicka till spikdatabas</button></div></section><section class="info-panel"><div class="info-section-heading"><div><span class="eyebrow">PÅVERKAN PÅ SPIKFÖRSLAG</span><h2>Info jämfört med grundscore</h2></div></div><div class="info-table info-impact-table"><div class="info-table-head"><span>Häst</span><span>Grundscore</span><span>Info-score</span><span>Ny spikscore</span><span>Förändring</span><span>Kommentar</span></div>${impactMarkup}</div></section>`}</div>`;
+}
+
+function ensureInfoFormFields() {
+  const content = $('#info-content');
+  if (!content) return;
+  const date = content.querySelector('.info-page-actions input[type="date"]');
+  if (date) { date.id = 'info-date'; date.name = 'info-date'; }
+  const selects = content.querySelectorAll('.info-page-actions select');
+  if (selects[0]) { selects[0].id = 'info-game-type'; selects[0].name = 'info-game-type'; }
+  if (selects[1]) { selects[1].id = 'info-track'; selects[1].name = 'info-track'; }
 }
 
 function tipsterSavedCoupons() {
@@ -609,14 +705,32 @@ function renderTipsterNavBadge() {
   if (badge) badge.hidden = !state.tipstersHasNewInfo;
 }
 
+function setTipsterRefreshBusy(busy) {
+  $$('[data-info-refresh], #tipsters-refresh, #refresh-tipsters, [data-round-tipsters-refresh]').forEach((button) => {
+    if (busy) {
+      button.disabled = true;
+      button.dataset.tipsterRefreshLabel = button.textContent;
+      button.textContent = '⟳ Uppdaterar…';
+    } else {
+      button.disabled = false;
+      if (button.dataset.tipsterRefreshLabel) button.textContent = button.dataset.tipsterRefreshLabel;
+    }
+  });
+}
+
 async function loadTipsterBuzz(refresh = false) {
   if (!state.round?.id) { renderTipsters(); return; }
+  const previousTipsterBuzz = state.tipsterBuzz;
+  const refreshConfig = { gameType: state.round.gameType, track: trackLabel(state.round.track, state.round.track2) };
+  if (refresh) setRefreshImportOverlay(refreshConfig, 'loading', '', 'tipsters');
   state.tipsterLoading = true;
-  renderTipsters(); renderRoundTipsters(); renderInfo();
+  renderTipsters(); renderRoundTipsters(); renderInfo(); setTipsterRefreshBusy(true);
   try {
     if (refresh) {
-      const refreshResponse = await apiFetch(`/rounds/${encodeURIComponent(state.round.id)}/tipsters/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}), timeoutMs: 30000 });
-      if (!refreshResponse.ok) throw new Error(`Tipsterimporten svarade ${refreshResponse.status}`);
+      const refreshResponse = await apiFetch(`/rounds/${encodeURIComponent(state.round.id)}/tipsters/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}), timeoutMs: 120000 });
+      const refreshPayload = await refreshResponse.json().catch(() => ({}));
+      if (!refreshResponse.ok) throw new Error(refreshPayload.error || `Tipsterimporten svarade ${refreshResponse.status}`);
+      loadTipsterBuzz.lastRefreshPayload = refreshPayload;
     }
     const response = await apiFetch(`/rounds/${encodeURIComponent(state.round.id)}/tipster-buzz`);
     if (!response.ok) throw new Error(`Tipsterdata svarade ${response.status}`);
@@ -624,12 +738,22 @@ async function loadTipsterBuzz(refresh = false) {
     const tipstersVisible = Boolean($('#tipsters-view') && !$('#tipsters-view').hidden);
     state.tipstersHasNewInfo = !tipstersVisible && state.roundBuilderTab !== 'tipsters' && Boolean(state.tipsterBuzz?.availableTipsters);
     renderTipsterNavBadge();
+    if (refresh) {
+      const payload = loadTipsterBuzz.lastRefreshPayload || {};
+      setRefreshImportOverlay(refreshConfig, 'complete', `Klart: ${payload.imported || 0} hästsignaler importerades och ${payload.stallsnack?.articles?.length || 0} ATG Stallsnack-artiklar hittades.`, 'tipsters');
+      setTimeout(hideRefreshImportOverlay, 1800);
+    }
   } catch (error) {
-    state.tipsterBuzz = null;
+    if (!previousTipsterBuzz) state.tipsterBuzz = null;
     console.error(error);
+    if (refresh) {
+      setRefreshImportOverlay(refreshConfig, 'error', error.message || 'Tipsterinformationen kunde inte hämtas.', 'tipsters');
+      setTimeout(hideRefreshImportOverlay, 2400);
+    }
     showToast('Tipsterdata kunde inte hämtas');
   } finally {
     state.tipsterLoading = false;
+    setTipsterRefreshBusy(false);
     renderTipsters();
     renderRoundTipsters();
     renderInfo();
@@ -771,21 +895,148 @@ function spikeRaceHeader(race, index) {
   return `<button type="button" class="spike-race-tab ${index + 1 === state.spikeDivision ? 'active' : ''}" data-spike-division="${index + 1}"><strong>${state.round.gameType}-${index + 1}</strong><span>${esc(title)}</span><small>${prize}</small></button>`;
 }
 
+function spikeTagClass(value) {
+  return String(value || '').toLowerCase().replaceAll('ä', 'a').replaceAll('å', 'a').replaceAll('ö', 'o').replaceAll(' ', '-');
+}
+
+function spikeLayoffLabel(item) {
+  const rawDays = item?.daysSinceLastStart;
+  const days = rawDays === null || rawDays === undefined || rawDays === '' ? NaN : Number(rawDays);
+  if (!Number.isFinite(days)) return '–';
+  const bucket = item.history?.layoffBucket;
+  const labels = { '0_14': 'Normal', '15_30': 'Normal', '31_45': 'Kort paus', '46_75': 'Uppehåll', '76_120': 'Lång paus', '120_plus': 'Mycket lång paus' };
+  return `${days} d · ${labels[bucket] || 'Paus'}`;
+}
+
 function spikeTableRow(item, index, race) {
   const division = Number(race?.division || item.division || state.spikeDivision || 1);
   const marked = state.spikeMarks.has(`${state.round?.id}:${division}:${item.number}`);
   const selected = state.spikeHorseId === item.id && state.spikeDivision === division;
-  return `<button type="button" class="spike-horse-row ${selected ? 'selected' : ''} ${marked ? 'marked' : ''}" data-spike-horse="${esc(item.id)}" data-spike-division="${esc(division)}"><span class="spike-row-number">${index + 1}</span><span class="spike-horse-main"><strong>${esc(item.name)}</strong><small>${esc(item.driver || 'Kusk saknas')} · ${esc(item.trainer || 'Tränare saknas')}</small></span><span>${esc(item.number || '–')}</span><span>${esc(item.sexAge || '–')}</span><span>${fmtPercent(item.market)}</span><span>${item.winOdds ?? '–'}</span><span class="spike-score-cell">${spikeMeter(item.spikScore)}</span><span class="spike-recommendation ${spikeRecommendationClass(item.recommendation)}">${esc(item.recommendation)}</span><span class="spike-row-mark">${marked ? '✓' : '›'}</span></button>`;
+  const tag = item.tag || item.recommendation || 'GARDERA';
+  return `<button type="button" class="spike-horse-row ${selected ? 'selected' : ''} ${marked ? 'marked' : ''}" data-spike-horse="${esc(item.id)}" data-spike-division="${esc(division)}"><span class="spike-division-cell">${esc(division)}</span><span class="spike-row-number">${esc(item.number || index + 1)}</span><span class="spike-horse-main"><strong>${esc(item.name)}</strong><small>${esc(item.driver || 'Kusk saknas')} · ${esc(item.trainer || 'Tränare saknas')}</small></span><span>${fmtPercent(item.market)}</span><span>${Math.round(item.baseSpikScore ?? item.spikScore)}</span><span class="spike-score-chip green">${Math.round(item.shoeFit ?? 50)}</span><span class="spike-score-chip blue">${Math.round(item.wagonFit ?? 50)}</span><span class="spike-layoff-cell ${Number(item.layoffRisk) >= 40 ? 'risk' : ''}">${esc(spikeLayoffLabel(item))}</span><span class="spike-score-cell">${spikeMeter(item.spikScore)}</span><span class="spike-recommendation tag-${spikeTagClass(tag)}">${esc(tag)}</span></button>`;
 }
 
-function spikeDetailMarkup(item) {
+function spikeInfoMarkup(item) {
+  const score = Math.round(Number(item.infoScore ?? 50));
+  const confidence = Math.round(Number(item.infoConfidence ?? 0));
+  const adjustment = Number(item.infoAdjustment ?? 0);
+  const sign = adjustment > 0 ? '+' : '';
+  const tone = adjustment > 0 ? 'accent-green' : adjustment < 0 ? 'accent-red' : '';
+  const flags = [...(item.positiveFlags || []).map((flag) => `+ ${flag}`), ...(item.riskFlags || []).map((flag) => `− ${flag}`)].slice(0, 3);
+  const equipment = `Skor idag: ${item.shoeLabel || 'Saknas'} · Skohistorik ${item.history?.shoeSample ? Math.round(item.history.shoeFit) : '–'} · Vagn idag: ${item.wagonLabel || 'Saknas'} · Vagnhistorik ${item.history?.wagonSample ? Math.round(item.history.wagonFit) : '–'} · Liknande lägen ${item.history?.contextSample || 0}`;
+  return `<div class="spike-info-breakdown"><div><span>Grundmodell</span><strong>${Math.round(Number(item.baseSpikScore ?? item.spikScore))}</strong></div><div><span>InfoScore</span><strong>${score}</strong><small>${confidence}% säkerhet</small></div><div><span>Infoeffekt</span><strong class="${tone}">${sign}${adjustment.toFixed(1)}</strong></div><div><span>Slutlig SpikScore</span><strong>${Math.round(Number(item.spikScore))}</strong></div><p class="spike-equipment-summary">${esc(equipment)}</p>${flags.length ? `<p>${flags.map((flag) => esc(flag)).join(' · ')}</p>` : ''}</div>`;
+}
+
+function spikeDetailMarkupLegacy(item) {
   if (!item) return '<div class="spike-detail-empty">Välj en häst i rankingen.</div>';
-  const historyRows = item.history.starts.slice(0, 5).map((start) => `<tr><td>${esc(start.date || '–')}</td><td>${esc(start.track || '–')}</td><td>${esc(start.distance || '–')}</td><td>${esc(start.placeRaw || start.place || '–')}</td><td>${esc(start.odds || '–')}</td></tr>`).join('');
+  const historyRows = item.history.starts.slice(0, 5).map((start) => `<tr><td>${esc(start.date || '–')}</td><td>${esc(start.track || '–')}</td><td>${esc(start.distance || '–')}</td><td>${esc(start.postPosition || '–')}</td><td>${esc(start.startMethod || '–')}</td><td>${esc(start.shoeCode || '–')}</td><td>${esc(start.sulky || start.wagon || '–')}</td><td>${esc(start.placeRaw || start.place || '–')}</td><td>${esc(start.odds || '–')}</td></tr>`).join('');
   const marked = state.spikeMarks.has(`${state.round?.id}:${item.division}:${item.number}`);
-  return `<div class="spike-detail-head"><div class="spike-detail-number">${esc(item.number)}</div><div><span class="eyebrow">AVD ${esc(item.division)} · ${esc(item.recommendation)}</span><h2>${esc(item.name)}</h2><p>${esc(item.driver || 'Kusk saknas')} · ${esc(item.trainer || 'Tränare saknas')}</p></div><button type="button" class="spike-star-button ${marked ? 'active' : ''}" data-spike-mark aria-pressed="${marked}" title="Markera som spik">★</button></div><div class="spike-detail-tabs" role="tablist"><button type="button" class="active" data-spike-detail-tab="overview">Översikt</button><button type="button" data-spike-detail-tab="history">Historik</button><button type="button" data-spike-detail-tab="match">Matchning</button></div><div class="spike-detail-panel" data-spike-detail-panel="overview"><div class="spike-metric-grid"><div><span>SpikScore</span><strong class="accent-green">${Math.round(item.spikScore)}</strong>${spikeMeter(item.spikScore)}</div><div><span>Modellchans</span><strong>${Math.round(item.modelChance)}%</strong>${spikeMeter(item.modelChance)}</div><div><span>Marknad</span><strong>${fmtPercent(item.market)}</strong>${spikeMeter(item.market)}</div><div><span>Värde</span><strong class="${item.edge >= 0 ? 'accent-green' : 'accent-red'}">${item.edge >= 0 ? '+' : ''}${Math.round(item.edge)}%</strong>${spikeMeter(clampForDisplay(item.edge + 50))}</div></div><div class="spike-reason-grid"><section><h3>Styrkor</h3><ul>${item.plus.map((reason) => `<li>${esc(reason)}</li>`).join('')}</ul></section><section><h3>Risker</h3><ul>${item.minus.map((reason) => `<li>${esc(reason)}</li>`).join('')}</ul></section></div><div class="spike-score-lines"><span>Today Fit ${spikeMeter(item.todayFit)}</span><span>CAP ${spikeMeter(item.cap)}</span><span>Reliability ${spikeMeter(item.reliability)}</span><span>Galopprisk ${spikeMeter(item.history.gallopRisk)}</span></div></div><div class="spike-detail-panel" data-spike-detail-panel="history" hidden><h3>Senaste starter <small>Confidence: ${esc(item.confidence)}</small></h3>${historyRows ? `<div class="spike-history-table"><table><thead><tr><th>Datum</th><th>Bana</th><th>Dist</th><th>Plac</th><th>Odds</th></tr></thead><tbody>${historyRows}</tbody></table></div>` : '<p class="spike-muted">Ingen historik är kopplad till hästen ännu.</p>'}</div><div class="spike-detail-panel" data-spike-detail-panel="match" hidden><h3>Dagens matchning</h3><div class="spike-match-list"><div><span>Distansmatch</span>${spikeMeter(item.history.distanceFit ?? 50)}</div><div><span>Startmetod</span>${spikeMeter(item.history.methodFit ?? 50)}</div><div><span>Klasspassning</span>${spikeMeter(item.classFit)}</div><div><span>Tipster Buzz</span>${spikeMeter(item.buzz)}</div></div><p class="spike-muted">Score bygger på tillgängliga startlistefält och blir säkrare när banprogramshistorik har importerats.</p></div><div class="spike-detail-actions"><button type="button" class="primary-button" data-spike-mark>${marked ? '✓ Spik markerad' : 'Markera som spik'}</button><button type="button" class="outline-button" data-spike-add-system>Lägg till i system</button></div>`;
+  return `<div class="spike-detail-head"><div class="spike-detail-number">${esc(item.number)}</div><div><span class="eyebrow">AVD ${esc(item.division)} · ${esc(item.recommendation)}</span><h2>${esc(item.name)}</h2><p>${esc(item.driver || 'Kusk saknas')} · ${esc(item.trainer || 'Tränare saknas')}</p></div><button type="button" class="spike-star-button ${marked ? 'active' : ''}" data-spike-mark aria-pressed="${marked}" title="Markera som spik">★</button></div><div class="spike-detail-tabs" role="tablist"><button type="button" class="active" data-spike-detail-tab="overview">Översikt</button><button type="button" data-spike-detail-tab="history">Historik</button><button type="button" data-spike-detail-tab="match">Matchning</button></div><div class="spike-detail-panel" data-spike-detail-panel="overview"><div class="spike-metric-grid"><div><span>SpikScore</span><strong class="accent-green">${Math.round(item.spikScore)}</strong>${spikeMeter(item.spikScore)}</div><div><span>Modellchans</span><strong>${Math.round(item.modelChance)}%</strong>${spikeMeter(item.modelChance)}</div><div><span>Marknad</span><strong>${fmtPercent(item.market)}</strong>${spikeMeter(item.market)}</div><div><span>Värde</span><strong class="${item.edge >= 0 ? 'accent-green' : 'accent-red'}">${item.edge >= 0 ? '+' : ''}${Math.round(item.edge)}%</strong>${spikeMeter(clampForDisplay(item.edge + 50))}</div></div><div class="spike-reason-grid"><section><h3>Styrkor</h3><ul>${item.plus.map((reason) => `<li>${esc(reason)}</li>`).join('')}</ul></section><section><h3>Risker</h3><ul>${item.minus.map((reason) => `<li>${esc(reason)}</li>`).join('')}</ul></section></div><div class="spike-score-lines"><span>Today Fit ${spikeMeter(item.todayFit)}</span><span>CAP ${spikeMeter(item.cap)}</span><span>Reliability ${spikeMeter(item.reliability)}</span><span>Galopprisk ${spikeMeter(item.history.gallopRisk)}</span></div></div><div class="spike-detail-panel" data-spike-detail-panel="history" hidden><h3>Senaste starter <small>Confidence: ${esc(item.confidence)}</small></h3>${historyRows ? `<div class="spike-history-table"><table><thead><tr><th>Datum</th><th>Bana</th><th>Dist</th><th>Spår</th><th>Start</th><th>Skor</th><th>Vagn</th><th>Plac</th><th>Odds</th></tr></thead><tbody>${historyRows}</tbody></table></div>` : '<p class="spike-muted">Ingen historik är kopplad till hästen ännu.</p>'}</div><div class="spike-detail-panel" data-spike-detail-panel="match" hidden><h3>Dagens matchning</h3><div class="spike-match-list"><div><span>Distansmatch</span>${spikeMeter(item.history.distanceFit ?? 50)}</div><div><span>Startmetod</span>${spikeMeter(item.history.methodFit ?? 50)}</div><div><span>Klasspassning</span>${spikeMeter(item.classFit)}</div><div><span>Tipster Buzz</span>${spikeMeter(item.buzz)}</div></div><p class="spike-muted">Score bygger på tillgängliga startlistefält och blir säkrare när banprogramshistorik har importerats.</p></div><div class="spike-detail-actions"><button type="button" class="primary-button" data-spike-mark>${marked ? '✓ Spik markerad' : 'Markera som spik'}</button><button type="button" class="outline-button" data-spike-add-system>Lägg till i system</button></div>`;
 }
 
 function clampForDisplay(value) { return Math.max(0, Math.min(100, Number(value) || 0)); }
+
+function spikeConfidenceLabel(value) {
+  return ({ HIGH: 'Hög', MEDIUM: 'Med', LOW: 'Låg', VERY_LOW: 'Mycket låg' }[String(value || '').toUpperCase()] || '–');
+}
+
+function spikeProfileCard(title, profile, fit, detail = '') {
+  const sample = Number(profile?.starts || 0);
+  const winRate = profile?.winRate === null || profile?.winRate === undefined ? '–' : `${Math.round(profile.winRate)}%`;
+  const top3Rate = profile?.top3Rate === null || profile?.top3Rate === undefined ? '–' : `${Math.round(profile.top3Rate)}%`;
+  const avgCap = profile?.avgCAP === null || profile?.avgCAP === undefined ? '–' : Math.round(profile.avgCAP);
+  return `<section class="spike-detail-section equipment-profile"><div class="spike-section-heading"><h3>${esc(title)}</h3><strong>${fit === null || fit === undefined ? '–' : Math.round(fit)}/100</strong></div><div class="spike-profile-grid"><div><span>Starter</span><b>${sample || '–'}</b></div><div><span>Vinster</span><b>${profile?.wins ?? '–'}</b></div><div><span>Vinst%</span><b>${winRate}</b></div><div><span>Topp 3</span><b>${top3Rate}</b></div><div><span>Avg CAP</span><b>${avgCap}</b></div><div><span>Konf.</span><b>${spikeConfidenceLabel(profile?.confidence)}</b></div></div>${detail ? `<p class="spike-muted">${esc(detail)}</p>` : ''}</section>`;
+}
+
+function spikeHistoryMatches(start, item, filter) {
+  if (!filter || filter === 'all') return true;
+  const distance = Number(item?.meta?.distance);
+  const startDistance = Number(start?.distance);
+  if (/^distance-/.test(filter)) return startDistance === Number(filter.slice(9));
+  if (filter === 'auto' || filter === 'volt') return String(start?.startMethod || '').toLowerCase() === filter;
+  if (filter === 'track') return !start?.track || !item?.meta?.track || String(start.track).toLowerCase().includes(String(item.meta.track).toLowerCase().slice(0, 3));
+  if (filter === 'shoes') return Boolean(start?.shoeCode || start?.shoes || start?.equipment?.shoesRaw);
+  if (filter === 'cart') return Boolean(start?.sulky || start?.wagon || start?.cart || start?.equipment?.cartRaw) && Boolean(item?.wagonType);
+  if (filter === 'similar') return (!item?.meta?.startMethod || !start?.startMethod || String(start.startMethod).toUpperCase() === String(item.meta.startMethod).toUpperCase()) && (!Number.isFinite(distance) || !Number.isFinite(startDistance) || Math.abs(distance - startDistance) <= 120) && (!start?.track || !item?.meta?.track || String(start.track).toLowerCase().includes(String(item.meta.track).toLowerCase().slice(0, 2)));
+  return true;
+}
+
+function spikeHistoryMarkup(item) {
+  const filters = [['all', 'Alla'], ['similar', 'Liknande idag'], ['distance-1640', '1640'], ['distance-2140', '2140'], ['distance-2640', '2640'], ['auto', 'Auto'], ['volt', 'Volt'], ['shoes', 'Dagens skor'], ['cart', 'Dagens vagn'], ['track', 'Samma bana']];
+  const starts = item.history.starts.filter((start) => spikeHistoryMatches(start, item, state.spikeHistoryFilter)).slice(0, 10);
+  const rows = starts.map((start) => `<tr><td>${esc(start.date || '–')}</td><td>${esc(start.track || '–')}</td><td>${esc(start.gameType || '–')}</td><td>${esc(start.distance || '–')}</td><td>${esc(start.startMethod || '–')}</td><td>${esc(start.postPosition || '–')}</td><td>${esc(start.placeRaw || start.place || '–')}</td><td>${esc(start.kmTimeRaw || start.kmTime || '–')}</td><td>${esc(start.odds || '–')}</td><td>${esc(start.shoeCode || '–')}</td><td>${esc(start.sulky || start.wagon || '–')}</td><td>${esc(start.driverName || start.driver || '–')}</td><td>${esc(start.CAP || start.cap || '–')}</td><td>${esc(start.class || start.gameType || '–')}</td></tr>`).join('');
+  return `<div class="spike-history-filter-row">${filters.map(([value, label]) => `<button type="button" class="${state.spikeHistoryFilter === value ? 'active' : ''}" data-spike-history-filter="${value}">${label}</button>`).join('')}</div>${rows ? `<div class="spike-history-table"><table><thead><tr><th>Datum</th><th>Bana</th><th>Lopp</th><th>Distans</th><th>Metod</th><th>Spår</th><th>Plac.</th><th>Km-tid</th><th>Odds</th><th>Skor</th><th>Vagn</th><th>Kusk</th><th>CAP</th><th>Klass</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="spike-muted">Ingen historik matchar detta filter ännu.</p>'}`;
+}
+
+function spikeDetailMarkup(item) {
+  if (!item) return '<div class="spike-detail-empty">Välj en häst i tabellen.</div>';
+  const marked = state.spikeMarks.has(`${state.round?.id}:${item.division}:${item.number}`);
+  const tag = item.tag || item.recommendation || 'GARDERA';
+  const layoffStatus = spikeLayoffLabel(item);
+  const equipmentChange = item.history?.equipmentChange || {};
+  const shoeProfile = item.history.shoeProfile?.starts ? item.history.shoeProfile : item.history.shoeDataProfile;
+  const shoeFit = item.history.shoeProfile?.starts ? item.history.shoeFit : item.history.shoeDataFit;
+  const currentShoeLabel = item.history.currentShoe ? (item.shoeLabel || 'Skor importerade') : 'Skor saknas i startlistan';
+  const currentWagonLabel = item.history.currentWagon ? (item.wagonLabel || 'Vagn importerad') : 'Vagn saknas i startlistan';
+  const shoeDetail = equipmentChange.shoesChanged
+    ? `Dagens skor: ${currentShoeLabel}. Ny balans jämfört med senaste starten: ${item.history.lastShoe || '–'} → ${item.history.currentShoe || '–'}`
+    : item.history.shoeSample
+      ? `Dagens skor: ${currentShoeLabel}. Ingen registrerad balansändring.`
+      : `Dagens skor: ${currentShoeLabel}. Ingen skohistorik i importerad data.`;
+  const wagonDetail = equipmentChange.cartChanged
+    ? `Dagens vagn: ${currentWagonLabel}. Ny vagn jämfört med senaste starten.`
+    : item.history.wagonSample
+      ? `Dagens vagn: ${currentWagonLabel}. Ingen registrerad vagnändring.`
+      : `Dagens vagn: ${currentWagonLabel}. Ingen vagnhistorik i importerad data.`;
+  const setupDetail = item.history.combinationSample
+    ? `Dagens setup: ${currentShoeLabel} + ${currentWagonLabel}. Liknande kontext: ${item.history.contextLevel || 'baseline'} · ${item.history.combinationSample} historiska starter.`
+    : item.history.shoeSample || item.history.wagonSample
+      ? `Dagens setup: ${currentShoeLabel} + ${currentWagonLabel}. Preliminärt setup-fit från tillgänglig ${item.history.shoeSample ? 'sko' : 'vagn'}historik; kombinationshistorik saknas.`
+      : `Dagens setup: ${currentShoeLabel} + ${currentWagonLabel}. Historik för skor och vagn saknas i importerad data.`;
+  const wagonTitle = item.history.currentWagon ? `Vagn (sulky) · ${currentWagonLabel}` : 'Vagn (sulky)';
+  const overview = `<div class="spike-detail-overview"><div class="spike-score-panel"><h3>Poängfördelning <small>1–100</small></h3>${[['Vinstförmåga', item.winAbility], ['Dagens matchning', item.todayFit], ['Stabilitet', item.reliability], ['Kusk', item.driver], ['Skor', item.shoeFit], ['Vagn', item.wagonFit], ['Uppehåll', item.recencyFitness]].map(([label, value]) => `<div class="spike-score-line"><span>${label}</span>${spikeMeter(value)}</div>`).join('')}</div><div class="spike-equipment-stack"><div class="spike-equipment-today"><span>SKOR IDAG</span><strong>${esc(item.shoeLabel || 'Saknas i banprogrammet')}</strong><small>${esc(item.wagonLabel || 'Vagn saknas i banprogrammet')}</small></div>${spikeProfileCard(item.history.currentShoe ? 'Skor' : 'Skor · historik', shoeProfile, shoeFit, shoeDetail)} ${spikeProfileCard(wagonTitle, item.history.wagonProfile, item.history.wagonFit, wagonDetail)}</div></div><div class="spike-detail-two-col">${spikeProfileCard('Dagens setup · skor + vagn', item.history.combinationProfile, item.history.setupFit, setupDetail)}<section class="spike-detail-section layoff-profile"><div class="spike-section-heading"><h3>Uppehåll</h3><strong class="${Number(item.layoffRisk) >= 40 ? 'accent-red' : 'accent-green'}">${esc(layoffStatus)}</strong></div><p>${Number.isFinite(Number(item.daysSinceLastStart)) ? `${item.daysSinceLastStart} dagar sedan senaste start.` : 'Exakt senaste startdatum saknas i denna import.'}</p><div class="spike-profile-grid"><div><span>Risk</span><b>${Math.round(item.layoffRisk || 0)}/100</b></div><div><span>RecencyFitness</span><b>${Math.round(item.recencyFitness || 0)}/100</b></div><div><span>Historik</span><b>${item.history.starts?.length || '–'} starter</b></div><div><span>Konf.</span><b>${spikeConfidenceLabel(item.history.layoffConfidence)}</b></div></div></section></div><section class="spike-tag-reasons"><div class="spike-section-heading"><h3>Varför denna tagg?</h3><strong class="tag-${spikeTagClass(tag)}">${esc(tag)}</strong></div><ul>${(item.tagReasons || item.plus || []).map((reason) => `<li>${esc(reason)}</li>`).join('')}</ul>${item.history.equipmentFit < 45 ? '<p class="spike-warning">⚠ Utrustningsmatch svag</p>' : ''}</section><div class="spike-info-inline"><span>INFO / TIPSTERS</span><strong>${Math.round(item.infoScore || 50)}/100</strong><small>${item.infoAdjustment > 0 ? 'Positiv tränar- eller kuskinformation påverkar uppåt.' : 'Ingen stark direkt signal i tillgänglig information.'}</small></div>`;
+  const history = spikeHistoryMarkup(item);
+  return `<div class="spike-detail-head"><div class="spike-detail-number">${esc(item.number)}</div><div><span class="eyebrow">${esc(state.round.gameType)}-${esc(item.division)} · ${esc(item.meta.track || state.round.track || '')}</span><h2>${esc(item.name)}</h2><p>${esc(item.driver || 'Kusk saknas')} · ${esc(item.meta.distance || item.distance || '–')} m ${esc(item.meta.startMethod || '')} · Spår ${esc(item.postPosition || item.number || '–')}</p></div><span class="spike-detail-tag tag-${spikeTagClass(tag)}">${esc(tag)}</span></div><div class="spike-detail-tabs" role="tablist"><button type="button" class="${state.spikeDetailTab === 'overview' ? 'active' : ''}" data-spike-detail-tab="overview">Översikt</button><button type="button" class="${state.spikeDetailTab === 'history' ? 'active' : ''}" data-spike-detail-tab="history">Historik</button><button type="button" class="${state.spikeDetailTab === 'match' ? 'active' : ''}" data-spike-detail-tab="match">Matchning</button></div><div class="spike-metric-grid"><div><span>SpikScore</span><strong class="accent-green">${Math.round(item.spikScore)}</strong>${spikeMeter(item.spikScore)}</div><div><span>Modelchans</span><strong>${Math.round(item.modelChance)}%</strong>${spikeMeter(item.modelChance)}</div><div><span>ATG %</span><strong>${fmtPercent(item.market)}</strong>${spikeMeter(item.market)}</div><div><span>Info-effekt</span><strong class="${item.infoAdjustment >= 0 ? 'accent-green' : 'accent-red'}">${item.infoAdjustment >= 0 ? '+' : ''}${Number(item.infoAdjustment || 0).toFixed(1)}</strong>${spikeMeter(clampForDisplay((item.infoScore || 50)))}</div></div><div class="spike-detail-panel" data-spike-detail-panel="overview" ${state.spikeDetailTab !== 'overview' ? 'hidden' : ''}>${overview}</div><div class="spike-detail-panel" data-spike-detail-panel="history" ${state.spikeDetailTab !== 'history' ? 'hidden' : ''}><div class="spike-section-heading"><h3>Senaste starter</h3><small>Nyaste loppet visas först · Confidence ${esc(spikeConfidenceLabel(item.confidence))}</small></div>${history}</div><div class="spike-detail-panel" data-spike-detail-panel="match" ${state.spikeDetailTab !== 'match' ? 'hidden' : ''}><div class="spike-detail-two-col"><section class="spike-detail-section"><h3>Dagens matchning</h3>${[['Distans', item.history.distanceFit], ['Startmetod', item.history.methodFit], ['Bana', item.history.trackFit], ['Spår', item.history.postPositionFit], ['Klass', item.classFit], ['Liknande kontext', item.history.contextFit]].map(([label, value]) => `<div class="spike-score-line"><span>${label}</span>${spikeMeter(value ?? 50)}</div>`).join('')}</section><section class="spike-detail-section"><h3>Risk och värde</h3><div class="spike-profile-grid"><div><span>Edge</span><b>${item.edge >= 0 ? '+' : ''}${Math.round(item.edge)}%</b></div><div><span>Marknadsvärde</span><b>${Math.round(item.marketValue || 50)}</b></div><div><span>Galopprisk</span><b>${Math.round(item.history.gallopRisk)}%</b></div><div><span>FalseFavoriteRisk</span><b>${Math.round(item.falseFavoriteRisk)}</b></div></div></section></div></div><div class="spike-detail-actions"><button type="button" class="primary-button" data-spike-mark>${marked ? '✓ Spik markerad' : 'Markera som spik'}</button><button type="button" class="outline-button" data-spike-add-system>Lägg till i system</button></div>`;
+}
+
+function renderSpikesLegacy() {
+  const content = $('#spikes-content');
+  if (!content) return;
+  if (!state.round) { content.innerHTML = '<div class="empty-state spike-empty-state"><div class="empty-icon">◉</div><h2>Öppna en spelomgång först</h2><p>Spikmotorn behöver dagens startlista för att räkna ut kandidater.</p><button type="button" class="secondary-button" data-view="home">Till start</button></div>'; return; }
+  const analysis = calculateSpikeEngine(state.round, state.tipsterBuzz);
+  state.spikeAnalysis = analysis;
+  const allRows = analysis.races.flatMap((race) => race.horses.map((horse) => ({ ...horse, division: race.division, race })));
+  const selected = allRows.find((horse) => horse.id === state.spikeHorseId && Number(horse.division) === Number(state.spikeDivision)) || allRows.find((horse) => horse.id === state.spikeHorseId) || allRows[0] || null;
+  state.spikeDivision = selected?.division || 1;
+  state.spikeHorseId = selected?.id || null;
+  const filteredRows = allRows.filter((item) => {
+    const tag = item.tag || 'GARDERA';
+    const trackMatch = state.spikeTrackFilter === 'all' || String(item.meta?.track || '').toLowerCase() === String(state.spikeTrackFilter).toLowerCase();
+    const methodMatch = state.spikeMethodFilter === 'all' || String(item.meta?.startMethod || '').toLowerCase() === String(state.spikeMethodFilter).toLowerCase();
+    const query = String(state.spikeSearch || '').trim().toLowerCase();
+    const searchMatch = !query || [item.name, item.driver, item.trainer].some((value) => String(value || '').toLowerCase().includes(query));
+    return (state.spikeTagFilter === 'ALL' || tag === state.spikeTagFilter) && trackMatch && methodMatch && searchMatch;
+  }).sort((left, right) => right.spikScore - left.spikScore || right.modelChance - left.modelChance);
+  const ranking = analysis.ranking.map((item) => `<button type="button" class="spike-ranking-row ${item.id === selected?.id ? 'selected' : ''}" data-spike-horse="${esc(item.id)}" data-spike-division="${esc(item.division)}"><span class="spike-ranking-index">${esc(item.rank)}</span><span><strong>Avd ${esc(item.division)} · ${esc(item.name)}</strong><small>${esc(item.tag || item.recommendation)} · marknad ${fmtPercent(item.market)} · modell ${Math.round(item.modelChance)}%</small></span><span class="spike-ranking-score">${Math.round(item.spikScore)}</span></button>`).join('');
+  const vulnerable = analysis.vulnerableFavorites.length ? analysis.vulnerableFavorites.map((item) => `<button type="button" class="spike-vulnerable-row" data-spike-horse="${esc(item.id)}" data-spike-division="${esc(item.division)}"><span>Avd ${esc(item.division)}</span><strong>${esc(item.name)}</strong><span>${fmtPercent(item.market)} streck · risk ${Math.round(item.falseFavoriteRisk)}</span></button>`).join('') : '<p class="spike-muted">Inga tydligt sårbara favoriter i tillgänglig data.</p>';
+  const duel = analysis.duel ? `<div class="spike-duel-grid">${[analysis.duel.left, analysis.duel.right].map((item, index) => `<div class="spike-duel-card"><span>${index ? 'B' : 'A'} · ${esc(item.name)}</span><strong>${Math.round(item.spikScore)}</strong><small>${esc(item.tag || 'GARDERA')} · ${Math.round(item.modelChance)}% modell · ${item.edge >= 0 ? '+' : ''}${Math.round(item.edge)}% edge</small><em>Fit ${Math.round(item.todayFit)} · Rel. ${Math.round(item.reliability)} · Skor ${Math.round(item.shoeFit)} · Vagn ${Math.round(item.wagonFit)}</em><em>${esc(item.shoeLabel || 'Skor saknas')} · ${esc(item.wagonLabel || 'Vagn saknas')} · ${esc(spikeLayoffLabel(item))}</em></div>`).join('')}</div><p class="spike-duel-verdict">${esc(analysis.duel.verdict)}</p>` : '<p class="spike-muted">Det behövs minst två kandidater för en spikduell.</p>';
+  const tags = ['ALL', 'SPIK', 'GARDERA', 'SKRÄLL', 'MOTBUD', 'UNDVIK'];
+  const tagLabels = { ALL: 'Alla', SPIK: 'Spik', GARDERA: 'Gardera', SKRÄLL: 'Skräll', MOTBUD: 'Motbud', UNDVIK: 'Undvik' };
+  const tagCounts = allRows.reduce((counts, item) => { const tag = item.tag || 'GARDERA'; counts[tag] = (counts[tag] || 0) + 1; return counts; }, {});
+  const summary = tags.slice(1).map((tag) => `<div class="spike-engine-stat tag-${spikeTagClass(tag)}"><strong>${tagCounts[tag] || 0}</strong><span>${tagLabels[tag]}</span><small>${tag === 'SPIK' ? 'Tydliga favoriter' : tag === 'GARDERA' ? 'Jämna lopp' : tag === 'SKRÄLL' ? 'Hög värdepotential' : tag === 'MOTBUD' ? 'Mot favoriten' : 'Låg chans / hög risk'}</small></div>`).join('');
+  const tracks = [...new Set(allRows.map((item) => item.meta?.track).filter(Boolean))];
+  const methods = [...new Set(allRows.map((item) => item.meta?.startMethod).filter(Boolean))];
+  const tableHead = ['Avd', '#', 'Häst', 'ATG %', 'Grundscore', 'Sko-fit', 'Vagn-fit', 'Uppehåll', 'SpikScore', 'Tagg'].map((label) => `<span>${label}</span>`).join('');
+  const raceRows = filteredRows.map((item, index) => spikeTableRow(item, index, item.race)).join('');
+  content.innerHTML = `<div class="spike-page-header"><div><span class="eyebrow">SPIKMOTOR 2.1 · ${esc(state.round.gameType)}</span><h1>${esc(state.round.gameType)} – ${esc(trackLabel(state.round.track, state.round.track2))}</h1><p>${esc(dateLabel(state.round.date))} · ${state.round.divisionCount} avdelningar · utrustning, kontext och uppehåll analyseras</p></div><div class="spike-header-status">${spikeProgramStatus(state.round)}<button type="button" class="ghost-button" data-spike-program-refresh>↻ Uppdatera</button><button type="button" class="ghost-button" data-view="round">Välj omgång</button></div></div><div class="spike-engine-summary"><div class="spike-engine-intro"><div class="spike-engine-icon">◉</div><div><h2>Spikmotor 2.1</h2><p>Avancerad analys. Fler datakällor. Smartare spel.</p></div></div>${summary}<div class="spike-method-note"><strong>ⓘ Så räknas SpikScore</strong><span>Form, loppklass, skor, vagn, kusk, bana, distans, startmetod och historisk kontext vägs samman.</span><small>All data visar osäkerhet och confidence.</small></div></div><div class="spike-filter-bar"><div class="spike-tag-filters">${tags.map((tag) => `<button type="button" class="${state.spikeTagFilter === tag ? 'active' : ''} tag-${spikeTagClass(tag)}" data-spike-tag-filter="${tag}">${tagLabels[tag]}${tag !== 'ALL' ? ` (${tagCounts[tag] || 0})` : ` (${allRows.length})`}</button>`).join('')}</div><div class="spike-select-filters"><select data-spike-track-filter aria-label="Filtrera bana"><option value="all">Alla banor</option>${tracks.map((track) => `<option value="${esc(track)}" ${state.spikeTrackFilter === track ? 'selected' : ''}>${esc(track)}</option>`).join('')}</select><select data-spike-method-filter aria-label="Filtrera startmetod"><option value="all">Alla startmetoder</option>${methods.map((method) => `<option value="${esc(method)}" ${state.spikeMethodFilter === method ? 'selected' : ''}>${esc(method)}</option>`).join('')}</select><input type="search" value="${esc(state.spikeSearch)}" data-spike-search placeholder="Sök häst, kusk eller tränare…"></div></div><div class="spike-main-grid"><section class="spike-table-card"><div class="spike-table-caption"><div><span class="eyebrow">HÄSTAR I OMGÅNGEN</span><strong>${filteredRows.length} av ${allRows.length} analyserade</strong></div><small>Sorterat efter SpikScore · välj en häst för detaljer</small></div><div class="spike-table-head">${tableHead}</div>${raceRows || '<div class="spike-muted spike-table-empty">Inga hästar matchar filtreringen.</div>'}</section><aside class="spike-detail-card">${spikeDetailMarkup(selected)}</aside></div><div class="spike-lower-grid"><section class="spike-panel"><div class="spike-panel-heading"><div><span class="eyebrow">SPIKRANKING</span><h2>Bästa spikkandidater</h2></div><span class="spike-panel-count">${analysis.ranking.length} kandidater</span></div><div class="spike-ranking-list">${ranking || '<p class="spike-muted">Startlista saknas.</p>'}</div></section><section class="spike-panel"><div class="spike-panel-heading"><div><span class="eyebrow">SÅRBARA FAVORITER</span><h2>Favoriter att kontrollera</h2></div></div><div class="spike-vulnerable-list">${vulnerable}</div></section><section class="spike-panel"><div class="spike-panel-heading"><div><span class="eyebrow">SPIKDUELL 2.1</span><h2>Två kandidater mot varandra</h2></div></div>${duel}</section></div><div class="spike-bottom-note"><span>ⓘ</span><strong>Så ska score läsas:</strong> Taggen är en kontextuell rekommendation för just denna omgång. Ingen häst är garanterad vinnare.</div>`;
+}
+
+function spikeDivisionTableRow(item, index) {
+  const selected = state.spikeHorseId === item.id && state.spikeDivision === Number(item.division);
+  const tag = item.tag || 'GARDERA';
+  const badges = [item.fieldRank === 1 ? 'Bäst i loppet' : '', item.market >= 25 && item.falseFavoriteRisk >= 55 ? 'Sårbar favorit' : '', item.edge >= 7 ? 'Värdehäst' : '', tag === 'SKRÄLL' ? 'Bästa skräll' : '', tag === 'MOTBUD' ? 'Bästa motbud' : ''].filter(Boolean).slice(0, 1);
+  return `<button type="button" class="spike-horse-row ${selected ? 'selected' : ''}" data-spike-horse="${esc(item.id)}" data-spike-division="${esc(item.division)}"><span class="spike-row-number">${esc(item.number || index + 1)}</span><span class="spike-horse-main"><strong>${esc(item.name)}${badges.length ? ` <small class="spike-inline-badge">${esc(badges[0])}</small>` : ''}</strong><small>${esc(item.driver || 'Kusk saknas')} · ${esc(item.trainer || 'Tränare saknas')}</small></span><span>${fmtPercent(item.market)}</span><span>${Math.round(item.baseSpikScore ?? item.spikScore)}</span><span class="spike-score-chip green">${Math.round(item.shoeFit ?? 50)}</span><span class="spike-score-chip blue">${Math.round(item.wagonFit ?? 50)}</span><span class="spike-layoff-cell ${Number(item.layoffRisk) >= 40 ? 'risk' : ''}">${esc(spikeLayoffLabel(item))}</span><span class="spike-score-cell">${spikeMeter(item.spikScore)}</span><span class="spike-recommendation tag-${spikeTagClass(tag)}">${esc(tag)}</span></button>`;
+}
 
 function renderSpikes() {
   const content = $('#spikes-content');
@@ -793,18 +1044,34 @@ function renderSpikes() {
   if (!state.round) { content.innerHTML = '<div class="empty-state spike-empty-state"><div class="empty-icon">◉</div><h2>Öppna en spelomgång först</h2><p>Spikmotorn behöver dagens startlista för att räkna ut kandidater.</p><button type="button" class="secondary-button" data-view="home">Till start</button></div>'; return; }
   const analysis = calculateSpikeEngine(state.round, state.tipsterBuzz);
   state.spikeAnalysis = analysis;
-  const raceIndex = Math.max(0, Math.min(analysis.races.length - 1, Number(state.spikeDivision || 1) - 1));
-  state.spikeDivision = raceIndex + 1;
-  const race = analysis.races[raceIndex];
-  const selectedHorse = race?.horses.find((horse) => horse.id === state.spikeHorseId) || race?.horses[0];
-  const selected = selectedHorse ? { ...selectedHorse, division: race.division } : null;
+  const races = analysis.races || [];
+  const selectedRace = races.find((race) => Number(race.division) === Number(state.spikeDivision)) || races[0] || null;
+  if (!selectedRace) { content.innerHTML = '<div class="empty-state spike-empty-state"><h2>Startlista saknas</h2><p>Importera omgången från ATG innan Spikmotorn kan analysera avdelningarna.</p></div>'; return; }
+  state.spikeDivision = Number(selectedRace.division);
+  const selected = selectedRace.horses.find((horse) => horse.id === state.spikeHorseId) || selectedRace.horses[0] || null;
   state.spikeHorseId = selected?.id || null;
-  const ranking = analysis.ranking.map((item) => `<button type="button" class="spike-ranking-row ${item.id === selected?.id ? 'selected' : ''}" data-spike-horse="${esc(item.id)}" data-spike-division="${esc(item.division)}"><span class="spike-ranking-index">${esc(item.rank)}</span><span><strong>Avd ${esc(item.division)} · ${esc(item.name)}</strong><small>${esc(item.recommendation)} · marknad ${fmtPercent(item.market)} · modell ${Math.round(item.modelChance)}%</small></span><span class="spike-ranking-score">${Math.round(item.spikScore)}</span></button>`).join('');
-  const vulnerable = analysis.vulnerableFavorites.length ? analysis.vulnerableFavorites.map((item) => `<button type="button" class="spike-vulnerable-row" data-spike-horse="${esc(item.id)}" data-spike-division="${esc(item.division)}"><span>Avd ${esc(item.division)}</span><strong>${esc(item.name)}</strong><span>${fmtPercent(item.market)} streck · risk ${Math.round(item.falseFavoriteRisk)}</span></button>`).join('') : '<p class="spike-muted">Inga tydligt sårbara favoriter i tillgänglig data.</p>';
-  const duel = analysis.duel ? `<div class="spike-duel-grid"><div><span>A · ${esc(analysis.duel.left.name)}</span><strong>${Math.round(analysis.duel.left.spikScore)}</strong><small>Modell ${Math.round(analysis.duel.left.modelChance)}% · edge ${analysis.duel.left.edge >= 0 ? '+' : ''}${Math.round(analysis.duel.left.edge)}%</small></div><div><span>B · ${esc(analysis.duel.right.name)}</span><strong>${Math.round(analysis.duel.right.spikScore)}</strong><small>Modell ${Math.round(analysis.duel.right.modelChance)}% · edge ${analysis.duel.right.edge >= 0 ? '+' : ''}${Math.round(analysis.duel.right.edge)}%</small></div></div><p class="spike-duel-verdict">${esc(analysis.duel.verdict)}</p>` : '<p class="spike-muted">Det behövs minst två kandidater för en spikduell.</p>';
-  const raceRows = (race?.horses || []).map((item, index) => spikeTableRow(item, index, race)).join('');
-  const meta = race?.meta || {};
-  content.innerHTML = `<div class="spike-page-header"><div><span class="eyebrow">SPIKMOTOR · ${esc(state.round.gameType)}</span><h1>Spikar för ${esc(trackLabel(state.round.track, state.round.track2))}</h1><p>${esc(dateLabel(state.round.date))} · ${state.round.divisionCount} avdelningar · motorversion V1</p></div><div class="spike-header-status">${spikeProgramStatus(state.round)}<button type="button" class="ghost-button" data-spike-program-refresh>↻ Hämta banprogram igen</button><button type="button" class="ghost-button" data-view="round">Till omgången</button></div></div><div class="spike-race-tabs">${analysis.races.map(spikeRaceHeader).join('')}</div><div class="spike-race-summary"><div><span class="eyebrow">OMGÅNG ${esc(state.round.gameType)}-${esc(race?.division || raceIndex + 1)}</span><h2>${esc(trackLabel(state.round.track, state.round.track2))}</h2><p>${esc(meta.distance || '–')} m · ${esc(meta.startMethod || 'Startmetod saknas')} · Förstapris ${money(meta.firstPrize || 0)}</p></div><div class="spike-summary-chip"><span>Analysstatus</span><strong>${analysis.ranking.length ? 'Klar' : 'Väntar på startlista'}</strong></div></div><div class="spike-main-grid"><section class="spike-table-card"><div class="spike-table-head"><span>#</span><span>Häst</span><span>Nr</span><span>Kön/ålder</span><span>ATG %</span><span>Odds</span><span>SpikScore</span><span>Rek.</span><span></span></div>${raceRows || '<div class="spike-muted spike-table-empty">Inga aktiva hästar i avdelningen.</div>'}</section><aside class="spike-detail-card">${spikeDetailMarkup(selected)}</aside></div><div class="spike-lower-grid"><section class="spike-panel"><div class="spike-panel-heading"><div><span class="eyebrow">SPIKRANKING</span><h2>Bästa spikkandidater</h2></div><span class="spike-panel-count">${analysis.ranking.length} kandidater</span></div><div class="spike-ranking-list">${ranking || '<p class="spike-muted">Startlista saknas.</p>'}</div></section><section class="spike-panel"><div class="spike-panel-heading"><div><span class="eyebrow">SÅRBARA FAVORITER</span><h2>Favoriter att kontrollera</h2></div></div><div class="spike-vulnerable-list">${vulnerable}</div></section><section class="spike-panel"><div class="spike-panel-heading"><div><span class="eyebrow">SPIKDUELL</span><h2>Två kandidater mot varandra</h2></div></div>${duel}</section></div><div class="spike-bottom-note"><span>ⓘ</span><strong>Så ska score läsas:</strong> SpikScore svarar på om hästen är lämplig att låsa systemet på. Modellchans och marknadsvärde visas separat.</div>`;
+  const tagLabels = { ALL: 'Alla', SPIK: 'Spik', GARDERA: 'Gardera', SKRÄLL: 'Skräll', MOTBUD: 'Motbud', UNDVIK: 'Undvik' };
+  const tags = ['ALL', 'SPIK', 'GARDERA', 'SKRÄLL', 'MOTBUD', 'UNDVIK'];
+  const tagCounts = selectedRace.horses.reduce((counts, horse) => { const tag = horse.tag || 'GARDERA'; counts[tag] = (counts[tag] || 0) + 1; return counts; }, {});
+  const search = String(state.spikeSearch || '').trim().toLowerCase();
+  const filtered = selectedRace.horses.filter((horse) => {
+    const tagMatch = state.spikeTagFilter === 'ALL' || horse.tag === state.spikeTagFilter;
+    const searchMatch = !search || [horse.name, horse.driver, horse.trainer].some((value) => String(value || '').toLowerCase().includes(search));
+    const edgeMatch = !state.spikeOnlyPositiveEdge || horse.edge > 0;
+    const confidenceMatch = !state.spikeOnlyHighConfidence || ['HIGH', 'MEDIUM'].includes(String(horse.confidence || '').toUpperCase());
+    return tagMatch && searchMatch && edgeMatch && confidenceMatch;
+  }).sort((left, right) => { const key = state.spikeSort || 'spikScore'; const a = Number(left[key] ?? 0); const b = Number(right[key] ?? 0); return b - a || Number(right.spikScore || 0) - Number(left.spikScore || 0); });
+  const raceMetrics = selectedRace.raceMetrics || {};
+  const best = selectedRace.top;
+  const favorite = selectedRace.horses.find((horse) => horse.id === raceMetrics.mainFavoriteHorseId) || null;
+  const tabs = races.map((race) => { const metric = race.raceMetrics || {}; const active = Number(race.division) === Number(selectedRace.division); return `<button type="button" class="spike-division-card ${active ? 'active' : ''}" data-spike-division="${esc(race.division)}"><strong>${esc(state.round.gameType)}-${esc(race.division)}</strong><span>${esc(race.meta?.track || state.round.track || '')} · ${esc(race.meta?.distance || '–')} m ${esc(race.meta?.startMethod || '')}</span><b>${Math.round(metric.spikQuality || 0)}</b><small>${esc(metric.status || 'Öppet lopp')}</small><em>${esc(race.top?.name || 'Ingen topphäst')}</em></button>`; }).join('');
+  const topThree = selectedRace.horses.slice(0, 3).map((horse, index) => `<li><span>${index + 1}</span><strong>${esc(horse.name)}</strong><b>${Math.round(horse.spikScore)}</b></li>`).join('');
+  const sortOptions = [['spikScore', 'SpikScore'], ['modelChance', 'ModelChance'], ['edge', 'Edge'], ['reliability', 'Reliability'], ['equipmentFit', 'EquipmentFit'], ['paceFit', 'PaceFit'], ['market', 'ATG %']];
+   const tableHead = ['#', 'Häst', 'ATG %', 'Grundscore', 'Sko-fit', 'Vagn-fit', 'Uppehåll', 'SpikScore', 'Tagg'].map((label) => `<span>${label}</span>`).join('');
+  const roundBest = [...races].sort((a, b) => (b.raceMetrics?.spikQuality || 0) - (a.raceMetrics?.spikQuality || 0))[0];
+  const openRace = [...races].sort((a, b) => (a.raceMetrics?.spikQuality || 0) - (b.raceMetrics?.spikQuality || 0))[0];
+  const lower = `<section class="spike-panel"><div class="spike-panel-heading"><div><span class="eyebrow">OMGÅNGSÖVERSIKT</span><h2>Var ska vi spika?</h2></div></div><div class="spike-round-callouts"><div><span>Bästa spiklopp</span><strong>${roundBest ? `${state.round.gameType}-${roundBest.division}` : '–'}</strong><small>${roundBest ? `${Math.round(roundBest.raceMetrics.spikQuality)} · ${esc(roundBest.top?.name || '–')}` : '–'}</small></div><div><span>Mest öppna lopp</span><strong>${openRace ? `${state.round.gameType}-${openRace.division}` : '–'}</strong><small>${openRace ? `${Math.round(openRace.raceMetrics.spikQuality)} · ${esc(openRace.raceMetrics.status || 'Garderingslopp')}` : '–'}</small></div></div></section><section class="spike-panel"><div class="spike-panel-heading"><div><span class="eyebrow">TOPP 3 · AVD ${esc(selectedRace.division)}</span><h2>Modellens rangordning</h2></div></div><ol class="spike-race-top-three">${topThree || '<li>Ingen häst analyserad</li>'}</ol></section>`;
+  content.innerHTML = `<div class="spike-page-header"><div><span class="eyebrow">SPIKMOTOR 3.0 · ${esc(state.round.gameType)}</span><h1>${esc(state.round.gameType)} – ${esc(trackLabel(state.round.track, state.round.track2))}</h1><p>${esc(dateLabel(state.round.date))} · ${state.round.divisionCount} avdelningar · analys per avdelning</p></div><div class="spike-header-status">${spikeProgramStatus(state.round)}<button type="button" class="ghost-button" data-spike-program-refresh>↻ Uppdatera</button><button type="button" class="ghost-button" data-view="round">Omgång</button></div></div><section class="spike-division-overview"><div class="spike-division-overview-heading"><div><span class="eyebrow">AVDELNINGSÖVERSIKT</span><h2>Spikkvalitet per lopp</h2></div><small>Välj en avdelning för djupanalys</small></div><div class="spike-division-cards">${tabs}</div></section><div class="spike-division-tabs" role="tablist" aria-label="Avdelningar">${races.map((race) => `<button type="button" class="${Number(race.division) === Number(selectedRace.division) ? 'active' : ''}" data-spike-division="${esc(race.division)}">${esc(state.round.gameType)}-${esc(race.division)}</button>`).join('')}</div><section class="spike-selected-race"><div><span class="eyebrow">VALD AVDELNING · ${esc(state.round.gameType)}-${esc(selectedRace.division)}</span><h2>${esc(selectedRace.meta?.track || state.round.track || '')} · ${esc(selectedRace.meta?.distance || '–')} m ${esc(selectedRace.meta?.startMethod || '')}</h2><p>${selectedRace.horses.length} hästar · Favorit: ${esc(favorite?.name || 'saknas')} · ${raceMetrics.vulnerableFavoriteHorseId ? 'Sårbar favorit' : 'Ingen tydligt sårbar favorit'} · Spetsbild: ${esc(selectedRace.paceScenario?.pacePressure || 'Medel')}</p></div><div class="spike-quality-badge"><span>Spikkvalitet</span><strong>${Math.round(raceMetrics.spikQuality || 0)}</strong><small>${esc(raceMetrics.status || 'Öppet lopp')}</small></div><div class="spike-selected-race-top"><span>Spetschans</span><strong>${Math.round(selectedRace.paceScenario?.leadProbability || 0)}%</strong><span>Race uncertainty ${Math.round(raceMetrics.raceUncertainty || 0)}</span></div></section><div class="spike-race-analysis"><div><span class="eyebrow">VÅR ANALYS</span><p>${best ? `${esc(best.number)} ${esc(best.name)} är bästa modellhäst med ${Math.round(best.spikScore)} i SpikScore. ${esc(best.pace?.expectedPosition || 'Körscenariot')} väntas efter 500 meter.` : 'Ingen analys tillgänglig.'}</p></div><ol><li><span>1</span><strong>${esc(selectedRace.horses[0]?.name || '–')}</strong><b>${Math.round(selectedRace.horses[0]?.spikScore || 0)}</b></li><li><span>2</span><strong>${esc(selectedRace.horses[1]?.name || '–')}</strong><b>${Math.round(selectedRace.horses[1]?.spikScore || 0)}</b></li><li><span>3</span><strong>${esc(selectedRace.horses[2]?.name || '–')}</strong><b>${Math.round(selectedRace.horses[2]?.spikScore || 0)}</b></li></ol></div><div class="spike-filter-bar"><div class="spike-tag-filters">${tags.map((tag) => `<button type="button" class="${state.spikeTagFilter === tag ? 'active' : ''} tag-${spikeTagClass(tag)}" data-spike-tag-filter="${tag}">${tagLabels[tag]} (${tag === 'ALL' ? selectedRace.horses.length : tagCounts[tag] || 0})</button>`).join('')}</div><div class="spike-select-filters"><select data-spike-sort aria-label="Sortera hästar">${sortOptions.map(([value, label]) => `<option value="${value}" ${state.spikeSort === value ? 'selected' : ''}>Sortera: ${label}</option>`).join('')}</select><label class="spike-check-filter"><input type="checkbox" data-spike-positive-edge ${state.spikeOnlyPositiveEdge ? 'checked' : ''}> Positiv edge</label><label class="spike-check-filter"><input type="checkbox" data-spike-high-confidence ${state.spikeOnlyHighConfidence ? 'checked' : ''}> Hög confidence</label><input type="search" value="${esc(state.spikeSearch)}" data-spike-search placeholder="Sök häst, kusk eller tränare…"></div></div><div class="spike-main-grid"><section class="spike-table-card"><div class="spike-table-caption"><div><span class="eyebrow">HÄSTAR I AVD ${esc(selectedRace.division)}</span><strong>${filtered.length} av ${selectedRace.horses.length} analyserade</strong></div><small>Rankade inom vald avdelning · senaste SpikScore först</small></div><div class="spike-table-head">${tableHead}</div>${filtered.map((horse, index) => spikeDivisionTableRow({ ...horse, division: selectedRace.division }, index)).join('') || '<div class="spike-muted spike-table-empty">Inga hästar matchar filtreringen.</div>'}</section><aside class="spike-detail-card">${spikeDetailMarkup(selected ? { ...selected, division: selectedRace.division } : null)}</aside></div><div class="spike-lower-grid">${lower}</div><div class="spike-bottom-note"><span>ⓘ</span><strong>Så ska score läsas:</strong> Spikkvalitet bedömer loppet. SpikScore bedömer hästen mot konkurrenterna i just den valda avdelningen.</div>`;
 }
 
 function showView(name) {
@@ -887,6 +1154,14 @@ function openRoundById(gameId, updateUrl = true) {
   state.spikeDivision = 1;
   state.spikeHorseId = null;
   state.spikeDetailTab = 'overview';
+  state.spikeTagFilter = 'ALL';
+  state.spikeTrackFilter = 'all';
+  state.spikeMethodFilter = 'all';
+  state.spikeSearch = '';
+  state.spikeHistoryFilter = 'all';
+  state.spikeSort = 'spikScore';
+  state.spikeOnlyPositiveEdge = false;
+  state.spikeOnlyHighConfidence = false;
   state.savedCoupons = Array.isArray(game.coupons) ? game.coupons : [];
   state.roundBuilderTab = 'together';
   state.tipsterCouponTab = 'started';
@@ -1871,9 +2146,10 @@ function renderPreview() {
 function renderImportStatus(items, message = '') { const box = $('#import-status'); box.hidden = false; box.innerHTML = `${message ? `<strong>${esc(message)}</strong>` : ''}${items.map((item) => `<div class="import-line ${item.status}"><span>${item.status === 'done' ? '✓' : item.status === 'error' ? '!' : item.status === 'loading' ? '⟳' : '○'} Avd ${item.division}</span><span>${item.status === 'done' ? `${item.count} hästar` : item.status === 'error' ? esc(item.message || 'kunde inte hämtas') : item.status === 'loading' ? 'hämtar…' : ''}</span></div>`).join('')}`; }
 function setCreateBusy(busy) { $('#import-round').disabled = busy; $('#manual-round').disabled = busy; $('#import-round').innerHTML = busy ? 'Hämtar startlista…' : 'Hämta startlista <span>→</span>'; }
 
-function setRefreshImportOverlay(config, mode = 'loading', message = '') {
+function setRefreshImportOverlay(config, mode = 'loading', message = '', kind = 'round') {
   const overlay = $('#refresh-import-overlay');
   if (!overlay) return;
+  const isTipsterRefresh = kind === 'tipsters';
   const title = $('#refresh-import-title');
   const detail = $('#refresh-import-detail');
   const phase = $('#refresh-import-phase');
@@ -1883,14 +2159,14 @@ function setRefreshImportOverlay(config, mode = 'loading', message = '') {
   if (mode === 'loading') {
     overlay.hidden = false;
     overlay.classList.remove('is-error', 'is-complete');
-    title.textContent = `Uppdaterar ${config.gameType} ${config.track}`;
-    detail.textContent = 'ATG-data hämtas och jämförs med den sparade startlistan.';
+    title.textContent = isTipsterRefresh ? 'Uppdaterar tipsterinformation' : `Uppdaterar ${config.gameType} ${config.track}`;
+    detail.textContent = isTipsterRefresh ? 'ATG Stallsnack, Untersteiner och Stall Zet hämtas och kopplas till rätt hästar.' : 'ATG-data hämtas och jämförs med den sparade startlistan.';
     phase.textContent = 'Förbereder importen…';
     bar.value = 4;
     percent.textContent = '4%';
     eta.textContent = 'Beräknar återstående tid…';
     const startedAt = performance.now();
-    const estimateMs = Math.max(45000, divisionCount(config.gameType) * 6500);
+    const estimateMs = isTipsterRefresh ? 60000 : Math.max(45000, divisionCount(config.gameType) * 6500);
     clearInterval(state.refreshImportTimer);
     state.refreshImportTimer = setInterval(() => {
       const elapsed = performance.now() - startedAt;
@@ -1899,7 +2175,9 @@ function setRefreshImportOverlay(config, mode = 'loading', message = '') {
       bar.value = progress;
       percent.textContent = `${progress}%`;
       eta.textContent = `Cirka ${remaining} sek kvar (uppskattning)`;
-      phase.textContent = progress < 30 ? 'Ansluter till Trav API…' : progress < 70 ? 'Hämtar startlistor från ATG…' : progress < 90 ? 'Läser kusk, vinnarprocent, odds och trend…' : 'Sparar och jämför uppdateringen…';
+      phase.textContent = isTipsterRefresh
+        ? (progress < 25 ? 'Ansluter till Trav API…' : progress < 60 ? 'Hämtar ATG Stallsnack…' : progress < 82 ? 'Läser Untersteiner och Stall Zet…' : 'Matchar kommentarerna mot hästarna…')
+        : (progress < 30 ? 'Ansluter till Trav API…' : progress < 70 ? 'Hämtar startlistor från ATG…' : progress < 90 ? 'Läser kusk, vinnarprocent, odds och trend…' : 'Sparar och jämför uppdateringen…');
     }, 250);
     return;
   }
@@ -1907,9 +2185,9 @@ function setRefreshImportOverlay(config, mode = 'loading', message = '') {
   state.refreshImportTimer = null;
   overlay.classList.toggle('is-error', mode === 'error');
   overlay.classList.toggle('is-complete', mode === 'complete');
-  title.textContent = mode === 'complete' ? 'Importen är klar' : 'Importen kunde inte slutföras';
-  detail.textContent = message || (mode === 'complete' ? 'Startlistan är uppdaterad och ändrade värden markeras grönt.' : 'Kontrollera Trav API eller Render och försök igen.');
-  phase.textContent = mode === 'complete' ? '✓ Uppdateringen sparades' : '! Importen avbröts';
+  title.textContent = mode === 'complete' ? (isTipsterRefresh ? 'Tipsterimporten är klar' : 'Importen är klar') : 'Importen kunde inte slutföras';
+  detail.textContent = message || (mode === 'complete' ? (isTipsterRefresh ? 'Källorna är uppdaterade och kommentarerna är kopplade till omgången.' : 'Startlistan är uppdaterad och ändrade värden markeras grönt.') : 'Kontrollera Trav API eller Render och försök igen.');
+  phase.textContent = mode === 'complete' ? (isTipsterRefresh ? '✓ Tipsterinformationen sparades' : '✓ Uppdateringen sparades') : '! Importen avbröts';
   bar.value = mode === 'complete' ? 100 : 0;
   percent.textContent = mode === 'complete' ? '100%' : '0%';
   eta.textContent = '';
@@ -2515,12 +2793,16 @@ function combinationPickerMarkup(couponIndex) {
   const cursor = lockedIndex >= 0 ? lockedIndex : Math.min(Math.max(0, state.combinationCursors[couponIndex] ?? 0), options.length - 1);
   const pending = state.pendingCombinationIndexes[couponIndex];
   const option = options[cursor];
-  const displayCounts = (locked && lockedSignature ? lockedSignature.split('x').map(Number) : option.counts).slice().sort((a, b) => a - b);
+  const displayedOption = lockedIndex >= 0 ? options[lockedIndex] : option;
+  const displayCounts = [...(displayedOption?.counts || [])];
+  const spikeDivisions = displayCounts
+    .map((count, index) => count === 1 ? `Avd ${state.round?.races?.[index]?.division ?? index + 1}` : null)
+    .filter(Boolean);
   const cost = countPlanProduct(displayCounts) * rowPrice;
   const selected = locked || pending === cursor;
   const sectionClass = locked ? ' locked' : '';
   const markerTitle = locked ? 'Lås upp denna kombination' : 'Lås denna kombination när du slumpar kupongerna';
-  return `<section class="combination-picker${sectionClass}" data-combination-picker="${couponIndex}"><div class="combination-slider" data-combination-slider="${couponIndex}"><button type="button" class="combination-arrow" data-combination-prev="${couponIndex}" aria-label="Föregående kombination"${locked ? ' disabled' : ''}>‹</button><div class="combination-slide-window"><div class="combination-option combination-slide${locked ? ' locked' : ''} ${selected ? 'selected' : ''}"><div class="combination-option-copy"><span class="combination-pattern">${displayCounts.join('x')}</span><strong>${money(cost)}</strong></div><button type="button" class="combination-select-marker ${selected ? 'selected' : ''}${locked ? ' locked' : ''}" data-combination-select="${couponIndex}" aria-pressed="${locked}" title="${markerTitle}">${locked ? '●' : '○'}</button></div></div><button type="button" class="combination-arrow" data-combination-next="${couponIndex}" aria-label="Nästa kombination"${locked ? ' disabled' : ''}>›</button></div><div class="combination-control-row"><span>${locked ? 'Låst kombination' : `${cursor + 1} / ${options.length}`}</span></div></section>`;
+  return `<section class="combination-picker${sectionClass}" data-combination-picker="${couponIndex}"><div class="combination-slider" data-combination-slider="${couponIndex}"><button type="button" class="combination-arrow" data-combination-prev="${couponIndex}" aria-label="Föregående kombination"${locked ? ' disabled' : ''}>‹</button><div class="combination-slide-window"><div class="combination-option combination-slide${locked ? ' locked' : ''} ${selected ? 'selected' : ''}"><div class="combination-option-copy"><span class="combination-pattern">${displayCounts.join('x')}</span><strong>${money(cost)}</strong><small class="combination-division-hint">${spikeDivisions.length ? `Spik: ${spikeDivisions.join(', ')}` : 'Inga spikar'}</small></div><button type="button" class="combination-select-marker ${selected ? 'selected' : ''}${locked ? ' locked' : ''}" data-combination-select="${couponIndex}" aria-pressed="${locked}" title="${markerTitle}">${locked ? '●' : '○'}</button></div></div><button type="button" class="combination-arrow" data-combination-next="${couponIndex}" aria-label="Nästa kombination"${locked ? ' disabled' : ''}>›</button></div><div class="combination-control-row"><span>${locked ? 'Låst kombination · avdelningsordning' : `${cursor + 1} / ${options.length} · Avd 1 → ${displayCounts.length}`}</span></div></section>`;
 }
 
 function moveCombinationCursor(couponIndex, direction) {
@@ -2686,6 +2968,19 @@ function openRoundEditor() {
   const races = state.round?.races || []; $('#editor-content').innerHTML = `<div class="eyebrow">OMGÅNGSDATA</div><h2 class="editor-title">Redigera ${esc(state.round?.name || 'omgång')}</h2><p class="editor-intro">Ändra startlistan utan att påverka den gamla /trav-sidan. Manuella ändringar sparas i samma TravGame-dokument.</p>${races.length ? `<form id="round-editor-form">${races.map((race) => `<h3>Avd ${race.division}</h3><table class="editor-table"><thead><tr><th>#</th><th>Häst</th><th>Kusk</th><th>%</th><th>Odds</th></tr></thead><tbody>${race.horses.map((horse, index) => `<tr data-race="${race.division}" data-horse="${index}"><td><input data-field="number" value="${esc(horse.number)}"></td><td><input data-field="name" value="${esc(horse.name)}"></td><td><input data-field="driver" value="${esc(horse.driver)}"></td><td><input data-field="winPercent" value="${esc(horse.winPercent ?? '')}"></td><td><input data-field="winOdds" value="${esc(horse.winOdds ?? '')}"></td></tr>`).join('')}</tbody></table>`).join('')}<div class="modal-actions"><button type="submit" class="primary-button">Spara ändringar</button></div></form>` : `<div class="empty-state"><p>Den här omgången saknar hästar. Hämta startlista igen eller använd Skapa utan import och lägg in data via API:t.</p></div>`}`; $('#editor-modal').hidden = false;
 }
 async function saveRoundEditor(event) { event.preventDefault(); const form = event.currentTarget; form.querySelectorAll('tr[data-race]').forEach((row) => { const race = state.round.races.find((item) => item.division === Number(row.dataset.race)); const horse = race?.horses?.[Number(row.dataset.horse)]; if (!horse) return; row.querySelectorAll('[data-field]').forEach((input) => { const field = input.dataset.field; horse[field] = ['number', 'winPercent', 'winOdds'].includes(field) ? number(input.value) : input.value; }); }); try { const response = await apiFetch(`/rounds/${encodeURIComponent(state.round.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ round: state.round }) }); if (!response.ok) throw new Error(await response.text() || 'Kunde inte spara'); state.round = await response.json(); $('#editor-modal').hidden = true; generateCoupons(); renderRound(); showToast('Omgången sparades'); } catch (error) { showToast(error.message); } }
+
+function openCouponEditor(couponIndex, raceIndex) {
+  const coupon = state.coupons?.[Number(couponIndex)];
+  const race = state.round?.races?.[Number(raceIndex)];
+  if (!coupon || !race) return;
+  const selected = new Set(coupon.selections?.[Number(raceIndex)] || []);
+  $('#editor-content').innerHTML = `<div class="eyebrow">TILLSAMMANS · ${esc(coupon.name || `Kupong ${Number(couponIndex) + 1}`)}</div><h2 class="editor-title">Avd ${race.division} – välj hästar</h2><p class="editor-intro">Lägg till eller ta bort hästar på kupongen. Ändringen påverkar bara den här kupongen.</p><form id="coupon-editor-form"><div class="horse-picker">${race.horses.map((horse) => `<label class="picker-row ${horse.scratched ? 'scratched-row' : ''}"><input type="checkbox" name="horse" value="${esc(horse.number)}" ${selected.has(Number(horse.number)) ? 'checked' : ''} ${horse.scratched ? 'disabled' : ''}><strong>${esc(horse.number)}</strong><span>${esc(horse.name)}${horse.scratched ? ' · struken' : ''}</span><small>${horse.scratched ? 'EJ' : `${fmtPercent(horse.winPercent)} · ${esc(horse.driver || '–')}`}</small></label>`).join('')}</div><div class="modal-actions"><button type="submit" class="primary-button">Spara avdelning</button></div></form>`;
+  $('#editor-modal').hidden = false;
+  const form = $('#coupon-editor-form');
+  form.dataset.coupon = couponIndex;
+  form.dataset.race = raceIndex;
+  form.addEventListener('submit', saveCouponEditor);
+}
 
 function openComplementCouponEditor(raceIndex, source = 'together', modeOverride = state.complementMode, tipsterOverride = state.complementTipsterId) {
   const race = state.round?.races?.[Number(raceIndex)];
@@ -2853,6 +3148,10 @@ function bindEvents() {
   ensureTipsterNavBadge();
   renderTipsterNavBadge();
   document.addEventListener('click', (event) => {
+    const spikeTagFilter = event.target.closest('[data-spike-tag-filter]');
+    if (spikeTagFilter) { state.spikeTagFilter = spikeTagFilter.dataset.spikeTagFilter || 'ALL'; renderSpikes(); return; }
+    const spikeHistoryFilter = event.target.closest('[data-spike-history-filter]');
+    if (spikeHistoryFilter) { state.spikeHistoryFilter = spikeHistoryFilter.dataset.spikeHistoryFilter || 'all'; renderSpikes(); return; }
     const programRefresh = event.target.closest('[data-spike-program-refresh]');
     if (programRefresh) { event.preventDefault(); event.stopPropagation(); void refreshProgramPdfs(); return; }
     const spikeHorse = event.target.closest('[data-spike-horse]');
@@ -2955,7 +3254,10 @@ function bindEvents() {
     if (downgradeDelete) { state.downgradeDrafts = state.downgradeDrafts.filter((item) => item.id !== downgradeDelete.dataset.downgradeDelete); saveDowngradeDrafts(); renderDowngradeDrafts(); return; }
   });
   document.addEventListener('input', (event) => { if (event.target.id === 'reverse-price') { state.reversePrice = Math.max(1, Number(event.target.value) || 20); } if (event.target.id === 'together-stake-price') { state.togetherStakePrice = Number(event.target.value) > 0 ? Number(event.target.value) : null; scheduleCouponRegeneration(); } if (event.target.id === 'reverse-stake-price') { state.reverseStakePrice = Number(event.target.value) > 0 ? Number(event.target.value) : null; if (state.reverseCoupon) { state.reverseCoupon.cost = state.reverseCoupon.rows * rowPriceForGameType((state.round || matchingRoundForPurchased(selectedReverseSources()[0]))?.gameType || state.reverseCoupon.gameType); renderReversePreview(); } } if (event.target.id === 'downgrade-price') { state.downgradePrice = Math.max(1, Number(event.target.value) || 1000); state.downgradeCoupons = []; } });
+  document.addEventListener('input', (event) => { if (event.target.matches('[data-spike-search]')) { state.spikeSearch = event.target.value; clearTimeout(state.spikeSearchTimer); state.spikeSearchTimer = setTimeout(() => renderSpikes(), 180); } });
   document.addEventListener('change', (event) => { if (event.target.id === 'downgrade-new-combination') { state.downgradeNewCombination = event.target.checked; state.downgradeCoupons = []; renderDowngradeBuilder(); } });
+  document.addEventListener('change', (event) => { if (event.target.matches('[data-spike-track-filter]')) { state.spikeTrackFilter = event.target.value; renderSpikes(); } if (event.target.matches('[data-spike-method-filter]')) { state.spikeMethodFilter = event.target.value; renderSpikes(); } });
+  document.addEventListener('change', (event) => { if (event.target.matches('[data-spike-sort]')) { state.spikeSort = event.target.value || 'spikScore'; renderSpikes(); } if (event.target.matches('[data-spike-positive-edge]')) { state.spikeOnlyPositiveEdge = event.target.checked; renderSpikes(); } if (event.target.matches('[data-spike-high-confidence]')) { state.spikeOnlyHighConfidence = event.target.checked; renderSpikes(); } });
   document.addEventListener('change', (event) => { if (event.target.id === 'reverse-share-enabled') { state.reverseShareEnabled = event.target.checked; renderReverseSettings(); } if (event.target.id === 'reverse-share-count') state.reverseShareCount = Number(event.target.value) || 50; if (event.target.id === 'together-stake-percent') { state.togetherStakePercent = Number(event.target.value) || 100; generateCoupons(); renderCoupons(); } if (event.target.id === 'reverse-stake-percent') { state.reverseStakePercent = Number(event.target.value) || 100; const reverseRound = state.round || matchingRoundForPurchased(selectedReverseSources()[0]); if (state.reverseCoupon && reverseRound) state.reverseCoupon.cost = state.reverseCoupon.rows * rowPriceForGameType(reverseRound.gameType); renderReverseSettings(); renderReverseBuilder(); } });
   document.addEventListener('click', (event) => {
     const togetherOption = event.target.closest('.combination-picker:not(.reverse-combination-picker) .combination-option');
@@ -3002,6 +3304,12 @@ function bindEvents() {
 
 window.addEventListener('popstate', () => { const roundId = new URLSearchParams(window.location.search).get('round'); if (roundId) openRoundById(roundId, false); else { state.round = null; showView('home'); renderHome(); } });
 loadPurchasedCoupons(); loadShopLinks(); loadDowngradeDrafts(); loadFocusedTogetherPackages(); $('#round-date').value = today(); bindEvents(); renderPreview(); loadGames();
+const infoContent = $('#info-content');
+if (infoContent && typeof MutationObserver !== 'undefined') {
+  const infoFormObserver = new MutationObserver(ensureInfoFormFields);
+  infoFormObserver.observe(infoContent, { childList: true, subtree: true });
+  ensureInfoFormFields();
+}
 document.addEventListener('click', (event) => {
   if (event.target.closest('#header-edit, #empty-edit')) openRoundEditor();
 });

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#073d59">
+  <title>Nemo — arbetsfördelning</title>
+  <link rel="stylesheet" href="/nemo/nemo.css">
+  <script type="module" src="/nemo/nemo.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/nemo/" aria-label="Nemo startsida"><span class="brand-mark">N</span><span>Nemo<small>Arbetsfördelning</small></span></a>
+    <div class="top-date" id="todayLabel"></div>
+  </header>
+  <main class="app">
+    <section class="page-heading">
+      <div><p class="eyebrow">RÄTTVIS FÖRDELNING</p><h1>Arbetsöversikt</h1><p class="subheading">Registrera dagens placeringar och följ fördelningen över tid.</p></div>
+      <div class="view-tabs" role="tablist" aria-label="Vy"><button class="tab active" data-tab="day" role="tab" aria-selected="true">Dag</button><button class="tab" data-tab="overview" role="tab" aria-selected="false">Överblick</button><button class="tab" data-tab="competence" role="tab" aria-selected="false">Kompetens</button></div>
+    </section>
+
+    <section id="dayView" class="view">
+      <div class="toolbar card">
+        <label class="date-field">Datum<input id="workDate" type="date"></label>
+        <div class="toolbar-actions"><button id="manageButton" class="button secondary" type="button">Hantera listor</button><button id="saveButton" class="button primary" type="button">Spara dagen</button></div>
+      </div>
+      <div class="save-status" id="saveStatus" role="status" aria-live="polite"></div>
+      <div class="section-title"><div><h2>Dagens avdelningar</h2><p>Lägg till alla som arbetar på respektive avdelning.</p></div><button id="addDepartmentButton" class="button add" type="button">＋ Avdelning</button></div>
+      <div id="departmentGrid" class="department-grid" aria-live="polite"></div>
+    </section>
+
+    <section id="overviewView" class="view" hidden>
+      <div class="toolbar card overview-toolbar">
+        <div class="period-switch" role="group" aria-label="Period"><button class="period active" data-period="week" type="button">Vecka</button><button class="period" data-period="month" type="button">Månad</button></div>
+        <label class="date-field">Visa period kring<input id="periodDate" type="date"></label>
+      </div>
+      <div id="periodLabel" class="period-label"></div>
+      <div id="summaryCards" class="summary-cards"></div>
+      <section class="leaderboard-card card"><div class="section-title"><div><h2 id="leaderboardTitle">Topplista · person</h2><p id="leaderboardDescription">Flest registrerade placeringar först. Välj en person för att se avdelningarna.</p></div><span class="metric-chip">Placeringar</span></div><div class="ranking-switch" role="group" aria-label="Visa topplista"><button class="period active" data-ranking="person" type="button">Person</button><button class="period" data-ranking="department" type="button">Avdelning</button></div><div id="leaderboard" class="leaderboard"></div><div id="personBreakdown" class="person-breakdown"></div></section>
+      <section class="card department-overview"><div class="section-title"><div><h2>Alla avdelningar</h2><p>Placeringar och personer under vald period.</p></div></div><div id="departmentSummary" class="department-summary"></div></section>
+      <p class="method-note">Detta visar registrerade placeringar, inte faktisk arbetsbelastning. Pauser, arbetstid, tempo och uppgiftens svårighet registreras inte. Använd siffrorna som underlag för vidare uppföljning.</p>
+    </section>
+
+    <section id="competenceView" class="view" hidden>
+      <div class="section-title competence-heading"><div><p class="eyebrow">PERSONALENS ERFARENHET</p><h2>Kompetens per person</h2><p>Sparade placeringar lägger automatiskt till kompetens på avdelningen.</p></div><label class="search-field"><span class="sr-only">Sök person eller avdelning</span><input id="competenceSearch" type="search" placeholder="Sök person eller avdelning"></label></div>
+      <div id="competenceStats" class="competence-stats"></div>
+      <div id="competenceGrid" class="competence-grid"></div>
+    </section>
+  </main>
+
+  <dialog id="manageDialog" class="manage-dialog">
+    <form method="dialog" class="dialog-head"><div><p class="eyebrow">INSTÄLLNINGAR</p><h2>Hantera listor</h2></div><button class="icon-button" aria-label="Stäng">×</button></form>
+    <div class="manager-section"><div class="manager-heading"><h3>Personal</h3><button id="addPersonButton" class="button add" type="button">＋ Lägg till</button></div><div id="peopleList" class="manager-list"></div></div>
+    <div class="manager-section"><div class="manager-heading"><h3>Avdelningar</h3><button id="manageAddDepartmentButton" class="button add" type="button">＋ Lägg till</button></div><div id="departmentsList" class="manager-list"></div></div>
+  </dialog>
+  <dialog id="nameDialog" class="name-dialog"><form id="nameForm"><div class="dialog-head"><div><p class="eyebrow" id="nameEyebrow">NY POST</p><h2 id="nameTitle">Lägg till</h2></div><button id="closeNameDialog" class="icon-button" type="button" aria-label="Stäng">×</button></div><label class="name-label" id="nameLabel">Namn<input id="nameInput" maxlength="60" autocomplete="off" required></label><div class="dialog-actions"><button id="cancelNameButton" class="button secondary" type="button">Avbryt</button><button class="button primary" type="submit">Lägg till</button></div></form></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

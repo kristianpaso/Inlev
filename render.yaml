@@ -12,6 +12,8 @@ services:
         value: production
       - key: MONGODB_URI
         sync: false
+      - key: NEMO_ACCESS_PASSWORD
+        sync: false
 
   - type: web
     name: trav-api

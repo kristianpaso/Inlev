@@ -21,6 +21,40 @@ function fullName(person) {
   return String(person.name || [person.firstName, person.lastName].filter(Boolean).join(' ') || person.shortName || '').trim();
 }
 
+function equipmentValue(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'object') return String(value).trim();
+  const directCandidates = [value.code, value.rawCode, value.text, value.name, value.type?.text, value.type?.name, value.model];
+  const direct = directCandidates.map((candidate) => (candidate && typeof candidate === 'object' ? equipmentValue(candidate) : String(candidate || '').trim())).find(Boolean);
+  if (direct) return direct;
+  const front = value.front ?? value.fram ?? value.frontShoes ?? value.frontBarefoot;
+  const rear = value.rear ?? value.back ?? value.bak ?? value.rearShoes ?? value.rearBarefoot;
+  if (front !== undefined || rear !== undefined) {
+    const shoeText = (part) => {
+      if (part === true) return 'skor';
+      if (part === false) return 'barfota';
+      if (!part || typeof part !== 'object') return String(part || '').trim();
+      const hasShoe = part.hasShoe ?? part.hasShoes ?? part.shoes;
+      if (hasShoe === true) return 'skor';
+      if (hasShoe === false) return 'barfota';
+      return equipmentValue(part);
+    };
+    return `${shoeText(front)} fram · ${shoeText(rear)} bak`.trim();
+  }
+  return '';
+}
+
+function firstEquipmentValue(...values) {
+  return values.map((value) => equipmentValue(value)).map((value) => /\[object\s+object\]/i.test(value) ? '' : value).find(Boolean) || '';
+}
+
+function isUsableHorseList(horses) {
+  if (!Array.isArray(horses) || !horses.length) return false;
+  return horses.every((horse) => Number.isFinite(Number(horse?.number))
+    && String(horse?.name || '').trim()
+    && !/markera häst nummer|aktuell kostnad för kupongen/i.test(String(horse.name)));
+}
+
 function sexAge(horse) {
   const sex = { stallion: 'h', gelding: 'v', mare: 's', filly: 's', colt: 'h' }[String(horse?.sex || '').toLowerCase()] || '';
   return `${sex}${horse?.age ?? ''}`;
@@ -45,7 +79,8 @@ function horseFromAtgStart(start, gameType) {
     trendPercent,
     winOdds: scratched || odds === null ? null : Number((odds / 100).toFixed(2)),
     trainer: fullName(horse.trainer),
-    sulky: String(horse?.sulky?.type?.text || '').trim(),
+    sulky: firstEquipmentValue(start?.sulky, horse?.sulky, start?.wagon, horse?.wagon),
+    shoeCode: firstEquipmentValue(start?.shoeCode, start?.shoes, horse?.shoeCode, horse?.shoes, horse?.shoe),
     scratched,
     manualScore: 0,
     note: '',
@@ -63,18 +98,22 @@ async function fetchDivisionStartlistsFromApi(atgGameId, urls, gameType) {
   const races = Array.isArray(payload?.races) ? payload.races : [];
   if (!races.length) throw new Error('ATG:s racing-API saknar avdelningar');
 
-  const imported = races.slice(0, urls.length).map((race, index) => ({
+  const importedCandidates = races.slice(0, urls.length).map((race, index) => ({
     division: index + 1,
     sourceUrl: urls[index] || '',
     horses: (Array.isArray(race?.starts) ? race.starts : [])
       .map((start) => horseFromAtgStart(start, gameType))
       .filter((horse) => horse.name || Number.isFinite(horse.number)),
-  })).filter((race) => race.horses.length);
+  }));
+  const imported = importedCandidates.filter((race) => isUsableHorseList(race.horses));
 
-  if (!imported.length) throw new Error('ATG:s racing-API saknar startlistor');
+  if (!imported.length) throw new Error('ATG:s racing-API saknar giltiga startlistor');
   const errors = [];
-  for (let index = imported.length; index < urls.length; index += 1) {
-    errors.push({ division: index + 1, sourceUrl: urls[index] || '', message: 'Avdelningen saknades i ATG:s racing-API' });
+  for (let index = 0; index < urls.length; index += 1) {
+    const candidate = importedCandidates[index];
+    if (!candidate || !isUsableHorseList(candidate.horses)) {
+      errors.push({ division: index + 1, sourceUrl: urls[index] || '', message: 'Avdelningen saknade en giltig startlista i ATG:s racing-API' });
+    }
   }
   return { races: imported, errors };
 }
@@ -122,14 +161,15 @@ async function fetchDivisionWithBrowser(page, url, gameType) {
     try { return await navigator.clipboard.readText(); } catch { return ''; }
   }).catch(() => '');
   const horsesFromClipboard = parseExportText(text, gameType);
-  if (horsesFromClipboard.length) return horsesFromClipboard;
+  if (isUsableHorseList(horsesFromClipboard)) return horsesFromClipboard;
 
   const exportRows = await page.$$eval('tr', (rows) => rows.map((row) => Array.from(row.querySelectorAll('th,td,[startlist-export-id]')).map((cell) => cell.innerText || cell.textContent || ''))).catch(() => []);
   const horsesFromRows = parseExportRows(rowsFromDomCells(exportRows), gameType);
-  if (horsesFromRows.length) return horsesFromRows;
+  if (isUsableHorseList(horsesFromRows)) return horsesFromRows;
 
   const bodyText = await page.locator('body').innerText().catch(() => '');
-  return parseExportText(bodyText, gameType);
+  const horsesFromBody = parseExportText(bodyText, gameType);
+  return isUsableHorseList(horsesFromBody) ? horsesFromBody : [];
 }
 
 async function importDivisionStartlists(urls, gameType, onProgress, atgGameId = '') {
@@ -160,7 +200,7 @@ async function importDivisionStartlists(urls, gameType, onProgress, atgGameId = 
       onProgress?.({ division, status: 'loading' });
       try {
         const horses = await fetchDivisionWithBrowser(page, urls[index], gameType);
-        if (!horses.length) throw new Error('Ingen startlista hittades');
+        if (!isUsableHorseList(horses)) throw new Error('Ingen giltig startlista hittades');
         races.push({ division, sourceUrl: urls[index], horses });
         onProgress?.({ division, status: 'done', count: horses.length });
       } catch (error) {

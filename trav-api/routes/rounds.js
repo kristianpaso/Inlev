@@ -28,7 +28,7 @@ function normalizeRound(races, config) {
     index: race.division,
     division: race.division,
     sourceUrl: race.sourceUrl,
-      horses: race.horses.map((horse) => ({ ...horse, rawLine: [horse.number, horse.name, horse.sexAge, horse.driver, horse.winPercent == null ? '' : `${horse.winPercent}%`, horse.trendPercent ?? '', horse.scratched ? 'EJ' : (horse.winOdds ?? ''), horse.trainer, horse.sulky].join('\t') })),
+      horses: race.horses.map((horse) => ({ ...horse, rawLine: [horse.number, horse.name, horse.sexAge, horse.driver, horse.winPercent == null ? '' : `${horse.winPercent}%`, horse.trendPercent ?? '', horse.scratched ? 'EJ' : (horse.winOdds ?? ''), horse.trainer, horse.sulky, horse.shoeCode].join('\t') })),
   }));
 }
 
@@ -54,6 +54,7 @@ async function persistImportedRound(config, gameId, imported, atgGameId = '') {
   }
 
   const oldDivisions = Array.isArray(game.parsedHorseInfo?.divisions) ? game.parsedHorseInfo.divisions : [];
+  const expectedUrls = buildAtgDivisionUrls(config);
   const importedDivisions = normalizeRound(imported.races, config).map((division) => {
     const oldDivision = oldDivisions.find((item) => Number(item.division || item.index) === Number(division.division));
     return {
@@ -71,7 +72,12 @@ async function persistImportedRound(config, gameId, imported, atgGameId = '') {
     };
   });
   const importedNumbers = new Set(importedDivisions.map((division) => Number(division.division)));
-  const divisions = [...importedDivisions, ...oldDivisions.filter((division) => !importedNumbers.has(Number(division.division)))].sort((a, b) => Number(a.division) - Number(b.division));
+  const divisions = [...importedDivisions, ...oldDivisions.filter((division) => {
+    const divisionNumber = Number(division.division);
+    if (importedNumbers.has(divisionNumber)) return false;
+    const expectedUrl = expectedUrls[divisionNumber - 1] || '';
+    return expectedUrl && String(division.sourceUrl || '') === expectedUrl;
+  })].sort((a, b) => Number(a.division) - Number(b.division));
 
   game.title = `${gameType} ${track}${track2 ? `-${track2}` : ''}`;
   game.date = String(date);

@@ -20,6 +20,7 @@ const friendsRouter = require("./routes/friends");
 const weatherRouter = require("./routes/weather");
 const plansRouter = require("./routes/plans");
 const adminRouter = require("./routes/admin");
+const nemoRouter = require("./routes/nemo");
 const { ensureDefaultGroup, ensureMemberCodeIndex, ensureInitialAdmin } = require("./routes/auth");
 
 const app = express();
@@ -79,6 +80,7 @@ app.use("/api/bigplus", friendsRouter);
 app.use("/api/bigplus", weatherRouter);
 app.use("/api/bigplus", plansRouter);
 app.use("/api/bigplus", adminRouter);
+app.use("/api/nemo", nemoRouter);
 
 app.use((error, req, res, next) => {
   const status = error.status || 500;
@@ -111,8 +113,13 @@ async function connectMongo() {
     await db.collection("fishing_plans").createIndex({ ownerId: 1, updatedAt: -1 });
     await db.collection("fishing_plans").createIndex({ ownerId: 1, planId: 1 }, { unique: true });
     await db.collection("duelVotes").createIndex({ duelId: 1, userId: 1 }, { unique: true });
+    const nemoDb = client.db("Nemo");
+    await nemoDb.collection("days").createIndex({ date: 1 }, { unique: true });
+    await nemoDb.collection("people").createIndex({ key: 1 }, { unique: true, partialFilterExpression: { active: true } });
+    await nemoDb.collection("departments").createIndex({ key: 1 }, { unique: true, partialFilterExpression: { active: true } });
     mongoClient = client;
     app.locals.mongo = db;
+    app.locals.nemoDb = nemoDb;
     mongoAttempts = 0;
     mongoState = "connected";
     console.log("MongoDB ansluten");

@@ -94,6 +94,12 @@ resultsUpdatedAt: { type: Date, default: null },
       type: Object,
       default: {},
     },
+    // Metadata för nyhetskort i Info-vyn. Fulla artiklar sparas inte här;
+    // endast titel, källa, datum, beskrivning och original-länk.
+    infoArticles: {
+      type: [Object],
+      default: [],
+    },
 
     coupons: {
       type: [CouponSchema],

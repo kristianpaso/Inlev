@@ -40,6 +40,7 @@ function parseExportRows(rows, gameType = 'V64') {
   const oddsIndex = findColumn(headers, /^V-?ODDS$/);
   const trainerIndex = findColumn(headers, /^TRÄNARE$/);
   const sulkyIndex = findColumn(headers, /^VAGN$/);
+  const shoeIndex = findColumn(headers, /^(SKOR|SKOKOD|BALANS)$/);
 
   return rows.slice(1).map((row) => {
     let horse = parseHorseCell(row[horseIndex]);
@@ -62,6 +63,7 @@ function parseExportRows(rows, gameType = 'V64') {
       winOdds: scratched ? null : (oddsIndex === null ? null : parseSwedishNumber(row[oddsIndex])),
       trainer: trainerIndex === null ? '' : String(row[trainerIndex] || '').trim(),
       sulky: sulkyIndex === null ? '' : String(row[sulkyIndex] || '').trim(),
+      shoeCode: shoeIndex === null ? '' : String(row[shoeIndex] || '').trim(),
       scratched,
       manualScore: 0,
       note: '',

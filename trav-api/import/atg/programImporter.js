@@ -16,7 +16,7 @@ try {
 } catch {}
 
 const PROGRAM_DATA_ROOT = process.env.PROGRAM_DATA_DIR || path.join(__dirname, '..', '..', 'data', 'programs');
-const PARSER_VERSION = 'program-pdf-v1';
+const PARSER_VERSION = 'program-pdf-v2-shoes';
 const ATG_BETTING_INFO_GAME_URL = 'https://horse-betting-info.prod.c1.atg.cloud/api-public/v0/games';
 
 function clean(value) {
@@ -25,6 +25,40 @@ function clean(value) {
     .replace(/[\u200B-\u200D\uFEFF]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function equipmentValue(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'object') return clean(value);
+  const directCandidates = [value.code, value.rawCode, value.text, value.name, value.type?.text, value.type?.name, value.model];
+  const direct = directCandidates.map((candidate) => (candidate && typeof candidate === 'object' ? equipmentValue(candidate) : clean(candidate))).find(Boolean);
+  if (direct) return direct;
+  const front = value.front ?? value.fram ?? value.frontShoes ?? value.frontBarefoot;
+  const rear = value.rear ?? value.back ?? value.bak ?? value.rearShoes ?? value.rearBarefoot;
+  if (front !== undefined || rear !== undefined) {
+    const shoeText = (part) => {
+      if (part === true) return 'skor';
+      if (part === false) return 'barfota';
+      if (!part || typeof part !== 'object') return clean(part);
+      const hasShoe = part.hasShoe ?? part.hasShoes ?? part.shoes;
+      if (hasShoe === true) return 'skor';
+      if (hasShoe === false) return 'barfota';
+      return equipmentValue(part);
+    };
+    return `${shoeText(front)} fram · ${shoeText(rear)} bak`;
+  }
+  return '';
+}
+
+function firstEquipmentValue(...values) {
+  return values.map((value) => equipmentValue(value)).map((value) => /\[object\s+object\]/i.test(value) ? '' : value).find(Boolean) || '';
+}
+
+function normalizePdfShoeCode(value) {
+  const compact = clean(value).replace(/\s+/g, '');
+  const suffix = compact.slice(-2);
+  // pdf-parse återger ibland ATG:s centtecken (¢) som versalt C.
+  return ({ cC: 'c¢', Cc: '¢c', CC: '¢¢', 'c¢': 'c¢', '¢c': '¢c', '¢¢': '¢¢', cc: 'cc' }[suffix] || '').toLowerCase();
 }
 
 function slug(value) {
@@ -112,10 +146,20 @@ const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, maj: 5, jun: 6, jul: 7, aug: 8,
 function parseRecentStarts(text, raceDate, raceMeta = {}) {
   const source = clean(text);
   const starts = [];
-  const pattern = /([0-9dku]+)\s*(auto|volt|mont[ée])\s*\/\s*([a-z]*\d{1,2}[,.]\d+)([gudk]?)([\d]{1,3}[,.]\d{1,2})?(\d{1,2})(jan|feb|mar|apr|maj|jun|jul|aug|sep|okt|nov|dec)/gi;
-  for (const match of source.matchAll(pattern)) {
-    const tail = source.slice(match.index + match[0].length, match.index + match[0].length + 100);
-    const competition = tail.match(/(?:\b(V\d{2}|GS\d{2})\s*)?([A-ZÅÄÖ]{1,3})(\d{1,2})\s*trav\s*(\d{1,2}):(\d{3,4})\s*([\d-]+[’']?)([a-z]{1,3})/i);
+  // p/k/d/u före starttypen är kvalificering, galopp eller annan statuskod
+  // som förekommer i ATG:s kompakterade PDF-text. De ska inte göra att en
+  // historisk rad försvinner.
+  const pattern = /([0-9dpkgu]+)\s*(auto|volt|mont[ée])\s*\/\s*([a-z]*\d{1,2}[,.]\d+)([gudk]?)([\d]{1,3}[,.]\d{1,2})?(\d{1,2})(jan|feb|mar|apr|maj|jun|jul|aug|sep|okt|nov|dec)/gi;
+  const matches = [...source.matchAll(pattern)];
+  for (let index = 0; index < matches.length; index += 1) {
+    const match = matches[index];
+    // I PDF:ens textutdrag ligger tävlings- och utrustningskolumnerna ibland
+    // långt efter tiden. Begränsa sökningen till den aktuella starten så att
+    // nästa starts sko aldrig kopplas till föregående rad.
+    const nextStartIndex = matches[index + 1]?.index ?? source.length;
+    const tail = source.slice(match.index + match[0].length, nextStartIndex);
+    const competition = tail.match(/(?:\b(V\d{2}|GS\d{2})\s*)?([A-ZÅÄÖ]{1,3})(\d{1,2})\s*trav\s*(\d{1,2}):(\d{3,4})\s*([\d-]+[’']?)([a-z¢]{1,3})/i);
+    const shoeMatch = tail.match(/(?:^|[\s'’\-])(¢¢|¢c|c¢|cc)(?=\s|$)/i);
     const placeRaw = clean(match[1]);
     const month = MONTHS[String(match[7]).toLowerCase()];
     const year = String(raceDate || '').slice(0, 4) || '';
@@ -136,7 +180,8 @@ function parseRecentStarts(text, raceDate, raceMeta = {}) {
       distance: competition ? Number(competition[5]) : (raceMeta.distance || null),
       firstPrize: competition ? (parsePrizeCode(competition[6]) || raceMeta.prizes?.first || null) : (raceMeta.prizes?.first || null),
       gameType: competition?.[1] || '',
-      shoeCode: competition?.[7] || '',
+      shoeCode: normalizePdfShoeCode(shoeMatch?.[1] || competition?.[7] || ''),
+      sulky: '',
       trackCondition: '',
     });
   }
@@ -169,6 +214,8 @@ function parseHorseRows(block, raceMeta) {
     const age = firstMatch(horseLines.join(' '), /(\d+)\s*år/i);
     const form = firstMatch(match.rest, /\b\d+\s+([pkvhs](?:\s+[pkvhs0-9]){0,8})\b/i);
     const blockText = [line, lines[index + 1], match.rest, ...horseLines.slice(1)].filter(Boolean).join(' ');
+    const equipmentText = [line, lines[index + 1], match.rest, ...horseLines.slice(1, 6)].filter(Boolean).join(' ');
+    const shoeCode = normalizePdfShoeCode(firstMatch(equipmentText, /(?:^|\s)(¢¢|¢c|c¢|cc|bb|bc|cb)(?=\s|$)/i) || '');
     rows.push({
       number,
       postPosition: match.post || number,
@@ -178,6 +225,8 @@ function parseHorseRows(block, raceMeta) {
       trainer: people[1] || '',
       formRaw: form,
       recentStarts: parseRecentStarts(horseLines.join(' '), raceMeta.raceDate || raceMeta.date, raceMeta),
+      shoeCode,
+      sulky: '',
       sexAge: `${sexAge}${age ? ` ${age} år` : ''}`.trim(),
       rawText: blockText,
       statisticsRaw: blockText,
@@ -256,7 +305,8 @@ function apiHistoryForHorse(horse, race) {
     distance: race?.distance || null,
     firstPrize: null,
     gameType: '',
-    shoeCode: '',
+    shoeCode: firstEquipmentValue(record?.shoeCode, record?.shoes, record?.shoe, record?.equipment?.shoeCode, record?.equipment?.shoes),
+    sulky: firstEquipmentValue(record?.sulky, record?.wagon, record?.cart, record?.equipment?.sulky, record?.equipment?.wagon),
     trackCondition: '',
   }));
 }
@@ -290,6 +340,8 @@ function apiProgramHorse(start, race) {
     winPercent: distribution === null ? null : Number((distribution / 100).toFixed(2)),
     winOdds: odds === null ? null : Number((odds / 100).toFixed(2)),
     scratched: Boolean(start?.scratched || horse?.scratched),
+    shoeCode: firstEquipmentValue(start?.shoeCode, start?.shoes, horse?.shoeCode, horse?.shoes, horse?.shoe),
+    sulky: firstEquipmentValue(start?.sulky, horse?.sulky, start?.wagon, horse?.wagon),
   };
 }
 
@@ -334,6 +386,135 @@ async function parsePdfBuffer(buffer, metadata = {}) {
   if (!pdfParse) throw new Error('PDF-parsern pdf-parse saknas i API-installationen.');
   const result = await pdfParse(buffer);
   return parseProgramText(result.text, { ...metadata, pages: result.numpages });
+}
+
+function hasShoeData(programs) {
+  return Object.values(programs || {}).some((program) => (program.races || []).some((race) => (race.horses || []).some((horse) => {
+    return (horse.recentStarts || []).some((start) => normalizePdfShoeCode(start.shoeCode || start.shoes || start.shoe || start.equipment?.shoesRaw));
+  })));
+}
+
+async function importCachedPdfProgramsForRound(round) {
+  const trackNames = [...new Set([round?.track, round?.track2].map(clean).filter(Boolean))];
+  const programs = {};
+  const tracks = [];
+  for (let index = 0; index < trackNames.length; index += 1) {
+    const trackName = trackNames[index];
+    const localPath = path.join(PROGRAM_DATA_ROOT, clean(round.date), `${slug(trackName)}.pdf`);
+    const buffer = await fsp.readFile(localPath).catch(() => null);
+    if (!isPdfBuffer(buffer)) continue;
+    const parsed = await parsePdfBuffer(buffer, { trackName, raceDate: round.date });
+    if (!parsed.races.length) continue;
+    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+    const key = `${slug(trackName)}-${index}`;
+    programs[key] = {
+      key,
+      roundId: String(round._id || round.id || ''),
+      trackId: slug(trackName),
+      trackName,
+      raceDate: clean(round.date),
+      localPath: path.relative(path.join(PROGRAM_DATA_ROOT, '..'), localPath).replaceAll(path.sep, '/'),
+      sourcePdfUrl: '',
+      sourceType: 'local-cache',
+      pdfHash: hash,
+      byteSize: buffer.length,
+      fetchedAt: new Date().toISOString(),
+      parserVersion: PARSER_VERSION,
+      pages: parsed.pages,
+      raceCount: parsed.races.length,
+      races: parsed.races,
+      rawText: parsed.rawText,
+      parseStatus: 'cached-local',
+    };
+    tracks.push({ name: trackName, index, status: 'cached-local', pages: parsed.pages, races: parsed.races.length, sourceType: 'local-cache' });
+  }
+  return tracks.length ? { tracks, programs, matches: matchProgramRaces(round, programs), parserVersion: PARSER_VERSION, importedAt: new Date().toISOString() } : null;
+}
+
+function sameProgramTrack(left, right) {
+  const a = slug(left);
+  const b = slug(right);
+  return Boolean(a && b && (a === b || a.includes(b) || b.includes(a)));
+}
+
+function mergeProgramHorse(apiHorse, pdfHorse) {
+  if (!pdfHorse) return apiHorse;
+  const apiShoe = firstEquipmentValue(apiHorse.shoeCode, apiHorse.shoes, apiHorse.shoe);
+  const pdfShoe = firstEquipmentValue(pdfHorse.shoeCode, pdfHorse.shoes, pdfHorse.shoe);
+  const apiWagon = firstEquipmentValue(apiHorse.sulky, apiHorse.wagon, apiHorse.cart);
+  const pdfWagon = firstEquipmentValue(pdfHorse.sulky, pdfHorse.wagon, pdfHorse.cart);
+  return {
+    ...pdfHorse,
+    ...apiHorse,
+    number: apiHorse.number || pdfHorse.number,
+    name: apiHorse.name || pdfHorse.name,
+    driver: apiHorse.driver || pdfHorse.driver,
+    trainer: apiHorse.trainer || pdfHorse.trainer,
+    shoeCode: pdfShoe || apiShoe,
+    sulky: pdfWagon || apiWagon,
+    recentStarts: [...(pdfHorse.recentStarts || []), ...(apiHorse.recentStarts || [])],
+  };
+}
+
+function mergeApiAndPdfPrograms(round, apiResult, pdfResult) {
+  const pdfPrograms = Object.values(pdfResult?.programs || {});
+  const programs = {};
+  let enrichedPrograms = 0;
+  let enrichedHorses = 0;
+
+  Object.values(apiResult?.programs || {}).forEach((apiProgram) => {
+    const pdfProgram = pdfPrograms.find((candidate) => sameProgramTrack(candidate.trackName, apiProgram.trackName));
+    if (!pdfProgram) {
+      programs[apiProgram.key] = apiProgram;
+      return;
+    }
+    enrichedPrograms += 1;
+    const races = (apiProgram.races || []).map((apiRace) => {
+      const pdfRace = (pdfProgram.races || []).find((candidate) => Number(candidate.raceNumber) === Number(apiRace.raceNumber))
+        || (pdfProgram.races || []).find((candidate) => raceHorseOverlap(apiRace, candidate) > 0);
+      if (!pdfRace) return apiRace;
+      const pdfByNumber = new Map((pdfRace.horses || []).map((horse) => [Number(horse.number), horse]));
+      const pdfByName = new Map((pdfRace.horses || []).map((horse) => [normalizedHorseName(horse.name), horse]));
+      const horses = (apiRace.horses || []).map((apiHorse) => {
+        const pdfHorse = pdfByName.get(normalizedHorseName(apiHorse.name)) || pdfByNumber.get(Number(apiHorse.number));
+        if (pdfHorse) enrichedHorses += 1;
+        return mergeProgramHorse(apiHorse, pdfHorse);
+      });
+      return {
+        ...apiRace,
+        ...pdfRace,
+        raceNumber: apiRace.raceNumber || pdfRace.raceNumber,
+        horses,
+        horseCount: horses.length,
+        rawText: apiRace.rawText || pdfRace.rawText || '',
+      };
+    });
+    programs[apiProgram.key] = {
+      ...apiProgram,
+      sourcePdfUrl: pdfProgram.sourcePdfUrl || '',
+      sourceType: 'atg-api+pdf',
+      pdfHash: pdfProgram.pdfHash || '',
+      byteSize: pdfProgram.byteSize || 0,
+      pages: pdfProgram.pages,
+      raceCount: races.length,
+      races,
+      rawText: pdfProgram.rawText || apiProgram.rawText || '',
+      parseStatus: 'enriched',
+    };
+  });
+
+  const tracks = (apiResult?.tracks || []).map((track) => {
+    const pdfTrack = (pdfResult?.tracks || []).find((candidate) => sameProgramTrack(candidate.name, track.name));
+    return pdfTrack && enrichedPrograms ? { ...track, status: 'enriched', sourceType: 'atg-api+pdf', pages: pdfTrack.pages, races: pdfTrack.races } : track;
+  });
+  return {
+    ...apiResult,
+    tracks,
+    programs,
+    matches: matchProgramRaces(round, programs),
+    sourceType: enrichedHorses ? 'atg-api+pdf' : 'atg-api',
+    enrichment: { programs: enrichedPrograms, horses: enrichedHorses },
+  };
 }
 
 async function readPdfCandidate(candidate) {
@@ -530,54 +711,103 @@ async function saveProgramPdf(buffer, round, trackName, source) {
   };
 }
 
-async function importTrackProgramsForRound(round) {
+async function importPdfProgramsForRound(round) {
   if (!pdfParse) throw new Error('PDF-parsern pdf-parse saknas i API-installationen.');
-  // ATG:s nya startlistesida visar inte längre PDF-länkar i HTML:en. Den
-  // publika datatjänsten är därför den stabila vägen när ett ATG-spel-id finns.
-  // PDF-flödet nedan används fortfarande som fallback för äldre/andra sidor.
-  const apiProgram = await importAtgGameAsProgram(round);
-  if (apiProgram) return apiProgram;
   const config = { date: round.date, gameType: round.gameType, track: round.track, track2: round.track2 || '' };
   const baseUrl = round.atgRoundUrl || buildAtgDivisionUrls(config)[0];
+  const divisionUrls = (round.races || round.parsedHorseInfo?.divisions || [])
+    .map((race) => race.sourceUrl || race.atgUrl || '')
+    .filter((url) => /^https?:/i.test(url));
+  const pageUrls = [...new Set([baseUrl, ...divisionUrls].filter((url) => /^https?:/i.test(url)))];
+  const expectedTracks = [round.track, round.track2].map((value) => slug(value)).filter(Boolean);
   await ensureChromium();
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] });
   const page = await browser.newPage({ locale: 'sv-SE', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36', viewport: { width: 1365, height: 1100 } });
   const tracks = [];
   const programs = {};
+  const seenProgramKeys = new Set();
+  let discoveredAny = false;
   try {
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForTimeout(2200);
-    const links = await discoverTrackPrograms(page);
-    if (!links.length) throw new Error('ATG:s banprogramslänkar hittades inte på omgångssidan.');
-    for (const item of links) {
-      const track = { name: item.name, index: item.index, status: 'loading' };
-      tracks.push(track);
+    for (const pageUrl of pageUrls) {
       try {
-        const link = page.locator('[data-test-id="tracks-program-container"] [data-test-id="track-program-link"]').nth(item.index);
-        const source = await captureProgramPdf(page, link);
-        if (!source) throw new Error('Ingen PDF kunde fångas från Detaljerad.');
-        const hash = crypto.createHash('sha256').update(source.buffer).digest('hex');
-        const previousItems = Object.values(round.programs?.items || {});
-        const cached = previousItems.find((previous) => previous.pdfHash === hash);
-        const stored = cached ? { ...cached, trackName: item.name, trackId: slug(item.name), sourceType: source.sourceType || cached.sourceType, fetchedAt: cached.fetchedAt || new Date().toISOString() } : await saveProgramPdf(source.buffer, round, item.name, source);
-        const parsed = cached ? { pages: cached.pages, races: cached.races || [], rawText: cached.rawText || '' } : await parsePdfBuffer(source.buffer, { trackName: item.name, raceDate: round.date });
-        const key = `${slug(item.name)}-${item.index}`;
-        programs[key] = { key, ...stored, pages: parsed.pages, raceCount: parsed.races.length, races: parsed.races, rawText: parsed.rawText, parseStatus: parsed.races.length ? (cached ? 'cached' : 'parsed') : 'parsed_no_races' };
-        track.status = programs[key].parseStatus;
-        track.pdfHash = stored.pdfHash;
-        track.pages = parsed.pages;
-        track.races = parsed.races.length;
-        track.sourceType = stored.sourceType;
+        await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForTimeout(2200);
       } catch (error) {
-        track.status = 'error';
-        track.error = error.message || 'Banprogrammet kunde inte läsas.';
+        if (!discoveredAny && pageUrl === pageUrls[pageUrls.length - 1]) throw error;
+        continue;
       }
+      const links = await discoverTrackPrograms(page);
+      if (!links.length) continue;
+      discoveredAny = true;
+      for (const item of links) {
+        const key = `${slug(item.name)}-${item.index}`;
+        if (seenProgramKeys.has(key)) continue;
+        seenProgramKeys.add(key);
+        const track = { name: item.name, index: item.index, status: 'loading' };
+        tracks.push(track);
+        try {
+          const link = page.locator('[data-test-id="tracks-program-container"] [data-test-id="track-program-link"]').nth(item.index);
+          const source = await captureProgramPdf(page, link);
+          if (!source) throw new Error('Ingen PDF kunde fångas från Detaljerad.');
+          const hash = crypto.createHash('sha256').update(source.buffer).digest('hex');
+          const previousItems = Object.values(round.programs?.items || {});
+          // En parserändring (t.ex. förbättrad SKOR-läsning) måste tvinga fram
+          // en ny texttolkning även om ATG levererar samma PDF-hash.
+          // En tidigare API+PDF-berikad post innehåller redan API-historiken.
+          // Den får inte användas som ren PDF-cache, annars dubbleras historiken
+          // vid varje tryck på Uppdatera.
+          const cached = previousItems.find((previous) => previous.pdfHash === hash && previous.parserVersion === PARSER_VERSION && previous.sourceType !== 'atg-api+pdf');
+          const stored = cached ? { ...cached, trackName: item.name, trackId: slug(item.name), sourceType: source.sourceType || cached.sourceType, fetchedAt: cached.fetchedAt || new Date().toISOString() } : await saveProgramPdf(source.buffer, round, item.name, source);
+          const parsed = cached ? { pages: cached.pages, races: cached.races || [], rawText: cached.rawText || '' } : await parsePdfBuffer(source.buffer, { trackName: item.name, raceDate: round.date });
+          programs[key] = { key, ...stored, pages: parsed.pages, raceCount: parsed.races.length, races: parsed.races, rawText: parsed.rawText, parseStatus: parsed.races.length ? (cached ? 'cached' : 'parsed') : 'parsed_no_races' };
+          track.status = programs[key].parseStatus;
+          track.pdfHash = stored.pdfHash;
+          track.pages = parsed.pages;
+          track.races = parsed.races.length;
+          track.sourceType = stored.sourceType;
+        } catch (error) {
+          track.status = 'error';
+          track.error = error.message || 'Banprogrammet kunde inte läsas.';
+        }
+      }
+      const foundTracks = tracks.map((track) => slug(track.name));
+      if (expectedTracks.length && expectedTracks.every((track) => foundTracks.includes(track))) break;
     }
+    if (!discoveredAny) throw new Error('ATG:s banprogramslänkar hittades inte på omgångssidan.');
   } finally {
     await page.close().catch(() => {});
     await browser.close().catch(() => {});
   }
   return { tracks, programs, matches: matchProgramRaces(round, programs), parserVersion: PARSER_VERSION, importedAt: new Date().toISOString() };
+}
+
+async function importTrackProgramsForRound(round) {
+  if (!pdfParse) throw new Error('PDF-parsern pdf-parse saknas i API-installationen.');
+  // ATG:s betting-API är snabbast och används alltid som bas. Det saknar dock
+  // ofta PDF:ens historiska utrustningskolumn (SKOR). Försök därför berika
+  // svaret med PDF-data när API-programmet inte innehåller någon skohistorik.
+  const apiProgram = await importAtgGameAsProgram(round);
+  if (!apiProgram) return importPdfProgramsForRound(round);
+  if (hasShoeData(apiProgram.programs)) return apiProgram;
+  try {
+    const cachedPdfProgram = await importCachedPdfProgramsForRound(round);
+    if (cachedPdfProgram) {
+      const enriched = mergeApiAndPdfPrograms(round, apiProgram, cachedPdfProgram);
+      if (enriched.enrichment?.horses) return enriched;
+    }
+  } catch (error) {
+    console.warn('Lokal PDF-berikning av banprogram misslyckades:', error.message || error);
+  }
+  try {
+    const pdfProgram = await importPdfProgramsForRound(round);
+    const enriched = mergeApiAndPdfPrograms(round, apiProgram, pdfProgram);
+    if (enriched.enrichment?.horses) return enriched;
+  } catch (error) {
+    // PDF är ett berikningssteg. Ett tillfälligt ATG-/Playwright-fel ska inte
+    // göra att den fungerande API-importen försvinner.
+    console.warn('PDF-berikning av banprogram misslyckades:', error.message || error);
+  }
+  return apiProgram;
 }
 
 module.exports = {
