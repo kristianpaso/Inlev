@@ -1,5 +1,5 @@
 const local = ["localhost", "127.0.0.1"].includes(location.hostname);
-const API = `${local ? "http://127.0.0.1:4100" : (window.NEMO_RENDER_API_ROOT || "https://nemo-api.onrender.com")}/api/nemo`;
+const API = `${local ? "http://127.0.0.1:4100" : (window.NEMO_RENDER_API_ROOT || "https://bigplus-api.onrender.com")}/api/nemo`;
 const SEED_DEPARTMENTS = ["Plock AS Normal","Plock AS Marketplaces","Fadder","Returhantering","B2B","Inventering","Inleverans Automatisk","Infackning Buffert","Komplettering","TL","Utleverans","Infackning AS","Plock AS - Norge","Påfyllning Buffert","Externa"];
 const SEED_PEOPLE = ["Ali","Asma","Sigurd","Roudi","Haris","Mathilda","Frida","Belissa","Cecilia","Paso","Morsal","Raziyeh","Nasser","Sofia","Axel","Ahmad Y","Ahmad J"];
 const $ = (selector) => document.querySelector(selector);
@@ -175,6 +175,6 @@ function bindEvents() {
 async function start() {
   bindEvents(); state.selectedDate = dayString(); $("#workDate").value = state.selectedDate; $("#periodDate").value = state.selectedDate;
   try { await requireSession(); await loadBootstrap(); await loadDay(); }
-  catch (error) { $("#departmentGrid").innerHTML = `<div class="empty-overview card">${escapeHTML(error.message)}<br><br>Kontrollera att Nemo API är igång på port 4100.</div>`; setStatus(error.message, true); }
+  catch (error) { const apiHint = local ? "Kontrollera att Nemo API är igång på port 4100." : `Kontrollera Render-API:t på ${API.replace("/api/nemo", "")}/health.`; $("#departmentGrid").innerHTML = `<div class="empty-overview card">${escapeHTML(error.message)}<br><br>${escapeHTML(apiHint)}</div>`; setStatus(error.message, true); }
 }
 start();
